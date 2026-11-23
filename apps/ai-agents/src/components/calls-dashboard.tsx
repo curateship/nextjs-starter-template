@@ -145,7 +145,7 @@ export function CallsDashboard() {
 
       <DashboardTable
         title="Calls"
-        icon={<PhoneIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<PhoneIcon className="text-muted-foreground" />}
         count={filteredCalls.length}
         controls={controls}
         status={hasActive ? { tone: "success", text: "Live" } : undefined}
@@ -166,12 +166,8 @@ export function CallsDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || paginatedCalls.length === 0}
-        emptyText={
-          loading
-            ? "Loading calls..."
-            : "No calls yet. Test-call an agent from its editor, or launch a campaign."
-        }
+        isEmpty={!loading && paginatedCalls.length === 0}
+        emptyText="No calls yet. Test-call an agent from its editor, or launch a campaign."
         emptyColSpan={7}
         footer={{
           type: "pagination",

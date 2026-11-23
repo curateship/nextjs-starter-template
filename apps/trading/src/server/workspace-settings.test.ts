@@ -8,7 +8,6 @@ describe("workspace settings", () => {
       parseWorkspaceSettings({
         icon: "briefcaseBusiness",
         favicon: "",
-        topNavigation: [],
         topRightNavigation: [],
         sections: [],
       })
@@ -20,7 +19,6 @@ describe("workspace settings", () => {
       icon: "briefcaseBusiness",
       sidebarWidth: 280,
       favicon: "",
-      topNavigation: [],
       topRightNavigation: [],
       sections: [],
     }

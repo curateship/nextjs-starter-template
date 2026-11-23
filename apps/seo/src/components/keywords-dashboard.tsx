@@ -410,7 +410,7 @@ export function KeywordsDashboard({
 
       <DashboardTable
         title="Keywords"
-        icon={<SearchIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<SearchIcon className="text-muted-foreground" />}
         count={total}
         status={status}
         selectedCount={selectedIds.size}
@@ -686,15 +686,13 @@ export function KeywordsDashboard({
             </TableHeader>
           </>
         }
-        isEmpty={loading || rows.length === 0}
+        isEmpty={!loading && rows.length === 0}
         emptyText={
-          loading
-            ? "Loading keywords..."
-            : hasActiveJob
-              ? "Research is running. Results will appear here shortly."
-              : total === 0 && !activeChips.length && !debouncedQuery
-                ? "No keywords yet. Run seed or domain research to find ideas."
-                : "No keyword ideas found. Try a broader seed keyword or fewer filters."
+          hasActiveJob
+            ? "Research is running. Results will appear here shortly."
+            : total === 0 && !activeChips.length && !debouncedQuery
+              ? "No keywords yet. Run seed or domain research to find ideas."
+              : "No keyword ideas found. Try a broader seed keyword or fewer filters."
         }
         emptyColSpan={12}
         footer={{

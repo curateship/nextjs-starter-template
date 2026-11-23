@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button"
 export function IconButton({
   label,
   onClick,
+  disabled,
   children,
 }: {
   label: string
   onClick: () => void
+  disabled?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -19,6 +21,7 @@ export function IconButton({
       className="size-8 shrink-0 text-muted-foreground"
       aria-label={label}
       title={label}
+      disabled={disabled}
       onClick={onClick}
     >
       {children}

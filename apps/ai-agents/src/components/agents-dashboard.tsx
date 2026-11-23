@@ -198,7 +198,7 @@ export function AgentsDashboard() {
 
       <DashboardTable
         title="Agents"
-        icon={<BotIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<BotIcon className="text-muted-foreground" />}
         count={filteredAgents.length}
         controls={controls}
         header={
@@ -224,12 +224,8 @@ export function AgentsDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || paginatedAgents.length === 0}
-        emptyText={
-          loading
-            ? "Loading agents..."
-            : "No agents yet. Create your first voice agent to start making calls."
-        }
+        isEmpty={!loading && paginatedAgents.length === 0}
+        emptyText="No agents yet. Create your first voice agent to start making calls."
         emptyColSpan={7}
         footer={{
           type: "pagination",

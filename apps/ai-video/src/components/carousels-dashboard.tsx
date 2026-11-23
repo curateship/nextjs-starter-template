@@ -1,8 +1,7 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
-  AlertCircleIcon,
-  EditIcon,
+  SettingsIcon,
   ImageIcon,
   LayersIcon,
   Loader2Icon,
@@ -15,6 +14,12 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
@@ -28,12 +33,13 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   TableCell,
   TableHead,
@@ -249,7 +255,7 @@ export function CarouselsDashboard() {
   const {
     selectedIds,
     toggleSelected,
-    allVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   } = useSelection(visibleIds)
@@ -312,14 +318,14 @@ export function CarouselsDashboard() {
         <DashboardTable
           title="Carousels"
           icon={
-            <PanelsTopLeftIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <PanelsTopLeftIcon className="text-muted-foreground" />
           }
           count={totalCarousels}
           controls={controls}
           content={
             <div className="px-5 pt-3 pb-5">
-              {emptyLoading || carousels.length === 0 ? (
-                <EmptyCarousels loading={emptyLoading} />
+              {emptyLoading ? null : carousels.length === 0 ? (
+                <EmptyCarousels />
               ) : (
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
                   {carousels.map((carousel) => (
@@ -343,7 +349,7 @@ export function CarouselsDashboard() {
         <DashboardTable
           title="Carousels"
           icon={
-            <PanelsTopLeftIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <PanelsTopLeftIcon className="text-muted-foreground" />
           }
           count={totalCarousels}
           controls={controls}
@@ -352,7 +358,7 @@ export function CarouselsDashboard() {
               <TableRow>
                 <TableHead column="select">
                   <Checkbox
-                    checked={allVisibleSelected}
+                    checked={selectAllState}
                     onCheckedChange={toggleVisibleSelected}
                     aria-label="Select visible carousels"
                   />
@@ -397,10 +403,8 @@ export function CarouselsDashboard() {
               </TableRow>
             </TableHeader>
           }
-          isEmpty={emptyLoading || carousels.length === 0}
-          emptyText={
-            emptyLoading ? "Loading carousels..." : "No carousels found."
-          }
+          isEmpty={!emptyLoading && carousels.length === 0}
+          emptyText="No carousels found."
           emptyColSpan={6}
           footer={paginationFooter}
         >
@@ -429,54 +433,67 @@ export function CarouselsDashboard() {
                 ? "Rename Carousel"
                 : "New Carousel"}
             </DialogTitle>
+            <DialogDescription>
+              {modalState?.type === "rename"
+                ? "Give this carousel a new name."
+                : "Name your carousel and optionally paste text to generate slides."}
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="space-y-5">
-              {modalError ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                >
-                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{modalError}</span>
-                </div>
-              ) : null}
-
-              <div className="grid gap-2">
-                <Label htmlFor="carousel-name">Name</Label>
-                <Input
-                  id="carousel-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Carousel name"
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") return
-                    if (modalState?.type === "rename" && !renameDisabled) {
-                      void handleRenameCarousel()
-                    }
-                  }}
-                />
-              </div>
-
-              {modalState?.type === "create" ? (
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Carousel</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="carousel-source">Source text (optional)</Label>
-                  <Textarea
-                    id="carousel-source"
-                    rows={8}
-                    value={sourceText}
-                    onChange={(event) => setSourceText(event.target.value)}
-                    placeholder="Paste blog or newsletter text to generate slides"
+                  <FieldLabel htmlFor="carousel-name">Name</FieldLabel>
+                  <Input
+                    id="carousel-name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Carousel name"
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return
+                      if (modalState?.type === "rename" && !renameDisabled) {
+                        void handleRenameCarousel()
+                      }
+                    }}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Default format: 4:5 portrait.
-                  </p>
                 </div>
-              ) : null}
-            </div>
+
+                {modalState?.type === "create" ? (
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="carousel-source"
+                      hint="Default format: 4:5 portrait."
+                    >
+                      Source text (optional)
+                    </FieldLabel>
+                    <Textarea
+                      id="carousel-source"
+                      rows={1}
+                      value={sourceText}
+                      onChange={(event) => setSourceText(event.target.value)}
+                      placeholder="Paste blog or newsletter text to generate slides"
+                    />
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {modalError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {modalError}
+              </p>
+            ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={closeModal}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting}
+              onClick={closeModal}
+            >
               Cancel
             </Button>
             {modalState?.type === "rename" ? (
@@ -594,7 +611,7 @@ function CarouselTableRow({
             onClick={onRename}
             aria-label="Rename carousel"
           >
-            <EditIcon className="size-4" />
+            <SettingsIcon className="size-4" />
           </Button>
           <Button
             type="button"
@@ -673,7 +690,7 @@ function CarouselGalleryItem({
           onClick={onRename}
           aria-label="Rename carousel"
         >
-          <EditIcon className="size-4" />
+          <SettingsIcon className="size-4" />
         </Button>
         <Button
           type="button"
@@ -721,16 +738,12 @@ function CarouselThumb({
   )
 }
 
-function EmptyCarousels({ loading }: { loading: boolean }) {
+function EmptyCarousels() {
   return (
     <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
       <div>
-        {loading ? (
-          <Loader2Icon className="mx-auto mb-3 size-10 animate-spin" />
-        ) : (
-          <ImageIcon className="mx-auto mb-3 size-10" />
-        )}
-        <p>{loading ? "Loading carousels..." : "No carousels found."}</p>
+        <ImageIcon className="mx-auto mb-3 size-10" />
+        <p>No carousels found.</p>
       </div>
     </div>
   )

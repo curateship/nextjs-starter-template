@@ -1,9 +1,13 @@
 import * as React from "react"
-import { XIcon } from "lucide-react"
+import { flushSync } from "react-dom"
+
+import { signedPct } from "@/lib/format"
+import { BellRingIcon, Trash2Icon, XIcon } from "lucide-react"
 import type {
   CandlestickData,
   HistogramData,
   IChartApi,
+  IPanePrimitive,
   IPriceLine,
   ISeriesApi,
   ISeriesMarkersPluginApi,
@@ -16,9 +20,30 @@ import type {
 } from "lightweight-charts"
 
 import {
+  ChartDrawToolbar,
+  type ChartDrawTool,
+} from "@/components/chart/chart-draw-toolbar"
+import {
+  ChartPositionOverlay,
+  type ChartPositionPixels,
+} from "@/components/chart/chart-position-overlay"
+import {
+  chartPositionHandleAt,
+  clampChartPosition,
+  createChartPosition,
+  DEFAULT_POSITION_BARS,
+  dragChartPosition,
+  isInsideChartPosition,
+  type ChartPosition,
+  type ChartPositionHandle,
+} from "@/lib/trading/chart-positions"
+import {
+  EMPTY_CHART_DRAWINGS,
+  type ChartDrawings,
+} from "@/lib/trading/chart-drawings"
+import {
   configOverlays,
   EMPTY_STRATEGY_OVERLAYS,
-  outputToOverlays,
 } from "@/components/chart/indicator-overlays"
 import {
   CHART_DOWN_COLOR as DOWN_COLOR,
@@ -27,15 +52,17 @@ import {
   type ChartMarker,
 } from "@/components/chart/chart-markers"
 import {
-  cacheTrendlines,
   DEFAULT_TRENDLINE_COLOR,
   distanceToSegment,
+  moveTrendline,
   moveTrendlinePoint,
   nearestCandleTime,
+  trendlinePriceAt,
   type PixelPoint,
   type Trendline,
   type TrendlinePoint,
 } from "@/lib/trading/trendlines"
+import type { AlertStatus, TrendlineTouchMode } from "@/lib/alerts"
 import {
   Popover,
   PopoverAnchor,
@@ -43,12 +70,30 @@ import {
   PopoverHeader,
   PopoverTitle,
 } from "@/components/ui/popover"
-import { ChartLoadingSkeleton } from "@/components/loading-skeleton"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import {
-  loadChartTrendlines,
-  saveChartTrendlines,
-} from "@/lib/api/chart-trendlines"
-import { INDICATORS } from "@/lib/indicators/registry"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { ChartLoadingSkeleton } from "@/components/loading-skeleton"
+import { useChartDrawings } from "@/components/chart/use-chart-drawings"
+import {
+  basePaint,
+  bollingerPaint,
+  emaCrossPaint,
+  fvgPaint,
+  priceActionPaint,
+  qqePaint,
+  sessionSignalsPaint,
+  sessionZonesPaint,
+  toNumericCandles,
+  trendlinePaint,
+} from "@/components/chart/indicator-paint"
 import { useShellRuntime } from "@/components/shell-layout"
 import { candleIntervalMs, useCandles } from "@/lib/hl/hooks"
 import { loadOlderHlCandles } from "@/lib/api/hl-candles"
@@ -59,20 +104,16 @@ import {
   bollinger,
   ema,
   macd,
-  qflBase,
+  baseLevels,
+  ceilingLevels,
   rsi,
-  vwap,
 } from "@/lib/strategies/indicators"
 import {
   emaLines,
-  fairValueGapChartToModuleParams,
   indicatorColor,
   OSCILLATORS,
-  qqeChartToModuleParams,
-  trendlineChartToModuleParams,
   type IndicatorConfig,
 } from "@/lib/trading/indicators-config"
-import { sessionsInRange } from "@/lib/trading/sessions"
 
 // Trading-domain polarity convention (TradingView standard pair): up/down
 // hues separated in lightness so direction survives CVD; everything else on
@@ -81,10 +122,6 @@ const UP_VOLUME = "rgba(8, 153, 129, 0.35)"
 const DOWN_VOLUME = "rgba(242, 54, 69, 0.35)"
 const MEASURE_UP_FILL = "rgba(8, 153, 129, 0.15)"
 const MEASURE_DOWN_FILL = "rgba(242, 54, 69, 0.15)"
-/** Canvas label room reserved for the overlaid cancel button. */
-const LINE_ACTION_TITLE_PADDING = "     "
-/** Pulsing pointer that locates a focused trade's entry/exit on the chart. */
-const FOCUS_COLOR = "#2962ff"
 const TRENDLINE_COLORS = [
   "#2962ff",
   "#089981",
@@ -93,24 +130,85 @@ const TRENDLINE_COLORS = [
   "#8b5cf6",
   "#ec4899",
 ] as const
-const EMPTY_TRENDLINES: Trendline[] = []
-/** Stable default so the pointer effect doesn't re-run for unfocused charts. */
+/** Stable default so the focus effects don't re-run for unfocused charts. */
 const EMPTY_FOCUS_POINTS: ChartFocusPoint[] = []
+// Stable empty defaults: a literal `= []` default re-creates the array every
+// render, and the pixel-projection effects keyed on these arrays would then
+// re-run and setState fresh arrays forever — an infinite update loop for any
+// caller that omits the prop.
+const EMPTY_PRICE_LINES: ChartPriceLine[] = []
+const EMPTY_MARKERS: ChartMarker[] = []
+const EMPTY_INDICATORS: IndicatorConfig[] = []
+const EMPTY_OVERLAY_LINES: ChartOverlayLine[] = []
+// EMPTY_ZONES already exists further down; the zones default reuses it.
+const EMPTY_BAR_COLORS: ChartBarColor[] = []
+/**
+ * How far back an append-only repaint re-checks bar colours before trusting
+ * itself. Indicator colouring is computed forward from older bars, so a change
+ * lands on the recent tail; anything further back would mean the whole series
+ * shifted, which shows up in this window too.
+ */
+const COLOR_RECHECK_BARS = 300
+/** Renders between drift checks (dev only) — see where it is used. */
+const DRIFT_CHECK_EVERY = 240
+/**
+ * Bars the indicator maths reruns over while a replay is STREAMING bars in, so
+ * a long session costs the same in its fourth minute as in its first.
+ *
+ * Only applied on those append frames. Any full recomputation — first load, a
+ * timeframe switch, scrolled-in history, a scrub — still runs over everything
+ * the chart holds, so the drawn lines cover the full history and the live
+ * trading chart (which loads several thousand bars and appends about one a
+ * minute) is untouched.
+ */
+const INDICATOR_CANDLE_CAP = 1500
 
-// lightweight-charts sizes fill-arrow markers from bar spacing with these
-// rounding rules; we mirror them so a focus ring centers on the arrow at any
-// zoom. See its series-markers geometry.
-const ceiledOdd = (x: number) => {
-  const c = Math.ceil(x)
-  return c % 2 === 0 ? c - 1 : c
+/** A base-mark key's start time. Keys are `start|end|price|colour`. */
+function baseKeyStart(key: string): number {
+  return Number(key.slice(0, key.indexOf("|")))
 }
-const ceiledEven = (x: number) => {
-  const c = Math.ceil(x)
-  return c % 2 !== 0 ? c - 1 : c
+
+/**
+ * Reports a drawing the chart could not place — always a defect, since every
+ * drawing is anchored to a bar the chart is supposed to have. Goes to the
+ * console AND to the on-screen banner the practice session already shows for
+ * drag anomalies, so a report can be captured in one screenshot instead of
+ * reproduced blind.
+ *
+ * Development only: this is a tripwire for us, not an error a trader should be
+ * shown mid-session. Rate-limited, because a bad frame usually repeats and one
+ * legible message beats a hundred identical ones.
+ */
+let lastAnomalyAt = 0
+let lastAnomalyText = ""
+function reportDrawingAnomaly(message: string) {
+  if (!import.meta.env.DEV) return
+  const now = performance.now()
+  if (message === lastAnomalyText && now - lastAnomalyAt < 2000) return
+  lastAnomalyText = message
+  lastAnomalyAt = now
+  console.error("[practice drawing anomaly]", message)
+  window.dispatchEvent(
+    new CustomEvent("practice-drag-anomaly", { detail: message })
+  )
 }
-/** Half an arrow marker's height for a given bar spacing (its offset off the bar). */
-const halfArrowHeight = (barSpacing: number) =>
-  ceiledEven(ceiledOdd(Math.min(Math.max(barSpacing, 12), 30))) / 2
+
+/**
+ * How many bars the previous candle array held before `firstTime` — i.e. how
+ * many were dropped off the left this repaint. Binary search; the arrays are
+ * sorted by open time. 0 when the old array didn't reach that far.
+ */
+function droppedFromLeft(previous: ChartCandle[], firstTime: number): number {
+  let lo = 0
+  let hi = previous.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (previous[mid].t < firstTime) lo = mid + 1
+    else hi = mid
+  }
+  return lo < previous.length && previous[lo].t === firstTime ? lo : 0
+}
+
 // MACD histogram polarity (theme-independent, like volume).
 const MACD_UP = "rgba(8, 153, 129, 0.5)"
 const MACD_DOWN = "rgba(242, 54, 69, 0.5)"
@@ -134,17 +232,27 @@ export type { ChartMarker } from "@/components/chart/chart-markers"
 export type PriceChartHandle = {
   /** Re-frame the chart to its default view and re-enable price auto-scaling. */
   resetView: () => void
+  /**
+   * Snap a dragged line back to its prop-driven price immediately, dropping the
+   * post-drop hold. Used when the parent rejects a drag (e.g. the user cancels
+   * a confirm dialog) so the line doesn't linger at the dropped price.
+   */
+  revertLine: (id: string) => void
+  /**
+   * True while a drawing gesture is in flight (a draw tool armed, or a
+   * position box / trendline drag mid-press). A replay parent holds its
+   * playhead still during gestures so the time axis can't slide under the
+   * pointer — nor pile up bars that would make the view lurch afterwards.
+   */
+  drawingGestureActive: () => boolean
 }
 
 /** A fill pulsed on the chart to locate a focused trade among the markers. */
 export type ChartFocusPoint = {
   /** Fill time, ms epoch — aligns with the trade's buy/sell marker. */
   time: number
-  /** Matches the arrow at this fill: buys sit below the bar, sells above. */
-  side: "buy" | "sell"
-  label: string
-  /** Exact fill price — centers the ring on the price-pinned chip when set. */
-  price?: number
+  /** Exact fill price. The result box spans entry → exit through these. */
+  price: number
 }
 
 /**
@@ -205,6 +313,30 @@ export type ChartBarColor = {
   wickColor?: string
 }
 
+/** Points at one drawing on the chart — what is selected, or being edited. */
+type DrawingRef = { kind: "trendline" | "position"; id: string }
+
+/** The alert rule attached to one drawn line, as the chart needs to see it. */
+export type TrendlineAlertRuleInfo = {
+  id: string
+  status: AlertStatus
+  touch: TrendlineTouchMode
+}
+
+/**
+ * Lets the live chart arm price alerts on drawn trendlines. Only charts
+ * watching a real market pass this — backtest and replay charts don't.
+ */
+export type TrendlineAlertControls = {
+  /** The rule attached to each drawn line, keyed by line id. */
+  rules: ReadonlyMap<string, TrendlineAlertRuleInfo>
+  /** Line id with an in-flight arm/disarm request, to debounce the toggle. */
+  busyLineId: string | null
+  onArm: (line: Trendline, touch: TrendlineTouchMode) => void
+  onDisarm: (rule: TrendlineAlertRuleInfo) => void
+  onTouchChange: (rule: TrendlineAlertRuleInfo, touch: TrendlineTouchMode) => void
+}
+
 /** Transient shift+drag measurement overlay, in container-local pixels. */
 type Measurement = {
   left: number
@@ -216,6 +348,50 @@ type Measurement = {
   priceText: string
   bars: number
   daysText: string
+}
+
+/** One drawn trendline projected to container pixels for the current frame. */
+type TrendlinePixels = {
+  id: string
+  start: PixelPoint
+  end: PixelPoint
+  color: string
+  draft?: boolean
+}
+
+function samePixelLines(a: TrendlinePixels[], b: TrendlinePixels[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((line, index) => {
+    const other = b[index]
+    return (
+      line.id === other.id &&
+      line.color === other.color &&
+      line.draft === other.draft &&
+      line.start.x === other.start.x &&
+      line.start.y === other.start.y &&
+      line.end.x === other.end.x &&
+      line.end.y === other.end.y
+    )
+  })
+}
+
+function samePixelBoxes(
+  a: ChartPositionPixels[],
+  b: ChartPositionPixels[]
+): boolean {
+  if (a.length !== b.length) return false
+  return a.every((box, index) => {
+    const other = b[index]
+    return (
+      box.id === other.id &&
+      box.side === other.side &&
+      box.left === other.left &&
+      box.right === other.right &&
+      box.entryY === other.entryY &&
+      box.stopY === other.stopY &&
+      box.targetY === other.targetY
+    )
+  })
 }
 
 const DRAG_HIT_PX = 6
@@ -230,6 +406,17 @@ const DROP_HOLD_MS = 8_000
  */
 const MAX_VISIBLE_CHIPS = 300
 const TRENDLINE_HIT_PX = 8
+/**
+ * Grab radius for a selected trendline's endpoint dots — deliberately wider
+ * than the body radius, and tested first, so a near-miss on a dot stretches
+ * the line instead of sliding the whole thing.
+ */
+const TRENDLINE_ENDPOINT_HIT_PX = 14
+/** Grab radius for a position drawing's stop/entry/target/right-edge handles. */
+const POSITION_HIT_PX = 8
+
+/** Empty bars to the right of the last candle, unless a caller asks for more. */
+const DEFAULT_RIGHT_OFFSET_BARS = 12
 
 /**
  * Data-agnostic chart view shared by the live trading terminal and the
@@ -241,12 +428,13 @@ export function PriceChartView({
   candles,
   loading = false,
   dataKey = "static",
-  priceLines = [],
-  markers = [],
-  indicators = [],
-  overlayLines = [],
-  zones = [],
-  barColors = [],
+  rightOffsetBars = DEFAULT_RIGHT_OFFSET_BARS,
+  priceLines = EMPTY_PRICE_LINES,
+  markers = EMPTY_MARKERS,
+  indicators = EMPTY_INDICATORS,
+  overlayLines = EMPTY_OVERLAY_LINES,
+  zones = EMPTY_ZONES,
+  barColors = EMPTY_BAR_COLORS,
   visibleStartMs,
   focusPoints = EMPTY_FOCUS_POINTS,
   focusResult = null,
@@ -257,17 +445,24 @@ export function PriceChartView({
   onChartContextMenu,
   onVisibleRangeChange,
   registerApi,
-  trendlineDrawing = false,
-  onTrendlineDrawingChange,
-  trendlines = EMPTY_TRENDLINES,
-  onTrendlinesChange,
-  onTrendlinesCommit,
+  onResetView,
+  drawings = EMPTY_CHART_DRAWINGS,
+  onDrawingsChange,
+  onDrawingsCommit,
+  trendlineAlerts,
 }: {
   /** Candles to render, ascending by open time. */
   candles: ChartCandle[]
   loading?: boolean
   /** Identity of the candle series; a change forces a full data reset. */
   dataKey?: string
+  /**
+   * Empty bars kept to the right of the last candle. The practice session
+   * plans trades into that space — a position box drawn at the live price
+   * lives entirely in the future, so with the default sliver of room it is
+   * placed off-screen and reads as "my click did nothing".
+   */
+  rightOffsetBars?: number
   priceLines?: ChartPriceLine[]
   /** Trade-fill chips and indicator signal arrows. */
   markers?: ChartMarker[]
@@ -281,7 +476,11 @@ export function PriceChartView({
   barColors?: ChartBarColor[]
   /** Show from this time (ms) instead of fitting all content (hides warmup). */
   visibleStartMs?: number
-  /** Points pulsed on the chart to locate a focused trade among the arrows. */
+  /**
+   * The focused trade's entry and exit: they anchor the result box and pan the
+   * trade into view. Nothing is drawn at the points themselves — the fill chips
+   * and arrows already mark them.
+   */
   focusPoints?: ChartFocusPoint[]
   /** Result box spanning the focused trade's entry → exit; null hides it. */
   focusResult?: ChartFocusResult | null
@@ -305,18 +504,20 @@ export function PriceChartView({
    * null on unmount — lets a parent wire "Reset View" into its own menu.
    */
   registerApi?: (api: PriceChartHandle | null) => void
-  /** When active, two chart clicks create one trendline. */
-  trendlineDrawing?: boolean
-  /** Turns the one-shot drawing tool off after completion or cancellation. */
-  onTrendlineDrawingChange?: (active: boolean) => void
-  /** Saved trendlines for this chart. */
-  trendlines?: Trendline[]
-  /** Updates the in-memory line set while drawing or dragging. */
-  onTrendlinesChange?: (trendlines: Trendline[]) => void
+  /** Fired when the user picks "Reset View" — lets a parent also reset its own
+   * view state (e.g. the backtest chart snapping back to the run's timeframe). */
+  onResetView?: () => void
+  /** Saved trendlines and position drawings for this chart. */
+  drawings?: ChartDrawings
+  /** Updates the in-memory drawing set while drawing or dragging. */
+  onDrawingsChange?: (drawings: ChartDrawings) => void
   /** Persists a completed create, edit, or delete action. */
-  onTrendlinesCommit?: (trendlines: Trendline[]) => void
+  onDrawingsCommit?: (drawings: ChartDrawings) => void
+  /** Arms price alerts on drawn trendlines (live trading chart only). */
+  trendlineAlerts?: TrendlineAlertControls
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
+  const { trendlines, positions } = drawings
   const lineCancelEnabled = Boolean(onLineCancel)
   const chartRef = React.useRef<IChartApi | null>(null)
   const candleSeriesRef = React.useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -352,25 +553,67 @@ export function PriceChartView({
   const prevLenRef = React.useRef<number>(0)
   const dataKeyRef = React.useRef<string | null>(null)
   const candleByTimeRef = React.useRef<Map<number, ChartCandle>>(new Map())
-  // One short line series per QFL base mark — separate series so marks never
-  // connect to each other across the gaps between them.
-  const baseSeriesRef = React.useRef<ISeriesApi<"Line">[]>([])
+  // One short line series per base mark — separate series so marks never
+  // connect to each other across the gaps between them. Keyed by the mark's
+  // span+price so an unchanged mark is left alone between repaints; adding and
+  // removing series is the single most expensive thing this chart does.
+  const baseSeriesRef = React.useRef<Map<string, ISeriesApi<"Line">>>(new Map())
   const overlaySeriesRef = React.useRef<Map<string, ISeriesApi<"Line">>>(
     new Map()
   )
-  // One 2-point baseline series per zone: the baseline fill only spans the
-  // series' data range, so each paints exactly one rectangle.
-  const zoneSeriesRef = React.useRef<ISeriesApi<SeriesType>[]>([])
+  // One 2-point baseline series per zone (plus an optional bottom-edge line):
+  // the baseline fill only spans the series' data range, so each paints exactly
+  // one rectangle. Keyed by zone id with the geometry that produced it, so a
+  // zone that did not move survives the next repaint untouched.
+  const zoneSeriesRef = React.useRef<Map<string, ISeriesApi<SeriesType>[]>>(
+    new Map()
+  )
   // The candle array from the previous data-effect run: lets us tell a real
   // candle tick/backfill (new reference) from a params-only recolor (same
   // candles, different bar colours).
   const prevCandlesRef = React.useRef<ChartCandle[] | null>(null)
+  // Set by the candle-data effect and read by the indicator effect that runs
+  // right after it: how many bars were appended on the right this commit, for
+  // the exact candle array they both saw. `added: 0` means "not a plain
+  // append" — the indicator series must then be re-set in full.
+  const appendRef = React.useRef<{ candles: ChartCandle[]; added: number }>({
+    candles: [],
+    added: 0,
+  })
+  // Line-series keys that already hold a full data set. A key missing here has
+  // never been filled (or was invalidated by a config change), so it must take
+  // a full setData rather than an incremental append.
+  const lineFilledRef = React.useRef<Set<string>>(new Set())
+  const prevIndicatorsRef = React.useRef<IndicatorConfig[] | null>(null)
+  // Bar colours from the previous repaint, so an append-only repaint can prove
+  // it is not leaving a stale colour behind on an already-drawn bar.
+  const prevColorMapRef = React.useRef<Map<number, ChartBarColor> | null>(null)
+  const driftCheckRef = React.useRef(0)
   const [ready, setReady] = React.useState(false)
   const [focusPixels, setFocusPixels] = React.useState<
-    { x: number; y: number; label: string; placement: "above" | "below" }[]
+    { x: number; y: number }[]
   >([])
+  // Orders on the candle holding the arrow nearest the cursor, anchored to that
+  // arrow rather than to the pointer. A DCA ladder can drop several buys and a
+  // sell on one bar, so all of that bar's fills are listed together.
+  const [hoveredOrders, setHoveredOrders] = React.useState<{
+    /** The arrow's own position, not the cursor's. */
+    x: number
+    y: number
+    /** Near the right/bottom edge the panel flips to the other side of its
+     * anchor. Decided where the pane's size is known — in the crosshair handler
+     * — because measuring the container during render is both a lint error and
+     * stale the moment the pane resizes. */
+    flipX: boolean
+    flipY: boolean
+    items: {
+      label: string
+      side: "buy" | "sell"
+      value?: number
+    }[]
+  } | null>(null)
   // Pixel positions of price-pinned open/close/flip chips, kept in sync with
-  // pan/zoom/resize the same way the focus ring is.
+  // pan/zoom/resize the same way the focus box is.
   const [markerPixels, setMarkerPixels] = React.useState<
     {
       x: number
@@ -394,26 +637,27 @@ export function PriceChartView({
   // the price axis), so chips don't float off their candles.
   const [overlayRevision, setOverlayRevision] = React.useState(0)
   const [measurement, setMeasurement] = React.useState<Measurement | null>(null)
+  // The one-shot drawing tool armed in the floating toolbar below; it fires on
+  // the next click on the chart and disarms itself.
+  const [activeTool, setActiveTool] = React.useState<ChartDrawTool | null>(null)
+  const [priceAxisWidth, setPriceAxisWidth] = React.useState(0)
   const [trendlineDraft, setTrendlineDraft] = React.useState<Trendline | null>(
     null
   )
-  const [selectedTrendline, setSelectedTrendline] = React.useState<
-    string | null
+  const [selection, setSelection] = React.useState<DrawingRef | null>(null)
+  const [drawingSettings, setDrawingSettings] = React.useState<
+    (DrawingRef & { x: number; y: number }) | null
   >(null)
-  const [trendlineSettings, setTrendlineSettings] = React.useState<{
-    id: string
-    x: number
-    y: number
-  } | null>(null)
+  // Touch-definition choice shown before a line is armed; the armed rule
+  // itself is the source of truth once one exists.
+  const [pendingTouch, setPendingTouch] =
+    React.useState<TrendlineTouchMode>("wick")
   const [trendlinePixels, setTrendlinePixels] = React.useState<
-    {
-      id: string
-      start: PixelPoint
-      end: PixelPoint
-      color: string
-      draft?: boolean
-    }[]
+    TrendlinePixels[]
   >([])
+  const [positionPixels, setPositionPixels] = React.useState<ChartPositionPixels[]>(
+    []
+  )
   const candleTimes = React.useMemo(
     () => candles.map((candle) => Math.floor(candle.t / 1000)),
     [candles]
@@ -424,49 +668,126 @@ export function PriceChartView({
     startPrice: number
   } | null>(null)
   const measureLockedRef = React.useRef(false)
-  const trendlinesRef = React.useRef(trendlines)
+  const drawingsRef = React.useRef(drawings)
+  // Read once when the chart is built; the chart is never rebuilt for it.
+  const rightOffsetRef = React.useRef(rightOffsetBars)
   const trendlineDraftRef = React.useRef(trendlineDraft)
   const trendlinePixelsRef = React.useRef(trendlinePixels)
-  const selectedTrendlineRef = React.useRef(selectedTrendline)
-  const trendlineDrawingRef = React.useRef(trendlineDrawing)
-  const trendlineDragRef = React.useRef<{
+  const positionPixelsRef = React.useRef(positionPixels)
+  const selectionRef = React.useRef(selection)
+  const activeToolRef = React.useRef(activeTool)
+  const trendlineDragRef = React.useRef<
+    | { id: string; endpoint: "start" | "end" }
+    | {
+        id: string
+        endpoint: "body"
+        /** The line as it was when grabbed, so the slide stays absolute. */
+        origin: Trendline
+        grab: TrendlinePoint
+        grabPx: PixelPoint
+        moved: boolean
+      }
+    | null
+  >(null)
+  const positionDragRef = React.useRef<{
     id: string
-    endpoint: "start" | "end"
+    handle: ChartPositionHandle
+    /** The drawing as it was when the drag started, so moves stay absolute. */
+    origin: ChartPosition
+    grab: TrendlinePoint
+    /** A press that never moved is a plain click — nothing to save. */
+    moved: boolean
   } | null>(null)
 
   const dragEndRef = React.useRef(onLineDragEnd)
   const lineClickRef = React.useRef(onLineClick)
   const contextMenuRef = React.useRef(onChartContextMenu)
   const crosshairOhlcRef = React.useRef(onCrosshairOhlc)
-  const trendlineDrawingChangeRef = React.useRef(onTrendlineDrawingChange)
-  const trendlinesChangeRef = React.useRef(onTrendlinesChange)
-  const trendlinesCommitRef = React.useRef(onTrendlinesCommit)
+  // Read inside the crosshair handler, which is subscribed once at chart
+  // creation — a ref keeps it seeing the current run's fills without tearing
+  // the whole chart down every time the markers change.
+  const markersRef = React.useRef(markers)
+  const drawingsChangeRef = React.useRef(onDrawingsChange)
+  const drawingsCommitRef = React.useRef(onDrawingsCommit)
   const visibleRangeRef = React.useRef(onVisibleRangeChange)
   React.useEffect(() => {
     dragEndRef.current = onLineDragEnd
     lineClickRef.current = onLineClick
     contextMenuRef.current = onChartContextMenu
     crosshairOhlcRef.current = onCrosshairOhlc
-    trendlineDrawingChangeRef.current = onTrendlineDrawingChange
-    trendlinesChangeRef.current = onTrendlinesChange
-    trendlinesCommitRef.current = onTrendlinesCommit
+    markersRef.current = markers
+    drawingsChangeRef.current = onDrawingsChange
+    drawingsCommitRef.current = onDrawingsCommit
     visibleRangeRef.current = onVisibleRangeChange
   }, [
     onLineDragEnd,
     onLineClick,
     onChartContextMenu,
     onCrosshairOhlc,
-    onTrendlineDrawingChange,
-    onTrendlinesChange,
-    onTrendlinesCommit,
+    markers,
+    onDrawingsChange,
+    onDrawingsCommit,
     onVisibleRangeChange,
   ])
   React.useLayoutEffect(() => {
-    trendlineDrawingRef.current = trendlineDrawing
-  }, [trendlineDrawing])
+    activeToolRef.current = activeTool
+  }, [activeTool])
   React.useLayoutEffect(() => {
-    trendlinesRef.current = trendlines
-  }, [trendlines])
+    drawingsRef.current = drawings
+  }, [drawings])
+
+  /**
+   * The one way anything on the chart edits a drawing: it updates the live copy
+   * the pointer handlers read, hands the new set to the parent, and — once the
+   * gesture is finished — asks for it to be saved.
+   */
+  const applyDrawings = React.useCallback(
+    (next: ChartDrawings, commit: boolean) => {
+      drawingsRef.current = next
+      drawingsChangeRef.current?.(next)
+      if (commit) drawingsCommitRef.current?.(next)
+    },
+    []
+  )
+
+  /**
+   * Saves what the drag already wrote in place. Separate from `applyDrawings`
+   * so ending a drag doesn't hand the parent a set it already has and cost a
+   * pointless re-render on every mouse-up.
+   */
+  const commitDrawings = React.useCallback(() => {
+    drawingsCommitRef.current?.(drawingsRef.current)
+  }, [])
+
+  const selectDrawing = React.useCallback((next: DrawingRef | null) => {
+    selectionRef.current = next
+    setSelection(next)
+  }, [])
+
+  const deleteDrawing = React.useCallback(
+    (target: DrawingRef) => {
+      const current = drawingsRef.current
+      applyDrawings(
+        target.kind === "trendline"
+          ? {
+              ...current,
+              trendlines: current.trendlines.filter(
+                (line) => line.id !== target.id
+              ),
+            }
+          : {
+              ...current,
+              positions: current.positions.filter(
+                (item) => item.id !== target.id
+              ),
+            },
+        true
+      )
+      selectDrawing(null)
+      setDrawingSettings(null)
+    },
+    [applyDrawings, selectDrawing]
+  )
 
   // After the price axis re-fits on a later frame (Reset View, click-to-focus
   // pan), re-pin the chip/focus overlays so none are left floating off their
@@ -478,10 +799,19 @@ export function PriceChartView({
     })
   }, [])
 
+  // Keep the latest onResetView without re-creating resetView (which the API
+  // handle depends on).
+  const onResetViewRef = React.useRef(onResetView)
+  React.useEffect(() => {
+    onResetViewRef.current = onResetView
+  })
+
   // Reset View: back to the chart's default zoom and scroll — the most recent
   // bars at a comfortable bar spacing — with price auto-scale switched back on
-  // in case the user dragged the axis.
+  // in case the user dragged the axis. Also lets the parent reset its own view
+  // (e.g. the backtest chart snaps its timeframe back to the run's).
   const resetView = React.useCallback(() => {
+    onResetViewRef.current?.()
     const chart = chartRef.current
     if (!chart) return
     chart.timeScale().resetTimeScale()
@@ -489,28 +819,62 @@ export function PriceChartView({
     repinOverlaysAfterReflow()
   }, [repinOverlaysAfterReflow])
 
+  const revertLine = React.useCallback((id: string) => {
+    recentDropsRef.current.delete(id)
+    const spec = lineSpecsRef.current.get(id)
+    const line = priceLineRefs.current.get(id)
+    if (spec && line) {
+      line.applyOptions({ price: spec.price })
+    }
+  }, [])
+
+  const drawingGestureActive = React.useCallback(
+    () =>
+      activeToolRef.current !== null ||
+      positionDragRef.current !== null ||
+      trendlineDragRef.current !== null,
+    []
+  )
+
   // Hand the imperative API up so a parent can add "Reset View" to its own menu.
   React.useEffect(() => {
     if (!registerApi) return
-    registerApi({ resetView })
+    registerApi({ resetView, revertLine, drawingGestureActive })
     return () => registerApi(null)
-  }, [registerApi, resetView])
+  }, [registerApi, resetView, revertLine, drawingGestureActive])
 
   React.useEffect(() => {
     const chart = chartRef.current
     const container = containerRef.current
     if (!ready || !chart || !container) return
-    chart.applyOptions({
-      handleScroll: !trendlineDrawing,
-      handleScale: !trendlineDrawing,
-    })
-    container.style.cursor = trendlineDrawing ? "crosshair" : ""
-    if (!trendlineDrawing) {
+    const drawing = activeTool !== null
+    chart.applyOptions({ handleScroll: !drawing, handleScale: !drawing })
+    container.style.cursor = drawing ? "crosshair" : ""
+    if (!drawing) {
       trendlineDraftRef.current = null
       const frame = requestAnimationFrame(() => setTrendlineDraft(null))
       return () => cancelAnimationFrame(frame)
     }
-  }, [ready, trendlineDrawing])
+  }, [ready, activeTool])
+
+  // Width of the right price axis, so the floating drawing toolbar can rest
+  // beside the price labels instead of on top of them. It grows and shrinks
+  // with the price magnitude (3800.00 vs 66400.00), not just on resize.
+  React.useEffect(() => {
+    const chart = chartRef.current
+    const container = containerRef.current
+    if (!ready || !chart || !container) return
+    const sync = () => setPriceAxisWidth(chart.priceScale("right").width())
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(container)
+    const timeScale = chart.timeScale()
+    timeScale.subscribeVisibleTimeRangeChange(sync)
+    return () => {
+      observer.disconnect()
+      timeScale.unsubscribeVisibleTimeRangeChange(sync)
+    }
+  }, [ready])
 
   // Close the built-in menu on Escape (outside clicks are caught by its overlay).
   React.useEffect(() => {
@@ -561,7 +925,7 @@ export function PriceChartView({
             borderVisible: false,
             timeVisible: true,
             secondsVisible: false,
-            rightOffset: 12,
+            rightOffset: rightOffsetRef.current,
           },
           crosshair: { mode: 0 },
         })
@@ -594,13 +958,74 @@ export function PriceChartView({
         setReady(true)
 
         chart.subscribeCrosshairMove((param) => {
-          if (!crosshairOhlcRef.current) return
           const time = param.time as number | undefined
-          crosshairOhlcRef.current(
+          crosshairOhlcRef.current?.(
             time !== undefined
               ? (candleByTimeRef.current.get(time) ?? null)
               : null
           )
+
+          // Every labelled order on the hovered candle. Only backtest fills
+          // carry labels, so live charts and bare indicator signals produce
+          // nothing here and the tooltip never appears.
+          const point = param.point
+          if (time === undefined || !point) {
+            setHoveredOrders(null)
+            return
+          }
+          // Pick the arrow NEAREST the cursor, then show that one candle's
+          // orders. A plain time-window match let a neighbouring candle's fills
+          // bleed in, and anchoring to the cursor made the panel drift about
+          // instead of sitting on the thing it describes.
+          const scale = chart.timeScale()
+          const from = scale.coordinateToTime(point.x - HOVER_SEARCH_PX)
+          const to = scale.coordinateToTime(point.x + HOVER_SEARCH_PX)
+          const fromSec = (from as number | null) ?? time
+          const toSec = (to as number | null) ?? time
+          let bestSec: number | null = null
+          let bestX = 0
+          let bestDx = Number.POSITIVE_INFINITY
+          for (const marker of markersRef.current) {
+            if (!marker.label) continue
+            const sec = Math.floor(marker.time / 1000)
+            if (sec < fromSec || sec > toSec) continue
+            const mx = scale.timeToCoordinate(sec as UTCTimestamp)
+            if (mx == null) continue
+            const dx = Math.abs(mx - point.x)
+            if (dx < bestDx) {
+              bestDx = dx
+              bestSec = sec
+              bestX = mx
+            }
+          }
+          if (bestSec === null || bestDx > HOVER_RADIUS_PX) {
+            setHoveredOrders(null)
+            return
+          }
+          // Everything that filled on that candle — a ladder can take several
+          // rungs and an exit inside one bar, which is the case worth reading.
+          const onBar = markersRef.current.filter(
+            (marker) =>
+              marker.label && Math.floor(marker.time / 1000) === bestSec
+          )
+          // Anchor to the highest arrow in the group so the panel sits beside
+          // the cluster rather than under the cursor.
+          const topPrice = Math.max(...onBar.map((marker) => marker.price))
+          const anchorY = candleSeries.priceToCoordinate(topPrice) ?? point.y
+          const items = onBar.map((marker) => ({
+            label: marker.label as string,
+            side: marker.side,
+            value: marker.value,
+          }))
+          setHoveredOrders({
+            x: bestX,
+            y: anchorY,
+            flipX: bestX > container.clientWidth - TOOLTIP_W,
+            flipY:
+              anchorY >
+              container.clientHeight - TOOLTIP_ROW_H * items.length - 24,
+            items,
+          })
         })
 
         // --- order-line dragging + right-click order menu -----------------
@@ -609,7 +1034,14 @@ export function PriceChartView({
         const paneX = (event: MouseEvent) =>
           event.clientX - container.getBoundingClientRect().left
         const priceFormatter = candleSeries.priceFormatter()
-        const trendlinePoint = (event: MouseEvent): TrendlinePoint | null => {
+        /** Seconds between candles, from the two most recent bars. */
+        const barIntervalSec = () => {
+          const data = candleSeries.data()
+          const last = data.length - 1
+          if (last < 1) return 0
+          return Number(data[last].time) - Number(data[last - 1].time)
+        }
+        const chartPoint = (event: MouseEvent): TrendlinePoint | null => {
           const timeScale = chart.timeScale()
           const x = paneX(event)
           const logical = timeScale.coordinateToLogical(x)
@@ -628,7 +1060,9 @@ export function PriceChartView({
         const trendlineHit = (
           point: PixelPoint
         ): { id: string; endpoint?: "start" | "end" } | null => {
-          const selected = selectedTrendlineRef.current
+          const current = selectionRef.current
+          const selected =
+            current?.kind === "trendline" ? current.id : null
           if (selected) {
             const pixels = trendlinePixelsRef.current.find(
               (line) => line.id === selected
@@ -638,12 +1072,12 @@ export function PriceChartView({
                 Math.hypot(
                   point.x - pixels.start.x,
                   point.y - pixels.start.y
-                ) <= TRENDLINE_HIT_PX
+                ) <= TRENDLINE_ENDPOINT_HIT_PX
               )
                 return { id: selected, endpoint: "start" }
               if (
                 Math.hypot(point.x - pixels.end.x, point.y - pixels.end.y) <=
-                TRENDLINE_HIT_PX
+                TRENDLINE_ENDPOINT_HIT_PX
               )
                 return { id: selected, endpoint: "end" }
             }
@@ -658,6 +1092,73 @@ export function PriceChartView({
             }
           }
           return null
+        }
+
+        /**
+         * A position drawing under the pointer. The selected one is tested
+         * first, and by its handles, so its grab points always win over a
+         * drawing stacked on top of it.
+         */
+        const positionHit = (
+          point: PixelPoint
+        ): { id: string; handle: ChartPositionHandle } | null => {
+          const boxes = positionPixelsRef.current
+          const current = selectionRef.current
+          const selectedId = current?.kind === "position" ? current.id : null
+          // Topmost first, but the selected drawing always wins — otherwise a
+          // newer drawing lying over it would steal its handles. Walked by
+          // index rather than a copied array: this runs on every mouse move.
+          const selectedBox = selectedId
+            ? boxes.find((box) => box.id === selectedId)
+            : undefined
+          const firstMatch = (
+            probe: (box: ChartPositionPixels) => ChartPositionHandle | null
+          ) => {
+            const selectedHandle = selectedBox ? probe(selectedBox) : null
+            if (selectedBox && selectedHandle)
+              return { id: selectedBox.id, handle: selectedHandle }
+            for (let index = boxes.length - 1; index >= 0; index -= 1) {
+              const box = boxes[index]
+              if (box === selectedBox) continue
+              const handle = probe(box)
+              if (handle) return { id: box.id, handle }
+            }
+            return null
+          }
+          return (
+            firstMatch((box) =>
+              chartPositionHandleAt(point, box, POSITION_HIT_PX)
+            ) ??
+            // Anywhere else on the drawing grabs the whole plan, so it can
+            // always be moved without hunting for a line.
+            firstMatch((box) =>
+              isInsideChartPosition(point, box) ? "body" : null
+            )
+          )
+        }
+
+        /** Replaces one position in the saved set, keeping it legible. */
+        const writePosition = (next: ChartPosition, commit: boolean) => {
+          const current = drawingsRef.current
+          applyDrawings(
+            {
+              ...current,
+              positions: current.positions.map((item) =>
+                item.id === next.id ? clampChartPosition(next) : item
+              ),
+            },
+            commit
+          )
+        }
+
+        /** Puts the chart back in normal pan/zoom mode with no tool armed. */
+        const disarmTool = () => {
+          activeToolRef.current = null
+          trendlineDraftRef.current = null
+          setTrendlineDraft(null)
+          chart.applyOptions({ handleScroll: true, handleScale: true })
+          container.style.cursor = ""
+          setActiveTool(null)
         }
 
         // Wipe the measurement and hand pan/zoom back to the chart.
@@ -698,7 +1199,7 @@ export function PriceChartView({
             width: Math.abs(x - anchor.startX),
             height: Math.abs(y - anchor.startY),
             up: endPrice >= anchor.startPrice,
-            pctText: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
+            pctText: signedPct(pct),
             priceText: `${priceDelta >= 0 ? "+" : ""}${priceFormatter.format(
               priceDelta
             )}`,
@@ -720,8 +1221,9 @@ export function PriceChartView({
 
         const onMouseDown = (event: MouseEvent) => {
           if (event.button !== 0) return
-          if (trendlineDrawingRef.current) {
-            const point = trendlinePoint(event)
+          const tool = activeToolRef.current
+          if (tool === "trendline") {
+            const point = chartPoint(event)
             if (!point) return
             const draft = trendlineDraftRef.current
             if (!draft) {
@@ -735,18 +1237,48 @@ export function PriceChartView({
               setTrendlineDraft(next)
             } else {
               const next = { ...draft, end: point }
-              trendlinesRef.current = [...trendlinesRef.current, next]
-              trendlinesChangeRef.current?.(trendlinesRef.current)
-              trendlinesCommitRef.current?.(trendlinesRef.current)
-              trendlineDraftRef.current = null
-              setTrendlineDraft(null)
-              selectedTrendlineRef.current = next.id
-              setSelectedTrendline(next.id)
-              trendlineDrawingRef.current = false
-              chart.applyOptions({ handleScroll: true, handleScale: true })
-              container.style.cursor = ""
-              trendlineDrawingChangeRef.current?.(false)
+              const current = drawingsRef.current
+              applyDrawings(
+                { ...current, trendlines: [...current.trendlines, next] },
+                true
+              )
+              selectDrawing({ kind: "trendline", id: next.id })
+              disarmTool()
             }
+            event.preventDefault()
+            event.stopPropagation()
+            return
+          }
+          // Long/short position: one click drops a whole planned trade — entry
+          // where you clicked, a default stop and a 2R target around it — then
+          // the tool disarms so the next click can adjust it.
+          if (tool === "long" || tool === "short") {
+            const point = chartPoint(event)
+            if (!point) return
+            const interval = barIntervalSec()
+            // Width scales with the current zoom (~8% of the visible span)
+            // so a fresh box reads as a box at any zoom level instead of a
+            // sliver; the fixed bar count only remains as a floor.
+            const range = chart.timeScale().getVisibleLogicalRange()
+            const widthBars = Math.max(
+              DEFAULT_POSITION_BARS,
+              Math.round(range ? (range.to - range.from) * 0.08 : 0)
+            )
+            const next = createChartPosition({
+              id: `position-${Date.now()}`,
+              side: tool,
+              entry: point.price,
+              startTime: point.time,
+              endTime:
+                point.time + (interval > 0 ? interval * widthBars : 1),
+            })
+            const current = drawingsRef.current
+            applyDrawings(
+              { ...current, positions: [...current.positions, next] },
+              true
+            )
+            selectDrawing({ kind: "position", id: next.id })
+            disarmTool()
             event.preventDefault()
             event.stopPropagation()
             return
@@ -784,12 +1316,51 @@ export function PriceChartView({
           const point = { x: paneX(event), y: paneY(event) }
           const trendHit = trendlineHit(point)
           if (trendHit) {
-            selectedTrendlineRef.current = trendHit.id
-            setSelectedTrendline(trendHit.id)
+            selectDrawing({ kind: "trendline", id: trendHit.id })
             if (trendHit.endpoint) {
               trendlineDragRef.current = {
                 id: trendHit.id,
                 endpoint: trendHit.endpoint,
+              }
+              chart.applyOptions({ handleScroll: false, handleScale: false })
+            } else {
+              // Grabbing the body slides the whole line; endpoints stretch it.
+              const origin = drawingsRef.current.trendlines.find(
+                (line) => line.id === trendHit.id
+              )
+              const grab = chartPoint(event)
+              if (origin && grab) {
+                trendlineDragRef.current = {
+                  id: trendHit.id,
+                  endpoint: "body",
+                  origin,
+                  grab,
+                  grabPx: point,
+                  moved: false,
+                }
+                chart.applyOptions({ handleScroll: false, handleScale: false })
+              }
+            }
+            event.preventDefault()
+            event.stopPropagation()
+            return
+          }
+          const posHit = positionHit(point)
+          if (posHit) {
+            // Selecting and grabbing happen in the same press, so the first
+            // drag on a drawing moves it instead of only selecting it.
+            selectDrawing({ kind: "position", id: posHit.id })
+            const origin = drawingsRef.current.positions.find(
+              (item) => item.id === posHit.id
+            )
+            const grab = chartPoint(event)
+            if (origin && grab) {
+              positionDragRef.current = {
+                id: posHit.id,
+                handle: posHit.handle,
+                origin,
+                grab,
+                moved: false,
               }
               chart.applyOptions({ handleScroll: false, handleScale: false })
             }
@@ -797,8 +1368,7 @@ export function PriceChartView({
             event.stopPropagation()
             return
           }
-          selectedTrendlineRef.current = null
-          setSelectedTrendline(null)
+          selectDrawing(null)
           const id = hitTestLine(paneY(event))
           if (!id) return
           const line = priceLineRefs.current.get(id)
@@ -815,24 +1385,39 @@ export function PriceChartView({
         }
 
         const onDoubleClick = (event: MouseEvent) => {
-          if (event.button !== 0 || trendlineDrawingRef.current) return
-          const hit = trendlineHit({ x: paneX(event), y: paneY(event) })
+          if (event.button !== 0 || activeToolRef.current) return
+          const point = { x: paneX(event), y: paneY(event) }
+          const line = trendlineHit(point)
+          const position = line ? null : positionHit(point)
+          const hit: DrawingRef | null = line
+            ? { kind: "trendline", id: line.id }
+            : position
+              ? { kind: "position", id: position.id }
+              : null
           if (!hit) return
-          selectedTrendlineRef.current = hit.id
-          setSelectedTrendline(hit.id)
-          setTrendlineSettings({
-            id: hit.id,
-            x: paneX(event),
-            y: paneY(event),
-          })
+          selectDrawing(hit)
+          setDrawingSettings({ ...hit, x: point.x, y: point.y })
           event.preventDefault()
           event.stopPropagation()
         }
 
         const onMouseMove = (event: MouseEvent) => {
-          if (trendlineDrawingRef.current) {
+          // Self-healing drags: if any drag is armed but the primary button
+          // is no longer held (a missed mouseup, a stale handler surviving a
+          // hot reload), end it immediately instead of yanking the drawing
+          // around under a button-less pointer.
+          if (
+            (event.buttons & 1) === 0 &&
+            (positionDragRef.current ||
+              trendlineDragRef.current ||
+              draggingRef.current)
+          ) {
+            endDrag()
+            return
+          }
+          if (activeToolRef.current) {
             const draft = trendlineDraftRef.current
-            const point = trendlinePoint(event)
+            const point = chartPoint(event)
             if (draft && point) {
               const next = { ...draft, end: point }
               trendlineDraftRef.current = next
@@ -844,14 +1429,97 @@ export function PriceChartView({
           }
           const trendlineDrag = trendlineDragRef.current
           if (trendlineDrag) {
-            const point = trendlinePoint(event)
-            if (point) {
-              trendlinesRef.current = trendlinesRef.current.map((line) =>
-                line.id === trendlineDrag.id
-                  ? moveTrendlinePoint(line, trendlineDrag.endpoint, point)
-                  : line
+            if (trendlineDrag.endpoint === "body" && !trendlineDrag.moved) {
+              // A plain click (and the two clicks of a double-click) must not
+              // nudge the line — the slide starts only after real travel.
+              const travel = Math.hypot(
+                paneX(event) - trendlineDrag.grabPx.x,
+                paneY(event) - trendlineDrag.grabPx.y
               )
-              trendlinesChangeRef.current?.(trendlinesRef.current)
+              if (travel < DRAG_START_PX) {
+                event.preventDefault()
+                return
+              }
+              trendlineDrag.moved = true
+            }
+            const point = chartPoint(event)
+            if (point) {
+              const current = drawingsRef.current
+              applyDrawings(
+                {
+                  ...current,
+                  trendlines: current.trendlines.map((line) =>
+                    line.id !== trendlineDrag.id
+                      ? line
+                      : trendlineDrag.endpoint === "body"
+                        ? moveTrendline(
+                            trendlineDrag.origin,
+                            trendlineDrag.grab,
+                            point
+                          )
+                        : moveTrendlinePoint(
+                            line,
+                            trendlineDrag.endpoint,
+                            point
+                          )
+                  ),
+                },
+                false
+              )
+            }
+            event.preventDefault()
+            return
+          }
+          const positionDrag = positionDragRef.current
+          if (positionDrag) {
+            const point = chartPoint(event)
+            if (point) {
+              positionDrag.moved = true
+              const next = dragChartPosition(positionDrag, point)
+              // Continuity tripwire: between two consecutive move events the
+              // drawing may never move FURTHER than the pointer moved —
+              // clamps only ever reduce movement. Any excess is the "drawing
+              // skips" bug caught in the act, with the numbers to prove it.
+              const trace = positionDrag as typeof positionDrag & {
+                lastPoint?: TrendlinePoint
+                lastGot?: number
+                lastStart?: number
+              }
+              const got =
+                positionDrag.handle === "stop"
+                  ? next.stop
+                  : positionDrag.handle === "target"
+                    ? next.target
+                    : next.entry
+              if (trace.lastPoint !== undefined && trace.lastGot !== undefined) {
+                const pointerMove = Math.abs(point.price - trace.lastPoint.price)
+                const drawingMove = Math.abs(got - trace.lastGot)
+                const priceTol = Math.max(next.entry * 0.002, 1e-9)
+                const pointerTimeMove = Math.abs(point.time - trace.lastPoint.time)
+                const startMove = Math.abs(next.startTime - (trace.lastStart ?? next.startTime))
+                const timeTol = barIntervalSec() * 2
+                if (
+                  drawingMove > pointerMove + priceTol ||
+                  startMove > pointerTimeMove + timeTol
+                ) {
+                  const message = `Drag anomaly (${positionDrag.handle}): drawing moved ${drawingMove.toFixed(0)} vs pointer ${pointerMove.toFixed(0)} in price, ${Math.round(startMove / Math.max(barIntervalSec(), 1))} vs ${Math.round(pointerTimeMove / Math.max(barIntervalSec(), 1))} bars in time.`
+                  console.error("[practice drag anomaly]", {
+                    message,
+                    point,
+                    lastPoint: trace.lastPoint,
+                    next,
+                    origin: positionDrag.origin,
+                    grab: positionDrag.grab,
+                  })
+                  window.dispatchEvent(
+                    new CustomEvent("practice-drag-anomaly", { detail: message })
+                  )
+                }
+              }
+              trace.lastPoint = point
+              trace.lastGot = got
+              trace.lastStart = next.startTime
+              writePosition(next, false)
             }
             event.preventDefault()
             return
@@ -892,21 +1560,50 @@ export function PriceChartView({
             event.preventDefault()
             return
           }
-          const trendHit = trendlineHit({ x: paneX(event), y })
+          const point = { x: paneX(event), y }
+          const trendHit = trendlineHit(point)
+          const posHit = trendHit ? null : positionHit(point)
+          // An endpoint dot shows a stretch cursor along the line's own slope,
+          // so you can tell "stretch" from "slide" before pressing the button.
+          const trendCursor = () => {
+            if (!trendHit?.endpoint) return "move"
+            const pixels = trendlinePixelsRef.current.find(
+              (line) => line.id === trendHit.id
+            )
+            if (!pixels) return "move"
+            const slope =
+              (pixels.end.x - pixels.start.x) * (pixels.end.y - pixels.start.y)
+            return slope > 0 ? "nwse-resize" : "nesw-resize"
+          }
           container.style.cursor = trendHit
-            ? trendHit.endpoint
-              ? "move"
-              : "pointer"
-            : hitTestLine(y)
-              ? "ns-resize"
-              : ""
+            ? trendCursor()
+            : posHit
+              ? posHit.handle === "width"
+                ? "ew-resize"
+                : posHit.handle === "body"
+                  ? "move"
+                  : "ns-resize"
+              : hitTestLine(y)
+                ? "ns-resize"
+                : ""
         }
 
         const endDrag = () => {
-          if (trendlineDragRef.current) {
+          const trendlineDrag = trendlineDragRef.current
+          if (trendlineDrag) {
             trendlineDragRef.current = null
             chart.applyOptions({ handleScroll: true, handleScale: true })
-            trendlinesCommitRef.current?.(trendlinesRef.current)
+            // A body grab that never travelled is just a click — selecting
+            // the line must not rewrite it.
+            if (trendlineDrag.endpoint !== "body" || trendlineDrag.moved) {
+              commitDrawings()
+            }
+          }
+          const positionDrag = positionDragRef.current
+          if (positionDrag) {
+            positionDragRef.current = null
+            chart.applyOptions({ handleScroll: true, handleScale: true })
+            if (positionDrag.moved) commitDrawings()
           }
           const dragging = draggingRef.current
           if (!dragging) return
@@ -925,33 +1622,20 @@ export function PriceChartView({
 
         const onKeyDown = (event: KeyboardEvent) => {
           if (event.key === "Escape") {
-            setTrendlineSettings(null)
+            setDrawingSettings(null)
             clearMeasure()
-            if (trendlineDrawingRef.current || trendlineDraftRef.current) {
-              trendlineDrawingRef.current = false
-              trendlineDraftRef.current = null
-              setTrendlineDraft(null)
-              chart.applyOptions({ handleScroll: true, handleScale: true })
-              container.style.cursor = ""
-              trendlineDrawingChangeRef.current?.(false)
+            if (activeToolRef.current || trendlineDraftRef.current) {
+              disarmTool()
             } else {
-              selectedTrendlineRef.current = null
-              setSelectedTrendline(null)
+              selectDrawing(null)
             }
           }
+          const selected = selectionRef.current
           if (
             (event.key === "Delete" || event.key === "Backspace") &&
-            selectedTrendlineRef.current
+            selected
           ) {
-            const selected = selectedTrendlineRef.current
-            trendlinesRef.current = trendlinesRef.current.filter(
-              (line) => line.id !== selected
-            )
-            trendlinesChangeRef.current?.(trendlinesRef.current)
-            trendlinesCommitRef.current?.(trendlinesRef.current)
-            selectedTrendlineRef.current = null
-            setSelectedTrendline(null)
-            setTrendlineSettings(null)
+            deleteDrawing(selected)
             event.preventDefault()
           }
         }
@@ -965,13 +1649,8 @@ export function PriceChartView({
             event.stopPropagation()
             return
           }
-          if (trendlineDrawingRef.current) {
-            trendlineDrawingRef.current = false
-            trendlineDraftRef.current = null
-            setTrendlineDraft(null)
-            chart.applyOptions({ handleScroll: true, handleScale: true })
-            container.style.cursor = ""
-            trendlineDrawingChangeRef.current?.(false)
+          if (activeToolRef.current) {
+            disarmTool()
             event.stopPropagation()
             return
           }
@@ -1025,9 +1704,12 @@ export function PriceChartView({
 
         container.addEventListener("mousedown", onMouseDown, true)
         container.addEventListener("dblclick", onDoubleClick, true)
-        container.addEventListener("mousemove", onMouseMove)
-        container.addEventListener("mouseup", endDrag)
-        container.addEventListener("mouseleave", endDrag)
+        // Move/up live on the DOCUMENT so a drag survives the pointer leaving
+        // the pane or crossing a floating overlay (draw toolbar, mini chart):
+        // ending a drag on mouseleave silently dropped the drawing mid-flight
+        // whenever the cursor grazed an overlay or the chart edge.
+        document.addEventListener("mousemove", onMouseMove)
+        document.addEventListener("mouseup", endDrag)
         container.addEventListener("contextmenu", onContextMenu)
         container.addEventListener("touchstart", onTouchStart)
         container.addEventListener("touchmove", onTouchMove)
@@ -1037,9 +1719,8 @@ export function PriceChartView({
         detachPointerHandlers = () => {
           container.removeEventListener("mousedown", onMouseDown, true)
           container.removeEventListener("dblclick", onDoubleClick, true)
-          container.removeEventListener("mousemove", onMouseMove)
-          container.removeEventListener("mouseup", endDrag)
-          container.removeEventListener("mouseleave", endDrag)
+          document.removeEventListener("mousemove", onMouseMove)
+          document.removeEventListener("mouseup", endDrag)
           container.removeEventListener("contextmenu", onContextMenu)
           container.removeEventListener("touchstart", onTouchStart)
           container.removeEventListener("touchmove", onTouchMove)
@@ -1066,7 +1747,7 @@ export function PriceChartView({
           } of indicatorSeriesRef.current.values()) {
             if (recolor) series.applyOptions({ color: recolor(dark) })
           }
-          for (const series of baseSeriesRef.current) {
+          for (const series of baseSeriesRef.current.values()) {
             series.applyOptions({ color: indicatorColor("base", dark) })
           }
         })
@@ -1080,6 +1761,9 @@ export function PriceChartView({
     const priceLines = priceLineRefs.current
     const indicatorSeries = indicatorSeriesRef.current
     const overlaySeries = overlaySeriesRef.current
+    const baseSeries = baseSeriesRef.current
+    const zoneSeries = zoneSeriesRef.current
+    const filledLines = lineFilledRef.current
     return () => {
       disposed = true
       observer?.disconnect()
@@ -1087,6 +1771,11 @@ export function PriceChartView({
       priceLines.clear()
       indicatorSeries.clear()
       overlaySeries.clear()
+      // The chart itself is destroyed below, so every cached series handle is
+      // dead — clearing the maps stops a remount from reusing stale handles.
+      baseSeries.clear()
+      zoneSeries.clear()
+      filledLines.clear()
       seriesCtorsRef.current = null
       signalMarkersPluginRef.current = null
       candleSeriesRef.current = null
@@ -1095,7 +1784,8 @@ export function PriceChartView({
       chartRef.current = null
       setReady(false)
     }
-  }, [])
+    // Every callback here is stable, so the chart is still built exactly once.
+  }, [applyDrawings, commitDrawings, deleteDrawing, selectDrawing])
 
   React.useEffect(() => {
     const candleSeries = candleSeriesRef.current
@@ -1104,20 +1794,54 @@ export function PriceChartView({
       return
     }
 
-    const byTime = new Map<number, ChartCandle>()
-    for (const candle of candles)
-      byTime.set(Math.floor(candle.t / 1000), candle)
-    candleByTimeRef.current = byTime
+    // Crosshair lookup, extended in place for the same reason as candleTimes:
+    // rebuilding a map of every loaded bar on every frame of a replay is the
+    // single most expensive thing this effect used to do. Older entries stay
+    // valid as long as the array still starts at the same bar and only grew.
+    const byTime = candleByTimeRef.current
+    const canExtend =
+      dataKeyRef.current === dataKey &&
+      byTime.size > 0 &&
+      candles.length >= prevLenRef.current &&
+      candles[0].t === firstTimeRef.current
+    if (!canExtend) byTime.clear()
+    for (
+      let i = canExtend ? Math.max(0, prevLenRef.current - 1) : 0;
+      i < candles.length;
+      i += 1
+    ) {
+      byTime.set(Math.floor(candles[i].t / 1000), candles[i])
+    }
 
     const colorMap = barColors.length
       ? new Map(barColors.map((bar) => [Math.floor(bar.time / 1000), bar]))
       : undefined
+    /**
+     * True when the bars already on the chart still carry the colours they were
+     * drawn with. `update()` can only touch the newest bar, so an append-only
+     * repaint would silently keep stale colours on older bars — this checks the
+     * recent tail (where a recolour realistically lands) and falls back to a
+     * full repaint when anything moved.
+     */
+    const tailColorsUnchanged = () => {
+      const previous = prevColorMapRef.current
+      if (!previous && !colorMap) return true
+      const start = Math.max(0, prevLenRef.current - COLOR_RECHECK_BARS)
+      for (let i = start; i < prevLenRef.current && i < candles.length; i += 1) {
+        const key = Math.floor(candles[i].t / 1000)
+        if (previous?.get(key)?.color !== colorMap?.get(key)?.color) return false
+      }
+      return true
+    }
     // A real candle tick/backfill hands us a NEW candle array; a params-only
     // recolor keeps the same candles but different bar colours. Only the latter
     // needs a full repaint — a tick (even one that flips the forming bar's
     // colour) updates just the last bar and keeps the user's view.
     const candlesChanged = prevCandlesRef.current !== candles
+    const previousCandles = prevCandlesRef.current
     prevCandlesRef.current = candles
+    // Assume a full repaint; the append-only branch below says otherwise.
+    appendRef.current = { candles, added: 0 }
 
     const last = candles[candles.length - 1]
     const isIncremental =
@@ -1127,6 +1851,17 @@ export function PriceChartView({
       last.t >= lastTimeRef.current &&
       candles.length > 1 &&
       candles[0].t < lastTimeRef.current &&
+      // The oldest bar must be the SAME oldest bar. update() can only add or
+      // replace the newest bar — it has no way to drop one off the front. Once
+      // a replay is long enough that the parent starts sliding its window (a
+      // bar added on the right, one dropped on the left), the length barely
+      // changes, so without this check the code reads a slide as an ordinary
+      // tick: it appends the new bar and leaves the dropped one behind. The
+      // chart's copy of history then drifts away from the data it was given,
+      // one stale bar at a time, and gets stretched over a span far wider than
+      // it has bars to fill — which is the chart "compressing" and the candles
+      // scattering. Everything anchored to it goes with it.
+      candles[0].t === firstTimeRef.current &&
       // A real tick adds at most a bar; a whole snapshot must re-set the data.
       candles.length <= prevLenRef.current + 2
 
@@ -1155,8 +1890,100 @@ export function PriceChartView({
         })
       }
     } else if (isIncremental) {
-      candleSeries.update(toCandleData(last, colorMap))
-      volumeSeries.update(toVolumeData(last))
+      // Push EVERY bar that is new or changed, not just the newest one.
+      //
+      // This branch accepts up to two new bars, and only ever sent the last of
+      // them. The one in between was never given to the chart — a permanent
+      // hole in its copy of the history. Ask the chart where that bar is and it
+      // correctly answers "I don't have it", so any drawing anchored there
+      // cannot be placed and is silently dropped from the render.
+      //
+      // That is the flickering: drag a box and every time its edge crosses one
+      // of these holes the box blinks out, and if you let go on top of one it
+      // disappears entirely while its order stays live. Holes accumulate as a
+      // session runs, which is why it gets worse the longer you play and why it
+      // never lands in the same place twice — it depends on frame timing.
+      //
+      // Starting one bar back also refreshes the last bar in place, which is
+      // what a live tick refining the forming candle needs.
+      for (let i = Math.max(0, prevLenRef.current - 1); i < candles.length; i += 1) {
+        candleSeries.update(toCandleData(candles[i], colorMap))
+        volumeSeries.update(toVolumeData(candles[i]))
+      }
+    } else if (
+      // Replay growth: same series, many candles appended on the right (a
+      // fast-forward or scrub). Follow the new bars when the user was at the
+      // live edge — the chart's native auto-scroll only fires on single-bar
+      // update(), so multi-bar growth must shift here or the view stalls while
+      // candles march off-screen. Never shift mid drawing-gesture: the axis
+      // sliding under the pointer makes the dragged drawing run away.
+      dataKeyRef.current === dataKey &&
+      firstTimeRef.current > 0 &&
+      candles[0].t >= firstTimeRef.current &&
+      last.t > lastTimeRef.current
+    ) {
+      const timeScale = chartRef.current?.timeScale()
+      const before = timeScale?.getVisibleLogicalRange()
+      const wasAtLiveEdge = before ? before.to >= prevLenRef.current - 1 : false
+      const drawingGesture =
+        activeToolRef.current !== null ||
+        positionDragRef.current !== null ||
+        trendlineDragRef.current !== null
+      // Bars only ever ADDED on the right: push them one by one instead of
+      // re-sending the whole array. At 60× replay this effect runs on every
+      // animation frame, and re-sending thousands of bars each time is what
+      // made fast playback grind to a crawl the longer a session ran.
+      // A long replay eventually hits the parent's candle ceiling, and from
+      // then on each new bar on the right also drops one off the LEFT. Every
+      // logical index shifts down by that many, so the view has to be re-offset
+      // or it creeps a bar per frame — which reads as the chart, and everything
+      // pinned to it, skipping around the longer a session runs.
+      const trimmed =
+        candles[0].t > firstTimeRef.current && previousCandles
+          ? droppedFromLeft(previousCandles, candles[0].t)
+          : 0
+      const appendOnly =
+        trimmed === 0 &&
+        candles[0].t === firstTimeRef.current &&
+        candles.length > prevLenRef.current &&
+        tailColorsUnchanged()
+      const added = candles.length + trimmed - prevLenRef.current
+      if (appendOnly) {
+        for (let i = prevLenRef.current; i < candles.length; i += 1) {
+          candleSeries.update(toCandleData(candles[i], colorMap))
+          volumeSeries.update(toVolumeData(candles[i]))
+        }
+        appendRef.current = { candles, added }
+        // NO manual view shift here, on purpose. update() makes the chart move
+        // itself: it follows the new bars when the user is at the right edge
+        // and leaves the view alone when they've panned back — exactly what the
+        // single-bar tick path above relies on. Shifting by hand as well would
+        // advance the view twice per bar, walking the newest candle off to the
+        // left and opening a widening band of empty space on the right, which
+        // drags every drawing out of position with it.
+        //
+        // The full-repaint branch below is the opposite case: setData() moves
+        // nothing, so there the shift has to be done by hand.
+      } else {
+        candleSeries.setData(
+          candles.map((candle) => toCandleData(candle, colorMap))
+        )
+        volumeSeries.setData(candles.map(toVolumeData))
+        // Only re-offset when we could actually account for the left edge
+        // moving. A big jump (a scrub) can land past everything the previous
+        // array held, leaving `trimmed` unmeasurable — shifting by a made-up
+        // number would throw the view somewhere arbitrary, so leave it alone
+        // and let the chart settle where the new data puts it.
+        const measured =
+          candles[0].t === firstTimeRef.current || trimmed > 0
+        const shift = wasAtLiveEdge ? added - trimmed : -trimmed
+        if (measured && before && !drawingGesture && shift !== 0) {
+          timeScale?.setVisibleLogicalRange({
+            from: before.from + shift,
+            to: before.to + shift,
+          })
+        }
+      }
     } else {
       candleSeries.setData(
         candles.map((candle) => toCandleData(candle, colorMap))
@@ -1175,10 +2002,45 @@ export function PriceChartView({
         chartRef.current?.timeScale().resetTimeScale()
       }
     }
+    // The chart's own copy must always match the array it was just given. If it
+    // ever doesn't, an append happened where a full repaint was needed, and the
+    // two drift apart for the rest of the session — stale bars pile up, the
+    // time span stretches past the bars available to fill it, and every drawing
+    // pinned to a time lands in the wrong place or nowhere at all.
+    //
+    // Sampled, not run every frame: the only way to ask the chart how much it
+    // holds is `data()`, which hands back a copy of the entire series — running
+    // that per frame would itself get slower the longer a session ran, the
+    // exact shape of problem this guard exists to catch. Drift is permanent
+    // once it starts, so an occasional look finds it just as surely.
+    driftCheckRef.current += 1
+    if (driftCheckRef.current >= DRIFT_CHECK_EVERY) {
+      driftCheckRef.current = 0
+      const held = candleSeries.data().length
+      if (held !== candles.length) {
+        if (import.meta.env.DEV) {
+          reportDrawingAnomaly(
+            `Chart data drifted: chart holds ${held} bars, was given ${candles.length}`
+          )
+        }
+        // Put it back in step. Drift would otherwise last the rest of the
+        // session, and everything pinned to a time — every drawing, every
+        // planned trade — drifts along with it. A repaint costs one frame;
+        // this is sampled, so it can't cost more than that occasionally.
+        candleSeries.setData(
+          candles.map((candle) => toCandleData(candle, colorMap))
+        )
+        volumeSeries.setData(candles.map(toVolumeData))
+        // A repaint, not an append — say so, or the overlays reconcile against
+        // bars that were never added.
+        appendRef.current = { candles, added: 0 }
+      }
+    }
     dataKeyRef.current = dataKey
     lastTimeRef.current = last.t
     firstTimeRef.current = candles[0].t
     prevLenRef.current = candles.length
+    prevColorMapRef.current = colorMap ?? null
   }, [ready, candles, dataKey, visibleStartMs, barColors])
 
   // Report the visible time range to the parent (for lazy history loading).
@@ -1196,39 +2058,60 @@ export function PriceChartView({
     return () => timeScale.unsubscribeVisibleTimeRangeChange(handler)
   }, [ready])
 
-  // Trendlines are stored in chart values (time + price) and projected back to
-  // pixels whenever the user pans, zooms, resizes, or edits a point.
+  // Drawings are stored in chart values (time + price) and projected back to
+  // pixels whenever the chart repaints or a drawing is edited.
   React.useEffect(() => {
     const chart = chartRef.current
     const series = candleSeriesRef.current
-    const container = containerRef.current
-    if (!ready || !chart || !series || !container) return
+    if (!ready || !chart || !series) return
     const timeScale = chart.timeScale()
-    const recompute = () => {
-      const next: {
-        id: string
-        start: PixelPoint
-        end: PixelPoint
-        color: string
-        draft?: boolean
-      }[] = []
+    /**
+     * X for any drawing anchor. Anchors past the newest candle sit in empty
+     * space to the right, so they are placed by extrapolated bar index rather
+     * than snapped back onto the last candle.
+     */
+    const anchorX = (time: number) => {
+      const last = candleTimes.length - 1
+      const lastTime = candleTimes[last]
+      const interval = lastTime - candleTimes[last - 1]
+      if (last > 0 && time > lastTime && interval > 0) {
+        // Anchors past the newest candle sit in empty space to the right, so
+        // they are placed by extrapolated bar index rather than snapped back
+        // onto the last candle.
+        //
+        // Extrapolate BY HAND off the last two real bars. Asking the library to
+        // place a bar index that runs past the chart's right margin does not
+        // give a usable answer — it hands back 0, which slams that edge of the
+        // drawing onto the left of the pane and blows the box out to the full
+        // width of the chart. Two in-range indices define the spacing, and the
+        // rest is a straight line, valid however far right the anchor sits.
+        const at = timeScale.logicalToCoordinate(last as Logical)
+        const before = timeScale.logicalToCoordinate((last - 1) as Logical)
+        if (at !== null && before !== null && at !== before) {
+          const barPx = at - before
+          return (at + ((time - lastTime) / interval) * barPx) as typeof at
+        }
+      }
+      const nearest = nearestCandleTime(candleTimes, time)
+      if (nearest === null) return null
+      const x = timeScale.timeToCoordinate(nearest as UTCTimestamp)
+      if (x !== null) return x
+      // The chart doesn't know that candle. It should — but a drawing must
+      // never silently vanish because one bar is missing, so fall back to the
+      // bar's position in the candles we were handed. Slightly off if the two
+      // ever disagree; visible and roughly right beats gone.
+      const index = candleTimes.indexOf(nearest)
+      return index < 0 ? null : timeScale.logicalToCoordinate(index as Logical)
+    }
+    const recompute = (sync = false) => {
+      const next: TrendlinePixels[] = []
       for (const line of [
         ...trendlines,
         ...(trendlineDraft ? [trendlineDraft] : []),
       ]) {
-        const last = candleTimes.length - 1
-        const lastTime = candleTimes[last]
-        const interval = lastTime - candleTimes[last - 1]
-        const [startX, endX] = [line.start, line.end].map((point) => {
-          if (last > 0 && point.time > lastTime && interval > 0)
-            return timeScale.logicalToCoordinate(
-              (last + (point.time - lastTime) / interval) as Logical
-            )
-          const time = nearestCandleTime(candleTimes, point.time)
-          return time === null
-            ? null
-            : timeScale.timeToCoordinate(time as UTCTimestamp)
-        })
+        const [startX, endX] = [line.start, line.end].map((point) =>
+          anchorX(point.time)
+        )
         const startY = series.priceToCoordinate(line.start.price)
         const endY = series.priceToCoordinate(line.end.price)
         if (
@@ -1246,24 +2129,123 @@ export function PriceChartView({
           draft: line === trendlineDraft,
         })
       }
-      trendlinePixelsRef.current = next
-      setTrendlinePixels(next)
-    }
-    const recomputeAfterWheel = () => requestAnimationFrame(recompute)
-    recompute()
-    timeScale.subscribeVisibleTimeRangeChange(recompute)
-    const observer = new ResizeObserver(recompute)
-    observer.observe(container)
-    container.addEventListener("wheel", recomputeAfterWheel)
-    return () => {
-      timeScale.unsubscribeVisibleTimeRangeChange(recompute)
-      observer.disconnect()
-      container.removeEventListener("wheel", recomputeAfterWheel)
-    }
-  }, [ready, trendlines, trendlineDraft, overlayRevision, candleTimes])
 
-  // Pan (without changing zoom) so a newly focused trade's pulsing pointer is
-  // centered in view — the user's current zoom level is preserved.
+      const boxes: ChartPositionPixels[] = []
+      for (const position of positions) {
+        const left = anchorX(position.startTime)
+        const right = anchorX(position.endTime)
+        const entryY = series.priceToCoordinate(position.entry)
+        const stopY = series.priceToCoordinate(position.stop)
+        const targetY = series.priceToCoordinate(position.target)
+        if (
+          left === null ||
+          right === null ||
+          entryY === null ||
+          stopY === null ||
+          targetY === null
+        ) {
+          // A box the chart cannot place is silently dropped from the render —
+          // it just vanishes off the screen, which is exactly what the
+          // "flickering / my box disappeared" reports look like. Say WHICH of
+          // the five numbers came back empty, with the raw values behind it, so
+          // the cause is named instead of guessed at. A chart with no candles
+          // yet is not an anomaly — saved drawings load ahead of the data and
+          // simply cannot be placed until it lands.
+          if (candleTimes.length === 0) continue
+          reportDrawingAnomaly(
+            `Box not drawable: ${[
+              ["left", left],
+              ["right", right],
+              ["entry", entryY],
+              ["stop", stopY],
+              ["target", targetY],
+            ]
+              .filter(([, value]) => value === null)
+              .map(([name]) => name)
+              .join(", ")} — box t=${position.startTime}→${position.endTime}, ` +
+              `candles ${candleTimes[0]}→${candleTimes[candleTimes.length - 1]}, ` +
+              `prices ${position.stop}/${position.entry}/${position.target}`
+          )
+          continue
+        }
+        boxes.push({
+          id: position.id,
+          side: position.side,
+          left,
+          right,
+          entryY,
+          stopY,
+          targetY,
+        })
+      }
+      // The paint hook below fires on every real repaint, including live data
+      // ticks — skip the React work when no drawing actually moved on screen.
+      const linesChanged = !samePixelLines(trendlinePixelsRef.current, next)
+      const boxesChanged = !samePixelBoxes(positionPixelsRef.current, boxes)
+      if (!linesChanged && !boxesChanged) return
+      if (linesChanged) trendlinePixelsRef.current = next
+      if (boxesChanged) positionPixelsRef.current = boxes
+      const apply = () => {
+        if (linesChanged) setTrendlinePixels(next)
+        if (boxesChanged) setPositionPixels(boxes)
+      }
+      // Paint-driven recomputes (pan, zoom, replay follow, resize) commit the
+      // overlay DOM in the SAME frame as the canvas move. Without this the
+      // drawings re-place a frame behind every view change — at replay speed
+      // that reads as every drawing shivering or skipping.
+      if (sync) flushSoon(apply)
+      else apply()
+    }
+    // flushSync straight from a chart callback can land inside React's own
+    // commit (the follow shift fires from within the data effect), which
+    // React rejects loudly. A microtask runs after the current commit but
+    // still BEFORE the browser paints — same frame, no complaint. Latest
+    // recompute wins if several arrive in one task.
+    let flushScheduled = false
+    let pendingApply: (() => void) | null = null
+    const flushSoon = (fn: () => void) => {
+      pendingApply = fn
+      if (flushScheduled) return
+      flushScheduled = true
+      queueMicrotask(() => {
+        flushScheduled = false
+        const run = pendingApply
+        pendingApply = null
+        if (!run) return
+        try {
+          flushSync(run)
+        } catch {
+          run()
+        }
+      })
+    }
+    // The chart calls a pane primitive's updateAllViews() inside every real
+    // repaint — pan, zoom, price-axis drag, autoscale refit, resize, new data
+    // — after the frame's scales are final and just before the canvas draws.
+    // Re-projecting there keeps the drawings pinned to their candles exactly
+    // like the native arrow markers, which ride the same paint. The previous
+    // trigger (the visible-time-range event, plus wheel and resize listeners)
+    // fired mid-update with the previous frame's coordinates, so the drawings
+    // visibly trailed the candles while the chart was dragged — and some
+    // repaints (a price-axis drag with auto-scale off, the autoscale refit a
+    // frame after a pan) fired no event at all, leaving the projection stale.
+    const paintSync: IPanePrimitive<Time> = {
+      updateAllViews: () => recompute(true),
+    }
+    const pane = chart.panes()[0]
+    pane.attachPrimitive(paintSync)
+    // Editing a drawing changes no chart state, so it never repaints the
+    // canvas — project those directly.
+    recompute()
+    return () => {
+      // chartRef is nulled once the chart itself is torn down; detaching from
+      // a disposed chart throws.
+      if (chartRef.current) pane.detachPrimitive(paintSync)
+    }
+  }, [ready, trendlines, positions, trendlineDraft, candleTimes])
+
+  // Pan (without changing zoom) so a newly focused trade is centered in view —
+  // the user's current zoom level is preserved.
   React.useEffect(() => {
     const chart = chartRef.current
     if (
@@ -1288,8 +2270,8 @@ export function PriceChartView({
     repinOverlaysAfterReflow()
   }, [ready, focusPoints, repinOverlaysAfterReflow])
 
-  // Track the pixel position of each focus point so the pulsing pointer stays
-  // pinned to it as the user pans, zooms, or the pane resizes.
+  // Track the pixel position of each focus point so the result box stays pinned
+  // to the trade as the user pans, zooms, or the pane resizes.
   React.useEffect(() => {
     const chart = chartRef.current
     const series = candleSeriesRef.current
@@ -1299,43 +2281,14 @@ export function PriceChartView({
     }
     const timeScale = chart.timeScale()
     const recompute = () => {
-      // Center the ring on the fill's arrow: buys draw below the bar, sells
-      // above, each offset from the bar extreme by half the arrow height.
-      const halfArrow = halfArrowHeight(timeScale.options().barSpacing)
-      const next: {
-        x: number
-        y: number
-        label: string
-        placement: "above" | "below"
-      }[] = []
+      const next: { x: number; y: number }[] = []
       for (const point of focusPoints) {
         const sec = Math.floor(point.time / 1000)
         const x = timeScale.timeToCoordinate(sec as UTCTimestamp)
-        const candle = candleByTimeRef.current.get(sec)
-        if (x == null || !candle) continue
-        const below = point.side === "buy"
-        // Center on the price-pinned chip when a fill price is known; otherwise
-        // fall back to the bar extreme plus the arrow offset (live orders).
-        let y: number | null
-        if (point.price != null) {
-          y = series.priceToCoordinate(point.price)
-        } else {
-          const anchorPrice = Number(below ? candle.l : candle.h)
-          const anchorY = series.priceToCoordinate(anchorPrice)
-          y =
-            anchorY == null
-              ? null
-              : below
-                ? anchorY + halfArrow
-                : anchorY - halfArrow
-        }
+        if (x == null || !candleByTimeRef.current.has(sec)) continue
+        const y = series.priceToCoordinate(point.price)
         if (y == null) continue
-        next.push({
-          x,
-          y,
-          label: point.label,
-          placement: below ? "below" : "above",
-        })
+        next.push({ x, y })
       }
       setFocusPixels(next)
     }
@@ -1498,17 +2451,17 @@ export function PriceChartView({
     for (const ind of indicators) {
       if (!ind.enabled) continue
       if (ind.type === "ema") {
-        // Up to three lines from one config; a custom color tints line 1.
+        // Up to three lines from one config, each with its own color; the
+        // legacy single `color` still tints line 1 when no per-line color set.
         for (const line of emaLines(ind.params)) {
           addLine(
             `${ind.id}:${line.slot}`,
             line.slot,
-            line.slot === "ema-fast" ? ind.color : undefined,
+            ind.colors?.[line.key] ??
+              (line.key === "fast" ? ind.color : undefined),
             0
           )
         }
-      } else if (ind.type === "vwap") {
-        addLine("vwap", "vwap", ind.color, 0)
       } else if (ind.type === "base") {
         // Rendered as separate per-mark series in the data effect below.
       } else if (ind.type === "bollinger") {
@@ -1560,28 +2513,55 @@ export function PriceChartView({
   }, [ready, indicators])
 
   // Generic extra line series (precomputed points, e.g. strategy channels).
+  // Reconciled by id rather than rebuilt: during replay this runs on every
+  // animation frame, and creating/destroying series forces the whole chart to
+  // re-lay-out — the churn that made fast playback stutter and pinned drawings
+  // jump. Only lines that appeared, vanished, or actually moved are touched.
   React.useEffect(() => {
     const chart = chartRef.current
     const ctors = seriesCtorsRef.current
     if (!ready || !chart || !ctors) return
 
+    // Keyed by where the line starts, not by `overlay.id` — indicator overlay
+    // ids are bar-index based, so an unmoved swing line would get a brand new
+    // id (and a brand new series) every time the paint window slides.
+    const keyOf = (overlay: ChartOverlayLine) => {
+      const anchor = overlay.points[0]
+      return anchor
+        ? `${anchor.time}:${anchor.value}:${overlay.color}:${overlay.dashed ? 1 : 0}`
+        : overlay.id
+    }
     const map = overlaySeriesRef.current
-    for (const series of map.values()) chart.removeSeries(series)
-    map.clear()
+    const wanted = new Set(overlayLines.map(keyOf))
+    for (const [key, series] of map) {
+      if (wanted.has(key)) continue
+      chart.removeSeries(series)
+      map.delete(key)
+    }
 
     for (const overlay of overlayLines) {
-      const series = chart.addSeries(
-        ctors.LineSeries,
-        {
+      const key = keyOf(overlay)
+      let series = map.get(key)
+      if (series) {
+        series.applyOptions({
           color: overlay.color,
-          lineWidth: 1,
           lineStyle: overlay.dashed ? 2 : 0,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        },
-        0
-      )
+        })
+      } else {
+        series = chart.addSeries(
+          ctors.LineSeries,
+          {
+            color: overlay.color,
+            lineWidth: 1,
+            lineStyle: overlay.dashed ? 2 : 0,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          },
+          0
+        )
+        map.set(key, series)
+      }
       series.setData(
         overlay.points.map(
           (point): LineData => ({
@@ -1590,7 +2570,6 @@ export function PriceChartView({
           })
         )
       )
-      map.set(overlay.id, series)
     }
   }, [ready, overlayLines])
 
@@ -1601,11 +2580,28 @@ export function PriceChartView({
     const ctors = seriesCtorsRef.current
     if (!ready || !chart || !ctors) return
 
-    for (const series of zoneSeriesRef.current) chart.removeSeries(series)
-    zoneSeriesRef.current = []
+    // Same reconcile-don't-rebuild discipline as the overlay lines: a chop or
+    // fair-value-gap zone that hasn't moved keeps its series across frames.
+    // Keyed by the rectangle it draws, NOT by `zone.id` — indicator zone ids
+    // are bar-index based, so every id shifts by one each time the paint window
+    // slides even though the box on screen has not moved an inch.
+    const zoneMap = zoneSeriesRef.current
+    const drawable = zones.filter(
+      (zone) => zone.top > zone.bottom && zone.toMs > zone.fromMs
+    )
+    const signatureOf = (zone: ChartZone) =>
+      `${zone.fromMs}:${zone.toMs}:${zone.top}:${zone.bottom}:${zone.fillColor}:${zone.borderColor ?? ""}`
+    const wantedZones = new Set(drawable.map(signatureOf))
+    for (const [signature, series] of zoneMap) {
+      if (wantedZones.has(signature)) continue
+      for (const item of series) chart.removeSeries(item)
+      zoneMap.delete(signature)
+    }
 
-    for (const zone of zones) {
-      if (!(zone.top > zone.bottom) || !(zone.toMs > zone.fromMs)) continue
+    for (const zone of drawable) {
+      const signature = signatureOf(zone)
+      if (zoneMap.has(signature)) continue
+      const created: ISeriesApi<SeriesType>[] = []
       const series = chart.addSeries(
         ctors.BaselineSeries,
         {
@@ -1628,7 +2624,7 @@ export function PriceChartView({
         { time: (zone.fromMs / 1000) as UTCTimestamp, value: zone.top },
         { time: (zone.toMs / 1000) as UTCTimestamp, value: zone.top },
       ])
-      zoneSeriesRef.current.push(series)
+      created.push(series)
       // The baseline series can only stroke its top edge, so a bordered box
       // gets its bottom edge from a separate 2-point line at `bottom`.
       if (zone.borderColor) {
@@ -1647,25 +2643,57 @@ export function PriceChartView({
           { time: (zone.fromMs / 1000) as UTCTimestamp, value: zone.bottom },
           { time: (zone.toMs / 1000) as UTCTimestamp, value: zone.bottom },
         ])
-        zoneSeriesRef.current.push(bottomEdge)
+        created.push(bottomEdge)
       }
+      zoneMap.set(signature, created)
     }
   }, [ready, zones])
 
-  // Recompute indicator data on every candle/config change (cheap ≤1000 pts).
+  // Recompute indicator data on every candle/config change. During replay this
+  // runs on every animation frame, so both halves reconcile rather than
+  // rebuild: line series take only their newly appended points, and base marks
+  // are keyed by the span they cover so untouched marks keep their series.
   React.useEffect(() => {
     const map = indicatorSeriesRef.current
     const chart = chartRef.current
     const ctors = seriesCtorsRef.current
     if (!ready || candles.length === 0 || !chart || !ctors) return
 
-    // Rebuild QFL base marks from scratch each run (candles/config change).
-    for (const series of baseSeriesRef.current) chart.removeSeries(series)
-    baseSeriesRef.current = []
+    // A config change swaps every series out from under us, so nothing cached
+    // for the old set can be reused.
+    if (prevIndicatorsRef.current !== indicators) {
+      prevIndicatorsRef.current = indicators
+      lineFilledRef.current.clear()
+      for (const series of baseSeriesRef.current.values()) {
+        chart.removeSeries(series)
+      }
+      baseSeriesRef.current.clear()
+    }
+    // Bars appended on the right this same commit, for this exact array — the
+    // candle effect above runs first and leaves the count here. Anything else
+    // (a scrub, a timeframe switch, older history) means a full re-set.
+    const appended =
+      appendRef.current.candles === candles ? appendRef.current.added : 0
+
     const isDark = document.documentElement.classList.contains("dark")
 
-    const closes = candles.map((candle) => Number(candle.c))
-    const at = (i: number) => (candles[i].t / 1000) as UTCTimestamp
+    // Indicators are recomputed on every revealed bar, so this must not scale
+    // with how long a replay has been running — a session that has revealed
+    // 50,000 bars would otherwise re-run every indicator over all of them,
+    // sixty times a second, and slow to a crawl exactly as it did before.
+    // So while bars are STREAMING in, compute over a fixed trailing window. The
+    // line series keep every point they were ever given (new points are
+    // appended, never re-set), so the drawn history stays complete even though
+    // the maths does not repeat it. Any full recomputation still covers
+    // everything — see INDICATOR_CANDLE_CAP.
+    const window_ =
+      appended > 0 && candles.length > INDICATOR_CANDLE_CAP
+        ? candles.slice(-INDICATOR_CANDLE_CAP)
+        : candles
+    const windowStartSec = Math.floor(window_[0].t / 1000)
+
+    const closes = window_.map((candle) => Number(candle.c))
+    const at = (i: number) => (window_[i].t / 1000) as UTCTimestamp
     const toLine = (values: number[]): LineData[] => {
       const data: LineData[] = []
       for (let i = 0; i < values.length; i += 1) {
@@ -1676,51 +2704,93 @@ export function PriceChartView({
     }
     const setLine = (key: string, values: number[]) => {
       const entry = map.get(key)
-      if (entry) (entry.series as ISeriesApi<"Line">).setData(toLine(values))
+      if (!entry) return
+      const series = entry.series as ISeriesApi<"Line">
+      // Every one of these indicators reads only the past, so appending bars
+      // leaves the earlier values untouched — pushing just the new points
+      // beats re-sending thousands of them sixty times a second.
+      if (
+        appended > 0 &&
+        appended < values.length &&
+        lineFilledRef.current.has(key)
+      ) {
+        for (let i = values.length - appended; i < values.length; i += 1) {
+          if (!Number.isNaN(values[i])) series.update({ time: at(i), value: values[i] })
+        }
+        return
+      }
+      series.setData(toLine(values))
+      lineFilledRef.current.add(key)
     }
+
+    // Base marks that survive this run; anything left over is removed after.
+    const keptBaseKeys = new Set<string>()
 
     for (const ind of indicators) {
       if (!ind.enabled) continue
       if (ind.type === "ema") {
         for (const line of emaLines(ind.params)) {
-          setLine(`${ind.id}:${line.slot}`, ema(closes, line.period))
+          setLine(`${ind.id}:${line.slot}`, ema(closes, ind.params[line.periodKey]))
         }
-      } else if (ind.type === "vwap") {
-        setLine("vwap", vwap(candles))
       } else if (ind.type === "base") {
-        const { line } = qflBase(
-          candles,
-          ind.params.basePeriods,
-          ind.params.pumpPeriods
-        )
-        const color = ind.color ?? indicatorColor("base", isDark)
         // Draw each contiguous run of equal value as its own 2-point series so
-        // bases are separate short horizontal marks, never joined to each other.
-        let i = 0
-        while (i < line.length) {
-          if (Number.isNaN(line[i])) {
-            i += 1
-            continue
+        // levels are separate short horizontal marks, never joined to each other.
+        const drawDashes = (marks: number[], color: string) => {
+          let i = 0
+          while (i < marks.length) {
+            if (Number.isNaN(marks[i])) {
+              i += 1
+              continue
+            }
+            let j = i
+            while (j + 1 < marks.length && marks[j + 1] === marks[i]) j += 1
+            // Keyed by the exact mark it draws, so a mark that did not move
+            // between frames keeps the series it already has.
+            const key = `${at(i)}|${at(j)}|${marks[i]}|${color}`
+            keptBaseKeys.add(key)
+            if (baseSeriesRef.current.has(key)) {
+              i = j + 1
+              continue
+            }
+            const series = chart.addSeries(
+              ctors.LineSeries,
+              {
+                color,
+                lineWidth: 3,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                crosshairMarkerVisible: false,
+              },
+              0
+            )
+            series.setData([
+              { time: at(i), value: marks[i] },
+              { time: at(j), value: marks[i] },
+            ])
+            baseSeriesRef.current.set(key, series)
+            i = j + 1
           }
-          let j = i
-          while (j + 1 < line.length && line[j + 1] === line[i]) j += 1
-          const series = chart.addSeries(
-            ctors.LineSeries,
-            {
-              color,
-              lineWidth: 3,
-              priceLineVisible: false,
-              lastValueVisible: false,
-              crosshairMarkerVisible: false,
-            },
-            0
+        }
+        // Each side has its own switch, spelled the same in a pinned chart config
+        // and in an automation's paint. Absent (an older saved row) means shown.
+        const showBases = (ind.params.formedShowLong ?? 1) !== 0
+        const showCeilings = (ind.params.formedShowShort ?? 1) !== 0
+        if (showBases) {
+          const { line } = baseLevels(
+            window_,
+            ind.params.basePeriods,
+            ind.params.pumpPeriods
           )
-          series.setData([
-            { time: at(i), value: line[i] },
-            { time: at(j), value: line[i] },
-          ])
-          baseSeriesRef.current.push(series)
-          i = j + 1
+          drawDashes(line, ind.color ?? indicatorColor("base", isDark))
+        }
+        // Ceilings in the down colour, so "sell here" reads apart from the base.
+        if (showCeilings) {
+          const ceilings = ceilingLevels(
+            window_,
+            ind.params.basePeriods,
+            ind.params.pumpPeriods
+          )
+          drawDashes(ceilings.line, DOWN_COLOR)
         }
       } else if (ind.type === "bollinger") {
         const bands = bollinger(closes, ind.params.period, ind.params.k)
@@ -1740,19 +2810,44 @@ export function PriceChartView({
         setLine("macd-signal", result.signal)
         const histEntry = map.get("macd-hist")
         if (histEntry) {
-          const data: HistogramData[] = []
-          for (let i = 0; i < result.hist.length; i += 1) {
-            if (!Number.isNaN(result.hist[i])) {
-              data.push({
-                time: at(i),
-                value: result.hist[i],
-                color: result.hist[i] >= 0 ? MACD_UP : MACD_DOWN,
-              })
+          const series = histEntry.series as ISeriesApi<"Histogram">
+          const bar = (i: number): HistogramData => ({
+            time: at(i),
+            value: result.hist[i],
+            color: result.hist[i] >= 0 ? MACD_UP : MACD_DOWN,
+          })
+          if (
+            appended > 0 &&
+            appended < result.hist.length &&
+            lineFilledRef.current.has("macd-hist")
+          ) {
+            for (let i = result.hist.length - appended; i < result.hist.length; i += 1) {
+              if (!Number.isNaN(result.hist[i])) series.update(bar(i))
             }
+          } else {
+            const data: HistogramData[] = []
+            for (let i = 0; i < result.hist.length; i += 1) {
+              if (!Number.isNaN(result.hist[i])) data.push(bar(i))
+            }
+            series.setData(data)
+            lineFilledRef.current.add("macd-hist")
           }
-          ;(histEntry.series as ISeriesApi<"Histogram">).setData(data)
         }
       }
+    }
+
+    // Base marks the current candles no longer produce (the oldest scrolled
+    // out, or a level moved) lose their series here — the only place they are
+    // removed, so an unchanged mark is never destroyed and rebuilt.
+    //
+    // Only marks INSIDE the computed window are eligible: an older mark was
+    // simply not recomputed this pass, and dropping it would make base levels
+    // evaporate behind the playhead as a long replay slid its window along.
+    for (const [key, series] of baseSeriesRef.current) {
+      if (keptBaseKeys.has(key)) continue
+      if (baseKeyStart(key) < windowStartSec) continue
+      chart.removeSeries(series)
+      baseSeriesRef.current.delete(key)
     }
   }, [ready, candles, indicators])
 
@@ -1788,10 +2883,11 @@ export function PriceChartView({
       }
 
       const current = existing.get(spec.id)
-      const title =
-        lineCancelEnabled && spec.draggable
-          ? `${spec.title}${LINE_ACTION_TITLE_PADDING}`
-          : spec.title
+      // Cancelable lines render their label as an HTML chip (with the ×)
+      // pinned to the line, so the canvas title stays empty — the library
+      // shifts its title chip to dodge axis labels, which would desync it
+      // from the overlaid button.
+      const title = lineCancelEnabled && spec.draggable ? "" : spec.title
       if (current) {
         current.applyOptions({
           price,
@@ -1866,18 +2962,28 @@ export function PriceChartView({
         }
       : null
 
-  const settingsTrendline = trendlineSettings
-    ? trendlines.find((line) => line.id === trendlineSettings.id)
-    : null
+  const settingsTrendline =
+    drawingSettings?.kind === "trendline"
+      ? trendlines.find((line) => line.id === drawingSettings.id)
+      : null
+  const settingsPosition =
+    drawingSettings?.kind === "position"
+      ? positions.find((item) => item.id === drawingSettings.id)
+      : null
   const updateTrendlineColor = (color: string) => {
-    if (!trendlineSettings) return
-    const next = trendlinesRef.current.map((line) =>
-      line.id === trendlineSettings.id ? { ...line, color } : line
+    if (!settingsTrendline) return
+    applyDrawings(
+      {
+        ...drawingsRef.current,
+        trendlines: drawingsRef.current.trendlines.map((line) =>
+          line.id === settingsTrendline.id ? { ...line, color } : line
+        ),
+      },
+      true
     )
-    trendlinesRef.current = next
-    trendlinesChangeRef.current?.(next)
-    trendlinesCommitRef.current?.(next)
   }
+  const selectedTrendline =
+    selection?.kind === "trendline" ? selection.id : null
 
   return (
     <div className="relative h-full w-full">
@@ -1943,7 +3049,7 @@ export function PriceChartView({
                     <circle
                       cx={line.start.x}
                       cy={line.start.y}
-                      r={4}
+                      r={6}
                       fill="var(--card)"
                       stroke={color}
                       strokeWidth={2}
@@ -1951,7 +3057,7 @@ export function PriceChartView({
                     <circle
                       cx={line.end.x}
                       cy={line.end.y}
-                      r={4}
+                      r={6}
                       fill="var(--card)"
                       stroke={color}
                       strokeWidth={2}
@@ -1963,58 +3069,170 @@ export function PriceChartView({
           })}
         </svg>
       ) : null}
+      {trendlineAlerts && trendlinePixels.length > 0 ? (
+        // A bell above an armed line's midpoint marks it as a live tripwire.
+        <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
+          {trendlinePixels.map((line) => {
+            const rule = trendlineAlerts.rules.get(line.id)
+            if (rule?.status !== "active") return null
+            return (
+              <div
+                key={line.id}
+                className="absolute -translate-x-1/2 -translate-y-[135%]"
+                style={{
+                  left: (line.start.x + line.end.x) / 2,
+                  top: (line.start.y + line.end.y) / 2,
+                }}
+              >
+                <BellRingIcon
+                  aria-label="Alert armed on this line"
+                  className="size-3.5"
+                  style={{ color: line.color }}
+                />
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
+      {positionPixels.length > 0 ? (
+        <ChartPositionOverlay
+          positions={positions}
+          pixels={positionPixels}
+          selectedId={selection?.kind === "position" ? selection.id : null}
+        />
+      ) : null}
+      {/* Only charts that can store what you draw get the tools, and only once
+          the price axis has been measured so the bar doesn't jump into place. */}
+      {ready && onDrawingsCommit ? (
+        <ChartDrawToolbar
+          priceAxisWidth={priceAxisWidth}
+          activeTool={activeTool}
+          onSelectTool={setActiveTool}
+        />
+      ) : null}
       <Popover
-        open={Boolean(trendlineSettings && settingsTrendline)}
+        open={Boolean(settingsTrendline ?? settingsPosition)}
         onOpenChange={(open) => {
-          if (!open) setTrendlineSettings(null)
+          if (!open) {
+            setDrawingSettings(null)
+            setPendingTouch("wick")
+          }
         }}
       >
-        {trendlineSettings && settingsTrendline ? (
+        {drawingSettings && (settingsTrendline ?? settingsPosition) ? (
           <>
             <PopoverAnchor asChild>
               <span
                 className="pointer-events-none absolute z-40 size-px"
-                style={{ left: trendlineSettings.x, top: trendlineSettings.y }}
+                style={{ left: drawingSettings.x, top: drawingSettings.y }}
               />
             </PopoverAnchor>
             <PopoverContent className="w-56" side="top" align="center">
               <PopoverHeader>
-                <PopoverTitle>Trendline settings</PopoverTitle>
+                <PopoverTitle>
+                  {settingsTrendline
+                    ? "Trendline settings"
+                    : "Position settings"}
+                </PopoverTitle>
               </PopoverHeader>
-              <div className="grid gap-2.5">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Color
-                </span>
-                <div className="grid grid-cols-6 gap-2">
-                  {TRENDLINE_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      aria-label={`Set trendline color to ${color}`}
-                      aria-pressed={settingsTrendline.color === color}
-                      className="size-6 rounded-full border border-foreground/15 ring-offset-2 transition-transform outline-none hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring aria-pressed:ring-2 aria-pressed:ring-ring"
-                      style={{ backgroundColor: color }}
-                      onClick={() => updateTrendlineColor(color)}
+              {settingsTrendline ? (
+                <div className="grid gap-2.5">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Color
+                  </span>
+                  <div className="grid grid-cols-6 gap-2">
+                    {TRENDLINE_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        aria-label={`Set trendline color to ${color}`}
+                        aria-pressed={settingsTrendline.color === color}
+                        className="size-6 rounded-full border border-foreground/15 ring-offset-2 transition-transform outline-none hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring aria-pressed:ring-2 aria-pressed:ring-ring"
+                        style={{ backgroundColor: color }}
+                        onClick={() => updateTrendlineColor(color)}
+                      />
+                    ))}
+                  </div>
+                  <label className="flex cursor-pointer items-center justify-between rounded-md border border-border px-2 py-1.5 text-xs">
+                    Custom
+                    <input
+                      type="color"
+                      aria-label="Custom trendline color"
+                      className="h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
+                      value={settingsTrendline.color}
+                      onChange={(event) =>
+                        updateTrendlineColor(event.target.value)
+                      }
                     />
-                  ))}
+                  </label>
+                  {trendlineAlerts ? (
+                    <TrendlineAlertSection
+                      line={settingsTrendline}
+                      controls={trendlineAlerts}
+                      pendingTouch={pendingTouch}
+                      onPendingTouchChange={setPendingTouch}
+                      nowMs={
+                        candles.length > 0
+                          ? candles[candles.length - 1].t
+                          : null
+                      }
+                    />
+                  ) : null}
                 </div>
-                <label className="flex cursor-pointer items-center justify-between rounded-md border border-border px-2 py-1.5 text-xs">
-                  Custom
-                  <input
-                    type="color"
-                    aria-label="Custom trendline color"
-                    className="h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
-                    value={settingsTrendline.color}
-                    onChange={(event) =>
-                      updateTrendlineColor(event.target.value)
-                    }
-                  />
-                </label>
-              </div>
+              ) : settingsPosition ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start text-destructive"
+                  onClick={() =>
+                    deleteDrawing({ kind: "position", id: settingsPosition.id })
+                  }
+                >
+                  <Trash2Icon />
+                  Delete drawing
+                </Button>
+              ) : null}
             </PopoverContent>
           </>
         ) : null}
       </Popover>
+      {hoveredOrders ? (
+        // Pinned beside the arrow it describes, flipping to the other side near
+        // the right/bottom edge so it never spills out of the pane.
+        // pointer-events-none so it can't eat the drag/draw handlers underneath.
+        <div
+          className="pointer-events-none absolute z-30 rounded-md border bg-popover/95 px-2 py-1.5 shadow-md backdrop-blur-sm"
+          style={{
+            left: hoveredOrders.x + 14,
+            top: hoveredOrders.y + 14,
+            transform: `translate(${hoveredOrders.flipX ? "-100%" : "0"}, ${
+              hoveredOrders.flipY ? "-100%" : "0"
+            })`,
+          }}
+        >
+          <div className="grid gap-1">
+            {hoveredOrders.items.map((item, i) => (
+              <div
+                key={`${item.label}-${i}`}
+                className="flex items-baseline gap-2 text-[11px] whitespace-nowrap"
+              >
+                <span
+                  className="size-1.5 shrink-0 rounded-full"
+                  style={{
+                    background: item.side === "buy" ? UP_COLOR : DOWN_COLOR,
+                  }}
+                />
+                <span className="font-medium">{item.label}</span>
+                {item.value !== undefined ? (
+                  <span className="font-mono text-muted-foreground">
+                    {formatMoney(item.value)}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {markerPixels.length > 0 ? (
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
           {markerPixels.map((m, i) => {
@@ -2075,37 +3293,6 @@ export function PriceChartView({
           })}
         </div>
       ) : null}
-      {focusPixels.length > 0 ? (
-        <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
-          {focusPixels.map((point) => (
-            <div
-              key={point.label}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ left: point.x, top: point.y }}
-            >
-              {/* Hollow pulsing rings encircle the fill's arrow without hiding it. */}
-              <span
-                className="absolute top-1/2 left-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border-2"
-                style={{ borderColor: FOCUS_COLOR }}
-              />
-              <span
-                className="absolute top-1/2 left-1/2 block h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2"
-                style={{ borderColor: FOCUS_COLOR }}
-              />
-              <span
-                className={`absolute left-1/2 -translate-x-1/2 rounded px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap text-white shadow ${
-                  point.placement === "below"
-                    ? "top-full mt-1"
-                    : "bottom-full mb-1"
-                }`}
-                style={{ backgroundColor: FOCUS_COLOR }}
-              >
-                {point.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
       {focusBox && focusResult ? (
         <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden">
           <div
@@ -2143,20 +3330,25 @@ export function PriceChartView({
       ) : null}
       {onLineCancel
         ? lineActionPixels.map((action) => (
-            <button
+            <div
               key={action.id}
-              type="button"
-              aria-label={`Cancel ${action.title}`}
-              className="absolute z-40 flex size-4 -translate-y-1/2 items-center justify-center text-white shadow-sm outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              className="pointer-events-none absolute z-40 flex -translate-y-1/2 items-center gap-0.5 rounded-l-sm py-px pl-1.5 text-[11px] font-medium text-white shadow-sm"
               style={{
                 top: action.y,
                 right: action.right,
                 backgroundColor: action.color,
               }}
-              onClick={() => onLineCancel(action.id)}
             >
-              <XIcon className="size-3" aria-hidden="true" />
-            </button>
+              <span className="whitespace-nowrap">{action.title}</span>
+              <button
+                type="button"
+                aria-label={`Cancel ${action.title}`}
+                className="pointer-events-auto flex size-4 items-center justify-center outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                onClick={() => onLineCancel(action.id)}
+              >
+                <XIcon className="size-3" aria-hidden="true" />
+              </button>
+            </div>
           ))
         : null}
       {resetMenu ? (
@@ -2193,9 +3385,6 @@ export function PriceChartView({
   )
 }
 
-/** Session shading: menu swatches are hex; the zone fill needs translucent rgba. */
-const SESSION_FILL_ALPHA = 0.2
-const SESSION_BORDER_ALPHA = 0.55
 const EMPTY_ZONES: ChartZone[] = []
 
 /**
@@ -2217,13 +3406,6 @@ function useStableBarColors(next: ChartBarColor[]): ChartBarColor[] {
   ref.current = next
   return next
 }
-function hexToRgba(hex: string, alpha: number): string {
-  const match = /^#([0-9a-f]{6})$/i.exec(hex)
-  if (!match) return `rgba(41, 98, 255, ${alpha})`
-  const value = parseInt(match[1], 16)
-  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`
-}
-
 /**
  * Live trading chart: the shared view fed by the websocket candle stream.
  */
@@ -2242,10 +3424,10 @@ export function PriceChart({
   onLineClick,
   onLineCancel,
   onChartContextMenu,
+  onCandlesChange,
   registerApi,
-  trendlineDrawing,
-  onTrendlineDrawingChange,
-  onTrendlinePersistenceError,
+  onDrawingPersistenceError,
+  trendlineAlerts,
 }: {
   network: TradingNetwork
   coin: string
@@ -2257,7 +3439,7 @@ export function PriceChart({
   indicators?: IndicatorConfig[]
   /** Full saved config paint (an Automation's connected-indicator lines). */
   automationConfig?: AutomationConfig | null
-  /** Pulse rings the chart pans to (e.g. a selected fill). */
+  /** Entry/exit of a focused trade: the chart pans to them. */
   focusPoints?: ChartFocusPoint[]
   /** Entry → exit result box for a focused round trip. */
   focusResult?: ChartFocusResult | null
@@ -2274,12 +3456,14 @@ export function PriceChart({
   onLineCancel?: (id: string) => void
   /** Fired on right-click with the price under the cursor. */
   onChartContextMenu?: (price: number, clientX: number, clientY: number) => void
+  /** Fired with the merged (history + live) candle window whenever it changes. */
+  onCandlesChange?: (candles: ChartCandle[]) => void
   /** Receives the chart's imperative handle (e.g. `resetView`) once mounted. */
   registerApi?: (api: PriceChartHandle | null) => void
-  /** Activates the chart's one-shot trendline drawing tool. */
-  trendlineDrawing?: boolean
-  onTrendlineDrawingChange?: (active: boolean) => void
-  onTrendlinePersistenceError?: (action: "load" | "save") => void
+  /** Fired when saved drawings could not be loaded or saved. */
+  onDrawingPersistenceError?: (action: "load" | "save") => void
+  /** Arms price alerts on drawn trendlines (live trading chart only). */
+  trendlineAlerts?: TrendlineAlertControls
 }) {
   const maxCandles = useShellRuntime().config.maxCandles
   const { candles: liveCandles, loading } = useCandles(
@@ -2296,55 +3480,11 @@ export function PriceChart({
   const HISTORY_CHUNK = 800
   const HISTORY_CAP = 6_000
   const dataKey = `${network}:${coin}:${interval}`
-  const trendlineKey = `${network}:${coin}`
-  const [savedTrendlinesByChart, setSavedTrendlinesByChart] = React.useState(
-    () => new Map<string, Trendline[]>()
-  )
-  const dirtyTrendlineKeysRef = React.useRef(new Set<string>())
-  const trendlineSaveQueueRef = React.useRef<Promise<void>>(Promise.resolve())
-  React.useEffect(() => {
-    let cancelled = false
-    void loadChartTrendlines({ network, market: coin })
-      .then((trendlines) => {
-        if (!cancelled && !dirtyTrendlineKeysRef.current.has(trendlineKey)) {
-          setSavedTrendlinesByChart((current) =>
-            cacheTrendlines(current, trendlineKey, trendlines)
-          )
-        }
-      })
-      .catch(() => {
-        if (!cancelled) onTrendlinePersistenceError?.("load")
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [trendlineKey, network, coin, onTrendlinePersistenceError])
-  const visibleTrendlines =
-    savedTrendlinesByChart.get(trendlineKey) ?? EMPTY_TRENDLINES
-  const handleTrendlinesChange = React.useCallback(
-    (trendlines: Trendline[]) => {
-      dirtyTrendlineKeysRef.current.add(trendlineKey)
-      setSavedTrendlinesByChart((current) =>
-        cacheTrendlines(current, trendlineKey, trendlines)
-      )
-    },
-    [trendlineKey]
-  )
-  const handleTrendlinesCommit = React.useCallback(
-    (trendlines: Trendline[]) => {
-      const input = { network, market: coin, trendlines }
-      trendlineSaveQueueRef.current = trendlineSaveQueueRef.current.then(
-        async () => {
-          try {
-            await saveChartTrendlines(input)
-          } catch {
-            onTrendlinePersistenceError?.("save")
-          }
-        }
-      )
-    },
-    [network, coin, onTrendlinePersistenceError]
-  )
+  const { drawings, onDrawingsChange, onDrawingsCommit } = useChartDrawings({
+    network,
+    market: coin,
+    onPersistenceError: onDrawingPersistenceError,
+  })
   const [history, setHistory] = React.useState<{
     key: string
     candles: ChartCandle[]
@@ -2367,6 +3507,12 @@ export function PriceChart({
     for (const candle of liveCandles) byTime.set(candle.t, candle)
     return [...byTime.values()].sort((a, b) => a.t - b.t)
   }, [liveCandles, history, dataKey])
+
+  // Mirrors the merged candle window to the parent (e.g. the Automation
+  // visualize panel derives its draggable price levels from it).
+  React.useEffect(() => {
+    onCandlesChange?.(candles)
+  }, [candles, onCandlesChange])
 
   const handleVisibleRange = React.useCallback(
     (fromSec: number) => {
@@ -2417,79 +3563,85 @@ export function PriceChart({
   // paint pipeline (bar-colors, chop zones, swing pivots) instead of a bespoke
   // series. Its buy/sell signals become native chart arrows whose tips stay
   // anchored to their exact signal price through chart reflow.
-  const qqe = React.useMemo(() => {
-    const cfg = indicators.find((ind) => ind.type === "qqe" && ind.enabled)
-    if (!cfg || candles.length === 0) {
-      return { overlayLines: [], zones: [], barColors: [], markers: [] }
-    }
-    const numeric = candles.map((c) => ({
-      t: c.t,
-      o: Number(c.o),
-      h: Number(c.h),
-      l: Number(c.l),
-      c: Number(c.c),
-      v: Number(c.v),
-    }))
-    const out = INDICATORS.qqe.compute(
-      numeric,
-      qqeChartToModuleParams(cfg.params) as never
-    )
-    const overlays = outputToOverlays(out)
-    const closeAt = new Map(numeric.map((c) => [c.t, c.c]))
-    const markers: ChartMarker[] = out.signals.flatMap((signal) => {
-      const price = closeAt.get(signal.time)
-      return price ? [{ time: signal.time, side: signal.side, price }] : []
-    })
-    return {
-      overlayLines: overlays.overlayLines,
-      zones: overlays.zones,
-      barColors: overlays.barColors,
-      markers,
-    }
-  }, [indicators, candles])
+  const qqe = React.useMemo(
+    () =>
+      qqePaint(
+        indicators.find((ind) => ind.type === "qqe" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
+
+  // EMA cross arrows: when the EMA overlay has at least two lines switched
+  // on, the two FASTEST fire a long (up) arrow when the faster crosses above
+  // the slower and a short (down) arrow on the cross back — the same signal
+  // the EMA Cross strategy trades, computed through the same module.
+  const emaCrossMarkers = React.useMemo<ChartMarker[]>(
+    () =>
+      emaCrossPaint(
+        indicators.find((ind) => ind.type === "ema" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
+
+  // Price Action arrows: each detected pattern prints a long (up) or short
+  // (down) arrow at its candle — the same detector the Price Action strategy
+  // trades, computed through the same module.
+  const priceActionMarkers = React.useMemo<ChartMarker[]>(
+    () =>
+      priceActionPaint(
+        indicators.find((ind) => ind.type === "priceAction" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
 
   // Fair Value Gap draws its imbalance boxes through the same zone pipeline as
   // QQE's chop zones. Per the "no signal arrows" rule its buy/sell aren't
   // painted here — the boxes are the visual.
-  const fvg = React.useMemo(() => {
-    const cfg = indicators.find(
-      (ind) => ind.type === "fairValueGap" && ind.enabled
-    )
-    if (!cfg || candles.length === 0) return { zones: [] as ChartZone[] }
-    const numeric = candles.map((c) => ({
-      t: c.t,
-      o: Number(c.o),
-      h: Number(c.h),
-      l: Number(c.l),
-      c: Number(c.c),
-      v: Number(c.v),
-    }))
-    const out = INDICATORS.fair_value_gap.compute(
-      numeric,
-      fairValueGapChartToModuleParams(cfg.params) as never
-    )
-    return { zones: outputToOverlays(out).zones }
-  }, [indicators, candles])
+  const fvg = React.useMemo(
+    () => ({
+      zones: fvgPaint(
+        indicators.find((ind) => ind.type === "fairValueGap" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    }),
+    [indicators, candles]
+  )
 
-  const trendline = React.useMemo(() => {
-    const cfg = indicators.find(
-      (ind) => ind.type === "trendline" && ind.enabled
-    )
-    if (!cfg || candles.length === 0) return { overlayLines: [] }
-    const numeric = candles.map((c) => ({
-      t: c.t,
-      o: Number(c.o),
-      h: Number(c.h),
-      l: Number(c.l),
-      c: Number(c.c),
-      v: Number(c.v),
-    }))
-    const out = INDICATORS.trendline.compute(
-      numeric,
-      trendlineChartToModuleParams(cfg.params) as never
-    )
-    return { overlayLines: outputToOverlays(out).overlayLines }
-  }, [indicators, candles])
+  const trendline = React.useMemo(
+    () =>
+      trendlinePaint(
+        indicators.find((ind) => ind.type === "trendline" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
+
+  // Base arrows: ONE green up arrow per base, on the first candle back at the
+  // base level. Base emits only this formed-base long — breaking a base is the
+  // DCA ladder's rule and never draws here.
+  const baseMarkers = React.useMemo<ChartMarker[]>(
+    () =>
+      basePaint(
+        indicators.find((ind) => ind.type === "base" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
+
+  // Bollinger arrows: the bands themselves render from the chart's own
+  // config; the buy/sell arrows come from the module so the chart marks
+  // exactly what the Bollinger strategy node (same mode) would trade.
+  const bollingerMarkers = React.useMemo<ChartMarker[]>(
+    () =>
+      bollingerPaint(
+        indicators.find((ind) => ind.type === "bollinger" && ind.enabled),
+        toNumericCandles(candles)
+      ),
+    [indicators, candles]
+  )
 
   // Session shading: each picked session (NYSE, Tokyo, London, or a crypto
   // UTC block) paints as a translucent box from its open to its close,
@@ -2501,58 +3653,27 @@ export function PriceChart({
   const sessionEnabled = Boolean(sessionInd?.enabled)
   const sessionHex = sessionInd?.color ?? "#2962ff"
   const sessionKey = sessionInd?.session ?? "nyse"
+  // ...and its signal: the first run of three same-coloured candles after the
+  // session opens prints one arrow, at most one per session — the same rule
+  // the Sessions strategy node trades, through the same module.
+  const sessionMarkers = React.useMemo<ChartMarker[]>(
+    () =>
+      sessionSignalsPaint(
+        sessionEnabled ? sessionInd : undefined,
+        toNumericCandles(candles)
+      ),
+    [sessionEnabled, sessionInd, candles]
+  )
   const sessionZonesRef = React.useRef<ChartZone[]>(EMPTY_ZONES)
   const sessionZones = React.useMemo<ChartZone[]>(() => {
-    if (!sessionEnabled || candles.length === 0) return EMPTY_ZONES
-    const firstMs = candles[0].t
-    const lastMs = candles[candles.length - 1].t
-    // Snap zone edges to candle boundaries: off-grid times would insert extra
-    // slots into the index-based time axis. Coarse intervals can collapse
-    // neighboring sessions together, so overlapping spans merge.
-    const step = candleIntervalMs(interval)
-    const spans: { fromMs: number; toMs: number }[] = []
-    for (const session of sessionsInRange(sessionKey, firstMs, lastMs)) {
-      const fromMs = Math.max(Math.floor(session.openMs / step) * step, firstMs)
-      const toMs = Math.min(Math.ceil(session.closeMs / step) * step, lastMs)
-      const prev = spans[spans.length - 1]
-      if (prev && fromMs <= prev.toMs) prev.toMs = Math.max(prev.toMs, toMs)
-      else spans.push({ fromMs, toMs })
+    if (!sessionEnabled || !sessionInd || candles.length === 0) {
+      return EMPTY_ZONES
     }
-    // One pass for per-session extremes: candles and spans are both sorted.
-    // A candle opening exactly at the close boundary is post-session, except
-    // at the live edge where it's the session's forming bar.
-    const fill = hexToRgba(sessionHex, SESSION_FILL_ALPHA)
-    const border = hexToRgba(sessionHex, SESSION_BORDER_ALPHA)
-    const next: ChartZone[] = []
-    let index = 0
-    for (const span of spans) {
-      if (!(span.toMs > span.fromMs)) continue
-      while (index < candles.length && candles[index].t < span.fromMs)
-        index += 1
-      let high = -Infinity
-      let low = Infinity
-      while (
-        index < candles.length &&
-        (candles[index].t < span.toMs ||
-          (candles[index].t === span.toMs && span.toMs === lastMs))
-      ) {
-        const candleHigh = Number(candles[index].h)
-        const candleLow = Number(candles[index].l)
-        if (candleHigh > high) high = candleHigh
-        if (candleLow < low) low = candleLow
-        index += 1
-      }
-      if (!(high > low)) continue
-      next.push({
-        id: `session-${span.fromMs}`,
-        fromMs: span.fromMs,
-        toMs: span.toMs,
-        top: high,
-        bottom: low,
-        fillColor: fill,
-        borderColor: border,
-      })
-    }
+    const next = sessionZonesPaint(
+      { ...sessionInd, color: sessionHex, session: sessionKey },
+      candles,
+      candleIntervalMs(interval)
+    )
     const prev = sessionZonesRef.current
     const unchanged =
       next.length === prev.length &&
@@ -2570,7 +3691,7 @@ export function PriceChart({
     if (unchanged) return prev
     sessionZonesRef.current = next
     return next
-  }, [sessionEnabled, sessionHex, sessionKey, interval, candles])
+  }, [sessionEnabled, sessionInd, sessionHex, sessionKey, interval, candles])
   const zones = React.useMemo(
     () => [...strategy.zones, ...qqe.zones, ...fvg.zones, ...sessionZones],
     [strategy.zones, qqe.zones, fvg.zones, sessionZones]
@@ -2602,7 +3723,16 @@ export function PriceChart({
       loading={loading}
       dataKey={`${network}:${coin}:${interval}`}
       priceLines={[...priceLines, ...strategy.priceLines]}
-      markers={[...markers, ...qqe.markers]}
+      markers={[
+        ...markers,
+        ...qqe.markers,
+        ...emaCrossMarkers,
+        ...priceActionMarkers,
+        ...bollingerMarkers,
+        ...baseMarkers,
+        ...sessionMarkers,
+        ...trendline.markers,
+      ]}
       indicators={[...indicators, ...strategy.indicators]}
       overlayLines={[
         ...strategy.overlayLines,
@@ -2627,13 +3757,121 @@ export function PriceChart({
       onLineCancel={onLineCancel}
       onChartContextMenu={onChartContextMenu}
       registerApi={registerApi}
-      trendlineDrawing={trendlineDrawing}
-      onTrendlineDrawingChange={onTrendlineDrawingChange}
-      trendlines={visibleTrendlines}
-      onTrendlinesChange={handleTrendlinesChange}
-      onTrendlinesCommit={handleTrendlinesCommit}
+      drawings={drawings}
+      onDrawingsChange={onDrawingsChange}
+      onDrawingsCommit={onDrawingsCommit}
+      trendlineAlerts={trendlineAlerts}
     />
   )
+}
+
+/**
+ * The "Alert me" block in the trendline settings popover: a toggle that arms
+ * the drawn line as a price alert, plus the explicit touch definition (any
+ * trade touching the line vs a one-minute candle closing beyond it).
+ */
+function TrendlineAlertSection({
+  line,
+  controls,
+  pendingTouch,
+  onPendingTouchChange,
+  nowMs,
+}: {
+  line: Trendline
+  controls: TrendlineAlertControls
+  pendingTouch: TrendlineTouchMode
+  onPendingTouchChange: (touch: TrendlineTouchMode) => void
+  /** The latest candle's time — the live chart's "now", kept pure for render. */
+  nowMs: number | null
+}) {
+  const rule = controls.rules.get(line.id)
+  const armed = rule?.status === "active"
+  const busy = controls.busyLineId === line.id
+  const linePrice = nowMs === null ? null : trendlinePriceAt(line, nowMs)
+  const touch = rule?.touch ?? pendingTouch
+
+  return (
+    <div className="grid gap-2.5 border-t pt-2.5">
+      <span className="text-xs font-medium text-muted-foreground">
+        Price alert
+      </span>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="trendline-alert-armed"
+          checked={armed}
+          disabled={busy || (linePrice === null && !armed)}
+          onCheckedChange={(checked) => {
+            if (checked === true) controls.onArm(line, touch)
+            else if (rule) controls.onDisarm(rule)
+          }}
+        />
+        <Label htmlFor="trendline-alert-armed" className="text-xs font-normal">
+          Alert me when price reaches this line
+        </Label>
+      </div>
+      <Select
+        value={touch}
+        disabled={busy}
+        onValueChange={(value) => {
+          const next = value as TrendlineTouchMode
+          if (rule) controls.onTouchChange(rule, next)
+          else onPendingTouchChange(next)
+        }}
+      >
+        <SelectTrigger className="w-full" aria-label="What counts as a touch">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="wick">Any touch, even a wick</SelectItem>
+          <SelectItem value="close">1-minute candle closes past it</SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {linePrice === null
+          ? "This line has no watchable price right now (it is vertical or its extension left the price range)."
+          : `The line's trigger price is ${formatLinePrice(linePrice)} right now.`}
+      </p>
+      {rule?.status === "triggered" ? (
+        <p className="text-xs text-muted-foreground">
+          This alert already fired. Tick the box to re-arm it.
+        </p>
+      ) : rule?.status === "paused" ? (
+        <p className="text-xs text-muted-foreground">
+          Paused on the Alerts page. Tick the box to resume it.
+        </p>
+      ) : armed ? (
+        <p className="text-xs text-muted-foreground">
+          Armed quietly — it pings once, on the next touch.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function formatLinePrice(price: number) {
+  return price.toLocaleString("en-US", { maximumSignificantDigits: 6 })
+}
+
+/** Rough hover-panel size, used only to decide which side of the cursor it sits on. */
+const TOOLTIP_W = 210
+const TOOLTIP_ROW_H = 18
+/** How close the cursor must be to an arrow for it to count as hovered. */
+const HOVER_RADIUS_PX = 8
+/** Pre-filter width before measuring exact distances; never the hit area itself. */
+const HOVER_SEARCH_PX = 60
+
+/**
+ * What a fill cost, for the hover readout. Whole dollars past $100 — the cents
+ * on a $1,843 rung are noise, and the point of the number is comparing rung
+ * sizes at a glance.
+ */
+function formatMoney(value: number): string {
+  if (!Number.isFinite(value)) return "—"
+  const abs = Math.abs(value)
+  return `$${value.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: abs >= 100 ? 0 : 2,
+  })}`
 }
 
 /** First index in a time-sorted marker list with `time >= targetMs`. */
@@ -2710,4 +3948,14 @@ function chartTheme() {
     textColor: isDark ? "#9ca3af" : "#6b7280",
     gridColor: isDark ? "rgba(255, 255, 255, 0.07)" : "rgba(0, 0, 0, 0.07)",
   }
+}
+
+// Dev-only: this module wires imperative document/chart listeners that do NOT
+// survive hot swapping — stale handler generations keep running and fight the
+// new ones over drags, which shows up as drawings "skipping around" until the
+// page is reloaded. Any edit to this file reloads the page outright instead.
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    import.meta.hot?.invalidate()
+  })
 }

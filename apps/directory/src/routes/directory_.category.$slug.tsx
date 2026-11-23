@@ -1,0 +1,360 @@
+import { createFileRoute, Link, notFound } from "@tanstack/react-router"
+
+import {
+  DirectoryBreadcrumbs,
+  type Crumb,
+} from "@/components/directory/public/directory-breadcrumbs"
+import { DirectoryFiltersPanel } from "@/components/directory/public/directory-filters-panel"
+import { DirectoryRouteError } from "@/components/directory/public/directory-error"
+import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
+import { PublicTitleBand } from "@/components/shared/public-title-band"
+import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
+import { JsonLd } from "@/components/directory/public/json-ld"
+import { ListingGrid } from "@/components/directory/public/listing-grid"
+import { DealGrid } from "@/components/promotions/public/deal-grid"
+import { CategoryGrid } from "@/components/directory/public/category-grid"
+import { EventCardGrid } from "@/components/events/public/event-card"
+import { PostGrid } from "@/components/posts/public/post-grid"
+import { Button } from "@/components/ui/button"
+import { loadDirectoryCategory } from "@/lib/api/directory/public"
+import { requirePageVisible } from "@/lib/api/content/pages"
+import {
+  categoryJsonLd,
+  directoryDescription,
+  directoryHead,
+  directoryTitle,
+} from "@/lib/directory/public-seo"
+import { plural } from "@/lib/format/plural"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { pageGutter } from "@/lib/layout/shell-gutter"
+import {
+  formatDirectoryCategories,
+  readDirectoryCategories,
+  readDirectoryMinRating,
+  toggleDirectoryCategory,
+} from "@/lib/directory/public-search"
+import {
+  formatDirectoryFieldFilters,
+  readDirectoryFieldFilters,
+  toggleDirectoryFieldFilter,
+} from "@/lib/directory/field-filters"
+import { readPage } from "@/lib/nav/list-search"
+
+/** What a category page's address may carry. Every key is optional. */
+type CategorySearch = {
+  page?: number
+  category?: string
+  minRating?: number
+  /** The ticked field filters; see `lib/directory/field-filters.ts`. */
+  filter?: string
+}
+
+/**
+ * One category: what it is, the categories under it, its listings, the
+ * soonest events filed under it, and the newest posts filed under it.
+ *
+ * **Its own listings, never its children's.** A listing put in "Italian" does
+ * not appear under "Restaurants" as well — that is what the directory app this
+ * is ported from does, and rolling children up would put a listing on a page
+ * nobody ever assigned it to. The subcategories are drawn as links instead, so
+ * a visitor can walk down to them.
+ */
+export const Route = createFileRoute("/directory_/category/$slug")({
+  // The page number, and the rail's filters. No search box and no order
+  // control — a category page is one shelf, in the order an admin arranged it
+  // — but the boxes down the left narrow it the same way they narrow the
+  // browse page. Every value is optional, so a plain link to a category does
+  // not have to spell any of them out.
+  validateSearch: (search: Record<string, unknown>): CategorySearch => ({
+    page: readPage(search.page),
+    category: formatDirectoryCategories(
+      readDirectoryCategories(search.category)
+    ),
+    minRating: readDirectoryMinRating(search.minRating),
+    filter: formatDirectoryFieldFilters(
+      readDirectoryFieldFilters(search.filter)
+    ),
+  }),
+  loaderDeps: ({ search }) => search,
+  loader: async ({ params, deps }) => {
+    // Follows the directory's own switch, like a listing page does.
+    const [, page] = await Promise.all([
+      requirePageVisible("/directory"),
+      loadDirectoryCategory({
+        slug: params.slug,
+        page: deps.page,
+        category: deps.category,
+        minRating: deps.minRating,
+        filter: deps.filter,
+      }),
+    ])
+
+    if (!page) throw notFound()
+    return page
+  },
+  head: ({ loaderData }) => {
+    if (!loaderData) return {}
+    return directoryHead(
+      directoryTitle(loaderData.category.name, loaderData.site.name),
+      directoryDescription(
+        loaderData.category.metaDescription,
+        loaderData.category.description,
+        `${loaderData.category.name} on ${loaderData.site.name}.`
+      ),
+      loaderData.category.featuredImage
+    )
+  },
+  component: CategoryRoute,
+  // A visitor must never be shown the server's own words for a failure.
+  errorComponent: DirectoryRouteError,
+})
+
+function CategoryRoute() {
+  const {
+    site,
+    category,
+    filterGroups,
+    fieldFilters,
+    ancestors,
+    children,
+    listings,
+    total,
+    page,
+    pageSize,
+    browseTitle,
+    posts,
+    upcomingEvents,
+    categoryDeals,
+  } = Route.useLoaderData()
+  const events = upcomingEvents?.events ?? []
+  const current = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const ticked = readDirectoryCategories(current.category)
+  const tickedFields = readDirectoryFieldFilters(current.filter)
+  const narrowed = Boolean(
+    ticked.length || tickedFields.length || current.minRating !== undefined
+  )
+  // A category that only groups others: it has children, and nothing is
+  // published under it directly. Nothing is narrowed down here, so a total of
+  // nought is the category's own and not what a filter left behind.
+  const groupingOnly =
+    children.length > 0 &&
+    total === 0 &&
+    !narrowed
+  const setListSearch = (patch: CategorySearch) => {
+    void navigate({
+      search: (previous) => ({ ...previous, ...patch }),
+      replace: true,
+    })
+  }
+
+  const crumbs: Crumb[] = [
+    { label: site.name, home: true },
+    { label: browseTitle },
+    // `ancestors` ends with this category itself, so the last one is the page
+    // you are on and the breadcrumb draws it as plain text.
+    ...ancestors.map((step) => ({
+      label: step.name,
+      categorySlug: step.slug,
+    })),
+  ]
+
+  return (
+    <DirectoryFrame
+      hero={
+        <PublicTitleBand
+          crumbs={<DirectoryBreadcrumbs crumbs={crumbs} inBand />}
+          title={category.name}
+          intro={category.description ?? undefined}
+          picture={
+            category.featuredImage ? (
+              <img
+                src={category.featuredImage}
+                srcSet={mediaImageSrcSet(category.featuredImage)}
+                // `max-w-xs`: never wider than 320px.
+                sizes="320px"
+                alt={category.name}
+                className="aspect-[4/3] w-full max-w-xs rounded-xl object-cover"
+              />
+            ) : undefined
+          }
+        />
+      }
+    >
+      <JsonLd
+        data={categoryJsonLd({
+          siteName: site.name,
+          siteUrl: site.url,
+          name: category.name,
+          slug: category.slug,
+          // When a meta description exists, this is the exact sentence in
+          // the page's meta tag. With none, keep today's structured markup.
+          description: category.metaDescription
+            ? directoryDescription(category.metaDescription)
+            : category.description,
+        })}
+      />
+
+      {children.length ? (
+        <section className="grid gap-2 md:gap-3" aria-labelledby="explore">
+          <h2 id="explore" className="text-lg font-semibold">
+            Explore {category.name}
+          </h2>
+          <CategoryGrid categories={children} />
+        </section>
+      ) : null}
+
+      {categoryDeals.length ? (
+        <section className="grid gap-2 md:gap-3" aria-labelledby="deals">
+          <h2 id="deals" className="text-lg font-semibold">
+            Deals in {category.name}
+          </h2>
+          <DealGrid deals={categoryDeals} />
+        </section>
+      ) : null}
+
+      {/*
+       * A category that only groups others — "Type", holding Bar and Italian
+       * restaurant — has no list of its own, so it gets no count, no filters
+       * and no empty card telling a visitor to choose one of the cards they
+       * are already looking at. Tyler found that on 27 Sep 2026. A parent that
+       * does hold listings of its own keeps all three.
+       *
+       * The same filters as the browse page, minus this category's own group:
+       * every listing here is already in this category, so a box for it could
+       * only narrow the page to itself or empty it. They sit in the line above
+       * the cards, where the browse page keeps its own.
+       */}
+      {groupingOnly ? null : (
+        <div className="flex min-w-0 flex-col" style={{ gap: pageGutter }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="mr-auto text-sm font-medium">
+              {total} {plural(total, "listing", "listings")} in {category.name}
+            </p>
+            {narrowed ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setListSearch({
+                    category: undefined,
+                    minRating: undefined,
+                    filter: undefined,
+                    page: undefined,
+                  })
+                }
+              >
+                Clear all
+              </Button>
+            ) : null}
+            <DirectoryFiltersPanel
+              groups={filterGroups}
+              selected={ticked}
+              minRating={current.minRating}
+              onToggleCategory={(slug) =>
+                setListSearch({
+                  category: toggleDirectoryCategory(current.category, slug),
+                  page: undefined,
+                })
+              }
+              onMinRatingChange={(minRating) =>
+                setListSearch({ minRating, page: undefined })
+              }
+              fieldFilters={fieldFilters}
+              selectedFields={tickedFields}
+              onToggleField={(token) =>
+                setListSearch({
+                  filter: toggleDirectoryFieldFilter(current.filter, token),
+                  page: undefined,
+                })
+              }
+              onClearFilters={() =>
+                setListSearch({
+                  category: undefined,
+                  minRating: undefined,
+                  filter: undefined,
+                  page: undefined,
+                })
+              }
+            />
+          </div>
+
+          {/* A category holding only posts or events skips the "nothing here"
+              card, which would be untrue with them right below it. */}
+          {listings.length || (!posts.length && !events.length) ? (
+            <ListingGrid
+              listings={listings}
+              emptyMessage={
+                narrowed
+                  ? "Nothing here matches those filters. Try fewer of them."
+                  : `There is nothing in ${category.name} yet.`
+              }
+            />
+          ) : null}
+
+          <DirectoryPagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            hrefForPage={(next) =>
+              categoryPageHref(category.slug, current, next)
+            }
+          />
+        </div>
+      )}
+
+      {upcomingEvents && events.length ? (
+        <section className="grid gap-2 md:gap-3" aria-labelledby="events">
+          <div className="grid gap-1">
+            <h2 id="events" className="text-lg font-semibold">
+              Upcoming events in {category.name}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              All times are {upcomingEvents.zone}.
+            </p>
+          </div>
+          <EventCardGrid
+            // Only events still to come are read here, so none is over.
+            events={events.map((event) => ({ ...event, ended: false }))}
+            emptyMessage=""
+          />
+          {upcomingEvents.total > events.length ? (
+            <Link
+              to="/events"
+              search={{ category: category.slug }}
+              className={`w-fit rounded-sm text-sm font-medium hover:underline ${focusRing}`}
+            >
+              All upcoming events in {category.name}
+            </Link>
+          ) : null}
+        </section>
+      ) : null}
+
+      {posts.length ? (
+        <section className="grid gap-2 md:gap-3" aria-labelledby="posts">
+          <h2 id="posts" className="text-lg font-semibold">
+            Posts about {category.name}
+          </h2>
+          <PostGrid posts={posts} siteName={site.name} emptyMessage="" />
+        </section>
+      ) : null}
+    </DirectoryFrame>
+  )
+}
+
+/**
+ * A page link that keeps the boxes ticked. A pager that dropped them would
+ * send a visitor from page 2 of a narrowed list to page 2 of the whole
+ * category, which is not the list they were reading.
+ */
+function categoryPageHref(slug: string, search: CategorySearch, page: number) {
+  const parameters = new URLSearchParams()
+  if (search.category) parameters.set("category", search.category)
+  if (search.minRating) parameters.set("minRating", String(search.minRating))
+  if (search.filter) parameters.set("filter", search.filter)
+  if (page > 1) parameters.set("page", String(page))
+  const query = parameters.toString()
+  return `/directory/category/${encodeURIComponent(slug)}${query ? `?${query}` : ""}`
+}

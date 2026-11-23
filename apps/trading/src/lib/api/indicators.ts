@@ -23,6 +23,12 @@ const saveSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, "Color must be #rrggbb")
     .optional(),
+  colors: z
+    .record(
+      z.string().max(20),
+      z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color must be #rrggbb")
+    )
+    .optional(),
   session: z
     .enum(["nyse", "tokyo", "london", "utcAsia", "utcLondon", "utcNewYork"])
     .optional(),
@@ -63,6 +69,7 @@ export async function saveIndicator(
       params: config.params,
       name: config.name?.trim() || undefined,
       color: config.color,
+      colors: config.colors,
       session: config.session,
     },
   })

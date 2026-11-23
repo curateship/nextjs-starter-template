@@ -1,0 +1,1443 @@
+import { and, desc, eq, gt, inArray, lte, ne, or, sql } from "drizzle-orm"
+
+import { db, type CustomShellDb } from "@/server/db"
+import { loadAppSettings } from "@/server/pomodoro/app-settings"
+import { assertChatOpen, assertMayUseRooms, assertNewRoomsOpen } from "@/server/pomodoro/room-access"
+import { checkBlockedWords } from "@/lib/pomodoro/app-settings"
+import { enforceRateLimit } from "@/server/auth/rate-limit"
+import { blockedUserIdsFor, isBlockedBetween } from "@/server/pomodoro/blocks"
+import {
+  dropMessageNotices,
+  dropUnreadMessageNotice,
+  dropUnreadRoomNotices,
+  foldNotice,
+  followersToTell,
+  writeNotices,
+  noteNewReport,
+  reportQueueAdminIds,
+} from "@/server/pomodoro/notices"
+import {
+  focusSessions,
+  pomodoroAuditLogs,
+  pomodoroGroupMembers,
+  pomodoroProfiles,
+  pomodoroRoomCheckIns,
+  pomodoroRoomRepeats,
+  pomodoroSimulatedAccounts,
+  roomBans,
+  roomMemberships,
+  roomMessageReactions,
+  roomMessages,
+  roomReports,
+  rooms,
+  tasks,
+  type Room,
+} from "@/server/pomodoro/schema"
+import { customShellUsers as users } from "@/server/schema"
+import { isRoomReactionEmoji, roomReactionOrder } from "@/lib/pomodoro/room-reactions"
+import { isStartDelay } from "@/lib/pomodoro/room-countdown"
+import {
+  followedRoomMessage,
+  linePreview,
+  mentionedHandles,
+  roomChatMessage,
+  roomJoinMessage,
+  roomLeaveMessage,
+  roomMentionMessage,
+  roomReactionMessage,
+  roomRemovedMessage,
+} from "@/lib/pomodoro/notices"
+import { resolveRoomFiles } from "@/server/pomodoro/shared-media"
+import { noteRealVisit } from "@/server/pomodoro/simulated-controls"
+import type { RoomFiles } from "@/lib/pomodoro/media-pair"
+
+type PomoderDb = CustomShellDb
+export type PomoderTransaction = Parameters<Parameters<PomoderDb["transaction"]>[0]>[0]
+
+export type RoomPhase = "scheduled" | "waiting" | "focus" | "short" | "long" | "closed"
+export type RoomHostAction = "start_focus" | "start_break" | "next_phase" | "close" | "cancel_start"
+
+const FOCUS_PERIODS_PER_CYCLE = 4
+const TIMED_PHASES: readonly RoomPhase[] = ["focus", "short", "long"]
+
+export function canJoinRoom(phase: string) { return ["waiting", "short", "long"].includes(phase) }
+
+// A booked room exists before it opens, so it is a room nobody may act on
+// yet: not joinable, not drivable by its host, and not in the browse lists.
+// See src/server/pomodoro/scheduled-rooms.ts for what opens it.
+export function isScheduledRoom(phase: string) { return phase === "scheduled" }
+
+// Every fourth completed focus period earns the long break; the cycle resets
+// once the long break ends.
+export function breakPhaseAfterFocus(cycleFocusCount: number): RoomPhase {
+  return cycleFocusCount + 1 >= FOCUS_PERIODS_PER_CYCLE ? "long" : "short"
+}
+
+// What a room becomes when its current timer expires. Breaks always follow
+// focus automatically; the next focus only auto-starts when the host enabled
+// autoStart, otherwise the room waits for the host.
+export function nextTimedPhase(room: Pick<Room, "phase" | "autoStart" | "cycleFocusCount">): RoomPhase | null {
+  if (room.phase === "focus") return breakPhaseAfterFocus(room.cycleFocusCount)
+  if (room.phase === "short" || room.phase === "long") return room.autoStart ? "focus" : "waiting"
+  return null
+}
+
+// Hosts move through the canonical sequence only; they cannot jump to an
+// arbitrary phase. "next_phase" advances the same way the timer would.
+export function resolveHostAction(room: Pick<Room, "phase" | "cycleFocusCount">, action: RoomHostAction): RoomPhase {
+  if (action === "close") return "closed"
+  if (action === "start_focus") {
+    if (!canJoinRoom(room.phase)) throw new Error("ROOM_PHASE_INVALID")
+    return "focus"
+  }
+  if (action === "start_break") {
+    if (room.phase !== "focus") throw new Error("ROOM_PHASE_INVALID")
+    return breakPhaseAfterFocus(room.cycleFocusCount)
+  }
+  return room.phase === "focus" ? breakPhaseAfterFocus(room.cycleFocusCount) : "focus"
+}
+
+export function phaseUpdate(room: Room, nextPhase: RoomPhase, timestamp: Date) {
+  const durationMinutes = nextPhase === "focus" ? room.focusMinutes : nextPhase === "short" ? room.shortBreakMinutes : nextPhase === "long" ? room.longBreakMinutes : 0
+  const phaseEndsAt = TIMED_PHASES.includes(nextPhase) ? new Date(timestamp.getTime() + durationMinutes * 60_000) : null
+  const cycleFocusCount = nextPhase === "closed" ? room.cycleFocusCount
+    : room.phase === "focus" ? Math.min(FOCUS_PERIODS_PER_CYCLE, room.cycleFocusCount + 1)
+    : room.phase === "long" ? 0
+    : room.cycleFocusCount
+  return {
+    set: {
+      phase: nextPhase,
+      sequence: room.sequence + 1,
+      cycleFocusCount,
+      phaseStartedAt: phaseEndsAt ? timestamp : null,
+      phaseEndsAt,
+      // Any phase change ends a "Starting in" countdown.
+      startingAt: null,
+      countdownSeconds: null,
+      closedAt: nextPhase === "closed" ? timestamp : room.closedAt,
+      updatedAt: timestamp,
+    },
+    transitionAt: phaseEndsAt,
+  }
+}
+
+export type RoomTransitionResult = { room: Room; transitionAt: Date | null }
+
+export async function applyHostRoomAction(
+  slug: string,
+  userId: string,
+  action: RoomHostAction,
+  database: PomoderDb = db,
+  timestamp = new Date(),
+  /** A made-up host's countdown for this one Start, in place of the room's choice. */
+  countdownSeconds?: number
+): Promise<RoomTransitionResult> {
+  return database.transaction(async (tx) => {
+    const [room] = await tx.select().from(rooms).where(eq(rooms.slug, slug)).for("update").limit(1)
+    if (!room) throw new Error("ROOM_NOT_FOUND")
+    if (room.hostUserId !== userId) throw new Error("ROOM_HOST_REQUIRED")
+    if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+    // A booked room has no session to drive until its start time comes round.
+    // Cancelling it is a different act with different consequences, and lives
+    // in cancelScheduledRoom.
+    if (isScheduledRoom(room.phase)) throw new Error("ROOM_NOT_OPEN_YET")
+    // "Starting in" (9 Oct 2026): Start in a waiting room begins the host's
+    // countdown instead, and the room clock starts the focus when it ends.
+    // Start pressed again while it runs starts at once; Cancel stops it.
+    if (action === "cancel_start") {
+      if (!room.startingAt) return { room, transitionAt: null }
+      const [updated] = await tx.update(rooms).set({ startingAt: null, countdownSeconds: null, sequence: room.sequence + 1, updatedAt: timestamp }).where(eq(rooms.id, room.id)).returning()
+      return { room: updated, transitionAt: null }
+    }
+    if (action === "start_focus" && room.phase === "waiting" && !room.startingAt) {
+      if (countdownSeconds !== undefined && !(Number.isInteger(countdownSeconds) && countdownSeconds > 0))
+        throw new Error("ROOM_START_DELAY_INVALID")
+      const seconds = countdownSeconds ?? room.startDelaySeconds
+      const startingAt = new Date(timestamp.getTime() + seconds * 1_000)
+      const [updated] = await tx.update(rooms).set({ startingAt, countdownSeconds: seconds, sequence: room.sequence + 1, updatedAt: timestamp }).where(eq(rooms.id, room.id)).returning()
+      return { room: updated, transitionAt: startingAt }
+    }
+    const nextPhase = resolveHostAction(room, action)
+    const { set, transitionAt } = phaseUpdate(room, nextPhase, timestamp)
+    const [updated] = await tx.update(rooms).set(set).where(eq(rooms.id, room.id)).returning()
+    if (nextPhase === "closed") await endActiveMemberships(tx, room.id, timestamp)
+    return { room: updated, transitionAt }
+  })
+}
+
+export type RoomAdvanceResult =
+  | { kind: "advanced"; room: Room; transitionAt: Date | null }
+  | { kind: "not_due"; phaseEndsAt: Date }
+  | { kind: "stale" }
+
+// Applies a queued timed transition. The sequence guard makes stale jobs
+// harmless: any manual host action bumps the sequence, so the old job no-ops.
+export async function advanceExpiredRoom(roomId: string, sequence: number, database: PomoderDb = db, timestamp = new Date()): Promise<RoomAdvanceResult> {
+  return database.transaction(async (tx) => {
+    const [room] = await tx.select().from(rooms).where(and(eq(rooms.id, roomId), eq(rooms.sequence, sequence))).for("update").limit(1)
+    if (!room || !room.phaseEndsAt || room.closedAt) return { kind: "stale" }
+    if (room.phaseEndsAt > timestamp) return { kind: "not_due", phaseEndsAt: room.phaseEndsAt }
+    const nextPhase = nextTimedPhase(room)
+    if (!nextPhase) return { kind: "stale" }
+    const { set, transitionAt } = phaseUpdate(room, nextPhase, timestamp)
+    const [updated] = await tx.update(rooms).set(set).where(eq(rooms.id, room.id)).returning()
+    return { kind: "advanced", room: updated, transitionAt }
+  })
+}
+
+export type RoomSettings = {
+  name: string
+  visibility: "public" | "unlisted"
+  focusMinutes: number
+  shortBreakMinutes: number
+  longBreakMinutes: number
+  autoStart: boolean
+  /**
+   * The pair everyone in the room gets: `curated:<key>` and `scene:<key>`.
+   * Every new room has both; only a weekly rule saved before 7 Oct 2026 books
+   * rooms without them.
+   */
+  sound: string | null
+  background: string | null
+  /**
+   * The group this is a group room of (groups task 01). Only that group's
+   * members may join it.
+   */
+  groupId?: string | null
+}
+
+/**
+ * The most "Sam opened a room" notices in a day: per follower, and per host.
+ *
+ * Both, because closing a room takes its unread notices away, which frees the
+ * follower's count again. Without the host's own limit, opening and closing a
+ * room over and over would ping every follower each time. The host's limit is
+ * counted from the rooms themselves, which closing does not delete.
+ */
+export const FOLLOWED_ROOMS_PER_DAY = 3
+const DAY_MS = 24 * 60 * 60_000
+
+/** Whether this host has public rooms left to announce today. */
+async function mayAnnounceRoom(hostId: string, database: PomoderDb, timestamp: Date) {
+  const [{ opened }] = await database.select({ opened: sql<number>`count(*)::int` }).from(rooms).where(and(eq(rooms.hostUserId, hostId), eq(rooms.visibility, "public"), sql`${rooms.createdAt} > ${new Date(timestamp.getTime() - DAY_MS)}`))
+  return opened < FOLLOWED_ROOMS_PER_DAY
+}
+
+export async function createRoomWithHost(userId: string, slug: string, settings: RoomSettings, database: PomoderDb = db, timestamp = new Date()) {
+  // A suspended member opens nothing, and "Pause new rooms" stops everybody.
+  await assertMayUseRooms(userId, database, timestamp)
+  await assertNewRoomsOpen()
+  // A public room tells the people who follow its host, read before the
+  // transaction because the follower and block reads use the shared handle.
+  // An unlisted room is somebody's private session and tells nobody.
+  const followers = settings.visibility === "public" && (await mayAnnounceRoom(userId, database, timestamp))
+    ? await followersToTell(userId, "followed_room", { cap: FOLLOWED_ROOMS_PER_DAY, withinMs: DAY_MS })
+    : []
+  const hostName = followers.length ? await roomName(database, userId) : ""
+  return database.transaction(async (tx) => {
+    const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp)
+    await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
+    const [created] = await tx.insert(rooms).values({ ...settings, hostUserId: userId, slug }).returning()
+    await tx.insert(roomMemberships).values({ roomId: created.id, userId, role: "host", joinedAt: timestamp })
+    await writeNotices(tx, followers.map((recipientUserId) => ({
+      recipientUserId,
+      actorUserId: userId,
+      kind: "followed_room" as const,
+      message: followedRoomMessage(hostName, created.name),
+      detail: "Join them while it's open.",
+      roomId: created.id,
+      href: roomHref(created.slug),
+    })))
+    return { room: created, closedRoomIds }
+  })
+}
+
+export async function joinRoomBySlug(slug: string, userId: string, database: PomoderDb = db, timestamp = new Date()) {
+  // Whether a block stands between the joiner and the host, read before the
+  // transaction: a read on the shared handle from inside one waits on a
+  // second connection.
+  const [target] = await database.select({ hostUserId: rooms.hostUserId }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  const blockedFromHost = target ? await isBlockedBetween(target.hostUserId, userId) : false
+  // The room they are sitting in now, which this join takes them out of, and
+  // whether its host may hear that they left. Read here for the same reason.
+  const [seat] = await database.select({ roomId: roomMemberships.roomId, hostUserId: rooms.hostUserId }).from(roomMemberships).innerJoin(rooms, eq(rooms.id, roomMemberships.roomId)).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
+  const tellLeft = seat && seat.hostUserId !== userId && !(await isBlockedBetween(seat.hostUserId, userId))
+  // A suspended member joins nothing, their own room included.
+  await assertMayUseRooms(userId, database, timestamp)
+  // The admin's people limit (admin task 04), read before the transaction for
+  // the same reason. Null means no limit.
+  const { maxPeople } = (await loadAppSettings())["rooms.limits"]
+  // The room is locked and re-checked inside the transaction so a join cannot
+  // race a concurrent host action past the closed/focus-lock rules.
+  return database.transaction(async (tx) => {
+    const [room] = await tx.select().from(rooms).where(eq(rooms.slug, slug)).for("update").limit(1)
+    if (!room) throw new Error("ROOM_NOT_FOUND")
+    if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+    if (isScheduledRoom(room.phase)) throw new Error("ROOM_NOT_OPEN_YET")
+    if (!canJoinRoom(room.phase)) throw new Error("ROOM_LOCKED")
+    await assertNotBanned(room.id, userId, tx)
+    // A group room lets in its group's members and nobody else, whoever holds
+    // the link (Tyler, 13 Oct 2026). Checked inside the lock, so somebody
+    // removed from the group a moment ago cannot slip in.
+    if (room.groupId && room.hostUserId !== userId) {
+      const [inGroup] = await tx
+        .select({ id: pomodoroGroupMembers.id })
+        .from(pomodoroGroupMembers)
+        .where(and(eq(pomodoroGroupMembers.groupId, room.groupId), eq(pomodoroGroupMembers.userId, userId)))
+        .limit(1)
+      if (!inGroup) throw new Error("ROOM_GROUP_ONLY")
+    }
+    // Somebody already in this room pressing Join again has not joined it.
+    const [already] = await tx.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
+    // A full room refuses the next person. Lowering the limit never takes
+    // anybody out, and the host can always come back to their own room.
+    // The host's own limit and the admin's both apply; the lower wins.
+    const limit = lowerLimit(maxPeople, room.maxPeople)
+    if (limit !== null && !already && room.hostUserId !== userId) {
+      const [{ inRoom }] = await tx.select({ inRoom: sql<number>`count(*)::int` }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), sql`${roomMemberships.leftAt} is null`))
+      if (inRoom >= limit) throw new Error("ROOM_FULL")
+    }
+    const closedRoomIds = await closeRoomsHostedBy(tx, userId, timestamp, room.id)
+    const ended = await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).returning({ roomId: roomMemberships.roomId })
+    // Moving to another room is leaving the one they were in.
+    if (tellLeft && seat.roomId !== room.id && ended.some((row) => row.roomId === seat.roomId)) {
+      const [left] = await tx.select().from(rooms).where(eq(rooms.id, seat.roomId)).limit(1)
+      if (left && !left.closedAt) await noteRoomLeave(tx, left, userId)
+    }
+    await tx.insert(roomMemberships).values({ roomId: room.id, userId, role: room.hostUserId === userId ? "host" : "member", joinedAt: timestamp }).onConflictDoNothing()
+    if (!already && room.hostUserId !== userId && !blockedFromHost) await noteRoomJoin(tx, room, userId)
+    return { room, closedRoomIds }
+  })
+}
+
+/**
+ * A made-up member hosts this room (live activity task 02): its tray is read
+ * by nobody, and its rooms see comings and goings all day, so joins and
+ * leaves are not written for it.
+ */
+async function hostIsMadeUp(tx: PomoderTransaction, room: Room) {
+  const [row] = await tx.select({ userId: pomodoroSimulatedAccounts.userId }).from(pomodoroSimulatedAccounts).where(eq(pomodoroSimulatedAccounts.userId, room.hostUserId)).limit(1)
+  return Boolean(row)
+}
+
+/**
+ * Tells the host somebody joined, folding into their unread notice about the
+ * same room. Always, the room on screen or not: Tyler, 11 Oct 2026, "I need it
+ * in the notification tray too". With the room live in a tab the host also
+ * gets a pop-up (`room-clock-store.ts`).
+ */
+async function noteRoomJoin(tx: PomoderTransaction, room: Room, joinerId: string) {
+  if (await hostIsMadeUp(tx, room)) return
+  const joinerName = await roomName(tx, joinerId)
+  await foldNotice(tx, {
+    recipientUserId: room.hostUserId,
+    actorUserId: joinerId,
+    kind: "room_join",
+    subject: { roomId: room.id },
+    href: roomHref(room.slug),
+    compose: (waiting) => {
+      // The first joiner's name is kept as the detail, which the bell hides
+      // because the heading already says it.
+      const first = waiting?.detail ?? joinerName
+      const foldCount = (waiting?.foldCount ?? 0) + 1
+      return { message: roomJoinMessage(first, foldCount - 1, room.name), detail: first, foldCount }
+    },
+  })
+}
+
+/**
+ * Tells the host somebody left, folding into their unread notice about the
+ * same room, the way joins do, and like them whether the room is on screen
+ * or not.
+ */
+async function noteRoomLeave(tx: PomoderTransaction, room: Room, leaverId: string) {
+  if (await hostIsMadeUp(tx, room)) return
+  const leaverName = await roomName(tx, leaverId)
+  await foldNotice(tx, {
+    recipientUserId: room.hostUserId,
+    actorUserId: leaverId,
+    kind: "room_leave",
+    subject: { roomId: room.id },
+    href: roomHref(room.slug),
+    compose: (waiting) => {
+      const first = waiting?.detail ?? leaverName
+      const foldCount = (waiting?.foldCount ?? 0) + 1
+      return { message: roomLeaveMessage(first, foldCount - 1, room.name), detail: first, foldCount }
+    },
+  })
+}
+
+// A room cannot run without its host, so a host leaving closes the room; a
+// member leaving only ends their own membership, and the host hears of it
+// while away (see `noteRoomLeave`).
+export async function leaveRoom(slug: string, userId: string, database: PomoderDb = db, timestamp = new Date()) {
+  // Whether a block stands between the leaver and the host, read before the
+  // transaction like the join's.
+  const [target] = await database.select({ hostUserId: rooms.hostUserId }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  const blockedFromHost = target && target.hostUserId !== userId ? await isBlockedBetween(target.hostUserId, userId) : false
+  return database.transaction(async (tx) => {
+    const [room] = await tx.select().from(rooms).where(eq(rooms.slug, slug)).for("update").limit(1)
+    if (!room) throw new Error("ROOM_NOT_FOUND")
+    // Nobody is in a booked room, so there is nothing to leave. Refusing here
+    // keeps cancelScheduledRoom the only way a booking ends: closing one
+    // through this path would strand its queued invitations as queued.
+    if (isScheduledRoom(room.phase)) throw new Error("ROOM_NOT_OPEN_YET")
+    if (room.hostUserId === userId && !room.closedAt && room.phase !== "closed") {
+      const { set } = phaseUpdate(room, "closed", timestamp)
+      const [updated] = await tx.update(rooms).set(set).where(eq(rooms.id, room.id)).returning()
+      await endActiveMemberships(tx, room.id, timestamp)
+      return { room: updated, closed: true, left: true }
+    }
+    const ended = await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).returning({ id: roomMemberships.id })
+    if (ended.length && !blockedFromHost && !room.closedAt && room.phase !== "closed") await noteRoomLeave(tx, room, userId)
+    return { room, closed: false, left: ended.length > 0 }
+  })
+}
+
+export async function findActiveRoomId(userId: string, database: PomoderDb = db) {
+  const [membership] = await database.select({ roomId: roomMemberships.roomId }).from(roomMemberships).where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
+  return membership?.roomId ?? null
+}
+
+/**
+ * The open hosted room this person is in, with the sound and theme its host
+ * picked, or null when they are in their own personal room. Every page reads
+ * this to draw the right pair from its first frame.
+ */
+export async function findActiveRoomMedia(userId: string, database: PomoderDb = db) {
+  const [row] = await database
+    .select({ slug: rooms.slug, name: rooms.name, role: roomMemberships.role, sound: rooms.sound, background: rooms.background, hostUserId: rooms.hostUserId })
+    .from(roomMemberships)
+    .innerJoin(rooms, eq(rooms.id, roomMemberships.roomId))
+    .where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`, sql`${rooms.closedAt} is null`, sql`${rooms.phase} <> 'closed'`))
+    .limit(1)
+  if (!row) return null
+  const { hostUserId, ...room } = row
+  return {
+    ...room,
+    role: row.role === "host" ? ("host" as const) : ("member" as const),
+    // A shared file the room plays, resolved for this person (rooms task 04).
+    files: await resolveRoomFiles(userId, hostUserId, row),
+  }
+}
+
+/**
+ * The host changes the room's sound and theme. Everybody in the room gets the
+ * new pair on the next snapshot, which the caller sends with notifyRoom.
+ */
+export async function saveRoomMedia(slug: string, userId: string, pair: { sound: string; background: string }, database: PomoderDb = db) {
+  const [room] = await database.select({ id: rooms.id, hostUserId: rooms.hostUserId, closedAt: rooms.closedAt, phase: rooms.phase }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.hostUserId !== userId) throw new Error("ROOM_HOST_REQUIRED")
+  if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+  await database.update(rooms).set({ sound: pair.sound, background: pair.background, updatedAt: new Date() }).where(eq(rooms.id, room.id))
+  return room.id
+}
+
+const displayName = sql<string>`coalesce(${pomodoroProfiles.publicDisplayName}, ${users.name})`
+/** An active admin, read from the account on every read (admin task 05). */
+const isStaff = sql<boolean>`(${users.role} = 'admin' and ${users.status} = 'active')`
+/**
+ * The handle, only when that profile is actually readable. A name beside a
+ * switched-off or hidden profile stays plain text rather than linking to a
+ * 404. Selected alongside the name, so a board costs no extra query per row.
+ */
+const readableHandle = sql<string | null>`case
+  when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
+  then ${pomodoroProfiles.handle} end`
+/**
+ * The uploaded photo on a room card, by the same rule: somebody who switched
+ * their profile off, or whose profile an admin hid, shows initials instead.
+ */
+const readableAvatar = sql<string | null>`case
+  when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
+  then ${users.avatarUrl} end`
+/**
+ * The name a logged-out visitor sees on a room card: the public display name
+ * when the profile is readable, "Member" otherwise. An account name is never
+ * sent to somebody who has not signed in.
+ */
+const guestName = sql<string>`case
+  when ${pomodoroProfiles.profilePublic} and ${pomodoroProfiles.hiddenAt} is null
+    and ${pomodoroProfiles.publicDisplayName} is not null
+  then ${pomodoroProfiles.publicDisplayName} else 'Member' end`
+
+/**
+ * The public rooms someone can join. The rooms that viewer hosts or is
+ * already sitting in are left out: they have their own column on Rooms, and
+ * a Join on your own room has nothing to do. Tyler, 8 Oct 2026: "The open to
+ * join shouildnt show the room I hosted".
+ */
+const featuredRoom = sql<boolean>`(${rooms.featuredAt} is not null or exists (
+  select 1 from ${pomodoroRoomRepeats}
+  where ${pomodoroRoomRepeats.id} = ${rooms.repeatId} and ${pomodoroRoomRepeats.featured}
+))`
+
+/**
+ * `viewerId` null is a logged-out visitor (Tyler, 9 Oct 2026: "Logged out
+ * users should be able to see the open to join or starting soon rows"): the
+ * same rooms, with names by `guestName`.
+ */
+export async function listPublicRooms(viewerId: string | null, database: PomoderDb = db) {
+  const name = viewerId ? displayName : guestName
+  const rows = await database
+    .select({
+      room: { id: rooms.id, slug: rooms.slug, name: rooms.name, phase: rooms.phase, phaseEndsAt: rooms.phaseEndsAt, focusMinutes: rooms.focusMinutes, cycleFocusCount: rooms.cycleFocusCount, sound: rooms.sound, background: rooms.background, startingAt: rooms.startingAt, countdownSeconds: rooms.countdownSeconds },
+      // An admin featured the room, or the weekly rule that booked it (admin
+      // task 04). Featured rooms sit first, with a label.
+      featured: featuredRoom,
+      hostName: name,
+      hostId: rooms.hostUserId,
+      hostAvatarUrl: readableAvatar,
+      memberCount: sql<number>`count(${roomMemberships.id})::int`,
+    })
+    .from(rooms)
+    .innerJoin(users, eq(rooms.hostUserId, users.id))
+    .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
+    .leftJoin(roomMemberships, and(eq(roomMemberships.roomId, rooms.id), sql`${roomMemberships.leftAt} is null`))
+    // A booked room is not open, so it stays out of both browse groups and
+    // appears under Upcoming instead — see listUpcomingRooms.
+    .where(and(
+      eq(rooms.visibility, "public"),
+      sql`${rooms.closedAt} is null`,
+      sql`${rooms.phase} <> 'scheduled'`,
+      viewerId ? ne(rooms.hostUserId, viewerId) : undefined,
+      viewerId
+        ? sql`not exists (select 1 from ${roomMemberships} mine where mine.room_id = ${rooms.id} and mine.user_id = ${viewerId} and mine.left_at is null)`
+        : undefined,
+    ))
+    .groupBy(rooms.id, users.id, pomodoroProfiles.publicDisplayName, pomodoroProfiles.profilePublic, pomodoroProfiles.hiddenAt)
+    .orderBy(desc(featuredRoom), desc(rooms.createdAt))
+    .limit(50)
+  // The faces on each card besides the host's: the first three people in,
+  // a photo when they uploaded one and their initials otherwise. Tyler, 9 Oct
+  // 2026: "The cards show the avatar". One read for the whole list.
+  const ids = rows.map((row) => row.room.id)
+  const people = ids.length
+    ? await database
+        .select({ roomId: roomMemberships.roomId, userId: roomMemberships.userId, name, avatarUrl: readableAvatar })
+        .from(roomMemberships)
+        .innerJoin(users, eq(users.id, roomMemberships.userId))
+        .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
+        .where(and(inArray(roomMemberships.roomId, ids), sql`${roomMemberships.leftAt} is null`))
+        .orderBy(roomMemberships.joinedAt)
+    : []
+  return rows.map(({ hostId, ...row }) => ({
+    ...row,
+    people: people
+      .filter((person) => person.roomId === row.room.id && person.userId !== hostId)
+      .slice(0, 3)
+      .map(({ name, avatarUrl }) => ({ name, avatarUrl })),
+  }))
+}
+
+export type RoomSnapshot = {
+  room: {
+    slug: string
+    name: string
+    visibility: string
+    phase: string
+    sequence: number
+    phaseStartedAt: Date | null
+    phaseEndsAt: Date | null
+    focusMinutes: number
+    shortBreakMinutes: number
+    longBreakMinutes: number
+    autoStart: boolean
+    /** The pair everyone in the room gets. Null on rooms made before 7 Oct 2026. */
+    sound: string | null
+    background: string | null
+    /** A shared file in the pair, resolved for this viewer (rooms task 04). */
+    files: RoomFiles
+    cycleFocusCount: number
+    closedAt: Date | null
+    /** "Starting in": the host's countdown choice, and when a running one ends. */
+    startDelaySeconds: number
+    /** The host's own people limit, null for none. */
+    maxPeople: number | null
+    startingAt: Date | null
+  }
+  you: { role: "host" | "member"; timezone: string }
+  // `handle` is the public address of that person's profile, and null when
+  // they have none that reads. It is what turns a name in a room into a link
+  // without a lookup per row.
+  // `task` is the title of the focus this member is running right now, and
+  // only for a member who switched on "Show my task to people in my room".
+  // Null otherwise.
+  // `mine` marks the viewer's own row, which the room labels YOU.
+  // `staff` marks an active admin, worked out from their role on every read,
+  // so nobody can give it to themselves. The room labels it STAFF.
+  // `avatarUrl` is the person's photo by the room cards' rule: only while
+  // their public page is on, initials otherwise.
+  // `checkIn` is the person's answer to "Did you finish?" during the break
+  // after a focus: "finished", "not_yet", or null for no answer. Always null
+  // outside a break.
+  members: { id: string; name: string; handle: string | null; avatarUrl: string | null; role: string; avatarIndex: number; joinedAt: Date; task: string | null; checkIn: RoomCheckIn | null; mine: boolean; staff: boolean }[]
+  // `removedBy` says who removed a removed message. `held` is the writer's own
+  // line waiting for an admin, which nobody else receives.
+  messages: { id: string; body: string; authorName: string; handle: string | null; mine: boolean; deleted: boolean; removedBy: "host" | "admin" | null; held: boolean; staff: boolean; createdAt: Date; reactions: RoomReactionSummary[] }[]
+  /** An admin's line to every live room, pinned at the top until removed or the room ends. */
+  pinned: { id: string; body: string; createdAt: Date }[]
+  /** The admin's "Pause all chat" switch: the message box says so and sends nothing. */
+  chatPaused: boolean
+}
+
+export type RoomCheckIn = "finished" | "not_yet"
+
+// Per-emoji tally for one message. `mine` marks the emoji the viewer has
+// toggled on, so the client can highlight it and tapping toggles it back off.
+export type RoomReactionSummary = { emoji: string; count: number; mine: boolean }
+
+// The snapshot is broadcast over SSE, so it carries only what the room UI
+// renders: display names, roles, and chat bodies — never account fields.
+export async function roomSnapshot(roomId: string, userId: string, database: PomoderDb = db): Promise<RoomSnapshot> {
+  const [[room], [profile]] = await Promise.all([
+    database.select().from(rooms).where(eq(rooms.id, roomId)).limit(1),
+    database.select({ timezone: pomodoroProfiles.timezone }).from(pomodoroProfiles).where(eq(pomodoroProfiles.userId, userId)).limit(1),
+  ])
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  // The viewer's own day boundary, so the chat's day lines fall where the rest
+  // of the app puts midnight. A viewer with no profile row yet gets the same
+  // UTC a new profile starts with.
+  const timezone = profile?.timezone ?? "UTC"
+  const safeRoom = {
+    slug: room.slug,
+    name: room.name,
+    visibility: room.visibility,
+    phase: room.phase,
+    sequence: room.sequence,
+    phaseStartedAt: room.phaseStartedAt,
+    phaseEndsAt: room.phaseEndsAt,
+    focusMinutes: room.focusMinutes,
+    shortBreakMinutes: room.shortBreakMinutes,
+    longBreakMinutes: room.longBreakMinutes,
+    autoStart: room.autoStart,
+    sound: room.sound,
+    background: room.background,
+    // Read per viewer, because a block between this viewer and a file's
+    // owner silences that file for them alone.
+    files: await resolveRoomFiles(userId, room.hostUserId, room),
+    cycleFocusCount: room.cycleFocusCount,
+    closedAt: room.closedAt,
+    startDelaySeconds: room.startDelaySeconds,
+    maxPeople: room.maxPeople,
+    startingAt: room.startingAt,
+  }
+  const role: "host" | "member" = room.hostUserId === userId ? "host" : "member"
+  if (room.closedAt || room.phase === "closed") {
+    return { room: safeRoom, you: { role, timezone }, members: [], messages: [], pinned: [], chatPaused: false }
+  }
+  const [membership] = await database.select({ role: roomMemberships.role }).from(roomMemberships).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
+  if (!membership) throw new Error("ROOM_MEMBERSHIP_REQUIRED")
+  const [memberRows, messageRows, pinned] = await Promise.all([
+    database
+      .select({ id: roomMemberships.id, userId: roomMemberships.userId, role: roomMemberships.role, joinedAt: roomMemberships.joinedAt, name: displayName, handle: readableHandle, avatarUrl: readableAvatar, sharesTask: pomodoroProfiles.shareTaskInRooms, staff: isStaff })
+      .from(roomMemberships)
+      .innerJoin(users, eq(roomMemberships.userId, users.id))
+      .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
+      .where(and(eq(roomMemberships.roomId, roomId), sql`${roomMemberships.leftAt} is null`))
+      .orderBy(roomMemberships.joinedAt),
+    // The latest hundred, read newest first and turned back round, so a long
+    // room shows its newest lines rather than its first hundred. A line held
+    // for an admin reaches only its writer, and an admin's pinned line is
+    // read on its own below.
+    database
+      .select({ id: roomMessages.id, userId: roomMessages.userId, body: roomMessages.body, deletedAt: roomMessages.deletedAt, removedBy: roomMessages.removedBy, heldAt: roomMessages.heldAt, createdAt: roomMessages.createdAt, authorName: displayName, handle: readableHandle, staff: isStaff })
+      .from(roomMessages)
+      .innerJoin(users, eq(roomMessages.userId, users.id))
+      .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id))
+      .where(and(eq(roomMessages.roomId, roomId), eq(roomMessages.broadcast, false), sql`(${roomMessages.heldAt} is null or ${roomMessages.userId} = ${userId})`))
+      .orderBy(desc(roomMessages.createdAt))
+      .limit(100)
+      .then((rows) => rows.reverse()),
+    database
+      .select({ id: roomMessages.id, body: roomMessages.body, createdAt: roomMessages.createdAt })
+      .from(roomMessages)
+      .where(and(eq(roomMessages.roomId, roomId), eq(roomMessages.broadcast, true), sql`${roomMessages.deletedAt} is null`))
+      .orderBy(roomMessages.createdAt),
+  ])
+  // Reactions are only ever shown on live messages from people still in the
+  // room, so we skip tombstones here and join to active memberships below.
+  const reactionsByMessage = await loadMessageReactions(roomId, userId, messageRows.filter((message) => !message.deletedAt).map((message) => message.id), database)
+  // A block holds inside a room as well: neither of you appears in the other's
+  // member list and neither sees the other's messages. One query for the whole
+  // snapshot, through the one function every list in this app uses.
+  const [blocked, tasksByUser, checkIns] = await Promise.all([
+    blockedUserIdsFor(userId),
+    runningTaskTitles(memberRows.filter((member) => member.sharesTask).map((member) => member.userId), database),
+    breakCheckIns(room, database),
+  ])
+  return {
+    room: safeRoom,
+    you: { role: membership.role as "host" | "member", timezone },
+    members: memberRows.filter((member) => !blocked.has(member.userId)).map(({ userId: memberUserId, sharesTask, ...member }) => ({
+      ...member,
+      avatarIndex: avatarIndexFor(memberUserId),
+      handle: member.handle,
+      task: sharesTask ? tasksByUser.get(memberUserId) ?? null : null,
+      checkIn: checkIns.get(memberUserId) ?? null,
+      mine: memberUserId === userId,
+    })),
+    // Soft-deleted messages stay in the timeline as empty tombstones so
+    // members see that moderation happened without ever receiving the body.
+    messages: messageRows.filter((message) => !blocked.has(message.userId)).map(({ userId: authorUserId, deletedAt, removedBy, heldAt, body, ...message }) => ({ ...message, body: deletedAt ? "" : body, deleted: Boolean(deletedAt), removedBy: deletedAt ? removedBy ?? "host" : null, held: Boolean(heldAt), mine: authorUserId === userId, reactions: deletedAt ? [] : reactionsByMessage.get(message.id) ?? [] })),
+    pinned,
+    chatPaused: (await loadAppSettings())["safety.pause"].chat,
+  }
+}
+
+/** Whether a room is in the break that follows a focus. */
+function onBreak(phase: string) {
+  return phase === "short" || phase === "long"
+}
+
+/**
+ * Everyone's answer to "Did you finish?" for the break the room is in now.
+ * Empty outside a break, so the ticks leave with the next focus.
+ */
+async function breakCheckIns(room: Pick<Room, "id" | "phase" | "sequence">, database: PomoderDb) {
+  const answers = new Map<string, RoomCheckIn>()
+  if (!onBreak(room.phase)) return answers
+  const rows = await database
+    .select({ userId: pomodoroRoomCheckIns.userId, finished: pomodoroRoomCheckIns.finished })
+    .from(pomodoroRoomCheckIns)
+    .where(and(eq(pomodoroRoomCheckIns.roomId, room.id), eq(pomodoroRoomCheckIns.breakSequence, room.sequence)))
+  for (const row of rows) answers.set(row.userId, row.finished ? "finished" : "not_yet")
+  return answers
+}
+
+/**
+ * The task each of these people is focusing on right now: the task on their
+ * newest focus that is still counting down. A paused focus does not count,
+ * because paused sessions are left behind for days when a tab closes, and a
+ * focus whose end time has passed is not running whatever its status says.
+ * Someone with no such focus, or a focus with no task picked, is left out.
+ * Only ever called with the people in one room who switched sharing on.
+ */
+async function runningTaskTitles(userIds: string[], database: PomoderDb, timestamp = new Date()) {
+  const titles = new Map<string, string>()
+  if (!userIds.length) return titles
+  const rows = await database
+    .selectDistinctOn([focusSessions.userId], { userId: focusSessions.userId, title: tasks.title })
+    .from(focusSessions)
+    .leftJoin(tasks, and(eq(tasks.id, focusSessions.taskId), eq(tasks.userId, focusSessions.userId)))
+    .where(and(inArray(focusSessions.userId, userIds), eq(focusSessions.mode, "focus"), eq(focusSessions.status, "running"), gt(focusSessions.targetEndsAt, timestamp)))
+    .orderBy(focusSessions.userId, desc(focusSessions.createdAt))
+  for (const row of rows) if (row.title) titles.set(row.userId, row.title)
+  return titles
+}
+
+/**
+ * Sends a fresh snapshot to the room this person is in, when what the room
+ * shows about them may have changed. A focus starting or ending only matters
+ * to the room when they share their task, so those pass `onlyWhenSharing`;
+ * switching sharing itself always refreshes, off included. Does nothing for
+ * somebody in no room.
+ */
+export async function refreshMyRoom(userId: string, { onlyWhenSharing = false } = {}) {
+  const [row] = await db
+    .select({ roomId: roomMemberships.roomId, sharesTask: pomodoroProfiles.shareTaskInRooms })
+    .from(roomMemberships)
+    .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, roomMemberships.userId))
+    .where(and(eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
+    .limit(1)
+  if (!row || (onlyWhenSharing && !row.sharesTask)) return
+  await notifyRoom(row.roomId, "membership")
+}
+
+// Tallies reactions per emoji for the given messages. A reaction only counts
+// while its author still holds an active membership in this room, so a member
+// who leaves, is removed, or is banned takes their reactions with them without
+// any extra cleanup. `mine` marks the viewer's own toggled reactions.
+async function loadMessageReactions(roomId: string, userId: string, messageIds: string[], database: PomoderDb = db): Promise<Map<string, RoomReactionSummary[]>> {
+  const grouped = new Map<string, RoomReactionSummary[]>()
+  if (!messageIds.length) return grouped
+  const rows = await database
+    .select({
+      messageId: roomMessageReactions.messageId,
+      emoji: roomMessageReactions.emoji,
+      count: sql<number>`count(*)::int`,
+      mine: sql<boolean>`bool_or(${roomMessageReactions.userId} = ${userId})`,
+    })
+    .from(roomMessageReactions)
+    .innerJoin(roomMemberships, and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, roomMessageReactions.userId), sql`${roomMemberships.leftAt} is null`))
+    .where(inArray(roomMessageReactions.messageId, messageIds))
+    .groupBy(roomMessageReactions.messageId, roomMessageReactions.emoji)
+  for (const row of rows) {
+    const list = grouped.get(row.messageId) ?? []
+    list.push({ emoji: row.emoji, count: row.count, mine: Boolean(row.mine) })
+    grouped.set(row.messageId, list)
+  }
+  // Fixed palette order keeps chips from reshuffling as counts change.
+  for (const list of grouped.values()) list.sort((a, b) => roomReactionOrder(a.emoji) - roomReactionOrder(b.emoji))
+  return grouped
+}
+
+export type RoomLookup =
+  | { status: "not_found" }
+  | { status: "closed"; name: string }
+  | { status: "scheduled"; name: string; startsAt: Date; focusMinutes: number } & RoomLookupPair
+  | { status: "banned"; name: string }
+  | { status: "group_only"; name: string }
+  | { status: "member"; name: string; memberCount: number } & RoomLookupPair
+  | { status: "locked"; name: string; memberCount: number } & RoomLookupPair
+  | { status: "joinable"; name: string; memberCount: number; phase: string; focusMinutes: number } & RoomLookupPair
+
+/** The room's sound and theme, for the invite page to show what it is joining. */
+type RoomLookupPair = { sound: string | null; background: string | null }
+
+// Direct-entry contract for invite links: unlisted slugs resolve here but
+// never appear in listPublicRooms. Works signed-out so the invite page can
+// prompt guests to sign in.
+export async function lookupRoomBySlug(slug: string, userId: string | null, database: PomoderDb = db): Promise<RoomLookup> {
+  const [room] = await database.select().from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) return { status: "not_found" }
+  if (room.closedAt || room.phase === "closed") return { status: "closed", name: room.name }
+  if (userId) {
+    const banned = await database.select({ id: roomBans.id }).from(roomBans).where(and(eq(roomBans.roomId, room.id), eq(roomBans.userId, userId))).limit(1)
+    if (banned.length) return { status: "banned", name: room.name }
+    if (room.groupId && room.hostUserId !== userId) {
+      const [inGroup] = await database
+        .select({ id: pomodoroGroupMembers.id })
+        .from(pomodoroGroupMembers)
+        .where(and(eq(pomodoroGroupMembers.groupId, room.groupId), eq(pomodoroGroupMembers.userId, userId)))
+        .limit(1)
+      if (!inGroup) return { status: "group_only", name: room.name }
+    }
+  }
+  // An invite email is sent before the room opens, so the link has to be able
+  // to say "not yet" and when. Nobody is in the room, so no count is shown.
+  const pair = { sound: room.sound, background: room.background }
+  if (isScheduledRoom(room.phase) && room.startsAt) {
+    return { status: "scheduled", name: room.name, startsAt: room.startsAt, focusMinutes: room.focusMinutes, ...pair }
+  }
+  const [{ memberCount }] = await database.select({ memberCount: sql<number>`count(*)::int` }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), sql`${roomMemberships.leftAt} is null`))
+  if (userId) {
+    const [membership] = await database.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
+    if (membership) return { status: "member", name: room.name, memberCount, ...pair }
+  }
+  if (!canJoinRoom(room.phase)) return { status: "locked", name: room.name, memberCount, ...pair }
+  return { status: "joinable", name: room.name, memberCount, phase: room.phase, focusMinutes: room.focusMinutes, ...pair }
+}
+
+export async function notifyRoom(roomId: string, event: string) {
+  const channel = roomChannel(roomId)
+  await db.execute(sql`select pg_notify(${channel}, ${event})`)
+}
+
+/**
+ * Tells every open room playing one of these files to read itself again, so
+ * a file unshared, moved to the bin or taken off falls back on everyone's
+ * screen at once rather than at the room's next phase (rooms task 04).
+ */
+export async function nudgeRoomsPlaying(mediaIds: readonly string[]) {
+  if (!mediaIds.length) return
+  const references = mediaIds.map((id) => `media:${id}`)
+  const playing = await db
+    .select({ id: rooms.id })
+    .from(rooms)
+    .where(
+      and(
+        sql`${rooms.closedAt} is null`,
+        or(inArray(rooms.sound, references), inArray(rooms.background, references))
+      )
+    )
+  await nudgeRooms(playing.map((room) => room.id), "phase")
+}
+
+/**
+ * Tells many rooms' open screens about a change, after the commit. A failed
+ * nudge is logged and never undoes the change: a screen catches up when it
+ * reconnects.
+ */
+export async function nudgeRooms(roomIds: readonly string[], event: string) {
+  const nudges = await Promise.allSettled(roomIds.map((id) => notifyRoom(id, event)))
+  for (const nudge of nudges)
+    if (nudge.status === "rejected") console.error("a room's open screens could not be told", nudge.reason)
+}
+
+export async function assertNotBanned(roomId: string, userId: string, database: PomoderDb | PomoderTransaction = db) {
+  const banned = await database.select({ id: roomBans.id }).from(roomBans).where(and(eq(roomBans.roomId, roomId), eq(roomBans.userId, userId))).limit(1)
+  if (banned.length) throw new Error("ROOM_BANNED")
+}
+
+// Chat speed is the admin's "chat.speed" setting (admin task 05), twenty
+// messages a minute per person, per room until changed: fast enough for a
+// burst of encouragement, slow enough that one person cannot bury the room.
+const REPORT_USER_LIMIT = { maxAttempts: 5, windowSeconds: 600 }
+const REPORT_ROOM_LIMIT = { maxAttempts: 30, windowSeconds: 600 }
+const MODERATE_USER_LIMIT = { maxAttempts: 20, windowSeconds: 60 }
+const MODERATE_ROOM_LIMIT = { maxAttempts: 60, windowSeconds: 60 }
+// Reactions share chat's ceiling (20 per minute per person, per room). A toggle
+// is a single attempt whether it adds or removes, which is plenty for genuine
+// use while still stopping a reaction flood.
+const REACTION_LIMIT = { maxAttempts: 20, windowSeconds: 60 }
+
+async function requireActiveMembership(roomId: string, userId: string, database: PomoderDb | PomoderTransaction) {
+  const [membership] = await database.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`)).limit(1)
+  if (!membership) throw new Error("ROOM_MEMBERSHIP_REQUIRED")
+}
+
+// Chat is for people who are actually in the room. Membership is checked
+// before the rate limit so an outsider with a slug cannot burn a member's
+// budget, and closing a room ends every membership, so a closed room refuses
+// chat by the same check.
+export async function postRoomMessage(slug: string, userId: string, body: string, database: PomoderDb = db) {
+  const [room] = await database.select({ id: rooms.id, name: rooms.name, slug: rooms.slug }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  await requireActiveMembership(room.id, userId, database)
+  await assertMayUseRooms(userId, database)
+  await assertChatOpen()
+  const settings = await loadAppSettings()
+  await enforceRateLimit(`room-chat:${room.id}:${userId}`, { maxAttempts: settings["chat.speed"].messagesPerMinute, windowSeconds: 60 }, database)
+
+  // A blocked word either holds the line for an admin, which only its writer
+  // then sees and which tells nobody, or turns into stars.
+  const { words, rule } = settings["chat.blockedWords"]
+  const { matched, starred } = checkBlockedWords(body, words)
+  if (matched && rule === "hold") {
+    await database.insert(roomMessages).values({ roomId: room.id, userId, body, heldAt: new Date() })
+    return { roomId: room.id, held: true }
+  }
+  if (matched) body = starred
+
+  // Who hears about this line, read before the transaction. Somebody named
+  // with @ always does. Everybody else in the room does only while they are
+  // away from it, because the room on their screen already shows it. Nobody
+  // across a block hears either way.
+  const timestamp = new Date()
+  const [members, blocked, writerName] = await Promise.all([
+    database
+      .select({ userId: roomMemberships.userId, watchingUntil: roomMemberships.watchingUntil, handle: pomodoroProfiles.handle })
+      .from(roomMemberships)
+      .leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, roomMemberships.userId))
+      .where(and(eq(roomMemberships.roomId, room.id), sql`${roomMemberships.leftAt} is null`, sql`${roomMemberships.userId} <> ${userId}`)),
+    blockedUserIdsFor(userId),
+    roomName(database, userId),
+  ])
+  const named = new Set(mentionedHandles(body))
+  const reachable = members.filter((member) => !blocked.has(member.userId))
+  const mentioned = reachable.filter((member) => member.handle && named.has(member.handle))
+  const away = reachable.filter((member) =>
+    !mentioned.includes(member) && !(member.watchingUntil && member.watchingUntil > timestamp))
+
+  await database.transaction(async (tx) => {
+    const [message] = await tx.insert(roomMessages).values({ roomId: room.id, userId, body }).returning({ id: roomMessages.id })
+    await writeNotices(tx, mentioned.map((member) => ({
+      recipientUserId: member.userId,
+      actorUserId: userId,
+      kind: "room_mention" as const,
+      message: roomMentionMessage(writerName, room.name),
+      detail: linePreview(body),
+      roomId: room.id,
+      messageId: message.id,
+      href: roomHref(room.slug),
+    })))
+    for (const member of away) {
+      await foldNotice(tx, {
+        recipientUserId: member.userId,
+        actorUserId: userId,
+        kind: "room_chat",
+        subject: { roomId: room.id },
+        href: roomHref(room.slug),
+        compose: (waiting) => {
+          const foldCount = (waiting?.foldCount ?? 0) + 1
+          return {
+            message: roomChatMessage(writerName, foldCount, room.name),
+            // One line shows the words; a count shows the latest and who said it.
+            detail: foldCount === 1 ? linePreview(body) : `${writerName}: ${linePreview(body)}`,
+            foldCount,
+          }
+        },
+      })
+    }
+  })
+  // The room's own snapshot carries the message back to everyone, the sender
+  // included, so there is nothing to return here.
+  return { roomId: room.id, held: false }
+}
+
+// Members may report another member's message with a bounded reason. A repeat
+// report of the same message collapses into the original, and floods are
+// capped per reporter and per room before any row is written.
+export async function reportRoomMessage(slug: string, reporterId: string, messageId: string, reason: string, database: PomoderDb = db) {
+  const [room] = await database.select().from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+  await requireActiveMembership(room.id, reporterId, database)
+  await enforceRateLimit(`room-report:user:${reporterId}`, REPORT_USER_LIMIT, database)
+  await enforceRateLimit(`room-report:room:${room.id}`, REPORT_ROOM_LIMIT, database)
+  // Who works the queue, read before the transaction rather than inside it.
+  const adminIds = await reportQueueAdminIds(database)
+  return database.transaction(async (tx) => {
+    // The team's pinned line is not a member's message, so it cannot be reported.
+    const [message] = await tx.select({ id: roomMessages.id, userId: roomMessages.userId }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id), eq(roomMessages.broadcast, false))).limit(1)
+    if (!message) throw new Error("MESSAGE_NOT_FOUND")
+    if (message.userId === reporterId) throw new Error("CANNOT_REPORT_OWN_MESSAGE")
+    const inserted = await tx.insert(roomReports).values({ roomId: room.id, reporterUserId: reporterId, messageId, reason }).onConflictDoNothing().returning({ id: roomReports.id })
+    // A made-up member somebody reported goes quiet at once, in the same
+    // transaction as the report (live activity task 05, Part 5). Reviewing
+    // the report does not undo it; the watch page's pause switch does. A real
+    // author matches no row here.
+    await tx.update(pomodoroSimulatedAccounts).set({ pausedAt: new Date() }).where(and(eq(pomodoroSimulatedAccounts.userId, message.userId), sql`${pomodoroSimulatedAccounts.pausedAt} is null`))
+    // A repeat report of the same line adds no row, so it tells nobody again.
+    if (inserted.length) await noteNewReport(tx, { adminIds, reporterUserId: reporterId, thing: "message" })
+    return { reported: inserted.length > 0 }
+  })
+}
+
+// Toggles the caller's reaction on a message: a matching row is removed, or a
+// new one is inserted. Only active members may react, so closed rooms and
+// non-members are rejected the same way chat is. Reacting to a deleted message
+// is refused because its reactions are never shown.
+export async function toggleRoomReaction(slug: string, reactorId: string, messageId: string, emoji: string, database: PomoderDb = db) {
+  if (!isRoomReactionEmoji(emoji)) throw new Error("INVALID_REACTION")
+  const [room] = await database.select().from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  await requireActiveMembership(room.id, reactorId, database)
+  await assertMayUseRooms(reactorId, database)
+  await enforceRateLimit(`room-reaction:${room.id}:${reactorId}`, REACTION_LIMIT, database)
+  // Whom the author has blocked, read before the transaction, so a blocked
+  // reactor is never counted in the author's notice.
+  const [target] = await database.select({ userId: roomMessages.userId }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id))).limit(1)
+  const blocked = target && target.userId !== reactorId ? await blockedUserIdsFor(target.userId) : new Set<string>()
+  return database.transaction(async (tx) => {
+    const [message] = await tx.select({ id: roomMessages.id, deletedAt: roomMessages.deletedAt, userId: roomMessages.userId, body: roomMessages.body }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id), eq(roomMessages.broadcast, false))).limit(1)
+    if (!message) throw new Error("MESSAGE_NOT_FOUND")
+    if (message.deletedAt) throw new Error("MESSAGE_DELETED")
+    const removed = await tx.delete(roomMessageReactions).where(and(eq(roomMessageReactions.messageId, messageId), eq(roomMessageReactions.userId, reactorId), eq(roomMessageReactions.emoji, emoji))).returning({ id: roomMessageReactions.id })
+    if (!removed.length) await tx.insert(roomMessageReactions).values({ messageId, userId: reactorId, emoji }).onConflictDoNothing()
+    const added = !removed.length
+    // Reacting to your own line tells nobody.
+    if (message.userId !== reactorId) await syncReactionNotice(tx, room, message, blocked, added)
+    return { room, added }
+  })
+}
+
+// Check-ins share the reactions' ceiling: a person changing their mind a few
+// times is fine, a script pressing it all break is not.
+const CHECK_IN_LIMIT = { maxAttempts: 20, windowSeconds: 60 }
+
+/**
+ * Records the caller's answer to "Did you finish?" for the break the room is
+ * in, or changes it. Only people in the room may answer, and only during the
+ * break after a focus; it never touches the person's tasks (Tyler, 7 Nov
+ * 2026: only mark the check-in).
+ */
+export async function answerRoomCheckIn(slug: string, userId: string, finished: boolean, database: PomoderDb = db, timestamp = new Date()) {
+  const [room] = await database.select().from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  await requireActiveMembership(room.id, userId, database)
+  await assertMayUseRooms(userId, database, timestamp)
+  if (!onBreak(room.phase)) throw new Error("ROOM_NOT_ON_BREAK")
+  await enforceRateLimit(`room-check-in:${room.id}:${userId}`, CHECK_IN_LIMIT, database)
+  await database
+    .insert(pomodoroRoomCheckIns)
+    .values({ roomId: room.id, userId, breakSequence: room.sequence, finished, updatedAt: timestamp })
+    .onConflictDoUpdate({
+      target: [pomodoroRoomCheckIns.roomId, pomodoroRoomCheckIns.userId, pomodoroRoomCheckIns.breakSequence],
+      set: { finished, updatedAt: timestamp },
+    })
+  return room
+}
+
+/**
+ * Keeps the author's reaction notice in step with who has reacted.
+ *
+ * Recounted from the reactions themselves on every toggle, so the notice says
+ * how many people reacted rather than how many presses there were, and the
+ * last reaction taken back takes the notice with it. A taken-back reaction
+ * only corrects a notice already waiting; it never writes a new one or moves
+ * one back to the top. An author with the room on screen sees the reactions
+ * there, so a new one says nothing in the bell.
+ */
+async function syncReactionNotice(
+  tx: PomoderTransaction,
+  room: Room,
+  message: { id: string; userId: string; body: string },
+  blocked: Set<string>,
+  added: boolean
+) {
+  const reactors = (
+    await tx
+      .select({ userId: roomMessageReactions.userId })
+      .from(roomMessageReactions)
+      .where(and(eq(roomMessageReactions.messageId, message.id), sql`${roomMessageReactions.userId} <> ${message.userId}`))
+      .groupBy(roomMessageReactions.userId)
+      .orderBy(sql`min(${roomMessageReactions.createdAt})`)
+  ).filter((row) => !blocked.has(row.userId))
+
+  if (reactors.length === 0) {
+    await dropUnreadMessageNotice(tx, message.userId, "room_reaction", message.id)
+    return
+  }
+  if (added && (await isWatching(tx, room.id, message.userId, new Date()))) return
+
+  const firstName = await roomName(tx, reactors[0].userId)
+  await foldNotice(tx, {
+    recipientUserId: message.userId,
+    actorUserId: reactors[0].userId,
+    kind: "room_reaction",
+    subject: { roomId: room.id, messageId: message.id },
+    href: roomHref(room.slug),
+    bump: added,
+    onlyIfWaiting: !added,
+    compose: () => ({
+      message: roomReactionMessage(firstName, reactors.length - 1, room.name),
+      detail: linePreview(message.body),
+      foldCount: reactors.length,
+    }),
+  })
+}
+
+// The host check runs before the rate limit so a non-host cannot burn the
+// room's moderation budget; the transaction re-locks and re-verifies.
+async function requireHostModeration(slug: string, hostId: string, database: PomoderDb) {
+  const [room] = await database.select().from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.hostUserId !== hostId) throw new Error("ROOM_HOST_REQUIRED")
+  if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+  await enforceRateLimit(`room-moderate:user:${hostId}`, MODERATE_USER_LIMIT, database)
+  await enforceRateLimit(`room-moderate:room:${room.id}`, MODERATE_ROOM_LIMIT, database)
+}
+
+async function lockRoomForHost(tx: PomoderTransaction, slug: string, hostId: string) {
+  const [room] = await tx.select().from(rooms).where(eq(rooms.slug, slug)).for("update").limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.hostUserId !== hostId) throw new Error("ROOM_HOST_REQUIRED")
+  if (room.closedAt || room.phase === "closed") throw new Error("ROOM_CLOSED")
+  return room
+}
+
+// Soft-deletes a chat message so members only ever see a tombstone while the
+// body stays in the row for authorized admin review. Idempotent on races.
+export async function deleteRoomMessage(slug: string, hostId: string, messageId: string, database: PomoderDb = db, timestamp = new Date()) {
+  await requireHostModeration(slug, hostId, database)
+  return database.transaction(async (tx) => {
+    const room = await lockRoomForHost(tx, slug, hostId)
+    // The team's pinned line is removed by an admin, never a host.
+    const [message] = await tx.select({ id: roomMessages.id, deletedAt: roomMessages.deletedAt }).from(roomMessages).where(and(eq(roomMessages.id, messageId), eq(roomMessages.roomId, room.id), eq(roomMessages.broadcast, false))).limit(1)
+    if (!message) throw new Error("MESSAGE_NOT_FOUND")
+    if (message.deletedAt) return { room, deleted: false }
+    await tx.update(roomMessages).set({ deletedAt: timestamp, removedBy: "host" }).where(eq(roomMessages.id, messageId))
+    // A mention or reaction notice would quote a line the room no longer shows.
+    await dropMessageNotices(tx, messageId)
+    await writeModerationAudit(tx, hostId, "delete_message", [messageId])
+    return { room, deleted: true }
+  })
+}
+
+// Removal targets a membership id because snapshots never expose user ids.
+export async function removeRoomMember(slug: string, hostId: string, membershipId: string, database: PomoderDb = db, timestamp = new Date()) {
+  await requireHostModeration(slug, hostId, database)
+  const tell = await mayTellRemoved(database, hostId, membershipId)
+  return database.transaction(async (tx) => {
+    const room = await lockRoomForHost(tx, slug, hostId)
+    const membership = await findRoomMembership(tx, room.id, membershipId, hostId)
+    const ended = await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.id, membershipId), sql`${roomMemberships.leftAt} is null`)).returning({ id: roomMemberships.id })
+    if (ended.length) {
+      // A made-up member a host removed never comes back to this room or to
+      // any later room by the same host (live activity task 04, Part 4). It is
+      // remembered on its habit; a real member matches no row here.
+      const removal = JSON.stringify([{ roomId: room.id, hostUserId: hostId, removedAt: timestamp.toISOString() }])
+      await tx.update(pomodoroSimulatedAccounts).set({ habits: sql`jsonb_set(${pomodoroSimulatedAccounts.habits}, '{removedFrom}', coalesce(${pomodoroSimulatedAccounts.habits} -> 'removedFrom', '[]'::jsonb) || ${removal}::jsonb)` }).where(eq(pomodoroSimulatedAccounts.userId, membership.userId))
+      await writeModerationAudit(tx, hostId, "remove_member", [membership.id])
+      if (tell) await writeNotices(tx, [removedNotice(room, membership.userId, false)])
+    }
+    return { room, removed: ended.length > 0 }
+  })
+}
+
+// A ban immediately ends any active membership and blocks rejoining. Banning
+// a member who already left still works, so hosts can stop a rejoin loop.
+export async function banRoomMember(slug: string, hostId: string, membershipId: string, database: PomoderDb = db, timestamp = new Date()) {
+  await requireHostModeration(slug, hostId, database)
+  const tell = await mayTellRemoved(database, hostId, membershipId)
+  return database.transaction(async (tx) => {
+    const room = await lockRoomForHost(tx, slug, hostId)
+    const membership = await findRoomMembership(tx, room.id, membershipId, hostId)
+    const banned = await tx.insert(roomBans).values({ roomId: room.id, userId: membership.userId, bannedByUserId: hostId }).onConflictDoNothing().returning({ id: roomBans.id })
+    await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.roomId, room.id), eq(roomMemberships.userId, membership.userId), sql`${roomMemberships.leftAt} is null`))
+    await writeModerationAudit(tx, hostId, "ban_member", [membership.id])
+    // A second ban of the same person changes nothing, so it says nothing.
+    if (banned.length && tell) await writeNotices(tx, [removedNotice(room, membership.userId, true)])
+    return { room }
+  })
+}
+
+/**
+ * Whether the person a host is removing may be told, read before the
+ * transaction: not across a block. The notice names the room and never the
+ * host, but a block means neither side hears anything about the other.
+ */
+async function mayTellRemoved(database: PomoderDb, hostId: string, membershipId: string) {
+  const [target] = await database.select({ userId: roomMemberships.userId }).from(roomMemberships).where(eq(roomMemberships.id, membershipId)).limit(1)
+  return target ? !(await isBlockedBetween(hostId, target.userId)) : false
+}
+
+/** "You were removed from the room …" or "You can't rejoin the room …", with nowhere to go. */
+function removedNotice(room: Room, userId: string, banned: boolean) {
+  return {
+    recipientUserId: userId,
+    kind: "room_removed" as const,
+    message: roomRemovedMessage(room.name, banned),
+    roomId: room.id,
+  }
+}
+
+async function findRoomMembership(tx: PomoderTransaction, roomId: string, membershipId: string, hostId: string) {
+  const [membership] = await tx.select({ id: roomMemberships.id, userId: roomMemberships.userId }).from(roomMemberships).where(and(eq(roomMemberships.id, membershipId), eq(roomMemberships.roomId, roomId))).limit(1)
+  if (!membership) throw new Error("MEMBER_NOT_FOUND")
+  if (membership.userId === hostId) throw new Error("ROOM_SELF_MODERATION")
+  return membership
+}
+
+// Host moderation is privileged, so it lands in the app's audit table inside
+// the same transaction as the act: either both rows commit or neither does,
+// so the log can never disagree with what happened.
+async function writeModerationAudit(tx: PomoderTransaction, actorId: string, action: string, recordIds: string[]) {
+  await tx.insert(pomodoroAuditLogs).values({ actorUserId: actorId, action, resource: "rooms", recordIds })
+}
+
+export function roomChannel(roomId: string) { return `pomodoro_room_${roomId.replaceAll("-", "")}` }
+
+export async function endActiveMemberships(tx: PomoderTransaction, roomId: string, timestamp: Date) {
+  await tx.update(roomMemberships).set({ leftAt: timestamp }).where(and(eq(roomMemberships.roomId, roomId), sql`${roomMemberships.leftAt} is null`))
+  // Every way a running room closes comes through here, so this is where the
+  // notices inviting people into it stop: an unread "Sam opened …" or "… is
+  // open now" for a closed room would be a link to nothing.
+  await dropUnreadRoomNotices(tx, [roomId], ["followed_room", "room_open", "room_invite"])
+}
+
+/** Where a room notice leads: the room's own address, which answers for every state the room can be in. */
+export function roomHref(slug: string) {
+  return `/rooms/${slug}`
+}
+
+/** The name a room shows for this person: their public name, else their account name. */
+export async function roomName(database: PomoderDb | PomoderTransaction, userId: string) {
+  const [row] = await database.select({ name: displayName }).from(users).leftJoin(pomodoroProfiles, eq(pomodoroProfiles.userId, users.id)).where(eq(users.id, userId)).limit(1)
+  return row?.name?.trim() || "Someone"
+}
+
+/** Whether this member has the room on screen right now. See `watchingUntil` in the schema. */
+async function isWatching(database: PomoderDb | PomoderTransaction, roomId: string, userId: string, timestamp: Date) {
+  const [row] = await database.select({ id: roomMemberships.id }).from(roomMemberships).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`, sql`${roomMemberships.watchingUntil} > ${timestamp}`)).limit(1)
+  return Boolean(row)
+}
+
+/**
+ * Records that this member has the room open, for forty seconds from now. The
+ * room's live connection calls it when it opens and on every fifteen-second
+ * heartbeat; `stopWatching` clears it when the connection closes.
+ */
+export async function keepWatching(roomId: string, userId: string, timestamp = new Date()) {
+  // Somebody real has a room open, which the made-up members' workers read
+  // (live activity task 05, Part 7).
+  void noteRealVisit(timestamp)
+  await db.update(roomMemberships).set({ watchingUntil: new Date(timestamp.getTime() + 40_000) }).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId), sql`${roomMemberships.leftAt} is null`))
+}
+
+export async function stopWatching(roomId: string, userId: string) {
+  await db.update(roomMemberships).set({ watchingUntil: null }).where(and(eq(roomMemberships.roomId, roomId), eq(roomMemberships.userId, userId)))
+}
+
+// Hosting is single-tenancy: starting or joining another room abandons any
+// room the user still hosts, closing it so members are not stranded in a
+// hostless room.
+//
+// A booked room is exempt. It has no members to strand, and a host who books
+// 7pm and then runs a room at three o'clock means to do both — closing the
+// booking here would delete a meeting other people have already been emailed
+// about.
+async function closeRoomsHostedBy(tx: PomoderTransaction, userId: string, timestamp: Date, exceptRoomId?: string) {
+  const hosted = await tx.select().from(rooms).where(and(eq(rooms.hostUserId, userId), sql`${rooms.closedAt} is null`, sql`${rooms.phase} <> 'scheduled'`)).for("update")
+  const closedRoomIds: string[] = []
+  for (const room of hosted) {
+    if (room.id === exceptRoomId) continue
+    const { set } = phaseUpdate(room, "closed", timestamp)
+    await tx.update(rooms).set(set).where(eq(rooms.id, room.id))
+    await endActiveMemberships(tx, room.id, timestamp)
+    closedRoomIds.push(room.id)
+  }
+  return closedRoomIds
+}
+
+function avatarIndexFor(userId: string) {
+  let hash = 0
+  for (const char of userId) hash = (hash * 31 + (char.codePointAt(0) ?? 0)) % 997
+  return hash % 4
+}
+
+/**
+ * The server is the only clock. The old app queued one delayed job per
+ * timed phase; this shell runs one fifteen-second loop instead
+ * (`background.workers` in src/app/server-options.ts), so each tick claims
+ * every room whose phase has expired and advances it. The sequence guard is
+ * unchanged: a manual host action bumps the sequence and the stale claim
+ * no-ops. Members' countdowns run client-side from the server timestamps,
+ * so the up-to-fifteen-seconds of advance lag never shows on the ring.
+ */
+export async function advanceDueRooms(timestamp = new Date()) {
+  const due = await db
+    .select({ id: rooms.id, sequence: rooms.sequence })
+    .from(rooms)
+    .where(
+      and(
+        sql`${rooms.closedAt} is null`,
+        sql`${rooms.phaseEndsAt} is not null`,
+        lte(rooms.phaseEndsAt, timestamp)
+      )
+    )
+    .limit(50)
+  for (const room of due) {
+    const result = await advanceExpiredRoom(room.id, room.sequence)
+    if (result.kind === "advanced") await notifyRoom(room.id, "phase")
+  }
+  return due.length + (await startCountedRooms(timestamp))
+}
+
+/**
+ * Starts every waiting room whose "Starting in" countdown has run out. The
+ * clock loop calls it every 15 seconds, and the request that began the
+ * countdown sets a timer for its end, so a 5-second countdown is not left
+ * waiting for the loop.
+ */
+export async function startCountedRooms(timestamp = new Date(), database: PomoderDb = db) {
+  const due = await database
+    .select({ id: rooms.id })
+    .from(rooms)
+    .where(and(eq(rooms.phase, "waiting"), sql`${rooms.closedAt} is null`, lte(rooms.startingAt, timestamp)))
+    .limit(50)
+  let started = 0
+  for (const row of due) {
+    if (await startCountedRoom(row.id, timestamp, database)) {
+      started += 1
+      await notifyRoom(row.id, "phase")
+    }
+  }
+  return started
+}
+
+/** One room's countdown ending: the focus starts, if it is still due. */
+export async function startCountedRoom(roomId: string, timestamp = new Date(), database: PomoderDb = db) {
+  return database.transaction(async (tx) => {
+    const [room] = await tx.select().from(rooms).where(eq(rooms.id, roomId)).for("update").limit(1)
+    if (!room || room.closedAt || room.phase !== "waiting" || !room.startingAt || room.startingAt > timestamp) return false
+    const { set } = phaseUpdate(room, "focus", timestamp)
+    await tx.update(rooms).set(set).where(eq(rooms.id, room.id))
+    return true
+  })
+}
+
+/**
+ * Starts the room the moment its countdown runs out, if it is still due then.
+ * The request or pass that began the countdown calls it; the clock's
+ * 15-second loop covers a server restart.
+ */
+export function scheduleCountdownEnd(roomId: string, startingAt: Date) {
+  const timer = setTimeout(() => {
+    startCountedRoom(roomId)
+      .then((started) => (started ? notifyRoom(roomId, "phase") : undefined))
+      .catch((error) => console.error("a room's countdown could not start it", error))
+  }, Math.max(0, startingAt.getTime() - Date.now()) + 250)
+  // A pending countdown never keeps the server from shutting down.
+  timer.unref?.()
+}
+
+/** The host's "Starting in" choice, used by every Start from now on. */
+/** The lower of two people limits, either of which may be "no limit". */
+function lowerLimit(a: number | null, b: number | null) {
+  if (a === null) return b
+  if (b === null) return a
+  return Math.min(a, b)
+}
+
+/**
+ * The host's own people limit for their room, from the room card's cog
+ * (10 Oct 2026), or null for none. Lowering it takes nobody out.
+ */
+export async function setRoomPeopleLimit(slug: string, userId: string, maxPeople: number | null, database: PomoderDb = db) {
+  if (maxPeople !== null && (!Number.isInteger(maxPeople) || maxPeople < 2 || maxPeople > 500))
+    throw new Error("ROOM_PEOPLE_LIMIT_INVALID")
+  const [room] = await database.select({ id: rooms.id, hostUserId: rooms.hostUserId, closedAt: rooms.closedAt }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.hostUserId !== userId) throw new Error("ROOM_HOST_REQUIRED")
+  if (room.closedAt) throw new Error("ROOM_CLOSED")
+  await database.update(rooms).set({ maxPeople, updatedAt: new Date() }).where(eq(rooms.id, room.id))
+  return room.id
+}
+
+export async function setRoomStartDelay(slug: string, userId: string, seconds: number, database: PomoderDb = db) {
+  if (!isStartDelay(seconds)) throw new Error("ROOM_START_DELAY_INVALID")
+  const [room] = await database.select({ id: rooms.id, hostUserId: rooms.hostUserId, closedAt: rooms.closedAt }).from(rooms).where(eq(rooms.slug, slug)).limit(1)
+  if (!room) throw new Error("ROOM_NOT_FOUND")
+  if (room.hostUserId !== userId) throw new Error("ROOM_HOST_REQUIRED")
+  if (room.closedAt) throw new Error("ROOM_CLOSED")
+  await database.update(rooms).set({ startDelaySeconds: seconds, updatedAt: new Date() }).where(eq(rooms.id, room.id))
+  return room.id
+}
+
+/** How far back "focused with" looks. A year, so the read stays one bounded range. */
+export const FOCUSED_WITH_DAYS = 365
+const FOCUSED_WITH_LIMIT = 5
+
+export type FocusedWithRow = { name: string; seconds: number }
+
+/**
+ * The people this person has shared the most room time with, over the last
+ * year: for each pair of memberships in the same room, the stretch both were
+ * in it at once, added up per person.
+ *
+ * Both sides must have "Show me on the leaderboard" on and a display name, so
+ * somebody who has not opted in is named to nobody, and sees nobody either.
+ * Display names only. A membership still open counts up to now.
+ *
+ * Bounded twice: the viewer's own memberships come off the user and date
+ * index, and the other side is matched per room on the room index.
+ */
+export async function readFocusedWith(userId: string, database: PomoderDb = db, timestamp = new Date()): Promise<{ optedIn: boolean; people: FocusedWithRow[] }> {
+  const [viewer] = await database
+    .select({ optedIn: pomodoroProfiles.leaderboardOptIn, name: pomodoroProfiles.publicDisplayName })
+    .from(pomodoroProfiles)
+    .where(eq(pomodoroProfiles.userId, userId))
+    .limit(1)
+  if (!viewer?.optedIn || !viewer.name) return { optedIn: false, people: [] }
+
+  const floor = new Date(timestamp.getTime() - FOCUSED_WITH_DAYS * DAY_MS)
+  // Left out inside the query, before the limit, so a blocked person never
+  // takes one of the five places.
+  const blocked = [...(await blockedUserIdsFor(userId))]
+  const notBlocked = blocked.length
+    ? sql`and other.user_id not in (${sql.join(blocked.map((id) => sql`${id}`), sql`, `)})`
+    : sql``
+  const result = await database.execute<{ user_id: string; name: string; seconds: number }>(sql`
+    with mine as (
+      select room_id, joined_at, coalesce(left_at, ${timestamp}) as ended_at
+      from room_memberships
+      where user_id = ${userId} and joined_at >= ${floor}
+    )
+    select other.user_id, profile.public_display_name as name,
+      sum(extract(epoch from least(mine.ended_at, coalesce(other.left_at, ${timestamp}))
+        - greatest(mine.joined_at, other.joined_at)))::int as seconds
+    from mine
+    join room_memberships other
+      on other.room_id = mine.room_id
+      and other.user_id <> ${userId}
+      ${notBlocked}
+      and other.joined_at < mine.ended_at
+      and coalesce(other.left_at, ${timestamp}) > mine.joined_at
+    join pomodoro_profiles profile
+      on profile.user_id = other.user_id
+      and profile.leaderboard_opt_in
+      and profile.public_display_name is not null
+    group by other.user_id, profile.public_display_name
+    order by seconds desc
+    limit ${FOCUSED_WITH_LIMIT}
+  `)
+  // Ids stay here: the answer carries names and seconds, nothing else.
+  const people = result.rows
+    .filter((row) => row.seconds > 0)
+    .map((row) => ({ name: row.name, seconds: Number(row.seconds) }))
+  return { optedIn: true, people }
+}

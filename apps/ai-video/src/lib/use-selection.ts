@@ -21,6 +21,19 @@ export function useSelection(visibleIds: string[]) {
   const allVisibleSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
 
+  // Some-but-not-all visible rows selected: drives the header checkbox's
+  // indeterminate state.
+  const someVisibleSelected =
+    !allVisibleSelected && visibleIds.some((id) => selectedIds.has(id))
+
+  // Ready to hand straight to a <Checkbox checked={…}>: true (all), the string
+  // "indeterminate" (partial), or false (none).
+  const selectAllState: boolean | "indeterminate" = allVisibleSelected
+    ? true
+    : someVisibleSelected
+      ? "indeterminate"
+      : false
+
   function toggleVisibleSelected() {
     setSelectedIds((current) => {
       const next = new Set(current)
@@ -47,6 +60,8 @@ export function useSelection(visibleIds: string[]) {
     selectedIds,
     toggleSelected,
     allVisibleSelected,
+    someVisibleSelected,
+    selectAllState,
     toggleVisibleSelected,
     clearSelection,
   }

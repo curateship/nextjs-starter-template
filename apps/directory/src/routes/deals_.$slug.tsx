@@ -1,0 +1,216 @@
+import * as React from "react"
+import { createFileRoute, Link } from "@tanstack/react-router"
+import { CalendarIcon, ClockIcon, MapPinIcon } from "lucide-react"
+
+import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
+import { DirectoryRouteError } from "@/components/directory/public/directory-error"
+import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
+import { ClaimBox } from "@/components/promotions/public/claim-box"
+import { ShowCode } from "@/components/promotions/public/show-code"
+import { ReportProblemButton } from "@/components/directory/public/report-problem-button"
+import { Card, CardContent } from "@/components/ui/card"
+import { requirePageVisible } from "@/lib/api/content/pages"
+import { countDealView, loadDeal } from "@/lib/api/promotions/public"
+import { forwardOldAddress } from "@/lib/api/directory/old-addresses"
+import {
+  directoryDescription,
+  directoryHead,
+  directoryTitle,
+} from "@/lib/directory/public-seo"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { shownHeadline } from "@/lib/promotions/deal-headline"
+
+/**
+ * One deal's page at /deals/<address>. It follows the Deals page's on/off
+ * switch. An ended deal's page still opens, says so, and has no code. A live
+ * deal's code waits behind Show code, and the page counts one view.
+ *
+ * No such address, a draft, a deal at a draft listing and another site's deal
+ * all answer the same not-found page, so none can be told apart from a deal
+ * never written.
+ */
+export const Route = createFileRoute("/deals_/$slug")({
+  loader: async ({ params }) => {
+    const [, page] = await Promise.all([
+      requirePageVisible("/deals"),
+      loadDeal(params.slug),
+    ])
+    // An address the record used to have forwards to the one it has now.
+    if (!page) return forwardOldAddress("promotion", params.slug)
+    return page
+  },
+  head: ({ loaderData }) => {
+    if (!loaderData) return {}
+    const { deal, site } = loaderData
+    return directoryHead(
+      directoryTitle(deal.title, site.name),
+      directoryDescription(
+        deal.description,
+        `${deal.title} at ${deal.listingTitle}.`
+      ),
+      deal.coverImage || deal.listingImage
+    )
+  },
+  component: DealRoute,
+  // A visitor must never be shown the server's own words for a failure.
+  errorComponent: DirectoryRouteError,
+})
+
+function DealRoute() {
+  const {
+    site,
+    deal,
+    hasCode,
+    ended,
+    upcoming,
+    days,
+    times,
+    nowText,
+    claimBox,
+  } = Route.useLoaderData()
+  const photo = deal.coverImage || deal.listingImage
+
+  // One view a page opened. The server keeps it to one per person per day, so
+  // a reload or a second render does not add another.
+  React.useEffect(() => {
+    void countDealView(deal.slug).catch(() => {})
+  }, [deal.slug])
+
+  return (
+    <DirectoryFrame>
+      <DirectoryBreadcrumbs
+        crumbs={[
+          { label: site.name, home: true },
+          { label: "Deals", deals: true },
+          { label: deal.title },
+        ]}
+      />
+
+      {ended ? (
+        <Card>
+          <CardContent>
+            <p role="status" className="text-sm font-medium">
+              This deal has ended
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card>
+        {photo ? (
+          <img
+            src={photo}
+            srcSet={mediaImageSrcSet(photo)}
+            // The page's column, 1152px at most. Not lazy: it opens the page.
+            sizes="(min-width: 1184px) 1152px, 100vw"
+            alt={deal.coverImage ? deal.title : deal.listingTitle}
+            className="aspect-[3/1] w-full object-cover"
+          />
+        ) : null}
+        <CardContent className="grid gap-4">
+          <header className="grid gap-1">
+            <p className="text-3xl leading-tight font-bold wrap-anywhere">
+              {shownHeadline(deal.headline)}
+            </p>
+            <h1 className="text-2xl font-semibold">{deal.title}</h1>
+          </header>
+
+          <div className="grid gap-2 text-sm">
+            <p className="flex items-start gap-2">
+              <CalendarIcon
+                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span className="grid min-w-0">
+                <span className="font-medium">{days}</span>
+                {upcoming ? (
+                  <span className="text-muted-foreground">
+                    Not on yet
+                  </span>
+                ) : null}
+              </span>
+            </p>
+            {times.length || nowText ? (
+              <p className="flex items-start gap-2">
+                <ClockIcon
+                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <span className="grid min-w-0">
+                  {times.map((line) => (
+                    <span key={line} className="font-medium">
+                      {line}
+                    </span>
+                  ))}
+                  {nowText ? (
+                    <span className="text-muted-foreground">{nowText}</span>
+                  ) : null}
+                </span>
+              </p>
+            ) : null}
+            <p className="flex items-start gap-2">
+              <MapPinIcon
+                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span className="grid min-w-0">
+                {deal.listingSlug ? (
+                  <Link
+                    to="/directory/$slug"
+                    params={{ slug: deal.listingSlug }}
+                    className={`w-fit rounded-sm font-medium hover:underline ${focusRing}`}
+                  >
+                    {deal.listingTitle}
+                  </Link>
+                ) : (
+                  <span className="font-medium">{deal.listingTitle}</span>
+                )}
+                {deal.listingAddress ? (
+                  <span className="text-muted-foreground">
+                    {deal.listingAddress}
+                  </span>
+                ) : null}
+              </span>
+            </p>
+          </div>
+
+          {deal.description ? (
+            <p className="text-sm whitespace-pre-line">{deal.description}</p>
+          ) : null}
+
+          {/* The page never carries the code. No button once the deal has
+              ended, or while each visitor claims their own. */}
+          {hasCode ? <ShowCode slug={deal.slug} /> : null}
+
+          {claimBox ? <ClaimBox promotionId={deal.id} box={claimBox} /> : null}
+
+          {deal.smallPrint ? (
+            <section aria-labelledby="deal-small-print" className="grid gap-1">
+              <h2
+                id="deal-small-print"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Small print
+              </h2>
+              <p className="text-xs whitespace-pre-line text-muted-foreground">
+                {deal.smallPrint}
+              </p>
+            </section>
+          ) : null}
+
+          {/* Last, and shown after the deal is over too: "it has ended" when
+              it hasn't is exactly what a visitor needs to be able to say. A
+              div, so the link stays its own width in the card's grid. */}
+          <div>
+            <ReportProblemButton
+              kind="promotion"
+              subjectId={deal.id}
+              title={deal.title}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    </DirectoryFrame>
+  )
+}

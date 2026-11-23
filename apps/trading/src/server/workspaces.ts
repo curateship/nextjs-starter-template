@@ -5,9 +5,10 @@ import {
   DEFAULT_SIDEBAR_WIDTH,
   iconMeta,
   isSidebarWidth,
+  normalizeStyling,
   type IconKey,
   type ShellSection,
-  type ShellTopNavigationItem,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 import {
@@ -29,9 +30,16 @@ export type WorkspaceSettings = {
   sidebarWidth: number
   favicon: string
   automationFavoriteNodeKeys: AutomationPaletteKey[]
-  topNavigation: ShellTopNavigationItem[]
+  // Order of the market watchlist tabs (Active/Open/Fav/Watch) on the trade
+  // dashboard. Empty means "use the built-in order".
+  dashboardWatchlistTabOrder: string[]
+  // Last market opened on the trade dashboard, so it reopens where it was
+  // left instead of snapping back to the default. Empty means "never set".
+  tradeMarket: string
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
 }
 
 export async function saveWorkspaceAutomationFavorites(
@@ -366,15 +374,24 @@ function cleanWorkspaceSettings(
     automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
       settings.automationFavoriteNodeKeys
     ),
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
+    dashboardWatchlistTabOrder: Array.isArray(
+      settings.dashboardWatchlistTabOrder
+    )
+      ? settings.dashboardWatchlistTabOrder.filter(
+          (value): value is string => typeof value === "string"
+        )
+      : fallback.dashboardWatchlistTabOrder,
+    tradeMarket:
+      typeof settings.tradeMarket === "string"
+        ? settings.tradeMarket
+        : fallback.tradeMarket,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    styling: normalizeStyling(settings.styling),
   }
 }
 
@@ -384,9 +401,11 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
     automationFavoriteNodeKeys: [],
-    topNavigation: [],
+    dashboardWatchlistTabOrder: [],
+    tradeMarket: "",
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    styling: normalizeStyling(undefined),
   }
 }
 
@@ -454,6 +473,16 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           href: "/pnl",
           icon: "calendar",
           visible: true,
+          // A child link joins the sticky header's chip group (see
+          // workspace/docs/app-guide.md) — the Journal is the per-trade view
+          // of the same results PnL totals up by day.
+          children: [
+            {
+              id: "item-pnl-journal",
+              label: "Journal",
+              href: "/journal",
+            },
+          ],
         },
         {
           type: "item",

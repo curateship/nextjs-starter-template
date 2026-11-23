@@ -1,0 +1,73 @@
+# Profile
+
+The Profile tab of the product's Settings page (`/settings?tab=profile`, card
+`src/components/pomodoro/profile-settings-panel.tsx`) holds the four
+app-level facts about a person, in `pomodoro_profiles` (migration
+`0085_pomodoro_profiles.sql`, the task switch in `0116_pomodoro_rooms_that_stick.sql`):
+
+- **Public display name** (up to 50 characters, may be empty) — the name
+  other people see on the leaderboard, in rooms and on
+  [the public profile](public-profile.md). It used to be the only name
+  anybody ever saw; since the public profile exists, a person with no
+  display name is named by their handle there instead.
+- **Timezone** — picked from a list you can search, not typed. The list is
+  every zone the browser knows (`Intl.supportedValuesOf("timeZone")`, plus
+  `UTC`), shown with spaces for underscores, so "lisbon" or "new york" finds
+  its zone. Your browser's own zone is first and marked "your browser", and
+  the help beside the label still says which zone the browser reports. A
+  saved zone the list does not contain is kept and shown at the top, ticked,
+  rather than swapped for another, because swapping it would move your day
+  boundary the next time you pressed Save. The server still refuses an
+  unrecognised name with a plain sentence. The picker is
+  `src/components/pomodoro/timezone-picker.tsx`, app-owned, built like the
+  shared `MultiCombobox` because the shared Select cannot search. Every "today" the app computes (goals, streaks, task days, the
+  rollover) goes through `userToday` in `src/server/pomodoro/profile.ts`:
+  the saved timezone wins, and until one is saved the browser's own is used
+  and quietly recorded, so travelling never silently moves the day
+  boundary.
+- **Leaderboard opt-in** — on for every account since 17 Oct 2026, new
+  and old (see [the public profile](public-profile.md)); opting out hides the account
+  from the leaderboard immediately (the leaderboard query filters on it). It
+  also decides whether you appear in, and can see, the "Who you focus with"
+  card. See [Focus rooms](rooms.md).
+- **Show my task to people in my room** — off by default. On, the people in a
+  room with you see the task your own running focus counts towards. Saving
+  sends the room a fresh snapshot, so switching it off takes the line away
+  straight after the save. See [Focus rooms](rooms.md).
+
+The four fields appear once the saved profile arrives; until then the card
+shows "Loading your profile…". They are not offered sooner because the load
+fills them in, and a name typed into an empty box would be overwritten the
+moment it landed.
+
+## When it fails to load
+
+The card says "Your profile could not be loaded" inside its own frame, with
+Try again, which asks again without reloading the page. The fields stay hidden
+until a load works, because an empty name box would read as having no name.
+
+## How a save reports itself
+
+The same way every other Settings card does, and
+[Timer settings](timer-settings.md) has the rule in full: a save that worked
+shows nothing but the saved value, a save that failed raises the
+shared error toast that stays until dismissed, and no inline line sits beside
+the Save button.
+
+Save is pressable with no timezone picked. Pressing it then says what is
+missing rather than the button quietly doing nothing, and the box is marked
+`aria-invalid` so it is clear which one is at fault after the toast is gone.
+
+The two help paragraphs that used to sit under the name and the timezone are
+now the hint on each label (`ui/field-label.tsx`), which is where the repo's
+UI rules put help text.
+
+Account name, email, password and deletion stay with the shell's account
+dialog; this tab never duplicates them.
+
+**Your public page**, which is [the public profile](public-profile.md), has the
+Public page tab. Blocked people and the [streak badge](streak-badge.md) have the
+Privacy tab. They are separate from this card because they are separate
+decisions: the fields above are about the account, and the public page and the
+badge are each about one thing published on the open internet. See
+[Timer settings](timer-settings.md) for the five tabs.

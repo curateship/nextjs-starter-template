@@ -11,10 +11,20 @@ export type PnlTrade = {
   side: "B" | "A"
   /** Fill size (base units). */
   sz: number
-  /** Net realized P&L for this fill: closedPnl − fee. */
-  pnl: number
-  /** Gross realized P&L (closedPnl) before fees, used to classify win/loss. */
+  /** Gross realized P&L (closedPnl) before fees; fees ride in `fees` entries. */
   gross: number
+}
+
+/** One dated cost or credit: a fill's fee, or a funding payment. */
+export type PnlCostEntry = {
+  /** Timestamp, ms since epoch. */
+  time: number
+  coin: string
+  /**
+   * Fees: the amount charged (positive = paid, rebates negative).
+   * Funding: signed USDC credited — positive = received, negative = paid.
+   */
+  amount: number
 }
 
 /** One wallet's realizing fills plus the context needed to score it. */
@@ -28,6 +38,14 @@ export type PnlWallet = {
   symbols: string[]
   /** Realizing fills over the trailing window (~365 days). */
   trades: PnlTrade[]
+  /** Every fill's fee over the window — opening fills included. */
+  fees: PnlCostEntry[]
+  /** Stored funding payments over the window (positive = received). */
+  funding: PnlCostEntry[]
+  /** Earliest stored funding payment, or null if none stored yet. */
+  fundingSince: number | null
+  /** True when this wallet's funding refresh failed — recent payments may be missing. */
+  fundingStale: boolean
 }
 
 export type PnlOverviewResponse = {
@@ -48,9 +66,26 @@ const loadPnlOverviewFn = createServerFn({ method: "GET" }).handler(
 
     const { listUserWallets } = await import("@/server/wallets")
     const { getInfoClient } = await import("@/server/hyperliquid/info")
+    const { syncWalletFunding, listWalletFunding } = await import(
+      "@/server/funding"
+    )
 
     const wallets = await listUserWallets(user.id)
     const startTime = Date.now() - CALENDAR_WINDOW_MS
+
+    // Refresh stored funding first (throttled). A wallet whose refresh failed
+    // is flagged rather than hidden, so the page can say so instead of showing
+    // a silently wrong total. A throttled pass returns [] — data is fresh.
+    const fundingStatus = await syncWalletFunding(user.id).catch(() =>
+      wallets.map((wallet) => ({ walletId: wallet.id, ok: false }))
+    )
+    const staleWalletIds = new Set(
+      fundingStatus.filter((status) => !status.ok).map((s) => s.walletId)
+    )
+    const fundingByWallet = await listWalletFunding(
+      wallets.map((wallet) => wallet.id),
+      startTime
+    ).catch(() => new Map<string, never[]>())
 
     // Fetch every wallet's fills and equity in parallel; a failed wallet falls
     // back to empty rather than sinking the whole page.
@@ -75,22 +110,31 @@ const loadPnlOverviewFn = createServerFn({ method: "GET" }).handler(
 
         const symbols = new Set<string>()
         const trades: PnlTrade[] = []
+        const fees: PnlCostEntry[] = []
         for (const fill of fills) {
+          const fee = Number(fill.fee)
+          // Every fill's fee counts — an opening fill has no realized P&L but
+          // its fee is just as real, and skipping it understates costs.
+          if (fee) {
+            fees.push({ time: fill.time, coin: fill.coin, amount: fee })
+            symbols.add(fill.coin)
+          }
           const gross = Number(fill.closedPnl)
           // Only fills that realized a P&L are meaningful "trades" here.
           if (!gross) continue
-          const fee = Number(fill.fee)
           trades.push({
             time: fill.time,
             coin: fill.coin,
             dir: fill.dir,
             side: fill.side,
             sz: Number(fill.sz),
-            pnl: gross - fee,
             gross,
           })
           symbols.add(fill.coin)
         }
+
+        const funding = fundingByWallet.get(wallet.id) ?? []
+        for (const payment of funding) symbols.add(payment.coin)
 
         return {
           id: wallet.id,
@@ -99,6 +143,10 @@ const loadPnlOverviewFn = createServerFn({ method: "GET" }).handler(
           accountValue,
           symbols: [...symbols].sort(),
           trades,
+          fees,
+          funding,
+          fundingSince: funding.length ? funding[0].time : null,
+          fundingStale: staleWalletIds.has(wallet.id),
         }
       })
     )

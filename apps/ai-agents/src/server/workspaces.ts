@@ -3,9 +3,10 @@ import { and, asc, eq } from "drizzle-orm"
 import {
   createDefaultTopRightNavigation,
   iconMeta,
+  normalizeStyling,
   type IconKey,
   type ShellSection,
-  type ShellTopNavigationItem,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/ai-agents"
 import {
@@ -25,11 +26,12 @@ const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -317,9 +319,6 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
-      topNavigation: Array.isArray(settings.topNavigation)
-        ? settings.topNavigation
-        : fallback.topNavigation,
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
@@ -331,6 +330,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.sidebarWidth === "number"
           ? clampSidebarWidth(settings.sidebarWidth)
           : fallback.sidebarWidth,
+      styling: normalizeStyling(settings.styling),
     }
   }
 
@@ -347,9 +347,6 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
@@ -360,6 +357,7 @@ function cleanWorkspaceSettings(
       typeof settings.sidebarWidth === "number"
         ? clampSidebarWidth(settings.sidebarWidth)
         : fallback.sidebarWidth,
+    styling: normalizeStyling(settings.styling),
   }
 }
 
@@ -367,10 +365,10 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+    styling: normalizeStyling(undefined),
   }
 }
 

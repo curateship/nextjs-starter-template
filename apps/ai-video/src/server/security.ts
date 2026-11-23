@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto"
 
 import {
   getCookie,
+  getRequestHeader,
   getRequestProtocol,
   setCookie,
 } from "@tanstack/react-start/server"
@@ -33,6 +34,18 @@ void import("@/server/media-proxy")
   .then((module) => module.registerMediaProxyWorker())
   .catch((error) => {
     console.error("Media proxy worker registration failed", error)
+  })
+
+// Automation runs use the same durable lease/recovery model; the worker is
+// always-on (runs only exist when a user or an enabled trigger created them)
+// while the scheduler is opt-in via AI_VIDEO_AUTOMATIONS_ENABLED=1.
+void import("@/server/automation-engine")
+  .then((module) => {
+    module.registerAutomationWorker()
+    module.registerAutomationScheduler()
+  })
+  .catch((error) => {
+    console.error("Automation worker registration failed", error)
   })
 
 export const SESSION_COOKIE_NAME = "ai_video_session"
@@ -111,9 +124,50 @@ export function clearSessionCookie() {
   })
 }
 
+/**
+ * Every session-cookie value in the raw Cookie header. Browsers can hold
+ * several same-named cookies for one host (host-only vs Domain= variants,
+ * and every local app on localhost shares the name across ports) and they
+ * send them all — reading only the first one strands a valid login behind a
+ * stale twin, which looks like "clicking Log in does nothing".
+ */
+// The Cookie header is attacker-controlled: a malformed percent-escape makes
+// decodeURIComponent throw, so decode defensively and drop anything unusable.
+function safeDecode(value: string): string | null {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return null
+  }
+}
+
+function sessionTokensFromHeader(): string[] {
+  const header = getRequestHeader("cookie") ?? ""
+  const tokens: string[] = []
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=")
+    if (eq === -1) continue
+    if (part.slice(0, eq).trim() !== SESSION_COOKIE_NAME) continue
+    const value = part.slice(eq + 1).trim()
+    if (!value) continue
+    const decoded = safeDecode(value)
+    // Cap the candidates tried so a header stuffed with session-named cookies
+    // can't amplify one request into many session lookups.
+    if (decoded && !tokens.includes(decoded)) tokens.push(decoded)
+    if (tokens.length >= 4) break
+  }
+  return tokens
+}
+
 export async function findCurrentUser(database: AiVideoDb = db) {
-  const token = getCookie(SESSION_COOKIE_NAME)
-  return token ? findUserBySessionToken(token, database) : null
+  const single = getCookie(SESSION_COOKIE_NAME)
+  const candidates = sessionTokensFromHeader()
+  if (single && !candidates.includes(single)) candidates.unshift(single)
+  for (const token of candidates) {
+    const user = await findUserBySessionToken(token, database)
+    if (user) return user
+  }
+  return null
 }
 
 export async function findUserBySessionToken(

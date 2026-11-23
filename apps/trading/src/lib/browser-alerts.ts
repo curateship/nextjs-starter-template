@@ -3,7 +3,7 @@ import {
   marketScannerTradeTarget,
   type MarketScannerAlertItem,
 } from "@/lib/market-scanner"
-import { alertRoute } from "@/components/scanner/alert-meta"
+import { alertTarget } from "@/components/scanner/alert-meta"
 import type { ScannerAlertItem } from "@/lib/api/scanner"
 import type { TradingNotificationItem } from "@/lib/api/trading-notifications"
 
@@ -33,7 +33,7 @@ type BrowserAlertItem =
 type BrowserAlertTarget =
   | ReturnType<typeof alertTradeTarget>
   | ReturnType<typeof marketScannerTradeTarget>
-  | { to: ReturnType<typeof alertRoute> }
+  | ReturnType<typeof alertTarget>
   | {
       to: "/trade"
       search: { market: string; wallet: string }
@@ -82,7 +82,7 @@ function browserAlertDetails(alert: BrowserAlertItem): {
       key: `scanner-browser-alert:${alert.id}`,
       title: alert.title,
       body: alert.body ?? undefined,
-      target: { to: alertRoute(alert.type) },
+      target: alertTarget(alert.type),
     }
   }
   if ("ruleName" in alert) {

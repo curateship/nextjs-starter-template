@@ -17,6 +17,8 @@ const placeOrderSchema = z.object({
   reduceOnly: z.boolean(),
   tif: z.enum(["Gtc", "Ioc", "Alo"]),
   leverage: z.number().min(1).max(100),
+  stopLossPx: decimalString.optional(),
+  takeProfitPx: decimalString.optional(),
 })
 
 const cancelOrderSchema = z.object({
@@ -32,8 +34,25 @@ const modifyOrderSchema = z
     oid: z.number().int().positive(),
     px: decimalString,
     sz: decimalString.optional(),
+    // Set only after the user confirms the "fill at market" prompt. Without it,
+    // a drag priced through the mark is rejected, never silently market-filled.
+    fillAtMarket: z.boolean().optional(),
   })
   .strict()
+
+const percent = z.number().positive().max(1000)
+
+const positionTpslSchema = z
+  .object({
+    walletId: z.string().min(1),
+    market: hyperliquidMarketSchema,
+    /** Percent away from the position's entry price, matching order templates. */
+    stopLossPct: percent.optional(),
+    takeProfitPct: percent.optional(),
+  })
+  .refine((value) => value.stopLossPct || value.takeProfitPct, {
+    message: "Set a stop-loss or take-profit percent.",
+  })
 
 const updateLeverageSchema = z.object({
   walletId: z.string().min(1),
@@ -57,6 +76,13 @@ export type PlaceOrderResponse = {
   sz: string
   avgPx?: string
   totalSz?: string
+}
+
+export type PositionTpslResponse = {
+  /** Position size the protection was sized to. */
+  sz: string
+  stopLossPx: string | null
+  takeProfitPx: string | null
 }
 
 export type OneClickOrderResponse = PlaceOrderResponse & {
@@ -123,12 +149,26 @@ const oneClickOrderFn = createServerFn({ method: "POST" })
 
 const modifyOrderFn = createServerFn({ method: "POST" })
   .inputValidator(modifyOrderSchema)
-  .handler(async ({ data }): Promise<{ px: string; sz: string }> => {
+  .handler(
+    async ({
+      data,
+    }): Promise<{ px: string; sz: string; filledAtMarket?: boolean }> => {
+      const { requireAppOrigin } = await import("@/server/origin")
+      const { modifyManualOrder } = await import("@/server/trading")
+      requireAppOrigin()
+      const user = await requireUser()
+      return modifyManualOrder(user.id, data)
+    }
+  )
+
+const positionTpslFn = createServerFn({ method: "POST" })
+  .inputValidator(positionTpslSchema)
+  .handler(async ({ data }): Promise<PositionTpslResponse> => {
     const { requireAppOrigin } = await import("@/server/origin")
-    const { modifyManualOrder } = await import("@/server/trading")
+    const { setPositionTpsl } = await import("@/server/trading")
     requireAppOrigin()
     const user = await requireUser()
-    return modifyManualOrder(user.id, data)
+    return setPositionTpsl(user.id, data)
   })
 
 const updateLeverageFn = createServerFn({ method: "POST" })
@@ -160,6 +200,10 @@ export function modifyOrder(input: z.infer<typeof modifyOrderSchema>) {
 
 export function updateLeverage(input: z.infer<typeof updateLeverageSchema>) {
   return updateLeverageFn({ data: input })
+}
+
+export function setPositionTpsl(input: z.infer<typeof positionTpslSchema>) {
+  return positionTpslFn({ data: input })
 }
 
 async function requireUser() {

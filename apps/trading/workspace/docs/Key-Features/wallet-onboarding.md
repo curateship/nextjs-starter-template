@@ -2,7 +2,7 @@
 
 How wallets get into the app, what the app can and cannot do with them, and
 the checklist for going live. Written for the Wallets dashboard built July 2026
-(task: `workspace/tasks/real-wallet-integration.md`).
+(task: `workspace/tasks/Platform/real-wallet-integration.md`).
 
 ## The three wallet types
 
@@ -98,4 +98,4 @@ same address on Arbitrum.
    fallback still works.
 6. Revoke the agent on the HL UI, run verify → the wallet is flagged inactive.
    Record the actual `validUntil` Hyperliquid assigned and the real named-agent
-   slot limit in `workspace/tasks/real-wallet-integration.md`.
+   slot limit in `workspace/tasks/Platform/real-wallet-integration.md`.

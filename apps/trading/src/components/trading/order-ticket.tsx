@@ -1,4 +1,5 @@
 import * as React from "react"
+import { usd } from "@/lib/format"
 import { Loader2Icon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -33,11 +34,13 @@ import {
 import { placePaperOrder } from "@/lib/api/paper"
 import { previewOrder, usdToBaseSize } from "@/lib/order-preview"
 import type { MarketRow } from "@/lib/hl/hooks"
+import { isMarketableLimit } from "@/lib/trading/marketable-limit"
+import type { OrderDefaults } from "@/lib/trading/order-defaults"
 import { cn } from "@/lib/utils"
 
-type SizeUnit = "usd" | "coin" | "pct"
+export type SizeUnit = "usd" | "coin" | "pct"
 
-type TicketState = {
+export type TicketState = {
   side: "buy" | "sell"
   orderType: "market" | "limit"
   px: string
@@ -65,7 +68,9 @@ export function OrderTicket({
   prefill,
   disabledReason,
   confirmationEnabled,
+  orderDefaults,
   onNotify,
+  onOrderPlaced,
 }: {
   walletId: string | null
   /** When set, orders route to the in-house paper engine instead. */
@@ -78,20 +83,24 @@ export function OrderTicket({
   prefill: TicketPrefill | null
   disabledReason: string | null
   confirmationEnabled: boolean
+  /** Starting values from Trading settings. */
+  orderDefaults: OrderDefaults
   onNotify: (message: string, tone: "ok" | "error") => void
+  /** Fired after an order is accepted so the parent can pull fresh state. */
+  onOrderPlaced?: () => void
 }) {
   const isPaper = Boolean(paperWalletId)
   const maxLeverage = marketRow?.maxLeverage ?? 1
   const [state, setState] = React.useState<TicketState>({
     side: "buy",
-    orderType: "limit",
+    orderType: orderDefaults.orderType,
     px: "",
     szInput: "",
-    szUnit: "usd",
+    szUnit: orderDefaults.sizeUnit,
     tif: "Gtc",
     reduceOnly: false,
-    leverage: Math.min(5, maxLeverage),
-    isCross: true,
+    leverage: Math.min(orderDefaults.leverage, maxLeverage),
+    isCross: orderDefaults.marginMode === "cross",
   })
   const [confirming, setConfirming] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
@@ -111,7 +120,9 @@ export function OrderTicket({
       px: "",
       szInput: "",
       leverage: Math.min(current.leverage, maxLeverage),
-      isCross: !marketRow?.onlyIsolated,
+      isCross: marketRow?.onlyIsolated
+        ? false
+        : orderDefaults.marginMode === "cross",
     }))
     setStatus(null)
   }
@@ -140,6 +151,7 @@ export function OrderTicket({
 
   const executionPx =
     state.orderType === "limit" && state.px ? Number(state.px) : markPx
+  const marketableLimit = isMarketableLimit(state, markPx)
   const effectiveLeverage = isPaper ? 1 : state.leverage
   const szCoin = resolveSizeCoin(
     { ...state, leverage: effectiveLeverage },
@@ -152,7 +164,8 @@ export function OrderTicket({
     sz: szCoin,
     leverage: effectiveLeverage,
     maxLeverage,
-    isTaker: state.orderType === "market" || state.tif === "Ioc",
+    isTaker:
+      state.orderType === "market" || state.tif === "Ioc" || marketableLimit,
   })
 
   const submitDisabled =
@@ -206,6 +219,7 @@ export function OrderTicket({
           text: "Paper order submitted — fills simulate from live market data.",
         })
         setState((current) => ({ ...current, szInput: "" }))
+        onOrderPlaced?.()
         return
       }
 
@@ -229,6 +243,7 @@ export function OrderTicket({
             : `Resting order #${result.oid} @ ${result.px}`,
       })
       setState((current) => ({ ...current, szInput: "" }))
+      onOrderPlaced?.()
     } catch (error) {
       setConfirming(false)
       setStatus({ tone: "error", text: getOrderErrorMessage(error) })
@@ -326,6 +341,13 @@ export function OrderTicket({
               />
               <span className="text-[11px] text-muted-foreground">USD</span>
             </div>
+            {marketableLimit ? (
+              <p className="text-[11px] text-muted-foreground">
+                {state.side === "buy" ? "Above" : "Below"} the current price —
+                this fills straight away as a market{" "}
+                {state.side === "buy" ? "long" : "short"}.
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -335,7 +357,7 @@ export function OrderTicket({
               Size
             </Label>
             <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-              Avail. {formatUsd(equity)}
+              Avail. {usd(equity)}
             </span>
           </div>
           <div className="flex items-center rounded-lg bg-muted pl-3">
@@ -450,10 +472,10 @@ export function OrderTicket({
         </div>
 
         <div className="grid gap-1.5 rounded-lg bg-muted p-3 font-mono text-[11px] tabular-nums">
-          <PreviewRow label="Order value" value={`$${preview.notionalUsd.toFixed(2)}`} />
+          <PreviewRow label="Order value" value={usd(preview.notionalUsd)} />
           <PreviewRow
             label="Margin required"
-            value={`$${preview.marginRequiredUsd.toFixed(2)}`}
+            value={usd(preview.marginRequiredUsd)}
           />
           <PreviewRow label="Est. fee" value={`$${preview.estFeeUsd.toFixed(3)}`} />
           <PreviewRow
@@ -478,6 +500,7 @@ export function OrderTicket({
           disabledReason={disabledReason}
           confirmationEnabled={confirmationEnabled}
           onNotify={onNotify}
+          onOrderPlaced={onOrderPlaced}
         />
 
         <Button
@@ -522,6 +545,7 @@ export function OrderTicket({
         notionalUsd={preview.notionalUsd}
         estLiquidationPx={preview.estLiquidationPx}
         positionSzi={positionSzi}
+        marketableLimit={marketableLimit}
         onOpenChange={setConfirming}
         onConfirm={() => void submit()}
       />
@@ -558,15 +582,8 @@ function SegmentButton({
   )
 }
 
-function formatUsd(value: number): string {
-  return value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  })
-}
 
-function ConfirmOrderDialog({
+export function ConfirmOrderDialog({
   open,
   busy,
   market,
@@ -576,6 +593,9 @@ function ConfirmOrderDialog({
   notionalUsd,
   estLiquidationPx,
   positionSzi,
+  stopLossPx,
+  takeProfitPx,
+  marketableLimit = false,
   onOpenChange,
   onConfirm,
 }: {
@@ -588,6 +608,9 @@ function ConfirmOrderDialog({
   notionalUsd: number
   estLiquidationPx: number | null
   positionSzi: number
+  marketableLimit?: boolean
+  stopLossPx?: string | null
+  takeProfitPx?: string | null
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
 }) {
@@ -613,12 +636,14 @@ function ConfirmOrderDialog({
             value={
               state.orderType === "market"
                 ? "Market"
-                : `Limit @ ${state.px} (${state.tif})`
+                : marketableLimit
+                  ? `Market (limit ${state.px} is through the price)`
+                  : `Limit @ ${state.px} (${state.tif})`
             }
           />
           <SummaryRow
             label="Size"
-            value={`${szCoin.toFixed(6)} ${market} ≈ $${notionalUsd.toFixed(2)}`}
+            value={`${szCoin.toFixed(6)} ${market} ≈ ${usd(notionalUsd)}`}
           />
           <SummaryRow
             label="Est. price"
@@ -632,6 +657,12 @@ function ConfirmOrderDialog({
             label="Leverage"
             value={`${state.leverage}x ${state.isCross ? "cross" : "isolated"}`}
           />
+          {stopLossPx ? (
+            <SummaryRow label="Stop loss" value={stopLossPx} />
+          ) : null}
+          {takeProfitPx ? (
+            <SummaryRow label="Take profit" value={takeProfitPx} />
+          ) : null}
           <SummaryRow
             label="Est. liq. price"
             value={estLiquidationPx ? estLiquidationPx.toFixed(2) : "—"}
@@ -698,7 +729,7 @@ function SummaryRow({
   )
 }
 
-function resolveSizeCoin(
+export function resolveSizeCoin(
   state: TicketState,
   executionPx: number,
   equity: number

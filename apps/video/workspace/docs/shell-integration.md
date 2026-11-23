@@ -1,0 +1,465 @@
+# Video and Custom Shell
+
+Video is a copy of Custom Shell with the video editor built on top of it.
+Accounts, billing, automations, navigation, public pages, email and settings
+are the shell's. Projects, clips, exports, media, captions and the research
+tools are Video's own.
+
+**Never edit a shell file here.** A shell file edited in Video is a fork that
+conflicts on every future merge. A change the shell needs is made in
+`apps/shell` and carried over. The repo's `docs/shell/shell-and-apps.md`
+is the rulebook.
+
+## The folding menu, 3 November 2026
+
+`src/components/shared/folding-menu.tsx` is the shell's one ⋮ and "+ Add"
+dropdown ([docs/shell/folding-menu.md](../../../../docs/shell/folding-menu.md)).
+It moved into the shell from Travel on 3 Nov 2026 and was copied into Video
+by hand, byte for byte, for the Thumbnail panel's ⋮. The next shell merge
+finds the two the same.
+
+## The 3 October 2026 hero background merge
+
+Six shell files came over: the front page model and its test, the front page
+rows and their test, the row dialog and the settings schema. `src/theme.css`
+gained two rules at the end. No migration: the field it changes already
+existed.
+
+**A hero's background colour has two colours now, one per mode.** It used to
+be a single hex code used in light mode and dark mode alike, so a pale band
+glared on a dark page. Background colour is a list of three. **No colour**
+leaves the page showing. **Muted grey** is a slider, 0 to 100, where the left
+end is barely off the page and the right end is a clear band, and the same
+drag darkens the band in light mode and lightens it in dark mode. **Fixed
+colour** is the old colour square and hex box, and a hex is still one colour
+in both modes, because that is what a hex means.
+
+Under the slider sit two swatches, the light band and the dark band side by
+side, redrawing as you drag.
+
+**Why `theme.css` changed.** An inline `background-color` is one colour and
+cannot change when the page turns dark, so the band carries
+`--shell-hero-band-light` and `--shell-hero-band-dark` as custom properties
+plus a `data-hero-band` attribute, and two rules at the end of `theme.css`
+pick between them.
+
+**What a row stores** is `grey-<n>` or `#rrggbb`, never the CSS it becomes,
+which is what keeps a settings field from writing CSS into a visitor's
+browser.
+
+## The 3 October 2026 picture and picker merge
+
+Seven shell files came over: the hero block, the media picker and its test, the
+picture thumbnail, the picture field, the front page row editor and the
+feedback box. No migration.
+
+**A hero's picture keeps its own shape.** It used to sit in a fixed 16:9 box
+set to fit inside, so a picture that was not 16:9 was drawn small in the middle
+of that box with grey bars either side of it. The picture now fills the width
+of its column and is as tall as its own shape makes it. A 720 by 720 picture in
+a 556px column draws 556 by 556, where before it was 313 by 313 inside a 556 by
+313 grey box. Nothing is cropped.
+
+**The media picker is always its own window.** It used to have a second mode
+that drew the whole library inside the window that opened it, which in a 96px
+picture field stretched the field across the form and ran off the bottom of the
+screen. That mode is gone, so the picker opens over the window that asked for
+it and Escape closes only the picker.
+
+## The 3 October 2026 merge
+
+Video had been a long way behind: 133 shell files were older copies and 51
+shell files were missing outright. All of them are now the shell's current
+version. Nothing in Video had edited a shell file, so nothing had to be
+untangled. The bigger pieces that arrived:
+
+**The CRM.** Email that comes in becomes a lead you can chase. Admin → CRM is
+an inbox of conversations down one side and the lead's own record down the
+other. Mail arrives through Resend's inbound webhook on the address set in
+Settings → Email → Inbound address, and a reply goes back out from that same
+address. A lead is an email address, not a contact, so an inbound address
+never adds itself to the newsletter audience. A chase date that passes puts a
+notice in the bell.
+
+**Breadcrumbs, and public pages that know their own shape.** Public breadcrumb
+trails, per-device rows, social links, the public user panel, header actions,
+the theme presets and the styling fields all arrived together.
+
+**Resized images.** `/api/v1/media/resized` serves a public image at the size
+the page asks for, rather than shipping the original to a phone.
+
+**A hero's own background colour.** A front page hero row can carry a colour,
+painted as a band right across the window whatever its Layout says, with a
+switch to run that colour under the menu. With the switch on the menu bar
+stops painting its own background, so the colour is what shows through its
+blur. Only the top row of the page can do it.
+
+**Also carried:** dark mode's four shades, the sliding pill on tab strips and
+the colour-mode switcher, the divider row and the Whole screen layout, the
+public menu's text size, the page loading bar, and the settings save that no
+longer overwrites an edit made on another card while it was in flight.
+
+## The one file that is a real merge
+
+`src/theme.css` is the shell's, plus Video's own `@font-face` blocks for
+Playfair Display, Space Grotesk and Caveat, which are the faces a text clip or
+a carousel slide can be set in. Those blocks sit directly after the shell's own
+fonts. The shell's Libre Baskerville files were copied into `public/fonts/`
+with them, because the shell's Heading font setting names them and a rule
+pointing at a missing file is a 404 on a real site.
+
+## Migrations owed
+
+Six, all the shell's, keeping their shell names under Video's next free
+numbers:
+
+- `0094_custom_shell_notifications_seen.sql` — the bell's unread count and its
+  unread list stop being the same thing.
+- `0095_custom_shell_per_page_index_controls.sql` — `hidden_from_search` and
+  `canonical_url` on a written page.
+- `0096` to `0099` — the CRM: six tables, the inbound address on
+  `email_settings`, the reply name, the signature, and the quote switch.
+
+The `crm_follow_up` notice type is added to the `notifications` check
+constraint, which is a widening, so no saved notice stops being valid. Apply
+them with `npm run db:migrate` and an explicit `CUSTOM_SHELL_DATABASE_URL`; the
+migration command does not read a local environment file.
+
+## What stays Video's own
+
+Five files are deliberately not the shell's and a merge must leave them alone:
+`src/app/options.ts`, `src/app/server-options.ts`, `src/app/open-endpoints.ts`,
+the generated `src/routeTree.gen.ts`, and `src/theme.css`, which is the merge
+above rather than a copy.
+
+Three shell dev scripts are deliberately not carried: `crm-samples.mjs`,
+`crm-samples.test.mjs` and `send-sample-inbound.mjs`. They seed sample CRM
+leads on `npm run db:setup`, which is not something an app's database should
+grow on its own. So `scripts/setup-database.mjs` is the shell's file with the
+CRM sample step taken out, the same copy Trade carries. A merge that replaces it
+with the shell's copy breaks `db:setup`, because the shell's imports
+`crm-samples.mjs`.
+
+## Shell merge, 5 October 2026
+
+The shell was merged in again on 5 Oct 2026, from `apps/shell` in ws-4.
+Shell-origin files were replaced wholesale after each one was proved to be an
+unmodified older shell version: the app's copy was hashed and matched against
+every version of that file in the repository's history. A file with no match is
+a real fork and was left alone.
+
+**Never overwritten, in any app.** `src/app/options.ts`,
+`src/app/server-options.ts`, `src/app/open-endpoints.ts`, `src/routeTree.gen.ts`
+and `src/lib/layout/scaffold-styling.ts`. The first three are the app's own
+answers to the shell, the route tree is generated per app, and the styling file
+is the live Custom Shell styling that Personal IDE writes into a generated app.
+
+**What arrived.** The CRM, page blocks, the front page editor at
+`/admin/pages/edit`, the sliding tab pill, the three-tier dark canvas, blocked
+senders, and the smaller fixes between the app's last merge and this one. Plus
+the three changes made in the shell the same day: the external-link button that
+appears when the pointer is on the workspace block at the top of the sidebar,
+Members and Public moving back into the Platform settings card, and
+`src/border-first.css`, which stops every divider being drawn near-black for the
+first frames of a fresh page load.
+
+**What was deleted.** The shell replaced the settings-based front page row
+editor with the page-blocks editor, and moved two of its files into
+`src/components/pages/`. The old copies were still sitting in this app, out of
+step with the shell they were written against. Every file removed was proved to
+have come from the shell, to be gone from the shell now, and to be imported by
+nothing outside the group removed with it.
+
+**The route tree was regenerated** with `@tanstack/router-generator` rather than
+by starting a dev server. The generator drops the trailing
+`declare module '@tanstack/react-start'` Register block that the Vite plugin
+writes, and it typechecks fine without it, so the block was put back from the
+committed file and the resulting diff checked to be purely additive.
+
+**This app.** 85 shell files updated, 35 added and 8 removed. Six migrations
+were carried, the shell's `0086` through `0091`, as Video's `0100` through
+`0105`.
+
+**`src/theme.css` is the one file merged by hand**, as it was on 3 Oct. Video's
+copy is the shell's file plus six `@font-face` blocks for Playfair Display,
+Space Grotesk and Caveat, the faces video text and carousel slides are drawn in.
+It had drifted behind as well as ahead, so it was rebuilt from the shell's
+current file with those six blocks put back after the last Libre Baskerville
+face. The result differs from the shell by exactly one additive hunk, and
+nothing the shell has is missing from it.
+
+## Shell merge, 5 October 2026 (second)
+
+A small one on top of the merge earlier the same day: eight files, no
+migrations, no new routes, and nothing for the route generator to rebuild. Every
+app was exactly seven files behind and gained one new file.
+
+- **The Tag rule is a combobox.** Contacts → Filters → Tag, and the same field in
+  the segment window, now picks from the tags contacts actually carry instead of
+  taking comma-separated text. `src/components/ui/multi-combobox.tsx` is the new
+  control, built from the Popover, ScrollArea and Badge already here rather than
+  from a new dependency.
+- **Each block in the page editor's list wears its kind's mark**, the same
+  picture the cards on the left use.
+- **Both states of the editor's right-hand panel have a button that shuts every
+  card at once.** The cards hear it through an optional signal in
+  `inspector-card.tsx`, so any panel that puts no button in its header — the
+  newsletter editor, the automation panels — is unchanged.
+- **The block list's header links to the page itself**, opening it in a new tab.
+
+Nothing was deleted and nothing forked. CMS's `lib/format/bulk-result.ts` is no
+longer a fork at all: the previous merge folded its "already that way" count
+into the shell's own copy, and this merge confirms the two are identical again.
+
+## Shell merge, 12 October 2026
+
+Every shell change since the 5 Oct merges is in Video. 58 shell files were
+replaced and 6 added. Each replaced file was first matched against every
+version of that file in custom-shell's history, and all 58 were unmodified
+older shell copies. Nothing was deleted, and no routes were added, so the route
+tree needed nothing.
+
+**What arrived.**
+
+- **A page an admin adds has its own picture and a description**, and the
+  Pages list block shows chosen pages as cards with both.
+- **AI has its own row in Settings**, at Platform settings → AI
+  (`/admin/settings/ai`), below Payments. The provider keys card left General.
+- **"Test this key" says why a key failed**, in the provider's own words, and
+  Gemini runs on 3.8 Flash and 3.1 Pro preview instead of the retired 2.5
+  models.
+- **A Passkeys switch in Settings → General** turns passkey sign-in off for the
+  whole app while keeping saved passkeys for when it goes back on.
+- **Three billing fixes.** The checkout return page asks Stripe itself instead
+  of waiting for the webhook, a monthly to yearly switch starts a new paid
+  period that day, and the `billing.returnPaths` app option names where Stripe
+  sends people back to.
+- **CRM follow-up reminders read as follow-ups** in the bell and the admin
+  Notifications table.
+- **`db:setup` uses this app's own Docker Postgres** whenever the database
+  address points at this machine, even when it is written out in full.
+
+**Two migrations**, under Video's next free numbers:
+`0107_custom_shell_written_page_picture.sql` (shell 0092) and
+`0108_custom_shell_written_page_description.sql` (shell 0093). Both are
+applied to the local database. The live database still needs them.
+
+**Two files merged by hand.** `src/theme.css` is the shell's current file plus
+Video's six font faces, and gained the shell's page-picture spacing; the result
+differs from the shell by additions only. `scripts/setup-database.mjs` is
+Trade's copy, the shell's file without the CRM sample step, as "What stays
+Video's own" explains.
+
+**The AI keys.** The four keys in custom-shell's local Settings → AI
+(Anthropic, OpenAI, Gemini and ElevenLabs) were scrambled again with Video's
+own encryption key and written into the local database, then read back. The
+Gemini and OpenAI keys saved there in August were older ones and were
+replaced. Workspace 17 shares this local database, so its Video sees the same
+keys. The live site gets its keys from the deploy, which copies them from
+`secrets.env`.
+
+**One script test fails, in the shell too.** `worker-page-registry.test.mjs`
+expects a page entry without the `blocks: false` field the registry now
+writes. It fails the same way in `apps/shell` and the merge did not
+touch either file.
+
+## Shell merge, 15 October 2026
+
+Every shell change since the 12 Oct merge is in Video. 23 shell files were
+replaced and 8 added, all unmodified older shell copies by the same check as
+before. Nothing was deleted, and there are no new migrations.
+
+**What arrived.**
+
+- **The top left of the signed-in header can show a breadcrumb or shortcuts**
+  instead of the left menu's links. "Top left shows" sits on Platform settings
+  → Navigation for admins and on Members → Navigation for members. Sidebar
+  links stays the default, so nothing changes until someone picks another.
+- **Adding the app to a phone's home screen works properly.** A web app
+  manifest is served at `/manifest.webmanifest`, built from the app's name and
+  logo, with the `homeScreen` app option to change where the icon opens.
+- **A table's heading row is underlined with the divider colour** from
+  Settings → Styling, so it no longer reads as a double line under a panel
+  header.
+- **Smaller fix:** the rich text editor picked up the shell's latest copy.
+
+**Merged by hand.** `src/theme.css` took the shell's new table heading line
+on top of Video's six font faces, with no conflicts. `src/routeTree.gen.ts`
+took `/manifest.webmanifest` the same way. `scripts/setup-database.mjs` and
+`package.json` stay Video's own.
+
+**Tests.** The type check is clean. Eight tests failed only when three apps'
+suites ran at once, and pass alone. **One test fails in the shell too.** `public-branding.test.ts` expects the
+public header settings without the `menuFontSize` field the shell now writes.
+It fails the same way in `apps/shell`.
+
+## Shell merge, 20 October 2026
+
+Every shell change since the 15 Oct merge is in Video, done in workspace 17
+so the Viral project screen could be rebuilt on the shell's three-column
+pieces. 90 shell files were replaced and 54 added. Each replaced file was
+first matched against every version of that file in the shell's history
+(`apps/shell`, and `apps/custom-shell` before the 17 Oct rename), and all 90
+were unmodified older shell copies. Six files the shell had deleted were
+deleted here: the old Contacts and Segments pages, the old contact window,
+`test-with-member-dialog.tsx` and `contact-filter-segment.ts` with its test.
+No routes were added, so the route tree needed nothing.
+
+**What arrived.**
+
+- **App roles** beside admin and member, set per app.
+- **Contacts and Segments as one three-column dashboard** at
+  `/admin/contacts`, with notes on a contact, a CSV import, and the shell's
+  three-column pieces in `src/components/shared/` (`ThreePanels`,
+  `PanelCard`, `FilterPopover`, mass select, `SearchToggle`,
+  `NewRecordDropdown`) and `src/lib/layout/dashboard-place.ts`.
+- **Big video uploads** go to storage in pieces, up to 5GB, which needs
+  `@aws-sdk/s3-request-presigner` (added to `package.json`, the version the
+  shell uses).
+- **An automation's test run** picks a contact, and webhooks skip in tests.
+- **Dashboard tabs, a Styling setting**, and **saved views in the shell**,
+  both made in this worktree's shell the same day for the Viral project
+  screen (`docs/shell/three-column-dashboards.md`).
+
+**Four migrations**, under Video's next free numbers:
+`0132_custom_shell_app_roles.sql` (shell 0094),
+`0133_custom_shell_test_run_contact.sql` (shell 0095),
+`0134_custom_shell_contact_notes.sql` (shell 0096) and
+`0135_custom_shell_saved_views.sql` (shell 0097). All four are applied to the
+local database. The live database still needs them.
+
+**Merged by hand.** `src/theme.css` took the shell's stronger table heading
+line on top of Video's six font faces, so it differs from the shell by
+additions only. `scripts/setup-database.mjs` stays Video's own: the shell's
+copy imports the CRM sample script Video does not carry and names the shell's
+own database. `src/app/open-endpoints.ts` stays Video's own, and gained the
+export window's "Edited by hand" save, which the guard test found missing from
+its list of endpoints guarded deeper.
+
+## Shell merge, 30 October 2026
+
+Video already had nearly every shell change. Five files were replaced, one test
+was added and two files deleted.
+
+- **Settings → Styling → Left menu shade**, a slider that sets the left menu
+  and top bar between the page colour and a card's colour. `src/theme.css`
+  took it by a three-way merge on top of Video's own font faces.
+- **Every table line is drawn from one rule**, and a panel header's bottom line
+  becomes the table's top line when a table sits right under it.
+- **The panel view is gone.** `src/lib/layout/panel-view.ts` and its test are
+  deleted, and the shell layout no longer reads them, because Personal no
+  longer frames apps that way.
+
+No migration was new. `scripts/setup-database.mjs`, `src/app/open-endpoints.ts`
+and `public/fonts/README.md` stay Video's own.
+
+## Shell files carried early, 3 November 2026
+
+The big-files shell parts were built in this worktree's `apps/shell` and the
+same files copied here, so Video has them before the next shell merge and
+neither side forks. Every file below is identical in both apps. The other
+eleven apps pick them up at their next shell merge.
+
+- **Each app sets its own video ceiling** (`media.videoMaxBytes` in
+  `src/lib/app-options.ts`, read by `src/lib/media/media-upload.ts`,
+  `src/server/media/library.ts` and `src/server/media/video-upload.ts`).
+- **Uploads pick up where they stopped and can pause**
+  (`src/lib/media/upload-in-parts.ts`, `upload-resume.ts`,
+  `src/lib/api/media/media.ts`, and `listUploadedParts` in
+  `src/server/media/storage.ts`).
+- **The upload line on every page** (`src/lib/media/upload-queue.ts`,
+  `upload-speed.ts`, `src/components/media/upload-line.tsx`, drawn by
+  `src/components/shell/shell-layout.tsx`; the Media library page uses it).
+- **Storage used and its cost** (`media.storageUsed` in
+  `src/server/app-options.ts`, `mediaStorageUsed` in
+  `src/server/media/library.ts`, `src/lib/api/media/admin-media.ts`,
+  `src/lib/media/storage-cost.ts`, `src/components/media/storage-used.tsx`).
+- **Storage takes a file from disk** (`uploadFileToR2` in
+  `src/server/media/storage.ts`).
+
+Their tests came too. `docs/shell/big-uploads.md` describes all of it.
+
+## Shell merge, 5 November 2026
+
+Every shell change up to 5 Nov is in Video: 72 files replaced and 16 added, with nothing deleted. Each replaced file was first matched against every version of that file in the shell's history, and each was an unedited older shell copy.
+
+**What arrived.**
+
+- **The Views button keeps the picked view picked.** It remembers the view last opened on each screen in this browser. It opens that view again on arrival, and has a "No view" row to leave it.
+- **The 3 Nov shell clean-up.** The Settings cards share one auto-save hook, one secret key box and one dropdown row. The email and automation editors share one frame. Menu upgrade steps 1 to 12 are gone from `src/lib/workspaces.ts`. On 3 Nov every live site counted (Trade, Fitness, Video, Project, Date, Note, Flowfly, Course and course-de) was on step 12 or later.
+- **Pages that open with no signal**, through `useOfflinePages` and `public/offline-worker.js`. Nothing switches it on until the app calls the hook, as `docs/shell/offline-pages.md` explains.
+- **The Overview's widget tabs follow Settings → Styling → Dashboard tabs.**
+- **`homeScreen.shareTarget`**, which can put the app in an Android phone's share menu. It does nothing until the app sets it.
+- **The dev server leaves `playwright-core` out of its start-up scan**, in `vite.config.ts`. That package's Mac add-on stopped the dev server starting.
+- **The document editor takes an app's own `clean` rule**, so an app can add kinds of content to a document. Leaving it out keeps today's rules. See `docs/shell/document-editor.md`.
+
+**No migration was new.** The shell has added none since 0097, and Video already had every one.
+
+**Kept as Video's own.** `src/app/` stays Video's own, and so does `src/app/open-endpoints.ts`, which lists Video's own open endpoints. `public/fonts/README.md` and `src/theme.css` stay Video's own. The shell has not changed either file since Video's copy was taken, so there was nothing to bring in. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` were left out, because Video keeps its own `scripts/setup-database.mjs`, which never loads them.
+
+## Shell merge, 11 November 2026
+
+Every shell change since the 7 Nov merge (`e69b7243e`) is in Video, up to the shell at `5131991aa`: 242 files replaced, 179 added and 75 deleted. Each was an unedited older shell copy except `src/theme.css`, which Video adds its own text fonts to; it was merged three ways and is now the shell's file plus those fonts.
+
+**What arrived.**
+
+- **The CRM is one three-panel dashboard**, with accounts, subscribers and leads as three separate lists and Leads as its own section, lead tags, unanswered and forwarded mail, and files on messages.
+- **Automations is one three-panel dashboard**: Automations and Waiting on you, with each flow's runs on its own tab and templates in the editor's palette. The old `/admin/automations/<id>` and template addresses are gone.
+- **Pages, Styling and Navigations sit inside the Admin dashboard.** Navigations' link editors open as popovers, and the header's Settings cog can hold links.
+- **Settings → Styling gained Blocks, widgets, Side panels and Panel cards**, with every Blocks setting on panel cards, edge to edge, Reset panels, and each widget's ⋮ holding its own options.
+- **Referrals and the changelog are gone**, along with their tables.
+
+**Migrations.** Shell 0098 to 0114 are this app's 0156 to 0172. 0164 drops the referral and changelog tables, and 0169 deletes the mailing-list contacts marked Account. They run on the local database the next time the dev server starts, and on live at the next deploy.
+
+**Video files changed to follow the shell.** The video studio and the carousel studio put their remembered panel widths on with the shell layout hook's `groupRef`, and the video studio keeps its own `BOTTOM_COLLAPSED_HEIGHT` (the card header's 57px plus 2px), since the shell's resizable panels no longer export it. The new `@tiptap/extension-list` package was added as the shell has it.
+
+**Kept as Video's own.** `src/app/`, `scripts/setup-database.mjs` and the route list's own routes; the route list was rebuilt with the router generator. The shell's `scripts/crm-samples.mjs` stays out, as Video never carried it.
+
+**Checked.** Typecheck is clean, and 4,328 of 4,335 tests pass. These failed before the merge too: delivery and public-branding, which fail in the shell as well, and the guard test, which finds three Video server functions from 5 Nov that it does not list (`sayAgainFn`, `requestSteadyCopyFn`, `scoreFn`). The unsubscribe test timed out in the full run and passes when run alone. Not checked in a browser.
+
+## Shell merge, 11 November 2026 (no success toasts)
+
+Every shell change since `5131991aa` is in Video, up to the shell at `3d6037c83`: 81 files replaced, each an unedited older shell copy. `src/theme.css` is Video's own and was merged three ways, with no conflict: it kept its fonts and took the shell's new rules.
+
+**What arrived.**
+
+- **No success toasts.** Nothing pops up when something works on the shell's
+  screens either: Admin, the CRM, Automations, Settings and the rest. Failures
+  still raise the red error toast, and work only partly done says the part
+  that was not done. `useAsyncAction` takes no success sentence any more.
+  Tyler, 10 and 11 Nov 2026: "Remove all success toast", "All of trade and
+  shell too", "remove success toast across all these active apps".
+- **Panel cards → Opacity** for the first card in each side panel, and no
+  space under side panel headers.
+- **The sidebar and top bar border have a shade of their own** (Settings → Styling → Sidebar & Top navigation).
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean, and the 345 tests in the changed folders pass. Not checked in a browser: this app's port runs its own
+worktree, not workspace-4.
+
+## Shell merge, 12 November 2026
+
+Every shell change since `3d6037c83` is in Video, up to the shell at `9757749ff`: 6 files replaced. Each was an unedited copy of the shell at `3d6037c83`.
+
+**What arrived.**
+
+- **The Automations dashboard block has a ⋮.** Automations and Waiting on you each have an eye and a grip, so an admin can hide one or drag it into a new place. The choice is saved with the site's styling (`hiddenAutomationSections`, `automationSectionOrder`), so no migration.
+- **Dashboards block rows are 34px tall instead of 36px**, so 16px sits between one name and the next. Tyler, 11 Nov 2026: "add this same feature for all apps that has dashboards block" and "decrease the gap between the items by 10%".
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean, and the 39 tests in the styling, automations and notes folders pass. Not checked in a browser: no dev server on this app's port runs from workspace-4.
+
+## Shell merge, 15 November 2026
+
+Every shell change since `9757749ff` is in Video, up to the shell at `83d208d87`: 23 files replaced and 4 added. Each replaced file was an unedited copy of an older shell version. Video's `src/theme.css` was merged line by line against the shell at `9757749ff`, so Video's own fonts stay; the one new rule went in with no clash.
+
+**What arrived.**
+
+- **Settings -> Styling -> Sidebar & Top navigation has a Style choice.** Own shade is the look the left menu and top bar always had. Same grey as the page makes the left menu, the top bar and the page one grey, with no line along the left menu's edge or under the top bar. It is `sidebarStyle`, saved with the site's styling, so no migration. Tyler, 14 Nov 2026: "add an option in styling settings to choose between the currant sidebar/topnav styling to this (the bg and the side and top as one gray shade)".
+- **Shell polish.** The media picker rings only the picture Select will use. Review and send no longer sends on a stray Enter, and refuses to send until it has counted who gets it. Adding everybody the filters match to a segment asks first. Renaming a big hand-picked segment works. Typed page settings survive opening a block. The Cloudflare R2 card tests new details before saving them instead of saving on a timer.
+
+**No migration was new**, nothing was deleted, and no route changed. `scripts/setup-database.mjs` keeps Video's own version.
+
+**Checked.** Typecheck is clean. The 140 tests in the 9 changed test files pass. Not checked in a browser: no dev server on this app's port runs from workspace-4.

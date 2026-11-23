@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" class="android.widget.FrameLayout" package="com.instagram.android" bounds="[0,0][1080,2400]">
+    <node index="0" text="" class="android.widget.ImageView" package="com.instagram.android" content-desc="Back" bounds="[0,90][120,200]" />
+    <node index="1" text="sam.reads" class="android.widget.TextView" package="com.instagram.android" bounds="[160,100][600,180]" />
+    <node index="2" text="Today 10:42 AM" class="android.widget.TextView" package="com.instagram.android" bounds="[300,400][780,450]" />
+    <node index="3" text="hey, is the night mode free?" class="android.widget.TextView" package="com.instagram.android" bounds="[60,500][700,600]" />
+    <node index="4" text="Yes, it is in the free plan." class="android.widget.TextView" package="com.instagram.android" bounds="[420,650][1040,750]" />
+    <node index="5" text="Seen" class="android.widget.TextView" package="com.instagram.android" bounds="[900,760][1040,800]" />
+    <node index="6" text="thanks! does it work offline too?" class="android.widget.TextView" package="com.instagram.android" bounds="[60,850][760,950]" />
+    <node index="7" text="Message..." class="android.widget.EditText" package="com.instagram.android" bounds="[60,2250][900,2350]" />
+  </node>
+</hierarchy>

@@ -1,0 +1,220 @@
+import { createServerFn } from "@tanstack/react-start"
+import { z } from "zod"
+
+import {
+  copyProjectSchema,
+  createMilestoneSchema,
+  createProjectSchema,
+  projectClientSchema,
+  projectLeadSchema,
+  statusOrderSchema,
+  taskMilestoneSchema,
+  updateMilestoneSchema,
+  updateProjectSchema,
+  wholeTeamSchema,
+} from "@/lib/project/rules"
+import { teamScope } from "@/lib/api/project/scope"
+import { userGet, userPost } from "@/server/guards"
+import { inTeam } from "@/server/project/access"
+import {
+  createMilestone,
+  deleteMilestone,
+  setTaskMilestone,
+  updateMilestone,
+} from "@/server/project/milestones"
+import { loadProjectActivity } from "@/server/project/project-activity"
+import { eachOf } from "@/server/project/teams"
+import {
+  addProjectMember,
+  copyProject,
+  createProject,
+  loadProjectPage,
+  loadProjectsPage,
+  removeProjectMember,
+  setProjectArchived,
+  setProjectClient,
+  setProjectLead,
+  setStatusOrder,
+  setWholeTeam,
+  updateProject,
+} from "@/server/project/projects"
+
+export type {
+  ActivityEntry,
+  ProjectActivity,
+  ProjectActivityEntry,
+  TaskActivityEntry,
+} from "@/server/project/project-activity"
+export type { Milestone } from "@/server/project/milestones"
+export type {
+  LateCandidate,
+  ProjectListRow,
+  ProjectMemberRow,
+  ProjectPage,
+  ProjectsPage,
+} from "@/server/project/projects"
+
+const id = z.string().min(1).max(36)
+
+/** The Projects dashboard; `team` is the site admin's team filter. */
+const loadProjectsPageFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ team: id.optional() }))
+  .handler(async ({ data, context }) => loadProjectsPage(context.user.id, undefined, data.team ?? null))
+
+const loadProjectPageFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ projectId: id }))
+  .handler(async ({ data, context }) => loadProjectPage(context.user.id, data.projectId))
+
+const createProjectFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(createProjectSchema.extend(teamScope))
+  .handler(async ({ data, context }) => inTeam(data.teamId, () => createProject(context.user.id, data)))
+
+const updateProjectFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(updateProjectSchema)
+  .handler(async ({ data, context }) => updateProject(context.user.id, data))
+
+const statusOrderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(statusOrderSchema)
+  .handler(async ({ data, context }) => setStatusOrder(context.user.id, data))
+
+const setArchivedFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ projectId: id, archived: z.boolean() }))
+  .handler(async ({ data, context }) =>
+    setProjectArchived(context.user.id, data.projectId, data.archived)
+  )
+
+const setManyArchivedFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({ projectIds: z.array(id).min(1).max(200), archived: z.boolean() })
+  )
+  .handler(async ({ data, context }) =>
+    eachOf(data.projectIds, (projectId) =>
+      setProjectArchived(context.user.id, projectId, data.archived)
+    )
+  )
+
+const addMemberFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ projectId: id, userId: id }))
+  .handler(async ({ data, context }) =>
+    addProjectMember(context.user.id, data.projectId, data.userId)
+  )
+
+const copyProjectFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(copyProjectSchema)
+  .handler(async ({ data, context }) => copyProject(context.user.id, data))
+
+const loadActivityFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(
+    z.object({
+      projectId: id,
+      before: z.object({ at: z.string().datetime(), id }).optional(),
+    })
+  )
+  .handler(async ({ data, context }) => loadProjectActivity(context.user.id, data))
+
+const removeMemberFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ projectId: id, userId: id }))
+  .handler(async ({ data, context }) =>
+    removeProjectMember(context.user.id, data.projectId, data.userId)
+  )
+
+const leadFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(projectLeadSchema)
+  .handler(async ({ data, context }) => setProjectLead(context.user.id, data))
+
+const clientFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(projectClientSchema)
+  .handler(async ({ data, context }) => setProjectClient(context.user.id, data))
+
+const wholeTeamFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(wholeTeamSchema)
+  .handler(async ({ data, context }) => setWholeTeam(context.user.id, data))
+
+const createMilestoneFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(createMilestoneSchema)
+  .handler(async ({ data, context }) => createMilestone(context.user.id, data))
+
+const updateMilestoneFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(updateMilestoneSchema)
+  .handler(async ({ data, context }) => updateMilestone(context.user.id, data))
+
+const deleteMilestoneFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ milestoneId: id }))
+  .handler(async ({ data, context }) => deleteMilestone(context.user.id, data.milestoneId))
+
+const taskMilestoneFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(taskMilestoneSchema)
+  .handler(async ({ data, context }) => setTaskMilestone(context.user.id, data))
+
+export function loadProjectsDashboard(team?: string) {
+  return loadProjectsPageFn({ data: { team } })
+}
+export function loadProject(projectId: string) {
+  return loadProjectPageFn({ data: { projectId } })
+}
+export function createNewProject(data: z.input<typeof createProjectSchema>, teamId?: string) {
+  return createProjectFn({ data: { ...data, teamId } })
+}
+export function saveProject(data: z.input<typeof updateProjectSchema>) {
+  return updateProjectFn({ data })
+}
+export function saveStatusOrder(data: z.input<typeof statusOrderSchema>) {
+  return statusOrderFn({ data })
+}
+export function archiveProject(projectId: string, archived: boolean) {
+  return setArchivedFn({ data: { projectId, archived } })
+}
+export function archiveProjects(projectIds: string[], archived: boolean) {
+  return setManyArchivedFn({ data: { projectIds, archived } })
+}
+export function addMemberToProject(projectId: string, userId: string) {
+  return addMemberFn({ data: { projectId, userId } })
+}
+export function copyOfProject(projectId: string, name: string) {
+  return copyProjectFn({ data: { projectId, name } })
+}
+export function loadActivity(projectId: string, before?: { at: string; id: string }) {
+  return loadActivityFn({ data: { projectId, before } })
+}
+export function removeMemberFromProject(projectId: string, userId: string) {
+  return removeMemberFn({ data: { projectId, userId } })
+}
+export function saveProjectLead(projectId: string, userId: string | null) {
+  return leadFn({ data: { projectId, userId } })
+}
+export function saveProjectClient(projectId: string, client: string | null) {
+  return clientFn({ data: { projectId, client } })
+}
+export function saveWholeTeam(projectId: string, wholeTeam: boolean) {
+  return wholeTeamFn({ data: { projectId, wholeTeam } })
+}
+export function addMilestone(data: z.input<typeof createMilestoneSchema>) {
+  return createMilestoneFn({ data })
+}
+export function saveMilestone(data: z.input<typeof updateMilestoneSchema>) {
+  return updateMilestoneFn({ data })
+}
+export function removeMilestone(milestoneId: string) {
+  return deleteMilestoneFn({ data: { milestoneId } })
+}
+export function saveTaskMilestone(taskId: string, milestoneId: string | null) {
+  return taskMilestoneFn({ data: { taskId, milestoneId } })
+}

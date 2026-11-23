@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" class="android.widget.FrameLayout" package="com.android.vending" content-desc="" bounds="[60,800][1020,1600]">
+    <node index="0" text="Auto-update apps" class="android.widget.TextView" package="com.android.vending" content-desc="" bounds="[100,840][980,900]" />
+    <node index="1" text="" class="android.view.View" package="com.android.vending" content-desc="" bounds="[100,950][980,1030]">
+      <node index="0" text="" class="android.widget.RadioButton" package="com.android.vending" checkable="true" checked="false" content-desc="" bounds="[100,960][160,1020]" />
+      <node index="1" text="Over any network" class="android.widget.TextView" package="com.android.vending" content-desc="" bounds="[180,960][980,1020]" />
+    </node>
+    <node index="2" text="" class="android.view.View" package="com.android.vending" content-desc="" bounds="[100,1040][980,1120]">
+      <node index="0" text="" class="android.widget.RadioButton" package="com.android.vending" checkable="true" checked="false" content-desc="" bounds="[100,1050][160,1110]" />
+      <node index="1" text="Over Wi-Fi only" class="android.widget.TextView" package="com.android.vending" content-desc="" bounds="[180,1050][980,1110]" />
+    </node>
+    <node index="3" text="" class="android.view.View" package="com.android.vending" content-desc="" bounds="[100,1130][980,1210]">
+      <node index="0" text="" class="android.widget.RadioButton" package="com.android.vending" checkable="true" checked="true" content-desc="" bounds="[100,1140][160,1200]" />
+      <node index="1" text="Don't auto-update apps" class="android.widget.TextView" package="com.android.vending" content-desc="" bounds="[180,1140][980,1200]" />
+    </node>
+    <node index="4" text="Cancel" class="android.widget.Button" package="com.android.vending" content-desc="" bounds="[500,1500][720,1580]" />
+    <node index="5" text="Done" class="android.widget.Button" package="com.android.vending" content-desc="" bounds="[760,1500][980,1580]" />
+  </node>
+</hierarchy>

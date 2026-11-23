@@ -84,11 +84,11 @@ export default function AccountPagesPage({ params }: { params: Promise<{ siteId:
       )}
       renderStatusBadge={(page) =>
         page.is_default ? (
-          <Badge variant="default" className="bg-blue-100 text-blue-800">
+          <Badge variant="default" className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
             Default Page
           </Badge>
         ) : page.is_published ? (
-          <Badge variant="default" className="bg-green-100 text-green-800">
+          <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">
             Published
           </Badge>
         ) : (

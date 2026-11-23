@@ -1,0 +1,148 @@
+import * as React from "react"
+import { useRouter } from "@tanstack/react-router"
+import { Loader2Icon, MessageSquareReplyIcon } from "lucide-react"
+
+import { PersonAvatar } from "@/components/project/task-bits"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { replyToBlocker, type BlockerReply } from "@/lib/api/project/checkins"
+import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { getProjectErrorMessage } from "@/lib/project/errors"
+import { LIMITS } from "@/lib/project/rules"
+import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
+import { useTeamId } from "@/lib/project/team-scope"
+
+/**
+ * The replies under one blocker on the Check-ins tab, and a Reply button that
+ * opens one line to answer it. Each reply is one line, so this never grows
+ * into a second chat. A reply to a Stuck task also lands in its chat.
+ *
+ * Given `open` and `onOpenChange`, the caller draws the Reply button itself,
+ * such as the red blocked card's (Tyler, 16 Oct 2026), and this draws only
+ * the replies and the line to answer in.
+ */
+export function BlockerReplies({
+  replies,
+  checkinId,
+  taskId,
+  blockedName,
+  canReply,
+  open: openFromCaller,
+  onOpenChange,
+  className = "pl-3",
+}: {
+  replies: BlockerReply[]
+  checkinId: string | null
+  /** The Stuck task this answers; null for the Blocker note. */
+  taskId: string | null
+  blockedName: string
+  canReply: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  className?: string
+}) {
+  const teamId = useTeamId()
+  const router = useRouter()
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const [openHere, setOpenHere] = React.useState(false)
+  const held = openFromCaller !== undefined
+  const open = held ? openFromCaller : openHere
+  const setOpen = React.useCallback(
+    (next: boolean) => (onOpenChange ? onOpenChange(next) : setOpenHere(next)),
+    [onOpenChange]
+  )
+  const [text, setText] = React.useState("")
+  const frame = React.useRef<HTMLFormElement>(null)
+  const boxId = `reply-${checkinId}-${taskId ?? "note"}`
+  const close = React.useCallback(() => {
+    setOpen(false)
+    setText("")
+  }, [setOpen])
+  useEscapeCancels(frame, close)
+
+  async function send() {
+    const body = text.trim()
+    if (!body || !checkinId) {
+      showErrorToast("Write the reply first.")
+      return
+    }
+    const ok = await run(
+      () => replyToBlocker({ checkinId, taskId, body }, teamId)
+    )
+    if (!ok) return
+    close()
+    await router.invalidate()
+  }
+
+  if (replies.length === 0 && !canReply) return null
+  if (held && replies.length === 0 && !open) return null
+  return (
+    <div className={cn("grid gap-2", className)}>
+      {replies.length ? (
+        <ul className="grid gap-2" aria-label="Replies">
+          {replies.map((reply) => (
+            <li key={reply.id} className="flex gap-2 text-sm">
+              <PersonAvatar name={reply.author?.name ?? "Former member"} avatarUrl={reply.author?.avatarUrl} />
+              <div className="grid min-w-0 gap-0.5">
+                <span className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{reply.author?.name ?? "Former member"}</span>{" "}
+                  ·{" "}
+                  <time dateTime={reply.createdAt} title={formatDateTime(reply.createdAt)}>
+                    {formatTimeAgo(reply.createdAt)}
+                  </time>
+                </span>
+                <span className="break-words">{reply.body}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {canReply && checkinId ? (
+        open ? (
+          <form
+            ref={frame}
+            className="grid gap-2"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void send()
+            }}
+          >
+            <Label htmlFor={boxId} className="sr-only">
+              Reply to {blockedName}
+            </Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id={boxId}
+                value={text}
+                maxLength={LIMITS.blockerReply}
+                autoFocus
+                placeholder="I have it, sending now"
+                onChange={(event) => setText(event.target.value)}
+              />
+              <div className="flex shrink-0 gap-2">
+                <Button type="button" variant="outline" onClick={close}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={busy}>
+                  {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                  Reply
+                </Button>
+              </div>
+            </div>
+          </form>
+        ) : held ? null : (
+          <div>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(true)}>
+              <MessageSquareReplyIcon className="size-4" />
+              Reply
+            </Button>
+          </div>
+        )
+      ) : null}
+    </div>
+  )
+}

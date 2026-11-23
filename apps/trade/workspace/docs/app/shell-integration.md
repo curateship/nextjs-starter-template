@@ -1,0 +1,380 @@
+# Trade and Custom Shell
+
+Trade is a copy of Custom Shell with the trading app built on top of it.
+Accounts, billing, automations, navigation, public pages, email and settings
+are the shell's. Everything about markets, orders, grids, backtests and the
+engine is Trade's own, and lives in Trade's own files.
+
+**Never edit a shell file here.** A shell file edited in Trade is a fork that
+conflicts on every future merge. A change the shell needs is made in
+`apps/shell` and carried over. The repo's `docs/shell/shell-and-apps.md`
+is the rulebook.
+
+## The 3 October 2026 hero background merge
+
+Six shell files came over: the front page model and its test, the front page
+rows and their test, the row dialog and the settings schema. `src/theme.css`
+gained two rules at the end. No migration: the field it changes already
+existed.
+
+**A hero's background colour has two colours now, one per mode.** It used to
+be a single hex code used in light mode and dark mode alike, so a pale band
+glared on a dark page. Background colour is a list of three. **No colour**
+leaves the page showing. **Muted grey** is a slider, 0 to 100, where the left
+end is barely off the page and the right end is a clear band, and the same
+drag darkens the band in light mode and lightens it in dark mode. **Fixed
+colour** is the old colour square and hex box, and a hex is still one colour
+in both modes, because that is what a hex means.
+
+Under the slider sit two swatches, the light band and the dark band side by
+side, redrawing as you drag.
+
+**Why `theme.css` changed.** An inline `background-color` is one colour and
+cannot change when the page turns dark, so the band carries
+`--shell-hero-band-light` and `--shell-hero-band-dark` as custom properties
+plus a `data-hero-band` attribute, and two rules at the end of `theme.css`
+pick between them.
+
+**What a row stores** is `grey-<n>` or `#rrggbb`, never the CSS it becomes,
+which is what keeps a settings field from writing CSS into a visitor's
+browser.
+
+## The 3 October 2026 picture and picker merge
+
+Seven shell files came over: the hero block, the media picker and its test, the
+picture thumbnail, the picture field, the front page row editor and the
+feedback box. No migration.
+
+**A hero's picture keeps its own shape.** It used to sit in a fixed 16:9 box
+set to fit inside, so a picture that was not 16:9 was drawn small in the middle
+of that box with grey bars either side of it. The picture now fills the width
+of its column and is as tall as its own shape makes it. A 720 by 720 picture in
+a 556px column draws 556 by 556, where before it was 313 by 313 inside a 556 by
+313 grey box. Nothing is cropped.
+
+**The media picker is always its own window.** It used to have a second mode
+that drew the whole library inside the window that opened it, which in a 96px
+picture field stretched the field across the form and ran off the bottom of the
+screen. That mode is gone, so the picker opens over the window that asked for
+it and Escape closes only the picker.
+
+Trade's own `src/components/social/public-profile-dialog.tsx` passed the
+deleted `inlinePicker` prop to its profile picture field, so that one line is
+removed. The field now opens the picker as a window like every other one.
+
+## What the 3 October 2026 merge carried
+
+**The CRM.** Email that comes in becomes a lead you can chase. Admin → CRM is
+an inbox of conversations down one side and the lead's own record down the
+other: their stage, what the work is worth, and when to chase them. Mail
+arrives through Resend's inbound webhook on the address set in
+Settings → Email → Inbound address, and a reply goes back out from that same
+address so the answer lands in the CRM rather than in a send-only mailbox.
+
+A lead is an email address, not a contact. Somebody writing in has not asked
+for the newsletter, so an inbound address never adds itself to the audience.
+It links to a contact only when one already exists on that address, or when
+somebody presses Add to contacts.
+
+Replies go out under a name set once in Settings → Email, with a signature of
+a name, a business and a phone number under them, and they quote the message
+they answer unless that is switched off. Answering a closed or snoozed thread
+puts it back in the inbox. A chase date that passes puts a notice in the bell,
+and clicking the notice opens that conversation.
+
+**A hero's own background colour.** A front page hero row can carry a colour,
+painted as a band right across the window whatever its Layout says, with a
+switch to run that colour under the menu. With the switch on the menu bar
+stops painting its own background, so the colour is what shows through its
+blur. Only the top row of the page can do it.
+
+**Also carried:** the public menu's text size is a setting, chips drag from
+anywhere rather than only their grip and slide when dropped, tab strips and the
+colour-mode switcher move one pill instead of blinking, dark mode has four
+shades, the front page has a divider row and a Whole screen layout, a public
+page keeps the page it is drawing while the next one loads, and a settings save
+no longer overwrites an edit made on another card while it was in flight.
+
+## Migrations owed
+
+The shell's `0082` to `0085` are Trade's `0198_custom_shell_crm.sql` to
+`0201_custom_shell_crm_quote_replies.sql`: the CRM's six tables, the inbound
+address on `email_settings`, the reply name, the signature, and the quote
+switch. The `crm_follow_up` notice type is added to the `notifications` check
+constraint, which is a widening, so no saved notice stops being valid.
+
+**Trade's local database is the live one.** A migration run here is a
+production change, so it waits for Tyler's say-so. Apply them with
+`npm run db:migrate` and an explicit `CUSTOM_SHELL_DATABASE_URL`; the migration
+command does not read a local environment file.
+
+## What stays Trade's own
+
+Four files are deliberately not the shell's and a merge must leave them alone:
+`src/app/options.ts`, `src/app/server-options.ts`, `src/app/open-endpoints.ts`
+and the generated `src/routeTree.gen.ts`. Everything else under `src/` that the
+shell also has is kept byte-identical to the shell's copy.
+
+Three shell dev scripts are deliberately not carried: `crm-samples.mjs`,
+`crm-samples.test.mjs` and `send-sample-inbound.mjs`. They seed sample leads
+into the local database on `npm run db:setup`, and Trade's local database is
+the live one, so sample data here would be sample data in production.
+
+## Shell merge, 5 October 2026
+
+The shell was merged in again on 5 Oct 2026, from `apps/shell` in ws-4.
+Shell-origin files were replaced wholesale after each one was proved to be an
+unmodified older shell version: the app's copy was hashed and matched against
+every version of that file in the repository's history. A file with no match is
+a real fork and was left alone.
+
+**Never overwritten, in any app.** `src/app/options.ts`,
+`src/app/server-options.ts`, `src/app/open-endpoints.ts`, `src/routeTree.gen.ts`
+and `src/lib/layout/scaffold-styling.ts`. The first three are the app's own
+answers to the shell, the route tree is generated per app, and the styling file
+is the live Custom Shell styling that Personal IDE writes into a generated app.
+
+**What arrived.** The CRM, page blocks, the front page editor at
+`/admin/pages/edit`, the sliding tab pill, the three-tier dark canvas, blocked
+senders, and the smaller fixes between the app's last merge and this one. Plus
+the three changes made in the shell the same day: the external-link button that
+appears when the pointer is on the workspace block at the top of the sidebar,
+Members and Public moving back into the Platform settings card, and
+`src/border-first.css`, which stops every divider being drawn near-black for the
+first frames of a fresh page load.
+
+**What was deleted.** The shell replaced the settings-based front page row
+editor with the page-blocks editor, and moved two of its files into
+`src/components/pages/`. The old copies were still sitting in this app, out of
+step with the shell they were written against. Every file removed was proved to
+have come from the shell, to be gone from the shell now, and to be imported by
+nothing outside the group removed with it.
+
+**The route tree was regenerated** with `@tanstack/router-generator` rather than
+by starting a dev server. The generator drops the trailing
+`declare module '@tanstack/react-start'` Register block that the Vite plugin
+writes, and it typechecks fine without it, so the block was put back from the
+committed file and the resulting diff checked to be purely additive.
+
+**This app.** 76 shell files updated, 35 added and 8 removed. Eight migrations
+were carried: the shell's `0080` and `0081`, which Trade had skipped, plus
+`0086` through `0091`, as Trade's `0204` through `0211`.
+
+Two of the eight removed files were `lib/email/email-change.ts` and
+`lib/email/sign-in-link.ts`. The shell moved them to `server/people/` and
+`server/auth/`, the new copies arrived in this merge, and nothing imported the
+old paths.
+
+**Trade's local database is the live one.** The migrations are written and not
+applied. Applying them locally is a production change, so it waits for Tyler.
+`scripts/crm-samples.mjs` and `send-sample-inbound.mjs` are deliberately not
+carried for the same reason: they seed sample CRM leads during `db:setup`.
+
+## Shell merge, 5 October 2026 (second)
+
+A small one on top of the merge earlier the same day: eight files, no
+migrations, no new routes, and nothing for the route generator to rebuild. Every
+app was exactly seven files behind and gained one new file.
+
+- **The Tag rule is a combobox.** Contacts → Filters → Tag, and the same field in
+  the segment window, now picks from the tags contacts actually carry instead of
+  taking comma-separated text. `src/components/ui/multi-combobox.tsx` is the new
+  control, built from the Popover, ScrollArea and Badge already here rather than
+  from a new dependency.
+- **Each block in the page editor's list wears its kind's mark**, the same
+  picture the cards on the left use.
+- **Both states of the editor's right-hand panel have a button that shuts every
+  card at once.** The cards hear it through an optional signal in
+  `inspector-card.tsx`, so any panel that puts no button in its header — the
+  newsletter editor, the automation panels — is unchanged.
+- **The block list's header links to the page itself**, opening it in a new tab.
+
+Nothing was deleted and nothing forked. CMS's `lib/format/bulk-result.ts` is no
+longer a fork at all: the previous merge folded its "already that way" count
+into the shell's own copy, and this merge confirms the two are identical again.
+
+## Shell merge, 15 October 2026
+
+Every shell change since the 5 Oct merges is in Trade. 71 shell files were
+replaced and 14 added. Each replaced file was first matched against every
+version of that file in custom-shell's history, and all 71 were unmodified
+older shell copies. Nothing was deleted.
+
+**What arrived.**
+
+- **A page an admin adds has its own picture and a description**, and the
+  Pages list block shows chosen pages as cards with both.
+- **AI has its own row in Settings**, at Platform settings → AI
+  (`/admin/settings/ai`), below Payments.
+- **"Test this key" says why a key failed**, in the provider's own words, and
+  Gemini runs on its current models instead of the retired 2.5 ones.
+- **A Passkeys switch in Settings → General** turns passkey sign-in off for the
+  whole app while keeping saved passkeys.
+- **Three billing fixes.** The checkout return page asks Stripe itself, a
+  monthly to yearly switch starts a new paid period that day, and the
+  `billing.returnPaths` app option names where Stripe sends people back to.
+- **The top left of the signed-in header can show a breadcrumb or shortcuts**
+  instead of the left menu's links. "Top left shows" sits on Platform settings
+  → Navigation for admins and on Members → Navigation for members. Sidebar
+  links stays the default, so nothing changes until someone picks another.
+- **Adding the app to a phone's home screen works properly.** A web app
+  manifest is served at `/manifest.webmanifest`, built from the app's name and
+  logo, with the `homeScreen` app option to change where the icon opens.
+- **A table's heading row is underlined with the divider colour** from
+  Settings → Styling, so it no longer reads as a double line under a panel
+  header.
+- **Smaller fixes:** the date picker, the rich text editor and the AI model
+  list picked up the shell's latest copies.
+
+**Two migrations owed**, under Trade's next free numbers:
+`0212_custom_shell_written_page_picture.sql` (shell 0092) and
+`0213_custom_shell_written_page_description.sql` (shell 0093). Neither is
+applied, because Trade's local database is the live one.
+
+**Kept as Trade's own.** `scripts/setup-database.mjs` stays the shell's file
+without the CRM sample step, and the three CRM sample scripts are still not
+carried, as "What stays Trade's own" explains. `package.json` was left alone:
+it already has every script and package the shell added, and its test command
+runs only `scripts/worker-*.test.mjs` on purpose. `src/routeTree.gen.ts` took
+the one new route, `/manifest.webmanifest`, by a three-way merge with no
+conflicts.
+
+**Tests.** The type check is clean. 41 tests across 18 files fail, in the
+trading screens and the exchange code, and the same 41 fail on the tree from
+before this merge. **One test fails in the shell too.** `public-branding.test.ts` expects the
+public header settings without the `menuFontSize` field the shell now writes.
+It fails the same way in `apps/shell`.
+
+## Shell merge, 30 October 2026
+
+Every shell change since the 15 Oct merge is in Trade. 93 files were replaced,
+61 added (four of them migrations) and 6 deleted. Each replaced file was first matched against every
+version of that file in the shell's history. Three were not plain older copies:
+`src/lib/custom-shell.tsx`, `src/lib/app-options.ts` and
+`src/lib/api/shell-settings.ts` carried Trade's 17 Oct "where it goes on a
+phone" choice for header controls, written into the shell files. The shell has
+since taken that choice in itself, so a three-way merge of each came out as the
+shell's copy and Trade lost nothing.
+
+**What arrived.**
+
+- **Contacts and Segments are one three-column dashboard**, with CSV import,
+  notes on a contact, Filter, New and mass select, and the old contacts page,
+  segments page and contact window deleted.
+- **App roles.** An app can add its own kinds of account beside admin and
+  member. Trade declares none, so every account works as before.
+- **Big video uploads** go to storage in pieces, up to 5GB, which needs
+  `@aws-sdk/s3-request-presigner`. It is added to `package.json` at the
+  version the shell uses.
+- **An automation's test run picks a contact**, and webhooks skip in tests.
+- **Saved views and a Dashboard tabs setting** for three-column dashboards.
+- **Every table line is drawn from one rule**, and a panel header's bottom line
+  becomes the table's top line when a table sits right under it.
+- **Settings → Styling → Left menu shade**, a slider that sets the left menu
+  and top bar between the page colour and a card's colour.
+- **The front page and `/login` are the sign-in card alone.**
+- **The worker build drops stylesheets**, so a CSS import can no longer stop
+  the worker from starting.
+
+**The panel view is gone from every app.** Trade had it removed on 18 Oct, and
+the shell removed it on 30 Oct, because Personal no longer frames apps that way.
+
+**Four migrations owed**, under Trade's next free numbers:
+`0214_custom_shell_app_roles.sql` (shell 0094),
+`0215_custom_shell_test_run_contact.sql` (shell 0095),
+`0216_custom_shell_contact_notes.sql` (shell 0096) and
+`0217_custom_shell_saved_views.sql` (shell 0097). None is applied, because
+Trade's local database is the live one.
+
+**Kept as Trade's own.** `scripts/setup-database.mjs` stays Trade's, because
+the shell's copy now imports the CRM sample script Trade does not carry and
+names the shell's own database. `scripts/build-worker.mjs`,
+`scripts/worker-drop-css.mjs`, `vite.config.ts`, `.prettierrc`,
+`.prettierignore` and `src/app/open-endpoints.ts` stay Trade's own, as
+before. No route was added, so `src/routeTree.gen.ts` is unchanged.
+
+## Shell merge, 5 November 2026
+
+Every shell change up to 5 Nov is in Trade: 84 files replaced and 25 added, with nothing deleted. Each replaced file was first matched against every version of that file in the shell's history, and each was an unedited older shell copy.
+
+**What arrived.**
+
+- **Big uploads pick up where they stopped.** An upload carries on after a closed tab and can be paused. A line at the edge of the screen shows it on every page. The Media library shows storage used and its monthly cost. One video is still capped at 5GB unless the app sets `media.videoMaxBytes`, as `docs/shell/big-uploads.md` explains.
+- **The Views button keeps the picked view picked.** It remembers the view last opened on each screen in this browser. It opens that view again on arrival, and has a "No view" row to leave it.
+- **The 3 Nov shell clean-up.** The Settings cards share one auto-save hook, one secret key box and one dropdown row. The email and automation editors share one frame. Menu upgrade steps 1 to 12 are gone from `src/lib/workspaces.ts`. On 3 Nov every live site counted (Trade, Fitness, Video, Project, Date, Note, Flowfly, Course and course-de) was on step 12 or later.
+- **One folding menu for every ⋮ and "+ Add" dropdown**, `src/components/shared/folding-menu.tsx`. See `docs/shell/folding-menu.md`.
+- **Pages that open with no signal**, through `useOfflinePages` and `public/offline-worker.js`. Nothing switches it on until the app calls the hook, as `docs/shell/offline-pages.md` explains.
+- **The Overview's widget tabs follow Settings → Styling → Dashboard tabs.**
+- **`homeScreen.shareTarget`**, which can put the app in an Android phone's share menu. It does nothing until the app sets it.
+- **The document editor takes an app's own `clean` rule**, so an app can add kinds of content to a document. Leaving it out keeps today's rules. See `docs/shell/document-editor.md`.
+
+**No migration was new.** The shell has added none since 0097, and Trade already had every one.
+
+**Kept as Trade's own.** `src/app/` stays Trade's own, and so does `src/app/open-endpoints.ts`, which lists Trade's own open endpoints. `.prettierrc`, `.prettierignore`, `scripts/build-worker.mjs` and `scripts/worker-drop-css.mjs` stay Trade's own, because the shell has not changed them since Trade's copy. `vite.config.ts` was the one file changed on both sides. It was merged three ways: Trade keeps its build stamp, and gains the shell's `optimizeDeps` line that keeps `playwright-core` out of the dev server's start-up scan. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` were left out, because Trade keeps its own `scripts/setup-database.mjs`, which never loads them.
+
+## Shell merge, 10 November 2026
+
+Every shell change since the 9 Nov merge (shell `6c188c318`) is in Trade, up to the shell at `4bf2671f8`: 21 files replaced and 3 added, with nothing deleted. Each replaced file matched an older shell copy, so nothing Trade changed was lost. 13 more were already the shell's, copied in by Trade's own work. `panel-card.tsx` was Trade's copy of the shell's collapse-all change, which the shell now holds too.
+
+**What arrived.**
+
+- **Settings → Styling → Panel cards has every Blocks setting**: Rounded corners, Grey shade, Edge around the tile, Body shade, Border, Border shade, Shadow and "Panel cards reach the panel's edges". With nothing changed the cards look as before. A card's heading no longer grows when pointed at. See the shell's `workspace/docs/settings/block-styling.md`.
+- **The automation step panel's cards are the side panels' `PanelCard`**, with its 15px heading and 16px spacing, and the line describing the step under its name is gone.
+- **The header's Settings cog can hold links**, set in Navigations, whose link editors now open as popovers (`edit-popover.tsx`). Settings → Styling → Modal is now "Modal and popover".
+
+**Trade's own change to follow the shell.** The recipe step panel (`recipes/recipe-inspector.tsx`) is Trade's copy of the automation step panel, so it took the same two changes: its 16px is the panel gutter, so edge-to-edge cards reach its sides, and the step's description line under its name is gone.
+
+**No migration was new.** The panel card settings are stored in the workspace's styling settings.
+
+## Shell fix copied in, 11 November 2026
+
+`src/lib/api/shell-settings.ts` was fixed in `apps/shell` and copied here
+unchanged: the Styling save now accepts the right panel width down to 12%,
+the Side panels slider's own floor, where it said 16% and refused the save
+with a raw "too_small" message (Tyler hit it while resizing panels). The other
+apps get it at their next shell merge.
+
+The same day these shell changes were made in `apps/shell` and copied here
+unchanged, for the other apps to take at their next merge: side panels slide
+when folded (`usePanelFold`, used by `ThreePanels`, the page and automation
+editors, Trade's dashboard and Trade's recipe editor), a header's ⋮ sits 24px
+from its neighbours (`DashboardCardHeader`, `TabbedMenu`), every right panel
+card has an icon, and `MainCell` clamps a long name to one line instead of
+squeezing the column to 160px. `docs/shell/three-column-dashboards.md` has
+each.
+
+Later the same day: side panel cards sit flush with no gap (`PANEL_GUTTER`,
+the automation step panel), and two "/" blocks in a row on a left page lose
+the 15px between them. Trade keeps its own page editor
+(`src/components/trade/notes/saving-document.tsx`), which took the same rule.
+
+## Sidebar & Top navigation border shade, 11 November 2026
+
+Settings -> Styling's Left menu shade card is now Sidebar & Top navigation,
+with a Border shade slider for the line down the left menu's edge and under the
+top bar on its own (`sidebarBorderShade`; unset, it follows Divider lines).
+Made in `apps/shell` and copied here unchanged (`styling-values.ts`,
+`shell-layout.tsx`, `styling-settings.tsx`, `styling-tab.tsx`,
+`shell-settings.ts` and its test); `theme.css` differs from the shell's, so only
+its comment naming the card was changed here. The shell's
+`workspace/docs/settings/left-menu-shade.md` has the details.
+
+## Shell merge, 11 November 2026 (no success toasts)
+
+Every shell change since `04d976ea4` is in Trade, up to the shell at `3d6037c83`: 82 files replaced. Each was an unedited copy of the shell at that commit.
+
+**What arrived.**
+
+- **No success toasts.** Nothing pops up when something works on the shell's
+  screens either: Admin, the CRM, Automations, Settings and the rest. Failures
+  still raise the red error toast, and work only partly done says the part
+  that was not done. `useAsyncAction` takes no success sentence any more.
+  Tyler, 10 and 11 Nov 2026: "Remove all success toast", "All of trade and
+  shell too", "remove success toast across all these active apps".
+- **Panel cards → Opacity** for the first card in each side panel, and no
+  space under side panel headers.
+
+**No migration was new**, no file was added or deleted, and no route changed.
+
+**Checked.** Typecheck is clean apart from `block-heights.ts`, which fails the same way before the merge. 344 of 345 tests in the changed folders pass; `page-visibility.test.ts` looks for `src/routes/tools/compound-growth.tsx`, which Trade does not have, and fails the same way before the merge. Not checked in a browser: this app's port runs its own
+worktree, not workspace-4.

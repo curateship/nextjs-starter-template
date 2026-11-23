@@ -7,6 +7,23 @@ import {
   indicatorSelectionSchema,
 } from "@/lib/indicators/registry"
 import type { AutomationInterval } from "@/lib/strategies/kinds/contract"
+import { SESSION_KEYS, type SessionKey } from "@/lib/trading/sessions"
+import {
+  automationNodeConnectionError,
+  automationNodeSourcePortIsValid,
+} from "./node-registry"
+import {
+  DEFAULT_DCA_MAX_POSITION_PCT,
+  dcaRungsSchema,
+  type AutomationDcaRung,
+} from "./dca"
+import {
+  marketScannerSettingsFieldsSchema,
+  marketScannerSettingsSchema,
+  type MarketScannerSettings,
+} from "./dca-ladder"
+
+export type { AutomationInterval }
 
 export type AutomationIndicatorNode = {
   id: string
@@ -46,6 +63,19 @@ export type AutomationLookbackNode = {
 }
 
 /**
+ * Moves the signal path onto a higher timeframe: every indicator upstream of
+ * this node evaluates on `interval` (closed candles only) instead of the
+ * automation's own timeframe. Sits on a Trend wire, like Look Back.
+ */
+export type AutomationTimeframeNode = {
+  id: string
+  kind: "timeframe"
+  interval: AutomationInterval
+  x: number
+  y: number
+}
+
+/**
  * A protective exit hung on a Long or Short entry: `pct` is the take-profit
  * distance from entry. The runtime picks it by the open position's side.
  */
@@ -53,15 +83,71 @@ export type AutomationTakeProfitNode = {
   id: string
   kind: "takeProfit"
   pct: number
+  /**
+   * How profit is taken. "average" (default): close the whole position at `pct`
+   * above the blended average entry. The two rung modes apply ONLY when a DCA
+   * node feeds this take-profit (they reference the buy ladder).
+   * "previousRungSellAll" peels the ladder: as price recovers, each averaged-in
+   * buy is sold at the price of the buy above it (the second sells where the
+   * first bought, the first at the base). "nearestRungSellAll" instead rests one
+   * order for the WHOLE position at the nearest rung above the deepest buy, so a
+   * bounce back to that single level closes everything at once (and that level
+   * slides down as deeper rungs fill).
+   */
+  mode?: "average" | "previousRungSellAll" | "nearestRungSellAll"
+  /**
+   * Risk-reward take profit: the profit target is the STOP's distance times
+   * this ratio (1 = 1:1, so a 2% stop banks at 2%; 2 = 2:1, so it banks at
+   * 4%). When set, `pct` is ignored and the entry needs a Stop Loss on the
+   * same side to measure against. Absent: `pct` is the distance, as before.
+   */
+  rrRatio?: number
   x: number
   y: number
 }
 
-/** Stop-loss twin of {@link AutomationTakeProfitNode}. */
+/**
+ * Stop-loss twin of {@link AutomationTakeProfitNode}. `mode` defaults to
+ * "fixed" (stop stays `pct` from entry); "trailing" follows the best price
+ * since entry at `pct` distance, optionally waiting until price has moved
+ * `activationPct` in the trade's favor before it starts to follow.
+ */
 export type AutomationStopLossNode = {
   id: string
   kind: "stopLoss"
   pct: number
+  mode?: "fixed" | "trailing"
+  activationPct?: number
+  /**
+   * What the stop measures from. "average" (default) uses the position's
+   * blended entry, which a DCA ladder drags down as it adds rungs — letting the
+   * earliest buys lose more than `pct`. "first" pins it to the first entry so
+   * `pct` means exactly that from where the position started.
+   */
+  anchor?: "average" | "first"
+  /**
+   * Where the stop sits. Absent/"percent": `pct` from entry, as before.
+   * "sessionOpen": at the opening price of the session wired in from a
+   * Sessions node — which is below the entry on a long and above it on a
+   * short, because that is simply where the level lies. `pct` stays the
+   * fallback for a trade opened outside those hours, where there is no
+   * session-open price to use.
+   * "confirmedBase": at the price of the confirmed base drawn by the Base node
+   * wired into this stop — the level the trade is betting holds. If price loses
+   * the base, the reason for the trade is gone. `pct` stays the fallback for a
+   * trade opened with no confirmed base to sit under.
+   */
+  level?: "percent" | "sessionOpen" | "confirmedBase"
+  /**
+   * "Confirmed base" only. Days price must spend back ABOVE the base this stop
+   * was cut at before the trade is re-entered. A level that gets reclaimed and
+   * then HELD is the fakeout case — the break took the stops out and price
+   * carried on up. Measured on closes: a wick under the base does not reset it,
+   * a close under it starts the wait again from zero.
+   *
+   * 0 or absent: no re-entry, which is how every ladder behaved before.
+   */
+  baseReclaimDays?: number
   x: number
   y: number
 }
@@ -79,14 +165,115 @@ export type AutomationWhaleWallNode = {
   y: number
 }
 
+/** Eligibility filters for markets selected in the bot or Backtest form. */
+export type AutomationMarketScannerNode = MarketScannerSettings & {
+  id: string
+  kind: "marketScanner"
+  x: number
+  y: number
+}
+
+/**
+ * Dollar-Cost-Averaging buy ladder. Places one resting buy per rung, each a set
+ * percent below the buy above it (the first below the base), sized automatically
+ * by the ladder's Size ramp. It owns averaging-IN only — Take Profit and Stop
+ * Loss nodes hung on it own the exits and read its running average.
+ */
+/**
+ * How each rung buys once its level is reached.
+ * - "market" (default): react on the candle close and market-buy one rung at a
+ *   time; the fill lands a little past the level (that's the slippage), and a
+ *   violent candle trips the flash-crash fail-safe.
+ * - "limit": rest ONE limit order at the next rung's EXACT price, so it fills
+ *   at exactly that level with no slippage; as each fills the next is placed.
+ * Neither ties up money ahead of a fill — only what actually fills is committed.
+ */
+export type DcaRungEntry = "market" | "limit"
+
+export type AutomationDcaNode = {
+  id: string
+  kind: "dca"
+  rungs: AutomationDcaRung[]
+  /** Most of the account the whole ladder may ever hold, in percent. */
+  maxPositionPct: number
+  /** How much bigger each buy is than the one above it (1 = equal, 2 = doubling). */
+  sizeMultiplier: number
+  /**
+   * true (default): size each buy off the account's CURRENT balance, so profits
+   * compound into bigger bets and losses shrink them. false: size off the
+   * starting balance, so every bet stays the same dollar amount regardless of
+   * how the account grows.
+   */
+  compound: boolean
+  /** Market-buy on confirmation (default) or rest a limit at each rung's level. */
+  rungEntry: DcaRungEntry
+  /**
+   * Only buy a rung after two back-to-back green candles (each close above its
+   * open), so a wall of red candles can't fill the ladder while price is still
+   * knifing down. Off by default.
+   */
+  requireTwoGreen: boolean
+  /**
+   * Trend gate: only start a ladder while the close sits above the average of the
+   * last `trendMaBars` closes. The ladder only ever buys, so in a falling market
+   * it averages down into the fall — measured at −5.07%/month over the Sep-2025 →
+   * Jul-2026 crash. This is the switch that keeps it out of one.
+   */
+  trendFilterEnabled: boolean
+  /** Bars in that average, counted on the bot's own timeframe (200 = 200 days at 1d). */
+  trendMaBars: number
+  /**
+   * Close an OPEN ladder when the trend gate turns bearish, instead of only
+   * blocking new ones. Without this the gate is entry-only: a ladder opened in
+   * an uptrend rides the whole way down after the trend breaks.
+   */
+  exitOnTrendBreak: boolean
+  /**
+   * Crash gate. After a coin has already fallen a long way, the ladder must not
+   * start buying up in the dead-cat bounce — that bounce IS the recovery, and
+   * what follows is a bleed with no buyers left. Measured on 386 falls of 50–90%
+   * across the top 120 coins: 82 of every 100 sank back to the bottom, and
+   * buying the bounce in those made money only 15 times in 100.
+   *
+   * When a fall inside the band below is found in the lookback, the ladder may
+   * only start once price is back down at the crash bottom (plus the tolerance).
+   * With NO qualifying fall the gate does nothing, so ordinary ladders are
+   * unaffected. Off by default.
+   */
+  crashFilterEnabled: boolean
+  /** Candles searched for the pre-crash top, on the bot's own timeframe. */
+  crashLookbackBars: number
+  /** Smallest fall from that top which counts as a crash. */
+  crashMinFallPct: number
+  /** Largest fall that counts. Past this a coin is usually dead, not cheap. */
+  crashMaxFallPct: number
+  /**
+   * How far above the crash bottom the first buy may sit, as a percent of the
+   * bottom's price. 0 means the bottom exactly or below.
+   *
+   * Defaults to 5, NOT 0. A base confirms `pumpPeriods` candles AFTER the low it
+   * marks, and by then price has almost always ticked back up above the lowest
+   * close — so a zero tolerance opens the gate only on the single candle that
+   * prints the low, when no base has confirmed yet, and the ladder would
+   * essentially never start. 5% is the smallest window that lets the base
+   * confirm while price is still down at the bottom.
+   */
+  crashEntryAbovePct: number
+  x: number
+  y: number
+}
+
 export type AutomationNode =
   | AutomationIndicatorNode
   | AutomationLogicNode
   | AutomationActionNode
   | AutomationLookbackNode
+  | AutomationTimeframeNode
   | AutomationTakeProfitNode
   | AutomationStopLossNode
   | AutomationWhaleWallNode
+  | AutomationMarketScannerNode
+  | AutomationDcaNode
 
 /**
  * Ceiling on the engine's per-candle evaluation window (candles). A Look Back
@@ -94,6 +281,72 @@ export type AutomationNode =
  * never be seen — compile rejects such configs instead of silently blocking.
  */
 export const AUTOMATION_MAX_WINDOW_BARS = 1400
+
+/** Largest reward-to-risk multiple a Take Profit node may ask for. */
+export const MAX_RR_RATIO = 20
+
+/**
+ * Candles the engine must hold for a stop anchored to a session open: enough
+ * to reach back to the session's first candle on the timeframes this is for
+ * (15m and below). Matches the Sessions indicator's own warmup, so a graph
+ * that only uses Sessions for its stop still loads the same history.
+ */
+export const SESSION_STOP_WINDOW_BARS = 300
+
+/** Milliseconds per automation interval — the one shared conversion table. */
+export const AUTOMATION_INTERVAL_MS: Record<AutomationInterval, number> = {
+  "1m": 60_000,
+  "5m": 300_000,
+  "15m": 900_000,
+  "1h": 3_600_000,
+  "4h": 14_400_000,
+  "1d": 86_400_000,
+}
+
+/**
+ * Whole number of base bars per higher-timeframe bar, or null unless `htf`
+ * is strictly higher than `base` and a clean multiple of it.
+ */
+export function automationIntervalRatio(
+  base: AutomationInterval,
+  htf: AutomationInterval
+): number | null {
+  const baseMs = AUTOMATION_INTERVAL_MS[base]
+  const htfMs = AUTOMATION_INTERVAL_MS[htf]
+  if (!(htfMs > baseMs) || htfMs % baseMs !== 0) return null
+  return htfMs / baseMs
+}
+
+/**
+ * The one higher timeframe a compiled automation watches (the compiler caps
+ * graphs at a single distinct HTF), or null when everything runs on the
+ * automation's own interval.
+ */
+export function automationHtfInterval(
+  config: AutomationConfig
+): AutomationInterval | null {
+  const scan = (condition: AutomationCondition): AutomationInterval | null => {
+    if (condition.kind === "liveWall") return null
+    if (condition.kind !== "trigger") {
+      for (const child of condition.children) {
+        const found = scan(child)
+        if (found) return found
+      }
+      return null
+    }
+    for (const filter of condition.filters ?? []) {
+      if (filter.interval && filter.interval !== config.interval) {
+        return filter.interval
+      }
+    }
+    return null
+  }
+  for (const rule of config.rules) {
+    const found = scan(rule.condition)
+    if (found) return found
+  }
+  return null
+}
 
 export type AutomationSourcePort = string
 
@@ -113,7 +366,54 @@ export type AutomationGraph = {
 /** One side's protective exits, percent from entry. */
 export type ProtectionLevels = {
   takeProfitPct?: number
+  /**
+   * Absent/"average": the whole position closes at `takeProfitPct` above the
+   * blended average. The rung modes (DCA entries only) sell against the buy
+   * ladder instead — "previousRungSellAll" peels each rung off at the rung above
+   * it; "nearestRungSellAll" sells the whole position at the nearest rung above
+   * the deepest buy. See {@link AutomationTakeProfitNode}.
+   */
+  takeProfitMode?: "average" | "previousRungSellAll" | "nearestRungSellAll"
   stopLossPct?: number
+  /** Absent/"fixed": stop stays at entry distance. "trailing": follows price. */
+  stopLossMode?: "fixed" | "trailing"
+  /** Trailing only: start following after this % move in the trade's favor. */
+  trailActivationPct?: number
+  /**
+   * Absent/"average": the stop sits `stopLossPct` below the blended average, so
+   * a DCA ladder drags it down with every rung it adds and the earliest buys can
+   * lose far more than that percent. "first": the stop measures from the FIRST
+   * entry, so the percent is the position's real worst case. Take profit always
+   * measures from the average.
+   */
+  stopAnchor?: "average" | "first"
+  /**
+   * Where the stop sits when it is not a plain percent. Absent: `stopLossPct`
+   * from entry. `{ kind: "sessionOpen" }`: at that session's opening price,
+   * worked out per trade when the position opens, with `stopLossPct` as the
+   * fallback for a trade opened outside the session's hours.
+   * `{ kind: "confirmedBase" }`: at the price of the confirmed base the wired-in
+   * Base node draws, found per trade when the position opens, with `stopLossPct`
+   * as the fallback when there is no confirmed base to sit under. The base
+   * detection settings ride along so the engine finds the SAME level the chart
+   * paints.
+   */
+  stopLossLevel?:
+    | { kind: "sessionOpen"; session: SessionKey }
+    | {
+        kind: "confirmedBase"
+        basePeriods: number
+        pumpPeriods: number
+        /** Days price must hold back above a broken base to re-enter. 0/absent: never. */
+        reclaimDays?: number
+      }
+  /**
+   * Take profit as a multiple of the stop's REALISED distance (1 = 1:1). Only
+   * written when the stop is dynamic, so the percent cannot be known until the
+   * trade opens; against a plain percent stop the ratio is folded into
+   * `takeProfitPct` at compile time and this stays absent.
+   */
+  takeProfitRr?: number
 }
 
 /**
@@ -143,6 +443,12 @@ export type AutomationFilter = {
   indicator: IndicatorSelection
   /** Look Back cap: the latched signal only counts for this many candles. */
   maxAgeBars?: number
+  /**
+   * Higher timeframe the filter evaluates on. Absent = the automation's
+   * interval. Its signals only take effect after their candle CLOSES —
+   * see workspace/docs/Key-Features/higher-timeframe-filter.md.
+   */
+  interval?: AutomationInterval
 }
 
 export type AutomationCondition =
@@ -178,12 +484,83 @@ export type AutomationRule = {
   condition: AutomationCondition
 }
 
+export type AutomationMarketScannerConfig = MarketScannerSettings & {
+  nodeId: string
+}
+
+/**
+ * Compiled DCA ladder: the rung table and pot cap from the DCA node plus the
+ * base-detection params from the Base indicator feeding it. The Take Profit /
+ * Stop Loss hung on the node fold into `AutomationConfig.protection.long`, and
+ * the exits measure from the broker's blended average — no separate averaging.
+ */
+export type AutomationDcaConfig = {
+  nodeId: string
+  rungs: AutomationDcaRung[]
+  maxPositionPct: number
+  /** How much bigger each buy is than the one above it (1 = equal, 2 = doubling). */
+  sizeMultiplier: number
+  /** true: size off the current balance (compound); false: off the starting balance (fixed bet). */
+  compound: boolean
+  /** Liquidity guard: cap each buy at this % of the coin's rolling 24h dollar volume. 0 = off. */
+  maxOrderVolPct: number
+  /** Market-buy on confirmation (default) or rest a limit at each rung's level. */
+  rungEntry: DcaRungEntry
+  /** Only buy a rung once the last two candles both closed green. */
+  requireTwoGreen: boolean
+  basePeriods: number
+  pumpPeriods: number
+  /** Trend gate: only start a ladder while price is above its own moving average. */
+  trendFilterEnabled: boolean
+  trendMaBars: number
+  /** Close an open ladder when the trend breaks, not just block new ones. */
+  exitOnTrendBreak: boolean
+  /** Crash gate: after a big fall, only start at the bottom, never in the bounce. */
+  crashFilterEnabled: boolean
+  crashLookbackBars: number
+  crashMinFallPct: number
+  crashMaxFallPct: number
+  crashEntryAbovePct: number
+  /**
+   * Indicator confirmations wired into the DCA node (anything other than the
+   * Base indicator that supplies the levels). A rung only buys while EVERY one
+   * of these has "buy" as its most recent signal — so the ladder stops averaging
+   * into a fall the moment its confirmations turn bearish.
+   *
+   * Before this existed the compiler read only the Base and Market Scanner wires
+   * and SILENTLY DROPPED every other indicator connected to the node: the canvas
+   * let you wire a confirmation and nothing happened.
+   */
+  confirmations?: AutomationFilter[]
+}
+
 export type AutomationConfig = {
   v: 2
   kind: "automation"
   interval: AutomationInterval
   rules: AutomationRule[]
   protection: AutomationProtection
+  marketScanner?: AutomationMarketScannerConfig
+  dca?: AutomationDcaConfig
+}
+
+/**
+ * Candles a DCA ladder must keep loaded: enough for the base tracker, plus the
+ * trend average and any confirmations. One source of truth for both the engine
+ * window sizing and the runner's candle fetch.
+ */
+export function dcaHistoryBars(dca: AutomationDcaConfig): number {
+  return (
+    dca.basePeriods +
+    dca.pumpPeriods +
+    50 +
+    // The trend gate averages this many closes, so they have to be loaded.
+    (dca.trendFilterEnabled ? dca.trendMaBars : 0) +
+    // The crash gate searches this far back for the pre-crash top.
+    (dca.crashFilterEnabled ? dca.crashLookbackBars : 0) +
+    // Confirmation indicators need their own warm-up before they say anything.
+    ((dca.confirmations?.length ?? 0) > 0 ? 300 : 0)
+  )
 }
 
 export type AutomationValidationError = {
@@ -201,7 +578,9 @@ export type AutomationValidationError = {
     | "action_input"
     | "invalid_lookback"
     | "lookback_input"
+    | "invalid_timeframe"
     | "invalid_scanner"
+    | "invalid_strategy"
     | "empty"
     | "limit"
   nodeId?: string
@@ -216,29 +595,6 @@ export type AutomationCompileResult = {
 
 export const LIVE_BOOK_BACKTEST_UNAVAILABLE =
   "Backtesting is unavailable because Whale Wall needs live order-book data."
-
-function sourcePortIsValid(node: AutomationNode, port: AutomationSourcePort) {
-  switch (node.kind) {
-    case "indicator":
-      return port === "bullish" || port === "bearish" || port === "trend"
-    case "logic":
-      return port === "match"
-    case "lookback":
-      return port === "trend"
-    case "whaleWall":
-      return port === "bidWall" || port === "askWall"
-    case "action":
-      // Long/Short also expose the Take Profit / Stop Loss attachment hooks.
-      return (
-        port === "then" ||
-        ((node.action === "buy" || node.action === "short") &&
-          (port === "tp" || port === "sl"))
-      )
-    default:
-      // Take Profit / Stop Loss are leaf targets — they emit nothing.
-      return false
-  }
-}
 
 const idSchema = z.string().min(1).max(64)
 const intervalSchema = z.enum(["1m", "5m", "15m", "1h", "4h", "1d"])
@@ -256,6 +612,37 @@ const draftIndicatorSelectionSchema = z.object({
       "Too many parameters"
     ),
 })
+
+// A DCA-fed take-profit's style. Two removed modes still load, so older saved
+// automations and stored run configs keep parsing: "previousRungHoldFirst" (a
+// redundant variant of the peel) becomes the plain peel, and "moneyBackThenBase"
+// becomes "nearestRungSellAll" — it rested its first sell at exactly that level,
+// so the surviving style is the closest thing to what was saved.
+const takeProfitModeSchema = z.preprocess(
+  (value) => {
+    if (value === "previousRungHoldFirst") return "previousRungSellAll"
+    if (value === "moneyBackThenBase") return "nearestRungSellAll"
+    return value
+  },
+  z.enum(["average", "previousRungSellAll", "nearestRungSellAll"]).optional()
+)
+
+// Where a stop sits. A level that no longer exists loads as the plain percent
+// rather than failing to parse — a saved automation must never become
+// unopenable because an option was retired. "belowRung" was a short-lived July
+// 2026 experiment (a percent under the DCA ladder's current rung) that reached a
+// running dev server before being replaced by "confirmedBase"; anything saved
+// with it comes back as a percent stop, which is what it measured from anyway.
+const stopLossLevelSchema = z.preprocess(
+  (value) =>
+    value === undefined ||
+    value === "percent" ||
+    value === "sessionOpen" ||
+    value === "confirmedBase"
+      ? value
+      : "percent",
+  z.enum(["percent", "sessionOpen", "confirmedBase"]).optional()
+)
 
 const automationNodeSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -289,8 +676,17 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     id: idSchema,
+    kind: z.literal("timeframe"),
+    interval: intervalSchema,
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
+  z.object({
+    id: idSchema,
     kind: z.literal("takeProfit"),
     pct: z.number().finite(),
+    mode: takeProfitModeSchema,
+    rrRatio: z.number().finite().optional(),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -298,6 +694,11 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     id: idSchema,
     kind: z.literal("stopLoss"),
     pct: z.number().finite(),
+    mode: z.enum(["fixed", "trailing"]).optional(),
+    activationPct: z.number().finite().optional(),
+    anchor: z.enum(["average", "first"]).optional(),
+    level: stopLossLevelSchema,
+    baseReclaimDays: z.number().min(0).max(3650).optional(),
     x: z.number().finite(),
     y: z.number().finite(),
   }),
@@ -311,11 +712,83 @@ const automationNodeSchema = z.discriminatedUnion("kind", [
     x: z.number().finite(),
     y: z.number().finite(),
   }),
+  z.object({
+    id: idSchema,
+    kind: z.literal("marketScanner"),
+    ...marketScannerSettingsFieldsSchema.shape,
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
+  z.object({
+    id: idSchema,
+    kind: z.literal("dca"),
+    rungs: dcaRungsSchema,
+    // Default keeps DCA nodes saved before this field existed loadable.
+    maxPositionPct: z
+      .number()
+      .positive()
+      .max(100)
+      .default(DEFAULT_DCA_MAX_POSITION_PCT),
+    // Defaults to 1 (equal buys) so ladders saved with per-rung weights keep
+    // their behavior; NEW ladders are created with an exponential ramp.
+    sizeMultiplier: z.number().min(1).max(10).default(1),
+    // Defaults to true (compound) so ladders saved before this field keep their
+    // current behavior — sizing off the live balance.
+    compound: z.boolean().default(true),
+    // Liquidity guard: cap each buy at this % of rolling 24h volume. Defaults
+    // to 0 (off) so every ladder saved before it behaves identically.
+    maxOrderVolPct: z.number().min(0).max(5).default(0),
+    // Defaults to "market" (reactive confirmation + fail-safe) for ladders saved
+    // before this field existed.
+    rungEntry: z.enum(["market", "limit"]).default("market"),
+    // Defaults to false so ladders saved before this field keep buying on every
+    // confirmed rung; when on, a rung only buys after two green candles in a row.
+    requireTwoGreen: z.boolean().default(false),
+    // Trend gate. Defaults to off so every ladder saved before it behaves
+    // identically.
+    trendFilterEnabled: z.boolean().default(false),
+    trendMaBars: z.number().int().min(2).max(1000).default(200),
+    // Real exits for a losing ladder. Default off, so every ladder saved before
+    // them behaves identically.
+    exitOnTrendBreak: z.boolean().default(false),
+    // Crash gate. Default off, so every ladder saved before it is unchanged.
+    crashFilterEnabled: z.boolean().default(false),
+    crashLookbackBars: z.number().int().min(50).max(5000).default(500),
+    crashMinFallPct: z.number().min(1).max(99).default(50),
+    crashMaxFallPct: z.number().min(2).max(99.9).default(90),
+    crashEntryAbovePct: z.number().min(0).max(100).default(5),
+    x: z.number().finite(),
+    y: z.number().finite(),
+  }),
 ])
 
 const protectionLevelsSchema = z.object({
   takeProfitPct: z.number().positive().max(1000).optional(),
+  takeProfitMode: takeProfitModeSchema,
   stopLossPct: z.number().positive().max(100).optional(),
+  stopLossMode: z.enum(["fixed", "trailing"]).optional(),
+  trailActivationPct: z.number().min(0).max(1000).optional(),
+  stopAnchor: z.enum(["average", "first"]).optional(),
+  // A stored level whose kind no longer exists falls back to "no level", i.e.
+  // the plain percent stop beside it — a frozen bot/backtest config must never
+  // become unreadable because an option was retired. Same reasoning as
+  // `stopLossLevelSchema` on the node.
+  stopLossLevel: z
+    .union([
+      z.object({
+        kind: z.literal("sessionOpen"),
+        session: z.enum(SESSION_KEYS),
+      }),
+      z.object({
+        kind: z.literal("confirmedBase"),
+        basePeriods: z.number().int().min(4).max(500),
+        pumpPeriods: z.number().int().min(1).max(499),
+        reclaimDays: z.number().min(0).max(3650).optional(),
+      }),
+    ])
+    .optional()
+    .catch(undefined),
+  takeProfitRr: z.number().positive().max(MAX_RR_RATIO).optional(),
 })
 
 /**
@@ -397,6 +870,18 @@ const whaleWallSettingsSchema = z.object({
   confirmationMs: z.number().int().min(100).max(60_000),
 })
 
+const compiledFilterSchema: z.ZodType<AutomationFilter> = z.object({
+  nodeId: idSchema,
+  indicator: indicatorSelectionSchema,
+  maxAgeBars: z
+    .number()
+    .int()
+    .min(1)
+    .max(AUTOMATION_MAX_WINDOW_BARS)
+    .optional(),
+  interval: intervalSchema.optional(),
+})
+
 const automationConditionSchema: z.ZodType<AutomationCondition> = z.lazy(() =>
   z.union([
     z.object({
@@ -404,21 +889,7 @@ const automationConditionSchema: z.ZodType<AutomationCondition> = z.lazy(() =>
       nodeId: idSchema,
       indicator: indicatorSelectionSchema,
       side: z.enum(["buy", "sell"]),
-      filters: z
-        .array(
-          z.object({
-            nodeId: idSchema,
-            indicator: indicatorSelectionSchema,
-            maxAgeBars: z
-              .number()
-              .int()
-              .min(1)
-              .max(AUTOMATION_MAX_WINDOW_BARS)
-              .optional(),
-          })
-        )
-        .max(100)
-        .optional(),
+      filters: z.array(compiledFilterSchema).max(100).optional(),
     }),
     z.object({
       kind: z.literal("liveWall"),
@@ -441,6 +912,7 @@ const automationRuleSchema = z
     targetEquityPct: z.number().min(1).max(100).optional(),
     condition: automationConditionSchema,
   })
+
   .superRefine((rule, ctx) => {
     if (rule.action !== "close" && rule.targetEquityPct === undefined) {
       ctx.addIssue({
@@ -457,6 +929,33 @@ const automationRuleSchema = z
       })
     }
   })
+
+const automationMarketScannerConfigSchema: z.ZodType<AutomationMarketScannerConfig> =
+  z.intersection(z.object({ nodeId: idSchema }), marketScannerSettingsSchema)
+
+const automationDcaConfigSchema: z.ZodType<AutomationDcaConfig> = z.object({
+  nodeId: idSchema,
+  rungs: dcaRungsSchema,
+  maxPositionPct: z.number().positive().max(100),
+  sizeMultiplier: z.number().min(1).max(10).default(1),
+  compound: z.boolean().default(true),
+    // Liquidity guard: cap each buy at this % of rolling 24h volume. Defaults
+    // to 0 (off) so every ladder saved before it behaves identically.
+    maxOrderVolPct: z.number().min(0).max(5).default(0),
+  rungEntry: z.enum(["market", "limit"]).default("market"),
+  requireTwoGreen: z.boolean().default(false),
+  basePeriods: z.number().int().min(4).max(500),
+  pumpPeriods: z.number().int().min(1).max(499),
+  trendFilterEnabled: z.boolean().default(false),
+  trendMaBars: z.number().int().min(2).max(1000).default(200),
+  exitOnTrendBreak: z.boolean().default(false),
+  crashFilterEnabled: z.boolean().default(false),
+  crashLookbackBars: z.number().int().min(50).max(5000).default(500),
+  crashMinFallPct: z.number().min(1).max(99).default(50),
+  crashMaxFallPct: z.number().min(2).max(99.9).default(90),
+  crashEntryAbovePct: z.number().min(0).max(100).default(5),
+  confirmations: z.array(compiledFilterSchema).max(8).optional(),
+})
 
 function conditionHasLiveWall(condition: AutomationCondition): boolean {
   if (condition.kind === "liveWall") return true
@@ -475,11 +974,34 @@ export const automationConfigSchema: z.ZodType<AutomationConfig> = z
     v: z.literal(2),
     kind: z.literal("automation"),
     interval: intervalSchema,
-    rules: z.array(automationRuleSchema).min(1).max(100),
+    rules: z.array(automationRuleSchema).max(100),
     protection: automationProtectionSchema,
+    marketScanner: automationMarketScannerConfigSchema.optional(),
+    dca: automationDcaConfigSchema.optional(),
   })
   .superRefine((config, ctx) => {
+    if (config.rules.length === 0 && !config.dca) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rules"],
+        message: "Add at least one executable entry.",
+      })
+    }
+    if (config.marketScanner && !config.dca) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["marketScanner"],
+        message: "Market Scanner must feed the DCA ladder.",
+      })
+    }
     const entryRules = config.rules.filter((rule) => rule.action !== "close")
+    if (config.dca && entryRules.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rules"],
+        message: "DCA must be the Automation's only entry owner.",
+      })
+    }
     if (
       entryRules.some((rule) => conditionHasLiveWall(rule.condition)) &&
       entryRules.some((rule) => conditionHasCandleTrigger(rule.condition))
@@ -558,6 +1080,38 @@ export function compileAutomationGraph(input: {
         message: "Whale Wall settings are outside their allowed ranges.",
       })
     }
+    if (node.kind === "dca" && !dcaRungsSchema.safeParse(node.rungs).success) {
+      addError({
+        code: "invalid_strategy",
+        nodeId: node.id,
+        message: "DCA rungs are outside their allowed ranges.",
+      })
+    }
+    // A crash band whose floor is at or above its ceiling can never match, so the
+    // gate would pass every bar and the whole card would do nothing while looking
+    // switched on. Never ship a setting that can be silently inert.
+    if (
+      node.kind === "dca" &&
+      node.crashFilterEnabled &&
+      node.crashMinFallPct >= node.crashMaxFallPct
+    ) {
+      addError({
+        code: "invalid_strategy",
+        nodeId: node.id,
+        message:
+          "Crash gate: the smaller fall must be below the larger one, or it never matches.",
+      })
+    }
+    if (
+      node.kind === "marketScanner" &&
+      !marketScannerSettingsSchema.safeParse(node).success
+    ) {
+      addError({
+        code: "invalid_scanner",
+        nodeId: node.id,
+        message: "Market Scanner settings are outside their allowed ranges.",
+      })
+    }
   }
 
   const incoming = new Map<string, AutomationEdge[]>()
@@ -583,7 +1137,11 @@ export function compileAutomationGraph(input: {
       })
       continue
     }
-    if (!sourcePortIsValid(source, edge.sourcePort)) {
+    const sourcePortIsValid = automationNodeSourcePortIsValid(
+      source,
+      edge.sourcePort
+    )
+    if (!sourcePortIsValid) {
       addError({
         code: "invalid_port",
         edgeId: edge.id,
@@ -596,78 +1154,15 @@ export function compileAutomationGraph(input: {
         edgeId: edge.id,
         message: "This connection is not allowed.",
       })
-    } else if (
-      edge.sourcePort === "trend" &&
-      source.kind === "lookback" &&
-      target.kind !== "indicator"
-    ) {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "A Look Back node can only connect to an indicator.",
-      })
-    } else if (
-      edge.sourcePort === "trend" &&
-      source.kind !== "lookback" &&
-      target.kind !== "indicator" &&
-      target.kind !== "lookback"
-    ) {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message:
-          "The Trend output can only connect to an indicator or a Look Back node.",
-      })
-    } else if (
-      edge.sourcePort === "bidWall" &&
-      (target.kind !== "action" || target.action !== "buy")
-    ) {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "Bid Wall can only connect to Long.",
-      })
-    } else if (
-      edge.sourcePort === "askWall" &&
-      (target.kind !== "action" || target.action !== "short")
-    ) {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "Ask Wall can only connect to Short.",
-      })
-    } else if (edge.sourcePort === "then" && target.kind !== "indicator") {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "The Then output can only connect to an indicator.",
-      })
-    } else if (edge.sourcePort === "tp" && target.kind !== "takeProfit") {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "The Take Profit hook can only connect to a Take Profit node.",
-      })
-    } else if (edge.sourcePort === "sl" && target.kind !== "stopLoss") {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "The Stop Loss hook can only connect to a Stop Loss node.",
-      })
-    } else if (
-      edge.sourcePort !== "trend" &&
-      edge.sourcePort !== "then" &&
-      edge.sourcePort !== "tp" &&
-      edge.sourcePort !== "sl" &&
-      edge.sourcePort !== "bidWall" &&
-      edge.sourcePort !== "askWall" &&
-      target.kind !== "action"
-    ) {
-      addError({
-        code: "invalid_edge",
-        edgeId: edge.id,
-        message: "Bullish and Bearish outputs can only connect to an action.",
-      })
+    } else if (sourcePortIsValid) {
+      const message = automationNodeConnectionError(
+        source,
+        edge.sourcePort,
+        target
+      )
+      if (message) {
+        addError({ code: "invalid_edge", edgeId: edge.id, message })
+      }
     }
     const key = `${edge.from}:${edge.sourcePort}:${edge.to}`
     if (edgeKeys.has(key)) {
@@ -703,8 +1198,81 @@ export function compileAutomationGraph(input: {
   const actions = nodes.filter(
     (node): node is AutomationActionNode => node.kind === "action"
   )
-  if (actions.length === 0)
+  const dcaNodes = nodes.filter(
+    (node): node is AutomationDcaNode => node.kind === "dca"
+  )
+  if (actions.length === 0 && dcaNodes.length === 0)
     addError({ code: "empty", message: "Add at least one action." })
+  if (dcaNodes.length > 1) {
+    addError({
+      code: "invalid_strategy",
+      nodeId: dcaNodes[1].id,
+      message: "An Automation can contain only one DCA node.",
+    })
+  }
+  /**
+   * The session a Sessions node wired into this node is set to, or null. This
+   * is how a Stop Loss learns which session's open to sit at: the session is
+   * picked once, on the Sessions node, and the wire carries it — so the signal
+   * and the stop can never drift onto different sessions.
+   */
+  const sessionWiredInto = (nodeId: string): SessionKey | null => {
+    for (const edge of incoming.get(nodeId) ?? []) {
+      const parent = nodeById.get(edge.from)
+      if (parent?.kind !== "indicator" || parent.indicator.type !== "session") {
+        continue
+      }
+      const parsed = INDICATORS.session.paramsSchema.safeParse(
+        parent.indicator.params
+      )
+      if (!parsed.success) continue
+      return (parsed.data as { session: SessionKey }).session
+    }
+    return null
+  }
+  const baseParamsOf = (
+    nodeId: string
+  ): { basePeriods: number; pumpPeriods: number } | null => {
+    const node = nodeById.get(nodeId)
+    if (node?.kind !== "indicator" || node.indicator.type !== "base")
+      return null
+    const parsed = INDICATORS.base.paramsSchema.safeParse(node.indicator.params)
+    if (!parsed.success) return null
+    const params = parsed.data as { basePeriods: number; pumpPeriods: number }
+    return {
+      basePeriods: params.basePeriods,
+      pumpPeriods: params.pumpPeriods,
+    }
+  }
+  /**
+   * The base-detection settings the Base node feeding `nodeId` uses, or null.
+   * The stop sits on the SAME level the indicator paints, so it must use the
+   * indicator's own numbers rather than any of its own.
+   *
+   * A Stop Loss hangs off its ENTRY, and that entry is what the Base is already
+   * wired into — so look through it. Requiring a second wire straight from the
+   * Base to the stop would be pure ceremony on the ordinary
+   * Base → DCA → Stop Loss graph, where the ladder already knows its base.
+   */
+  const baseWiredInto = (
+    nodeId: string
+  ): { basePeriods: number; pumpPeriods: number } | null => {
+    const parents = (incoming.get(nodeId) ?? []).map((edge) => edge.from)
+    for (const parent of parents) {
+      const direct = baseParamsOf(parent)
+      if (direct) return direct
+    }
+    // One hop through the entry the stop guards (a DCA ladder or a Long/Short).
+    for (const parent of parents) {
+      const entry = nodeById.get(parent)
+      if (entry?.kind !== "dca" && entry?.kind !== "action") continue
+      for (const edge of incoming.get(parent) ?? []) {
+        const viaEntry = baseParamsOf(edge.from)
+        if (viaEntry) return viaEntry
+      }
+    }
+    return null
+  }
   for (const node of nodes) {
     const count = incoming.get(node.id)?.length ?? 0
     if (node.kind === "logic") {
@@ -723,13 +1291,11 @@ export function compileAutomationGraph(input: {
       })
     }
     if (node.kind === "lookback") {
-      if (
-        !(
-          Number.isInteger(node.bars) &&
-          node.bars >= 1 &&
-          node.bars <= AUTOMATION_MAX_WINDOW_BARS
-        )
-      ) {
+      if (!(
+        Number.isInteger(node.bars) &&
+        node.bars >= 1 &&
+        node.bars <= AUTOMATION_MAX_WINDOW_BARS
+      )) {
         addError({
           code: "invalid_lookback",
           nodeId: node.id,
@@ -744,6 +1310,39 @@ export function compileAutomationGraph(input: {
         })
       }
     }
+    if (node.kind === "dca") {
+      const inputs = incoming.get(node.id) ?? []
+      if (inputs.filter((edge) => edge.sourcePort === "trend").length > 1) {
+        addError({
+          code: "invalid_strategy",
+          nodeId: node.id,
+          message: "DCA accepts only one direct Trend filter.",
+        })
+      }
+      if (inputs.filter((edge) => edge.sourcePort === "markets").length > 1) {
+        addError({
+          code: "invalid_strategy",
+          nodeId: node.id,
+          message: "DCA accepts only one Market Scanner.",
+        })
+      }
+    }
+    if (node.kind === "timeframe") {
+      if (automationIntervalRatio(input.interval, node.interval) === null) {
+        addError({
+          code: "invalid_timeframe",
+          nodeId: node.id,
+          message: `The Timeframe node must be higher than the automation's ${input.interval} (and the automation's timeframe must divide evenly into it).`,
+        })
+      }
+      if (count < 1) {
+        addError({
+          code: "invalid_timeframe",
+          nodeId: node.id,
+          message: "Timeframe needs a Trend input from an indicator.",
+        })
+      }
+    }
     if (node.kind === "takeProfit" || node.kind === "stopLoss") {
       const label = node.kind === "takeProfit" ? "Take Profit" : "Stop Loss"
       const maxPct = node.kind === "takeProfit" ? 1000 : 100
@@ -754,20 +1353,95 @@ export function compileAutomationGraph(input: {
           message: `${label} must be greater than 0% and no more than ${maxPct}%.`,
         })
       }
+      if (
+        node.kind === "takeProfit" &&
+        node.rrRatio !== undefined &&
+        !(node.rrRatio > 0 && node.rrRatio <= MAX_RR_RATIO)
+      ) {
+        addError({
+          code: "invalid_protection",
+          nodeId: node.id,
+          message: `The risk-reward ratio must be greater than 0 and no more than ${MAX_RR_RATIO}.`,
+        })
+      }
+      if (node.kind === "stopLoss" && node.level === "sessionOpen") {
+        if (node.mode === "trailing") {
+          addError({
+            code: "invalid_protection",
+            nodeId: node.id,
+            message:
+              "A stop at the session open cannot also trail — the session open is a fixed price, so pick one or the other.",
+          })
+        }
+        if (!sessionWiredInto(node.id)) {
+          addError({
+            code: "invalid_protection",
+            nodeId: node.id,
+            message:
+              "Stop Loss is set to the session open — wire a Sessions node into it so it knows which session to use.",
+          })
+        }
+        const onDca = (incoming.get(node.id) ?? []).some(
+          (edge) => nodeById.get(edge.from)?.kind === "dca"
+        )
+        if (onDca) {
+          addError({
+            code: "invalid_protection",
+            nodeId: node.id,
+            message:
+              "A DCA ladder buys down through levels, so its stop cannot sit at the session open. Use a percent stop here.",
+          })
+        }
+      }
+      // The confirmed base is one fixed price, and it comes from a Base node —
+      // without one wired in there is no level to sit at.
+      if (node.kind === "stopLoss" && node.level === "confirmedBase") {
+        if (node.mode === "trailing") {
+          addError({
+            code: "invalid_protection",
+            nodeId: node.id,
+            message:
+              "A stop at the confirmed base cannot also trail — the base is a fixed price, so pick one or the other.",
+          })
+        }
+        if (!baseWiredInto(node.id)) {
+          addError({
+            code: "invalid_protection",
+            nodeId: node.id,
+            message:
+              "Stop Loss is set at the confirmed base — wire a Base node into this stop or into the entry it guards, so it knows which base to sit at.",
+          })
+        }
+      }
+      if (
+        node.kind === "stopLoss" &&
+        node.mode === "trailing" &&
+        node.activationPct !== undefined &&
+        !(node.activationPct >= 0 && node.activationPct <= 1000)
+      ) {
+        addError({
+          code: "invalid_protection",
+          nodeId: node.id,
+          message:
+            "The trailing stop's activation must be between 0% and 1000%.",
+        })
+      }
       const port = node.kind === "takeProfit" ? "tp" : "sl"
       const attached = (incoming.get(node.id) ?? []).some((edge) => {
         const parent = nodeById.get(edge.from)
+        if (edge.sourcePort !== port) return false
+        // A DCA node is a long entry with the same tp/sl hooks as a Long action.
+        if (parent?.kind === "dca") return true
         return (
           parent?.kind === "action" &&
-          (parent.action === "buy" || parent.action === "short") &&
-          edge.sourcePort === port
+          (parent.action === "buy" || parent.action === "short")
         )
       })
       if (!attached) {
         addError({
           code: "invalid_protection",
           nodeId: node.id,
-          message: `${label} must hang off a Long or Short entry's ${node.kind === "takeProfit" ? "take-profit" : "stop-loss"} hook.`,
+          message: `${label} must hang off a Long, Short, or DCA entry's ${node.kind === "takeProfit" ? "take-profit" : "stop-loss"} hook.`,
         })
       }
     }
@@ -800,7 +1474,20 @@ export function compileAutomationGraph(input: {
     })
   }
 
-  const connected = new Set<string>(actions.map((node) => node.id))
+  const ownedEntry = actions.find((node) => node.action !== "close")
+  if (dcaNodes.length > 0 && ownedEntry) {
+    addError({
+      code: "action_input",
+      nodeId: ownedEntry.id,
+      message:
+        "DCA owns entries. Remove Long, Short, Reverse, and Whale Wall entry paths.",
+    })
+  }
+
+  const connected = new Set<string>([
+    ...actions.map((node) => node.id),
+    ...dcaNodes.map((node) => node.id),
+  ])
   const markAncestors = (id: string) => {
     for (const edge of incoming.get(id) ?? []) {
       if (connected.has(edge.from)) continue
@@ -809,21 +1496,27 @@ export function compileAutomationGraph(input: {
     }
   }
   for (const action of actions) markAncestors(action.id)
-  // Take Profit / Stop Loss sit DOWNSTREAM of an entry (action → node), so
+  for (const dca of dcaNodes) markAncestors(dca.id)
+  // Take Profit / Stop Loss sit DOWNSTREAM of an entry (action/DCA → node), so
   // ancestor-marking never reaches them — count an attached one as connected.
   for (const node of nodes) {
     if (node.kind !== "takeProfit" && node.kind !== "stopLoss") continue
-    const attached = (incoming.get(node.id) ?? []).some(
-      (edge) => nodeById.get(edge.from)?.kind === "action"
-    )
-    if (attached) connected.add(node.id)
+    const attached = (incoming.get(node.id) ?? []).some((edge) => {
+      const from = nodeById.get(edge.from)?.kind
+      return from === "action" || from === "dca"
+    })
+    if (!attached) continue
+    connected.add(node.id)
+    // ...and anything wired INTO it (a Sessions node feeding a stop) rides
+    // along, or it would read as a dangling node.
+    markAncestors(node.id)
   }
   for (const node of nodes) {
     if (!connected.has(node.id)) {
       addError({
         code: "dangling",
         nodeId: node.id,
-        message: "Node is not connected to an action.",
+        message: "Node is not connected to an action or DCA.",
       })
     }
   }
@@ -835,36 +1528,70 @@ export function compileAutomationGraph(input: {
   // ancestor reaches the trigger over several paths (diamonds, nested caps),
   // the strictest (smallest) cap wins — a capped path AND an uncapped one
   // still means capped. Nodes re-walk only when their cap improves, so shared
-  // subgraphs stay linear instead of exploding per path.
+  // subgraphs stay linear instead of exploding per path. A Timeframe node
+  // works the same way in the other dimension: every indicator upstream of it
+  // evaluates on its higher interval.
+  const timeframeConflicts = new Set<string>()
   const collectFilters = (triggerId: string): AutomationFilter[] => {
     const INF = Number.POSITIVE_INFINITY
     const bestCap = new Map<string, number>()
-    const walk = (nodeId: string, cap: number) => {
+    const intervalByNode = new Map<string, AutomationInterval | undefined>()
+    const walk = (
+      nodeId: string,
+      cap: number,
+      interval: AutomationInterval | undefined
+    ) => {
       for (const edge of incoming.get(nodeId) ?? []) {
         const upstream = nodeById.get(edge.from)
         if (!upstream || upstream.id === triggerId) continue
         const nextCap =
           upstream.kind === "lookback" ? Math.min(cap, upstream.bars) : cap
-        if (upstream.kind !== "lookback" && upstream.kind !== "indicator") {
+        const nextInterval =
+          upstream.kind === "timeframe" ? upstream.interval : interval
+        if (
+          upstream.kind !== "lookback" &&
+          upstream.kind !== "indicator" &&
+          upstream.kind !== "timeframe"
+        ) {
           continue
         }
+        // Ambiguity guard: the same ancestor reaching ONE entry both through
+        // a Timeframe node and around it would gate that entry on two clocks
+        // at once — there is no right answer, so it is rejected. (Different
+        // entries, or trigger-role vs filter-role, may use different clocks.)
+        if (
+          intervalByNode.has(upstream.id) &&
+          intervalByNode.get(upstream.id) !== nextInterval &&
+          !timeframeConflicts.has(upstream.id)
+        ) {
+          timeframeConflicts.add(upstream.id)
+          addError({
+            code: "invalid_timeframe",
+            nodeId: upstream.id,
+            message:
+              "This node gates the same entry on two timeframes at once — give each timeframe its own copy of the node.",
+          })
+        }
+        intervalByNode.set(upstream.id, nextInterval)
         // Absent means unvisited — an uncapped visit still has to be
         // recorded, so "already at least as strict" only applies once seen.
         const seenCap = bestCap.get(upstream.id)
         if (seenCap !== undefined && seenCap <= nextCap) continue
         bestCap.set(upstream.id, nextCap)
-        walk(upstream.id, nextCap)
+        walk(upstream.id, nextCap, nextInterval)
       }
     }
-    walk(triggerId, INF)
+    walk(triggerId, INF, undefined)
     const filters: AutomationFilter[] = []
     for (const [nodeId, cap] of bestCap) {
       const node = nodeById.get(nodeId)
       if (!node || node.kind !== "indicator") continue
+      const interval = intervalByNode.get(nodeId)
       filters.push({
         nodeId,
         indicator: node.indicator,
         ...(cap < INF ? { maxAgeBars: cap } : {}),
+        ...(interval && interval !== input.interval ? { interval } : {}),
       })
     }
     return filters
@@ -892,6 +1619,96 @@ export function compileAutomationGraph(input: {
       indicator: source.indicator,
       side: edge.sourcePort === "bullish" ? "buy" : "sell",
       ...(filters.length > 0 ? { filters } : {}),
+    }
+  }
+
+  let marketScanner: AutomationMarketScannerConfig | undefined
+  const dcaNode = dcaNodes[0]
+  let dca: AutomationDcaConfig | undefined
+  if (dcaNode) {
+    // The Market Scanner feeds the ladder its market list.
+    const scannerEdge = (incoming.get(dcaNode.id) ?? []).find(
+      (edge) => edge.sourcePort === "markets"
+    )
+    const scannerNode = scannerEdge ? nodeById.get(scannerEdge.from) : undefined
+    if (scannerNode?.kind === "marketScanner") {
+      marketScanner = {
+        nodeId: scannerNode.id,
+        ...marketScannerSettingsSchema.parse(scannerNode),
+      }
+    }
+    // Every indicator wired into the ladder that ISN'T the Base supplying its
+    // levels becomes a buy confirmation: a rung only fires while all of them are
+    // bullish. A Look Back directly upstream sets how long that opinion stays
+    // valid. These wires used to compile to nothing.
+    const confirmations: AutomationFilter[] = []
+    const baseEdge = (incoming.get(dcaNode.id) ?? []).find((edge) => {
+      const from = nodeById.get(edge.from)
+      return from?.kind === "indicator" && from.indicator.type === "base"
+    })
+    for (const edge of incoming.get(dcaNode.id) ?? []) {
+      if (edge === baseEdge) continue
+      if (edge.sourcePort !== "bullish" && edge.sourcePort !== "trend") continue
+      let source = nodeById.get(edge.from)
+      // A Look Back on the wire caps how long the confirmation counts for:
+      // `indicator -> Look Back -> DCA`, the same grammar entry filters use.
+      let maxAgeBars: number | undefined
+      if (source?.kind === "lookback") {
+        maxAgeBars = source.bars
+        const upstream = (incoming.get(source.id) ?? [])
+          .map((up) => nodeById.get(up.from))
+          .find((up) => up?.kind === "indicator")
+        source = upstream
+      }
+      if (source?.kind !== "indicator") continue
+      confirmations.push({
+        nodeId: source.id,
+        indicator: source.indicator,
+        ...(maxAgeBars !== undefined ? { maxAgeBars } : {}),
+      })
+    }
+    if (confirmations.length > 8) {
+      addError({
+        code: "invalid_strategy",
+        nodeId: dcaNode.id,
+        message: "A DCA ladder can take at most 8 indicator confirmations.",
+      })
+    }
+    const baseNode = baseEdge ? nodeById.get(baseEdge.from) : undefined
+    if (!baseNode || baseNode.kind !== "indicator") {
+      addError({
+        code: "invalid_strategy",
+        nodeId: dcaNode.id,
+        message: "Connect a Base indicator to the DCA node.",
+      })
+    } else {
+      // Base params passed the per-node indicator check above; parse to read the
+      // base DETECTION settings the runtime ladder anchors to. Everything about
+      // breaking that base lives on the DCA node itself.
+      const baseParams = INDICATORS.base.paramsSchema.parse(
+        baseNode.indicator.params
+      ) as { basePeriods: number; pumpPeriods: number }
+      dca = {
+        nodeId: dcaNode.id,
+        rungs: dcaNode.rungs.map((rung) => ({ ...rung })),
+        maxPositionPct: dcaNode.maxPositionPct,
+        sizeMultiplier: dcaNode.sizeMultiplier,
+        compound: dcaNode.compound,
+        maxOrderVolPct: dcaNode.maxOrderVolPct,
+        rungEntry: dcaNode.rungEntry,
+        requireTwoGreen: dcaNode.requireTwoGreen,
+        basePeriods: baseParams.basePeriods,
+        pumpPeriods: baseParams.pumpPeriods,
+        trendFilterEnabled: dcaNode.trendFilterEnabled,
+        trendMaBars: dcaNode.trendMaBars,
+        exitOnTrendBreak: dcaNode.exitOnTrendBreak,
+        crashFilterEnabled: dcaNode.crashFilterEnabled,
+        crashLookbackBars: dcaNode.crashLookbackBars,
+        crashMinFallPct: dcaNode.crashMinFallPct,
+        crashMaxFallPct: dcaNode.crashMaxFallPct,
+        crashEntryAbovePct: dcaNode.crashEntryAbovePct,
+        ...(confirmations.length > 0 ? { confirmations } : {}),
+      }
     }
   }
 
@@ -929,29 +1746,277 @@ export function compileAutomationGraph(input: {
     }
     protection[side] = { ...protection[side], [key]: pct }
   }
+  // A stop's behavior (fixed vs trailing + activation) folds alongside its
+  // percent; two stops on one side must agree on behavior like they must on
+  // percent. Only trailing is stored — absent mode means fixed, so configs
+  // compiled before trailing existed stay byte-identical.
+  const stopBehavior: Partial<
+    Record<
+      "long" | "short",
+      {
+        trailing: boolean
+        activationPct?: number
+        anchor?: "average" | "first"
+      }
+    >
+  > = {}
+  // A take-profit's "previous rung" mode only applies when a DCA node feeds it
+  // (it references the buy ladder). Collected here and folded in after.
+  let longTpMode: ProtectionLevels["takeProfitMode"]
+  // A stop anchored to a session open, and a take-profit measured as a
+  // multiple of the stop, both need the OTHER exit before they can be resolved
+  // — so they are collected per side here and folded in after the loop.
+  const stopLevel: Partial<
+    Record<"long" | "short", SessionKey | "percent" | "confirmedBase">
+  > = {}
+  // The wired-in Base node's detection settings, kept beside the discriminator
+  // so the compiled level carries the exact numbers the chart paints with.
+  const stopBaseParams: Partial<
+    Record<
+      "long" | "short",
+      { basePeriods: number; pumpPeriods: number; reclaimDays?: number }
+    >
+  > = {}
+  const tpRatio: Partial<
+    Record<"long" | "short", { ratio: number; nodeId: string }>
+  > = {}
+  const setStopLevel = (
+    side: "long" | "short",
+    node: AutomationStopLossNode
+  ) => {
+    // "percent" is recorded too, so two stops on one entry that disagree about
+    // WHERE the stop sits are caught the same way disagreeing percentages and
+    // fixed-vs-trailing are — silently upgrading a percent stop to a session
+    // one would move a level the user set deliberately.
+    const level =
+      node.level === "sessionOpen"
+        ? (sessionWiredInto(node.id) ?? "percent")
+        : node.level === "confirmedBase" && baseWiredInto(node.id)
+          ? ("confirmedBase" as const)
+          : "percent"
+    const existing = stopLevel[side]
+    if (existing !== undefined && existing !== level) {
+      addError({
+        code: "invalid_protection",
+        nodeId: node.id,
+        message: `${side === "long" ? "Long" : "Short"} stop-loss is set twice with different levels (a percent, a session open, the confirmed base, or two different sessions).`,
+      })
+      return
+    }
+    stopLevel[side] = level
+    if (level === "confirmedBase") {
+      const params = baseWiredInto(node.id)
+      if (params) {
+        stopBaseParams[side] = {
+          ...params,
+          ...(node.baseReclaimDays && node.baseReclaimDays > 0
+            ? { reclaimDays: node.baseReclaimDays }
+            : {}),
+        }
+      }
+    }
+  }
+  const setTpRatio = (
+    side: "long" | "short",
+    node: AutomationTakeProfitNode
+  ) => {
+    const ratio = node.rrRatio
+    if (ratio === undefined) return
+    const existing = tpRatio[side]
+    if (existing !== undefined && existing.ratio !== ratio) {
+      addError({
+        code: "invalid_protection",
+        nodeId: node.id,
+        message: `${side === "long" ? "Long" : "Short"} take-profit is set twice with different risk-reward ratios.`,
+      })
+      return
+    }
+    tpRatio[side] = { ratio, nodeId: node.id }
+  }
+  const setStopBehavior = (
+    side: "long" | "short",
+    node: AutomationStopLossNode
+  ) => {
+    const behavior = {
+      trailing: node.mode === "trailing",
+      ...(node.mode === "trailing" && node.activationPct
+        ? { activationPct: node.activationPct }
+        : {}),
+      ...(node.anchor === "first" ? { anchor: "first" as const } : {}),
+    }
+    const existing = stopBehavior[side]
+    if (
+      existing &&
+      (existing.trailing !== behavior.trailing ||
+        existing.activationPct !== behavior.activationPct ||
+        existing.anchor !== behavior.anchor)
+    ) {
+      addError({
+        code: "invalid_protection",
+        nodeId: node.id,
+        message: `${side === "long" ? "Long" : "Short"} stop-loss is set twice with different behavior (fixed vs trailing).`,
+      })
+      return
+    }
+    stopBehavior[side] = behavior
+  }
   for (const node of nodes) {
     if (node.kind !== "takeProfit" && node.kind !== "stopLoss") continue
     const key = node.kind === "takeProfit" ? "takeProfitPct" : "stopLossPct"
+    const fold = (side: "long" | "short") => {
+      // A take-profit measured as a risk-reward multiple has no percent of its
+      // own; it is worked out from the stop once both sides are collected.
+      if (node.kind === "takeProfit" && node.rrRatio !== undefined) {
+        setTpRatio(side, node)
+      } else {
+        setLevel(side, key, node.pct, node.id)
+      }
+      if (node.kind === "stopLoss") {
+        setStopBehavior(side, node)
+        setStopLevel(side, node)
+      }
+    }
     for (const edge of incoming.get(node.id) ?? []) {
       const parent = nodeById.get(edge.from)
+      // A DCA node is a long entry — its exits fold into the long side.
+      if (parent?.kind === "dca") {
+        fold("long")
+        if (
+          node.kind === "takeProfit" &&
+          node.mode &&
+          node.mode !== "average"
+        ) {
+          longTpMode = node.mode
+        }
+        continue
+      }
       if (parent?.kind !== "action") continue
-      if (parent.action === "buy") setLevel("long", key, node.pct, node.id)
-      else if (parent.action === "short")
-        setLevel("short", key, node.pct, node.id)
+      if (parent.action === "buy") fold("long")
+      else if (parent.action === "short") fold("short")
     }
+  }
+  for (const side of ["long", "short"] as const) {
+    const behavior = stopBehavior[side]
+    if (!behavior || protection[side]?.stopLossPct === undefined) continue
+    // Only non-default behavior is written, so configs compiled before these
+    // options existed stay byte-identical.
+    if (behavior.trailing) {
+      protection[side] = {
+        ...protection[side],
+        stopLossMode: "trailing",
+        ...(behavior.activationPct !== undefined
+          ? { trailActivationPct: behavior.activationPct }
+          : {}),
+      }
+    }
+    if (behavior.anchor === "first") {
+      protection[side] = { ...protection[side], stopAnchor: "first" }
+    }
+  }
+  // A non-percent stop rides on the side it guards. The percent stays beside it:
+  // for a session stop it is the fallback outside the session's hours, and for a
+  // below-the-rung stop it IS the distance under the rung.
+  for (const side of ["long", "short"] as const) {
+    const level = stopLevel[side]
+    if (
+      !level ||
+      level === "percent" ||
+      protection[side]?.stopLossPct === undefined
+    ) {
+      continue
+    }
+    protection[side] = {
+      ...protection[side],
+      stopLossLevel:
+        level === "confirmedBase"
+          ? { kind: "confirmedBase", ...stopBaseParams[side]! }
+          : { kind: "sessionOpen", session: level },
+    }
+  }
+  // Risk-reward take profits. Against a plain percent stop the target is known
+  // right here (stop distance × ratio), so every engine — live, backtest, DCA
+  // — sees an ordinary percent and nothing else has to change. Against a
+  // session-open stop the distance only exists once the trade opens, so the
+  // ratio rides along for the engine to apply and the percent it would have
+  // been stays as the outside-session fallback.
+  for (const side of ["long", "short"] as const) {
+    const entry = tpRatio[side]
+    if (!entry) continue
+    const levels = protection[side]
+    const stopPct = levels?.stopLossPct
+    if (stopPct === undefined) {
+      addError({
+        code: "invalid_protection",
+        nodeId: entry.nodeId,
+        message: `A risk-reward take profit measures against the stop, so the ${side === "long" ? "long" : "short"} entry needs a Stop Loss too.`,
+      })
+      continue
+    }
+    const pct = Math.round(stopPct * entry.ratio * 10_000) / 10_000
+    if (!(pct > 0 && pct <= 1000)) {
+      addError({
+        code: "invalid_protection",
+        nodeId: entry.nodeId,
+        message: `A ${entry.ratio}:1 target on a ${stopPct}% stop works out at ${pct}%, past the 1000% take-profit cap.`,
+      })
+      continue
+    }
+    protection[side] = {
+      ...levels,
+      takeProfitPct: pct,
+      ...(levels?.stopLossLevel ? { takeProfitRr: entry.ratio } : {}),
+    }
+  }
+  // Fold the DCA "previous rung" take-profit mode onto the long side (DCA is
+  // long-only). Left absent for the default "average" so existing configs stay
+  // byte-identical.
+  if (longTpMode && protection.long) {
+    protection.long = { ...protection.long, takeProfitMode: longTpMode }
   }
 
   // A capped filter must be able to SEE a signal maxAgeBars old inside the
   // engine window: the indicator's own warmup plus the cap has to fit, or
   // the automation would silently never trade.
   const checkedCaps = new Set<string>()
-  const triggersOf = (condition: AutomationCondition): void => {
-    if (condition.kind === "liveWall") return
-    if (condition.kind !== "trigger") {
-      condition.children.forEach(triggersOf)
-      return
-    }
-    for (const filter of condition.filters ?? []) {
+  const checkFilters = (filters: AutomationFilter[]) => {
+    for (const filter of filters) {
+      // v1: a Look Back's "N candles" would be ambiguous between the two
+      // clocks, so it cannot share a signal path with a Timeframe node.
+      if (filter.interval && filter.maxAgeBars !== undefined) {
+        addError({
+          code: "invalid_lookback",
+          nodeId: filter.nodeId,
+          message:
+            "Look Back can't cap a higher-timeframe signal yet — remove the Look Back or the Timeframe node.",
+        })
+        continue
+      }
+      // Warmup fit for the higher-timeframe series: the HTF indicator's
+      // warmup plus coverage of a worst-case (1400-bar) base window must fit
+      // inside the same per-series ceiling.
+      if (filter.interval) {
+        const key = `${filter.nodeId}:htf`
+        if (checkedCaps.has(key)) continue
+        checkedCaps.add(key)
+        const ratio = automationIntervalRatio(input.interval, filter.interval)
+        const module = INDICATORS[filter.indicator.type]
+        const parsed = module.paramsSchema.safeParse(filter.indicator.params)
+        if (ratio !== null && parsed.success) {
+          const warmup = module.warmupBars(parsed.data as never)
+          const maxWarmup =
+            AUTOMATION_MAX_WINDOW_BARS -
+            Math.ceil(AUTOMATION_MAX_WINDOW_BARS / ratio) -
+            5
+          if (warmup > maxWarmup) {
+            addError({
+              code: "invalid_timeframe",
+              nodeId: filter.nodeId,
+              message: `${module.label} needs ${warmup} warm-up candles on ${filter.interval} — more than the engine can hold next to the ${input.interval} window (at most ${Math.max(1, maxWarmup)}).`,
+            })
+          }
+        }
+        continue
+      }
       if (filter.maxAgeBars === undefined) continue
       const key = `${filter.nodeId}:${filter.maxAgeBars}`
       if (checkedCaps.has(key)) continue
@@ -970,7 +2035,28 @@ export function compileAutomationGraph(input: {
       }
     }
   }
+  const triggersOf = (condition: AutomationCondition): void => {
+    if (condition.kind === "liveWall") return
+    if (condition.kind !== "trigger") {
+      condition.children.forEach(triggersOf)
+      return
+    }
+    checkFilters(condition.filters ?? [])
+  }
   for (const rule of rules) triggersOf(rule.condition)
+  // v1 cap: one distinct higher timeframe per graph keeps live subscriptions
+  // and backtest data volume sane.
+  const timeframeNodes = nodes.filter(
+    (node): node is AutomationTimeframeNode => node.kind === "timeframe"
+  )
+  const distinctHtf = [...new Set(timeframeNodes.map((node) => node.interval))]
+  if (distinctHtf.length > 1) {
+    addError({
+      code: "invalid_timeframe",
+      nodeId: timeframeNodes[timeframeNodes.length - 1].id,
+      message: `An automation can watch at most one higher timeframe — this graph mixes ${distinctHtf.join(" and ")}.`,
+    })
+  }
   if (errors.length > 0) return { config: null, errors }
 
   return {
@@ -980,6 +2066,8 @@ export function compileAutomationGraph(input: {
       interval: input.interval,
       rules,
       protection,
+      ...(marketScanner ? { marketScanner } : {}),
+      ...(dca ? { dca } : {}),
     },
     errors: [],
   }
@@ -1000,11 +2088,23 @@ export function automationCapabilities(config: AutomationConfig): {
 }
 
 /**
- * Latched trend per filter node id: the side of its most recent signal and
+ * Latched trend per filter state key: the side of its most recent signal and
  * how many candles ago it fired (0 = this candle).
  */
 export type AutomationFilterLatch = { side: "buy" | "sell"; age: number }
 export type AutomationFilterState = ReadonlyMap<string, AutomationFilterLatch>
+
+/**
+ * The latch-map key for a filter. One node can gate on the bot timeframe AND
+ * on a higher one (e.g. its Bullish fires entries while its Trend feeds a
+ * Timeframe node), so the clock is part of the identity — the evaluator and
+ * the resolver must build keys the same way.
+ */
+export function automationFilterStateKey(
+  filter: Pick<AutomationFilter, "nodeId" | "interval">
+): string {
+  return filter.interval ? `${filter.nodeId}@${filter.interval}` : filter.nodeId
+}
 
 const NO_FILTER_STATE: AutomationFilterState = new Map()
 
@@ -1018,7 +2118,7 @@ function conditionMatches(
     return (
       fired.has(`${condition.nodeId}:${condition.side}`) &&
       (condition.filters ?? []).every((filter) => {
-        const latch = filterState.get(filter.nodeId)
+        const latch = filterState.get(automationFilterStateKey(filter))
         return (
           latch !== undefined &&
           latch.side === condition.side &&

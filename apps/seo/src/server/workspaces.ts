@@ -3,9 +3,10 @@ import { and, asc, eq } from "drizzle-orm"
 import {
   createDefaultTopRightNavigation,
   iconMeta,
+  normalizeStyling,
   type IconKey,
   type ShellSection,
-  type ShellTopNavigationItem,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 import {
@@ -27,9 +28,10 @@ export type WorkspaceSettings = {
   favicon: string
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -322,15 +324,13 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.sidebarWidth === "number"
           ? clampSidebarWidth(settings.sidebarWidth)
           : fallback.sidebarWidth,
-      topNavigation: Array.isArray(settings.topNavigation)
-        ? settings.topNavigation
-        : fallback.topNavigation,
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
       sections: Array.isArray(settings.sections)
         ? settings.sections
         : fallback.sections,
+      styling: normalizeStyling(settings.styling),
     }
   }
 
@@ -351,15 +351,13 @@ function cleanWorkspaceSettings(
       typeof settings.sidebarWidth === "number"
         ? clampSidebarWidth(settings.sidebarWidth)
         : fallback.sidebarWidth,
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    styling: normalizeStyling(settings.styling),
   }
 }
 
@@ -368,9 +366,9 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    styling: normalizeStyling(undefined),
   }
 }
 
@@ -384,7 +382,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           type: "item",
           id: "item-overview",
           label: "Overview",
-          href: "/",
+          href: "/overview",
           icon: "layoutDashboard",
           visible: true,
         },

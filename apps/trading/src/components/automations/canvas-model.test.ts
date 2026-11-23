@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import type { AutomationNode } from "@/lib/automations/automation"
+import {
+  DEFAULT_MARKET_SCANNER_SETTINGS,
+} from "@/lib/automations/dca-ladder"
 
 import {
+  canConnectNodes,
   edgePath,
   fitViewport,
   flowBounds,
@@ -20,6 +24,15 @@ const indicator: AutomationNode = {
   x: 100,
   y: 50,
   indicator: { type: "ema_cross", params: { fast: 20, slow: 50 } },
+}
+
+const longNode: AutomationNode = {
+  id: "long",
+  kind: "action",
+  action: "buy",
+  targetEquityPct: 10,
+  x: 0,
+  y: 0,
 }
 
 describe("Automation canvas model", () => {
@@ -60,6 +73,15 @@ describe("Automation canvas model", () => {
       { id: "bidWall", label: "Bid Wall" },
       { id: "askWall", label: "Ask Wall" },
     ])
+    expect(
+      nodeOutputPorts({
+        id: "scanner",
+        kind: "marketScanner",
+        ...DEFAULT_MARKET_SCANNER_SETTINGS,
+        x: 0,
+        y: 0,
+      })
+    ).toEqual([{ id: "markets", label: "Markets" }])
   })
 
   it("anchors named outputs and inputs to the node edges", () => {
@@ -67,6 +89,38 @@ describe("Automation canvas model", () => {
     expect(portOut(indicator, "trend")).toEqual({ x: 380, y: 94 })
     expect(portOut(indicator, "bearish")).toEqual({ x: 380, y: 114 })
     expect(portIn(indicator)).toEqual({ x: 100, y: 94 })
+  })
+
+  const dcaNode = {
+    id: "dca",
+    kind: "dca",
+    rungs: [{ deviation: 5 }],
+    maxPositionPct: 25,
+    sizeMultiplier: 2,
+    compound: true,
+    rungEntry: "market",
+    requireTwoGreen: false,
+    trendFilterEnabled: false,
+    trendMaBars: 200,
+    exitOnTrendBreak: false,
+    x: 0,
+    y: 0,
+  } satisfies AutomationNode
+
+  it("allows a Trend input into the DCA ladder", () => {
+    expect(canConnectNodes(indicator, "trend", dcaNode)).toBe(true)
+  })
+
+  it("connects Market Scanner only to the DCA ladder", () => {
+    const scanner = {
+      id: "scanner",
+      kind: "marketScanner",
+      ...DEFAULT_MARKET_SCANNER_SETTINGS,
+      x: 0,
+      y: 0,
+    } satisfies AutomationNode
+    expect(canConnectNodes(scanner, "markets", dcaNode)).toBe(true)
+    expect(canConnectNodes(scanner, "markets", longNode)).toBe(false)
   })
 
   it("builds a curved path and fits nodes from the top-left at 90% zoom", () => {

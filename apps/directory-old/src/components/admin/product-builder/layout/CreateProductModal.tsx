@@ -1,0 +1,418 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from "@/components/ui/field"
+import { FeaturedImageField } from "@/components/admin/layout/dashboard/content-modal-shared"
+import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
+import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.js"
+import Loader2 from "lucide-react/dist/esm/icons/loader-circle.js"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { getProductTemplatesBySite } from "@/lib/actions/products/product-template-actions"
+import { parseProductBlocksFromJson, productBlocksToJson } from "@/components/admin/product-builder/config/product-block-utils"
+import { generateSlug } from "@/lib/utils/slug"
+import type { Product } from "@/lib/actions/products/product-actions"
+import type { ProductTemplate } from "@/lib/actions/products/product-template-actions"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+
+interface CreateProductData {
+  title: string
+  slug?: string
+  meta_description?: string
+  is_published: boolean
+}
+
+interface CreateProductModalProps {
+  onSuccess: (product: Product, continueToBuilder?: boolean) => void
+  onCancel: () => void
+}
+
+export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalProps) {
+  const { currentSite } = useSiteSwitcher()
+  const [formData, setFormData] = useState<CreateProductData>({
+    title: '',
+    slug: '',
+    meta_description: '',
+    is_published: false
+  })
+  const [isPrivate, setIsPrivate] = useState(false)
+  const [featuredImage, setFeaturedImage] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [loadingAction, setLoadingAction] = useState<"draft" | "continue" | "publish" | null>(null)
+  const [titleMissing, setTitleMissing] = useState(false)
+  // Marked until the box has something in it, so it is still flagged once the
+  // toast has been dismissed and clears itself as soon as the user types.
+  const titleInvalid = titleMissing && !formData.title?.trim()
+  // Failures report through the one shared error toast, never inside the modal
+  // body — see workspace/docs/admin-action-feedback.md.
+  const setError = (message: string | null) => {
+    if (message) showErrorToast(message)
+    else dismissErrorToast()
+  }
+  const [slugWarning, setSlugWarning] = useState<string | null>(null)
+  const [checkingSlug] = useState(false)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+  const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
+  const [templates, setTemplates] = useState<ProductTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(true)
+  const [selectedTemplateId, setSelectedTemplateId] = useState("blank")
+
+  // Handle title change and auto-generate slug if slug hasn't been manually edited
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
+
+  const handleTitleChange = (title: string) => {
+    setFormData(prev => ({
+      ...prev,
+      title,
+      slug: slugManuallyEdited ? prev.slug : generateSlug(title)
+    }))
+  }
+
+  // Handle manual slug changes
+  const handleSlugChange = (slug: string) => {
+    if (slug === '') {
+      // If user clears the field, reset to auto-generation
+      setSlugManuallyEdited(false)
+      setFormData(prev => ({ ...prev, slug: generateSlug(prev.title || '') }))
+    } else {
+      setSlugManuallyEdited(true)
+      setFormData(prev => ({ ...prev, slug }))
+    }
+  }
+
+  // Debounced slug conflict checking
+  useEffect(() => {
+    const checkSlugConflict = async () => {
+      const slug = formData.slug?.trim()
+      if (!slug || slug.length < 2 || !currentSite?.id) {
+        setSlugWarning(null)
+        return
+      }
+
+      // Skip client-side slug checking - server will handle validation
+    }
+
+    const timeoutId = setTimeout(checkSlugConflict, 500) // 500ms debounce
+    return () => clearTimeout(timeoutId)
+  }, [formData.slug, currentSite?.id])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadTemplates() {
+      if (!currentSite?.id) {
+        setTemplates([])
+        setTemplatesLoading(false)
+        return
+      }
+
+      setTemplatesLoading(true)
+      const { data } = await getProductTemplatesBySite({ data: { siteId: currentSite.id } })
+
+      if (!cancelled) {
+        const loaded = data || []
+        setTemplates(loaded)
+        const defaultTemplate = loaded.find((template) => template.is_default)
+        setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : "blank")
+        setTemplatesLoading(false)
+      }
+    }
+
+    loadTemplates()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentSite?.id])
+
+  // Handle saving as draft, optionally signaling redirect to builder
+  const handleSave = async (continueToBuilder = false, publishNow = false) => {
+    if (!formData.title.trim()) {
+      setTitleMissing(true)
+      setError('Product title is required')
+      return
+    }
+
+    if (!currentSite?.id) {
+      setError('No site selected')
+      return
+    }
+
+    try {
+      setTitleMissing(false)
+      setLoading(true)
+      setLoadingAction(publishNow ? "publish" : continueToBuilder ? "continue" : "draft")
+      setError(null)
+
+      const selectedTemplate = selectedTemplateId !== "blank"
+        ? templates.find((template) => template.id === selectedTemplateId)
+        : null
+      const templateContentBlocks = selectedTemplate?.content_blocks && typeof selectedTemplate.content_blocks === "object"
+        ? JSON.parse(JSON.stringify(selectedTemplate.content_blocks))
+        : {}
+      const sanitizedTemplateContentBlocks = selectedTemplate
+        ? productBlocksToJson(parseProductBlocksFromJson(templateContentBlocks), templateContentBlocks)
+        : {}
+
+      const draftData = {
+        ...formData,
+        site_id: currentSite.id,
+        is_published: publishNow,
+        featured_image: featuredImage || null,
+        meta_description: formData.meta_description?.trim() || null,
+        content_blocks: {
+          ...sanitizedTemplateContentBlocks,
+          _settings: {
+            ...(sanitizedTemplateContentBlocks._settings || {}),
+            is_private: isPrivate,
+          }
+        }
+      }
+
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draftData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Failed to create product')
+        return
+      }
+
+      if (result.data) {
+        if (selectedCategoryIds.length > 0) {
+          const categoryResult = await bulkAssignCategoriesToContentAction({ data: { contentId: result.data.id, contentType: 'product', categoryIds: selectedCategoryIds, primaryCategoryId: primaryCategoryId } })
+          if (!categoryResult.success) {
+            setError(categoryResult.error || 'Failed to save categories')
+            return
+          }
+        }
+        onSuccess(result.data, continueToBuilder)
+      }
+    } catch (err) {
+      console.error('Error saving product:', err)
+      setError(`Failed to save product: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setLoading(false)
+      setLoadingAction(null)
+    }
+  }
+
+  // Handle form submission (default to save as draft)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await handleSave(false)
+  }
+
+  return (
+      <DashboardModalContent
+        busy={loading}
+        title="Create New Product"
+        description="Add a new product to your catalog. You can customize the content after creation."
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <DashboardModalFooterActions>
+              <Button
+                form="create-product-form"
+                type="submit"
+                variant="outline"
+                disabled={loading}
+              >
+                {loadingAction === 'draft' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Save as Draft
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleSave(true)}
+                disabled={loading}
+              >
+                {loadingAction === 'continue' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Continue
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleSave(false, true)}
+                disabled={loading}
+              >
+                {loadingAction === 'publish' ? <Loader2 className="size-4 animate-spin" /> : null}
+                Publish
+              </Button>
+            </DashboardModalFooterActions>
+          </>
+        }
+      >
+        <form
+          noValidate id="create-product-form" onSubmit={handleSubmit} className="contents">
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader>
+              <DashboardModalCardTitle>Product setup</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent>
+              <Field>
+                <FieldLabel htmlFor="template">Start from Template</FieldLabel>
+                {templatesLoading ? (
+                  <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
+                    <ChevronDown className="size-4 opacity-50" />
+                  </div>
+                ) : (
+                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                    <SelectTrigger id="template">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent className="z-60">
+                      <SelectItem value="blank">Blank</SelectItem>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="title">Product Title *</FieldLabel>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  placeholder="Enter product title"
+                  aria-invalid={titleInvalid || undefined}
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="slug">Product URL</FieldLabel>
+                <Input
+                  id="slug"
+                  value={formData.slug}
+                  onChange={(e) => handleSlugChange(e.target.value)}
+                  placeholder="product-url-slug"
+                />
+                <FieldDescription>
+                  {slugManuallyEdited
+                    ? "Custom URL slug. Clear this field to auto-generate from title again."
+                    : "Auto-generated from title. You can edit this to customize the URL."}
+                </FieldDescription>
+                {formData.slug && (
+                  <FieldDescription className="text-blue-600">
+                    Product URL: /products/{formData.slug}
+                  </FieldDescription>
+                )}
+                {checkingSlug && (
+                  <FieldDescription className="text-blue-600">
+                    Checking slug availability...
+                  </FieldDescription>
+                )}
+                {slugWarning && (
+                  <FieldDescription className="text-amber-600">
+                    {slugWarning}
+                  </FieldDescription>
+                )}
+              </Field>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <DashboardModalCardTitle>Image</DashboardModalCardTitle>
+            </CardHeader>
+              <CardContent>
+                <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />
+              </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <DashboardModalCardTitle>Settings</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent>
+              <Field>
+                <FieldLabel>Privacy Settings</FieldLabel>
+                <Field orientation="horizontal" className="items-start gap-3">
+                  <Checkbox
+                    id="is_private"
+                    checked={isPrivate}
+                    onCheckedChange={(checked) => setIsPrivate(!!checked)}
+                  />
+                  <FieldContent>
+                    <FieldLabel htmlFor="is_private" className="font-normal">
+                      Private
+                    </FieldLabel>
+                    <FieldDescription>
+                      Accessible only by direct URL and hidden from product listings.
+                    </FieldDescription>
+                  </FieldContent>
+                </Field>
+              </Field>
+
+              {currentSite?.id && (
+                <Field>
+                  <CategoryPicker
+                    siteId={currentSite.id}
+                    selectedCategoryIds={selectedCategoryIds}
+                    onSelectionChange={setSelectedCategoryIds}
+                    primaryCategoryId={primaryCategoryId}
+                    onPrimaryCategoryChange={setPrimaryCategoryId}
+                    variant="combobox"
+                  />
+                  <FieldDescription>Assign this product to one or more categories.</FieldDescription>
+                </Field>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent>
+              <Field>
+                <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
+                <Textarea
+                  id="meta_description"
+                  value={formData.meta_description || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
+                  placeholder="SEO meta description"
+                  rows={1}
+                  className="min-h-10 field-sizing-content"
+                />
+                <FieldDescription>
+                  Used for SEO. Keep it under 160 characters. Currently: {(formData.meta_description || '').length}/160
+                </FieldDescription>
+              </Field>
+            </CardContent>
+          </Card>
+        </CardGroup>
+        </form>
+      </DashboardModalContent>
+  )
+}

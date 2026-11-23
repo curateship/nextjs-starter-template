@@ -11,6 +11,7 @@ const { WorkerHeartbeat } = await import("./heartbeat")
 const { acquireLeadership } = await import("./leadership")
 const { MarketScannerSupervisor } = await import("./market-scanner")
 const { WorkerRuntimeController } = await import("./runtime-control")
+const { WorkerWatchdog } = await import("./watchdog")
 
 const workerId = randomUUID()
 let role: "leader" | "standby" = "standby"
@@ -18,11 +19,12 @@ const runtime = new WorkerRuntimeController(
   "market-scanner",
   () => new MarketScannerSupervisor()
 )
+const watchdog = new WorkerWatchdog("market-scanner")
 const heartbeat = new WorkerHeartbeat(
   workerId,
   "market-scanner",
   "market-scanner-1",
-  () => ({ role, ...runtime.meta() })
+  () => ({ role, ...runtime.meta(), ...watchdog.meta() })
 )
 
 console.log(`market scanner worker ${workerId} starting`)
@@ -31,6 +33,7 @@ const leadershipConnection = await acquireLeadership("market-scanner")
 role = "leader"
 console.log("market scanner worker: leader lock acquired")
 await runtime.start()
+watchdog.start()
 console.log("market scanner worker ready")
 
 let shuttingDown = false
@@ -39,6 +42,7 @@ async function shutdown(signal: string) {
   shuttingDown = true
   console.log(`market scanner received ${signal}, shutting down`)
   heartbeat.stop()
+  watchdog.stop()
   try {
     await runtime.stop()
   } catch (error) {

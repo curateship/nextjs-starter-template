@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deploy App"
+  short_description: "Deploy an app to Coolify, or launch a new one"
+  default_prompt: "Use $deploy-app to deploy this app to Coolify."

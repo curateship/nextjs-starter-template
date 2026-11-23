@@ -2,12 +2,15 @@ import { randomBytes } from "node:crypto"
 
 import { and, count, desc, eq, inArray, sql, sum } from "drizzle-orm"
 
+import { dcaHistoryBars } from "@/lib/automations/automation"
+import { PREVIOUS_RUN_NAME_PREFIX } from "@/lib/backtest/types"
 import {
   automationConfigSchema,
   type AutomationConfig,
 } from "@/lib/strategies/strategy-config"
+import { MAX_SHARED_WALLET_HISTORY_BARS } from "@/lib/automations/dca-ladder"
 import { db, type CustomShellDb } from "@/server/db"
-import { getAssetInfo } from "@/server/hyperliquid/info"
+import { getActivePerpMarkets } from "@/server/hyperliquid/info"
 import type { TradingNetwork } from "@/server/hyperliquid/types"
 import {
   tradingBotCommands,
@@ -34,18 +37,47 @@ export type CreateBotInput = {
 }
 
 export type BotCommandName =
-  | "start"
-  | "stop"
-  | "pause"
-  | "resume"
-  | "flatten"
-  | "update_params"
+  "start" | "stop" | "pause" | "resume" | "flatten" | "update_params"
 
 const MANUAL_PREFIX = "ffffffff"
 const RUNNABLE_BOT_TYPES = new Set(["automation"])
 
 function isRunnableBotType(type: string): type is "automation" {
   return RUNNABLE_BOT_TYPES.has(type)
+}
+
+async function validateMarkets(network: TradingNetwork, markets: string[]) {
+  const active = new Set(
+    (await getActivePerpMarkets(network)).map((market) => market.coin)
+  )
+  for (const market of markets) {
+    if (!active.has(market)) {
+      throw new Error(`Unknown Hyperliquid market: ${market}`)
+    }
+  }
+}
+
+function validateBotMarketCount(params: AutomationConfig, marketCount: number) {
+  if (marketCount === 0) throw new Error("Pick at least one market.")
+  // A DCA ladder runs one shared wallet with a real history-size ceiling; every
+  // other strategy runs one independent runner per market and isn't capped.
+  if (params.dca && marketCount > 200) {
+    throw new Error("Pick no more than 200 markets.")
+  }
+  validateSharedWalletSize(params, marketCount)
+}
+
+function validateSharedWalletSize(
+  params: AutomationConfig,
+  marketCount: number
+) {
+  if (!params.dca) return
+  const historyBars = Math.max(0, marketCount) * dcaHistoryBars(params.dca)
+  if (historyBars > MAX_SHARED_WALLET_HISTORY_BARS) {
+    throw new Error(
+      `This bot needs about ${historyBars.toLocaleString()} history candles across its markets. Use fewer markets, less history, or a coarser timeframe.`
+    )
+  }
 }
 
 export async function listUserBots(
@@ -65,6 +97,79 @@ export async function listUserBots(
     .where(eq(tradingBots.userId, userId))
     .orderBy(desc(tradingBots.createdAt))
   return rows
+}
+
+/**
+ * Per-market runtime rows for every bot the user owns, aggregated into the
+ * run list. Both modes persist positions: paper brokers via their account
+ * snapshot, live brokers via their exchange-refreshed position state.
+ */
+export async function listUserBotStates(
+  userId: string,
+  database: CustomShellDb = db
+) {
+  return database
+    .select({
+      botId: tradingBotState.botId,
+      market: tradingBotState.market,
+      paperPosition: tradingBotState.paperPosition,
+      dailyRealizedPnl: tradingBotState.dailyRealizedPnl,
+      dailyPnlDate: tradingBotState.dailyPnlDate,
+    })
+    .from(tradingBotState)
+    .innerJoin(tradingBots, eq(tradingBotState.botId, tradingBots.id))
+    .where(eq(tradingBots.userId, userId))
+}
+
+/**
+ * Newest events across every bot the user owns, joined to the bot's name —
+ * the /bots activity feed.
+ */
+export async function listUserBotEvents(
+  userId: string,
+  database: CustomShellDb = db,
+  limit = 100
+) {
+  return database
+    .select({
+      id: tradingBotEvents.id,
+      botId: tradingBotEvents.botId,
+      botName: tradingBots.name,
+      level: tradingBotEvents.level,
+      type: tradingBotEvents.type,
+      message: tradingBotEvents.message,
+      createdAt: tradingBotEvents.createdAt,
+    })
+    .from(tradingBotEvents)
+    .innerJoin(tradingBots, eq(tradingBotEvents.botId, tradingBots.id))
+    .where(eq(tradingBots.userId, userId))
+    .orderBy(desc(tradingBotEvents.createdAt))
+    .limit(limit)
+}
+
+/**
+ * The automation's CURRENT run — its latest unnamed ("Previous run …") bot.
+ * Named runs are history (they live on /bots), so the editor's Bot mode never
+ * resumes one; naming the current run empties this slot.
+ */
+export async function getAutomationBotId(
+  userId: string,
+  automationId: string,
+  database: CustomShellDb = db
+): Promise<string | null> {
+  const [row] = await database
+    .select({ id: tradingBots.id })
+    .from(tradingBots)
+    .where(
+      and(
+        eq(tradingBots.userId, userId),
+        eq(tradingBots.automationId, automationId),
+        sql`${tradingBots.name} like ${`${PREVIOUS_RUN_NAME_PREFIX} ·%`}`
+      )
+    )
+    .orderBy(desc(tradingBots.createdAt))
+    .limit(1)
+  return row?.id ?? null
 }
 
 export async function getUserBot(
@@ -99,12 +204,26 @@ export async function getBotDetail(
     .from(tradingBotState)
     .where(eq(tradingBotState.botId, botId))
 
-  const trades = await database
+  const tradeRows = await database
     .select()
     .from(tradingBotTrades)
     .where(eq(tradingBotTrades.botId, botId))
     .orderBy(desc(tradingBotTrades.fillTime))
     .limit(200)
+
+  // The limit price each fill's order was resting at, for the slippage column
+  // (fill px vs intended px). Keyed by cloid — the one id both rows share.
+  const orderPxRows = await database
+    .select({ cloid: tradingBotOrders.cloid, px: tradingBotOrders.px })
+    .from(tradingBotOrders)
+    .where(eq(tradingBotOrders.botId, botId))
+  const orderPxByCloid = new Map(
+    orderPxRows.map((row) => [row.cloid, row.px])
+  )
+  const trades = tradeRows.map((trade) => ({
+    ...trade,
+    orderPx: trade.cloid ? (orderPxByCloid.get(trade.cloid) ?? null) : null,
+  }))
 
   const openOrders = await database
     .select()
@@ -143,11 +262,26 @@ export async function getBotDetail(
     .where(eq(tradingBotTrades.botId, botId))
 
   let sourceName: string | null = null
+  let settingsBehind = false
   if (bot.automationId) {
     const { getUserAutomation } = await import("@/server/automations")
-    sourceName =
-      (await getUserAutomation(userId, bot.automationId, database))?.name ??
-      null
+    const automation = await getUserAutomation(
+      userId,
+      bot.automationId,
+      database
+    )
+    sourceName = automation?.name ?? null
+    // Saving the canvas never touches a deployed run, so the run drifts
+    // behind its automation. Surfaced on the bot page as the "settings
+    // changed" notice; the admin applies by hand (pause → apply → resume).
+    const compiled = automationConfigSchema.safeParse(
+      automation?.compiledConfig
+    )
+    settingsBehind =
+      compiled.success &&
+      bot.desiredState !== "stopped" &&
+      isRunnableBotType(bot.strategyType) &&
+      stableStringify(bot.params) !== stableStringify(compiled.data)
   }
 
   return {
@@ -159,114 +293,8 @@ export async function getBotDetail(
     events,
     aggregates,
     sourceName,
+    settingsBehind,
   }
-}
-
-export type UpdateBotInput = {
-  name: string
-  markets: string[]
-  params: AutomationConfig
-}
-
-/**
- * Edits a bot's name, markets, params, and risk. Strategy, wallet, and mode are
- * fixed at creation. Markets can change: added markets get a fresh state row and
- * a runner on restart; removed markets have their state dropped and (by the
- * worker) their position closed. A running bot is restarted by the worker via
- * the update_params command, keeping surviving positions and re-deriving orders.
- */
-export async function updateUserBot(
-  userId: string,
-  botId: string,
-  input: UpdateBotInput,
-  database: CustomShellDb = db
-): Promise<TradingBot> {
-  const bot = await getUserBot(userId, botId, database)
-  if (!bot) throw new Error("Bot not found")
-
-  const name = input.name.trim()
-  if (!name) throw new Error("Bot name is required")
-
-  // Archived legacy bots are read-only history — fail fast, no dual path.
-  if (!isRunnableBotType(bot.strategyType)) {
-    throw new Error(
-      "This bot uses a retired strategy and is archived — it can't be edited."
-    )
-  }
-  const requestedParams = automationConfigSchema.parse(input.params)
-  if (requestedParams.kind !== bot.strategyType) {
-    throw new Error("A bot's Automation source cannot be changed.")
-  }
-
-  const stored = automationConfigSchema.safeParse(bot.params)
-  if (!stored.success) {
-    throw new Error("This Automation bot has an invalid saved configuration.")
-  }
-  // The graph snapshot is immutable on a bot. Only its protective levels are
-  // editable here; replacement rules must come from a newly created bot.
-  const params: AutomationConfig = {
-    ...stored.data,
-    protection: requestedParams.protection,
-  }
-
-  const markets = [
-    ...new Set(input.markets.map((m) => m.trim()).filter(Boolean)),
-  ]
-  if (markets.length === 0) throw new Error("Pick at least one market")
-  if (bot.strategyType === "automation" && markets.length !== 1) {
-    throw new Error("Automation bots can trade exactly one market.")
-  }
-
-  // Validate each market on the wallet's network (rejects typos / delisted).
-  const wallet = await findUserWallet(userId, bot.walletId, database)
-  if (!wallet) throw new Error("Wallet not found")
-  for (const market of markets) {
-    await getAssetInfo(wallet.network as TradingNetwork, market)
-  }
-
-  const current = new Set(bot.markets)
-  const next = new Set(markets)
-  const added = markets.filter((market) => !current.has(market))
-  const removed = bot.markets.filter((market) => !next.has(market))
-
-  const [updated] = await database
-    .update(tradingBots)
-    .set({
-      name: name.slice(0, 255),
-      markets,
-      params,
-      updatedAt: now(),
-    })
-    .where(eq(tradingBots.id, botId))
-    .returning()
-  if (!updated) throw new Error("Bot was not updated")
-
-  if (added.length > 0) {
-    await database
-      .insert(tradingBotState)
-      .values(
-        added.map((market) => ({
-          botId,
-          market,
-          strategyState: {},
-          updatedAt: now(),
-        }))
-      )
-      .onConflictDoNothing()
-  }
-  if (removed.length > 0) {
-    await database
-      .delete(tradingBotState)
-      .where(
-        and(
-          eq(tradingBotState.botId, botId),
-          inArray(tradingBotState.market, removed)
-        )
-      )
-  }
-
-  await enqueueCommand(database, botId, "update_params", userId)
-  return updated
 }
 
 export async function createUserBot(
@@ -309,61 +337,60 @@ export async function createUserBot(
   const automationId = owned.id
 
   // Dedupe while preserving order; a bot needs at least one market.
-  const markets = [
+  const requestedMarkets = [
     ...new Set(input.markets.map((m) => m.trim()).filter(Boolean)),
   ]
-  if (markets.length === 0) throw new Error("Pick at least one market")
-  if (markets.length !== 1) {
-    throw new Error("Automation bots can trade exactly one market.")
-  }
+  const markets = requestedMarkets
+  validateBotMarketCount(params, markets.length)
 
   // Validates each market exists on the wallet's network.
-  for (const market of markets) {
-    await getAssetInfo(wallet.network as TradingNetwork, market)
-  }
+  await validateMarkets(wallet.network as TradingNetwork, markets)
 
   const createdAt = now()
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const cloidPrefix = randomBytes(4).toString("hex")
     if (cloidPrefix === MANUAL_PREFIX) continue
     try {
-      const [bot] = await database
-        .insert(tradingBots)
-        .values({
-          id: uuid(),
-          userId,
-          name: name.slice(0, 255),
-          strategyType: params.kind,
-          automationId,
-          walletId: wallet.id,
-          markets,
-          exchange: input.exchange || "hyperliquid",
-          mode: input.mode,
-          desiredState: "stopped",
-          status: "stopped",
-          params,
-          riskParams: {},
-          cloidPrefix,
-          paperStartingEquity:
-            input.mode === "paper"
-              ? String(input.paperStartingEquity ?? 10_000)
-              : null,
-          createdAt,
-          updatedAt: createdAt,
-        })
-        .returning()
-      if (!bot) throw new Error("Bot was not created")
+      return await database.transaction(async (tx) => {
+        const [bot] = await tx
+          .insert(tradingBots)
+          .values({
+            id: uuid(),
+            userId,
+            name: name.slice(0, 255),
+            strategyType: params.kind,
+            automationId,
+            walletId: wallet.id,
+            markets,
+            exchange: input.exchange || "hyperliquid",
+            mode: input.mode,
+            desiredState: "stopped",
+            status: "stopped",
+            params,
+            riskParams: {},
+            cloidPrefix,
+            paperStartingEquity:
+              input.mode === "paper"
+                ? String(input.paperStartingEquity ?? 10_000)
+                : null,
+            createdAt,
+            updatedAt: createdAt,
+          })
+          .returning()
+        if (!bot) throw new Error("Bot was not created")
 
-      // One runtime-state row per market — each market trades independently.
-      await database.insert(tradingBotState).values(
-        markets.map((market) => ({
-          botId: bot.id,
-          market,
-          strategyState: {},
-          updatedAt: createdAt,
-        }))
-      )
-      return bot
+        // Keep the bot and every per-market state row atomic: either all
+        // selected markets are runnable or no partial bot is saved.
+        await tx.insert(tradingBotState).values(
+          markets.map((market) => ({
+            botId: bot.id,
+            market,
+            strategyState: {},
+            updatedAt: createdAt,
+          }))
+        )
+        return bot
+      })
     } catch (error) {
       if (isUniqueViolation(error)) continue
       throw error
@@ -386,6 +413,249 @@ export async function deleteUserBot(
   }
   await database.delete(tradingBots).where(eq(tradingBots.id, botId))
   return { botId }
+}
+
+export type DeployBotInput = {
+  automationId: string
+  markets: string[]
+  walletId: string
+  mode: "paper" | "live"
+  paperStartingEquity?: number
+}
+
+/**
+ * Retires the automation's replaceable bot runs — unnamed ("Previous run …")
+ * bots, mirroring the backtest's save-override lifecycle. Stopped ones are
+ * deleted outright; running ones are flattened + stopped now and deleted by a
+ * later deploy once the worker has wound them down (deleting a live row out
+ * from under its runners would orphan them, so teardown is two-phase).
+ */
+async function retireReplaceableAutomationBots(
+  userId: string,
+  automationId: string,
+  database: CustomShellDb = db
+) {
+  const priors = await database
+    .select()
+    .from(tradingBots)
+    .where(
+      and(
+        eq(tradingBots.userId, userId),
+        eq(tradingBots.automationId, automationId),
+        sql`${tradingBots.name} like ${`${PREVIOUS_RUN_NAME_PREFIX} ·%`}`
+      )
+    )
+  for (const prior of priors) {
+    const settled =
+      ["stopped", "killed", "error"].includes(prior.status) &&
+      prior.desiredState === "stopped"
+    if (settled) {
+      await deleteUserBot(userId, prior.id, database)
+    } else {
+      // Close any open position, then stop — the next deploy deletes the row.
+      await sendBotCommand(userId, prior.id, "flatten", database)
+      await sendBotCommand(userId, prior.id, "stop", database)
+    }
+  }
+}
+
+/**
+ * Deploys an automation as a live run — the editor's Bot mode. The new bot is
+ * auto-named "Previous run · …" so the next deploy replaces it unless the
+ * user names it (renameUserBot). Config is the automation's server-compiled
+ * snapshot (createUserBot), kept in sync on every automation save.
+ */
+export async function deployAutomationBot(
+  userId: string,
+  input: DeployBotInput,
+  database: CustomShellDb = db
+): Promise<{ botId: string }> {
+  const { getUserAutomation } = await import("@/server/automations")
+  const automation = await getUserAutomation(
+    userId,
+    input.automationId,
+    database
+  )
+  if (!automation) throw new Error("Automation not found")
+
+  await retireReplaceableAutomationBots(userId, input.automationId, database)
+
+  const markets = [
+    ...new Set(input.markets.map((market) => market.trim()).filter(Boolean)),
+  ]
+  const name =
+    `${PREVIOUS_RUN_NAME_PREFIX} · ${automation.name} · ${markets.join(", ")}`.slice(
+      0,
+      255
+    )
+  const bot = await createUserBot(
+    userId,
+    {
+      name,
+      walletId: input.walletId,
+      markets,
+      exchange: "hyperliquid",
+      mode: input.mode,
+      automationId: input.automationId,
+      paperStartingEquity: input.paperStartingEquity,
+    },
+    database
+  )
+  await sendBotCommand(userId, bot.id, "start", database)
+  return { botId: bot.id }
+}
+
+/** Key-sorted JSON so a fresh compile and a pg jsonb round-trip compare equal. */
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`)
+    return `{${entries.join(",")}}`
+  }
+  return JSON.stringify(value) ?? "null"
+}
+
+/**
+ * Hand-applies the automation's current compiled config to one of its bots.
+ * Saving the canvas never touches a deployed run — the run keeps trading on
+ * the settings it started with, and the bot page shows a "settings changed"
+ * notice instead. The admin's flow is pause → apply (this) → resume: the
+ * update_params command tears the paused runners down, and resume respawns
+ * them from the fresh params with their saved per-market state intact.
+ */
+export async function applyAutomationSettings(
+  userId: string,
+  botId: string,
+  database: CustomShellDb = db
+) {
+  const bot = await getUserBot(userId, botId, database)
+  if (!bot) throw new Error("Bot not found")
+  if (!isRunnableBotType(bot.strategyType)) {
+    throw new Error(
+      "This bot uses a retired strategy and is archived. Its settings can't be changed."
+    )
+  }
+  if (!bot.automationId) {
+    throw new Error("This bot has no source automation to pull settings from.")
+  }
+  if (bot.desiredState === "stopped") {
+    throw new Error("This run is stopped and filed — deploy a new bot instead.")
+  }
+  if (bot.desiredState !== "paused") {
+    throw new Error("Pause the bot first, then apply the new settings.")
+  }
+
+  const { getUserAutomation } = await import("@/server/automations")
+  const automation = await getUserAutomation(userId, bot.automationId, database)
+  if (!automation) throw new Error("Automation not found")
+  const compiled = automationConfigSchema.safeParse(automation.compiledConfig)
+  if (!compiled.success) {
+    throw new Error(
+      "The automation doesn't compile to a runnable strategy right now — fix it in the editor first."
+    )
+  }
+  validateBotMarketCount(compiled.data, bot.markets.length)
+
+  if (stableStringify(bot.params) === stableStringify(compiled.data)) return
+  await database
+    .update(tradingBots)
+    .set({ params: compiled.data, updatedAt: now() })
+    .where(eq(tradingBots.id, bot.id))
+  await enqueueCommand(database, bot.id, "update_params", userId)
+}
+
+/**
+ * Keeps a bot run — exactly the backtest's "name this run to keep it": the
+ * run is FINISHED and filed under its name. Finishing a live run means
+ * closing its position and stopping it (flatten + stop through the worker's
+ * normal command path); the renamed row then freezes as the permanent record
+ * the next deploy won't touch.
+ */
+export async function renameUserBot(
+  userId: string,
+  botId: string,
+  name: string,
+  database: CustomShellDb = db
+) {
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error("Name is required")
+  const bot = await getUserBot(userId, botId, database)
+  if (!bot) throw new Error("Bot not found")
+  await database
+    .update(tradingBots)
+    .set({ name: trimmed.slice(0, 255), updatedAt: now() })
+    .where(eq(tradingBots.id, botId))
+  const settled =
+    ["stopped", "killed", "error"].includes(bot.status) &&
+    bot.desiredState === "stopped"
+  if (!settled) {
+    await sendBotCommand(userId, botId, "flatten", database)
+    await sendBotCommand(userId, botId, "stop", database)
+  }
+}
+
+/**
+ * Edits which markets a run trades. The list is validated like a deploy
+ * (network + count caps), saved, and the worker converges through the
+ * normal update_params path: runners for removed markets flatten ("Market
+ * removed from bot") and stop; added markets get fresh runners. State rows
+ * for removed markets are kept — the flatten clears their positions, and
+ * re-adding the market later resumes from its saved state.
+ */
+export async function updateBotMarkets(
+  userId: string,
+  botId: string,
+  requested: string[],
+  database: CustomShellDb = db
+) {
+  const bot = await getUserBot(userId, botId, database)
+  if (!bot) throw new Error("Bot not found")
+  if (!isRunnableBotType(bot.strategyType)) {
+    throw new Error(
+      "This bot uses a retired strategy and is archived. Its markets can't be changed."
+    )
+  }
+  const wallet = await findUserWallet(userId, bot.walletId, database)
+  if (!wallet) throw new Error("Wallet not found")
+
+  const markets = [
+    ...new Set(requested.map((market) => market.trim()).filter(Boolean)),
+  ]
+  if (markets.length === 0) throw new Error("Pick at least one market.")
+  const compiled = automationConfigSchema.safeParse(bot.params)
+  if (compiled.success) validateBotMarketCount(compiled.data, markets.length)
+  await validateMarkets(wallet.network as TradingNetwork, markets)
+
+  await database
+    .update(tradingBots)
+    .set({ markets, updatedAt: now() })
+    .where(eq(tradingBots.id, botId))
+
+  const added = markets.filter((market) => !bot.markets.includes(market))
+  if (added.length > 0) {
+    await database
+      .insert(tradingBotState)
+      .values(
+        added.map((market) => ({
+          botId,
+          market,
+          strategyState: {},
+          updatedAt: now(),
+        }))
+      )
+      .onConflictDoNothing()
+  }
+
+  // Stopped bots pick the new list up on their next start; anything else
+  // needs the worker to restart its runners against the fresh list.
+  if (bot.desiredState !== "stopped") {
+    await enqueueCommand(database, botId, "update_params", userId)
+  }
 }
 
 export async function sendBotCommand(
@@ -417,15 +687,13 @@ export async function sendBotCommand(
           ? "stopped"
           : null
 
-  // Optimistically flip the visible status so the UI reacts the instant a
-  // lifecycle button is clicked; the worker (async, via notify) then converges
-  // to the real status a moment later. Flatten pauses, so it reads as "paused".
+  // Start/resume flip status to "starting" — an honest in-flight status the
+  // worker converges from (running or error). Pause/flatten/stop leave status
+  // untouched: the worker writes the real "paused"/"stopped" when it actually
+  // happens, and the UI shows "pausing…"/"stopping…" from desired_state until
+  // then. Writing "paused" here would claim the command landed before it did.
   const optimisticStatus =
-    command === "start" || command === "resume"
-      ? "starting"
-      : command === "pause" || command === "flatten"
-        ? "paused"
-        : null
+    command === "start" || command === "resume" ? "starting" : null
 
   if (desiredState) {
     await database
@@ -452,22 +720,26 @@ export async function sendBotCommand(
 export async function sendGlobalBotCommand(
   userId: string,
   command: "pause_all" | "flatten_all",
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  // Shown verbatim as each affected bot's pause reason and event message —
+  // how a guardian trip stays distinguishable from a manual "Pause all".
+  reason: string | null = null
 ) {
-  await enqueueCommand(database, null, command, userId)
+  await enqueueCommand(database, null, command, userId, reason)
 }
 
 async function enqueueCommand(
   database: CustomShellDb,
   botId: string | null,
   command: string,
-  userId: string
+  userId: string,
+  reason: string | null = null
 ) {
   await database.insert(tradingBotCommands).values({
     id: uuid(),
     botId,
     command,
-    payload: null,
+    payload: reason ? { reason } : null,
     status: "pending",
     createdByUserId: userId,
     createdAt: now(),

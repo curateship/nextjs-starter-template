@@ -4,7 +4,7 @@ import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-ro
 import { AuthError, AuthLayout } from "@/components/pomoder/auth-layout"
 import { getAuthErrorMessage, loadCurrentUser, login } from "@/lib/api/auth"
 import { importGuestState } from "@/lib/api/productivity"
-import { normalizeDailyGoalSessions } from "@/lib/pomodoro"
+import { normalizeDailyGoalSessions, normalizeGuestTasks, orderTasksForDisplay } from "@/lib/pomodoro"
 
 export const Route = createFileRoute("/login")({
   loader: async () => { if (await loadCurrentUser()) throw redirect({ to: "/" }) },
@@ -25,8 +25,9 @@ async function importGuestData() {
   try {
     const saved = window.localStorage.getItem("pomoder:guest:v1")
     if (!saved) return
-    const state = JSON.parse(saved) as { tasks?: Array<{ title: string; completed: boolean; pomodoros: number }>; durations?: { focus: number; short: number; long: number }; dailyGoalSessions?: number; autoStart?: boolean }
-    await importGuestState({ tasks: state.tasks || [], focusMinutes: state.durations?.focus || 25, shortBreakMinutes: state.durations?.short || 5, longBreakMinutes: state.durations?.long || 15, dailyGoalSessions: normalizeDailyGoalSessions(state.dailyGoalSessions), autoStart: state.autoStart || false })
+    const state = JSON.parse(saved) as { tasks?: unknown; durations?: { focus: number; short: number; long: number }; dailyGoalSessions?: number; autoStart?: boolean }
+    const tasks = orderTasksForDisplay(normalizeGuestTasks(state.tasks) || []).map(({ title, completed, pomodoros, priority, estimatedPomodoros }) => ({ title, completed, pomodoros, priority, estimatedPomodoros }))
+    await importGuestState({ tasks, focusMinutes: state.durations?.focus || 25, shortBreakMinutes: state.durations?.short || 5, longBreakMinutes: state.durations?.long || 15, dailyGoalSessions: normalizeDailyGoalSessions(state.dailyGoalSessions), autoStart: state.autoStart || false })
     window.localStorage.removeItem("pomoder:guest:v1")
   } catch { /* Keep local data so the user can retry the import. */ }
 }

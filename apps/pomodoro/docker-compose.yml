@@ -1,0 +1,12 @@
+services:
+  postgres:
+    image: postgres:18
+    ports:
+      - "${CUSTOM_SHELL_POSTGRES_PORT:-54320}:5432"
+    environment:
+      POSTGRES_PASSWORD: localdev
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:

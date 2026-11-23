@@ -13,6 +13,9 @@ dist-ssr
 .output
 *.local
 
+# Local-disk media fallback (used only when R2 storage is not configured)
+.local-media
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

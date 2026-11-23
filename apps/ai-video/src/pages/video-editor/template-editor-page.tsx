@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link, useParams } from "@tanstack/react-router"
-import { AlertCircleIcon, Loader2Icon } from "lucide-react"
+import { AlertCircleIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -64,11 +64,7 @@ export function TemplateEditorPage() {
   }
 
   if (!current) {
-    return (
-      <div className="grid h-full place-items-center">
-        <Loader2Icon className="size-8 animate-spin text-muted-foreground" />
-      </div>
-    )
+    return null
   }
 
   return <VideoEditorPage document={current.template} kind="template" />

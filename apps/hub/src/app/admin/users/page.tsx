@@ -143,9 +143,9 @@ export default function UsersPage() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case "super_admin":
-        return <Badge className="bg-blue-100 text-blue-800">Super Admin</Badge>
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">Super Admin</Badge>
       case "end_user":
-        return <Badge className="bg-green-100 text-green-800">User</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">User</Badge>
       default:
         return <Badge variant="secondary">{role}</Badge>
     }
@@ -169,7 +169,7 @@ export default function UsersPage() {
       case "unverified":
         return <Badge variant="secondary">Unverified</Badge>
       default:
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
     }
   }
 
@@ -442,7 +442,7 @@ export default function UsersPage() {
 
           <AdminTableShell
             title="Users"
-            icon={<User className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<User className="text-muted-foreground" />}
             count={filteredUsers.length}
             selectedCount={userSelection.selectedCount}
             onClearSelection={userSelection.clearSelection}

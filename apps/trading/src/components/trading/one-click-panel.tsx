@@ -1,4 +1,5 @@
 import * as React from "react"
+import { usd } from "@/lib/format"
 import { Loader2Icon } from "lucide-react"
 import { formatPrice } from "@nktkas/hyperliquid/utils"
 
@@ -43,6 +44,8 @@ type OneClickOrderOptions = {
   confirmationEnabled: boolean
   limitPx?: string
   onNotify: (message: string, tone: "ok" | "error") => void
+  /** Fired after an order is accepted so the parent can pull fresh state. */
+  onOrderPlaced?: () => void
 }
 
 function useOneClickOrder({
@@ -55,6 +58,7 @@ function useOneClickOrder({
   disabledReason,
   limitPx,
   onNotify,
+  onOrderPlaced,
 }: OneClickOrderOptions) {
   const [templates, setTemplates] = React.useState<OrderTemplateItem[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -97,11 +101,11 @@ function useOneClickOrder({
             ? "Create a template in Settings to use one-click orders."
             : selected.useLimitOrder && !limitPx
               ? "Right-click the chart to choose a limit price."
-            : !(markPx > 0) || !(equity > 0)
-              ? "A current price and positive wallet equity are required."
-              : selected.leverage > (marketRow?.maxLeverage ?? 0)
-                ? `${market} supports up to ${marketRow?.maxLeverage ?? 0}x leverage.`
-                : null
+              : !(markPx > 0) || !(equity > 0)
+                ? "A current price and positive wallet equity are required."
+                : selected.leverage > (marketRow?.maxLeverage ?? 0)
+                  ? `${market} supports up to ${marketRow?.maxLeverage ?? 0}x leverage.`
+                  : null
 
   async function submit(side: "buy" | "sell") {
     if (!walletId || !selected) return
@@ -120,6 +124,7 @@ function useOneClickOrder({
           : `${result.entryOrderType === "limit" ? "Limit" : "One-click"} order #${result.oid} submitted with stop and take-profit.`,
         "ok"
       )
+      onOrderPlaced?.()
     } catch (error) {
       onNotify(getOrderErrorMessage(error), "error")
     } finally {
@@ -207,12 +212,12 @@ export function OneClickPanel({
 
 export function OneClickMenuActions({
   limitPx,
-  onLimitPrefill,
+  onQuickOrder,
   onComplete,
   ...options
 }: OneClickOrderOptions & {
   limitPx?: string
-  onLimitPrefill: (side: "buy" | "sell", px: string) => void
+  onQuickOrder: (side: "buy" | "sell", px: string) => void
   onComplete: () => void
 }) {
   const { selected, reason, busy, submit } = useOneClickOrder({
@@ -231,6 +236,11 @@ export function OneClickMenuActions({
     void submit(side).then(onComplete)
   }
 
+  const marginUsd = selected
+    ? oneClickSizing(selected, options.equity).margin
+    : 0
+  const marginLabel = marginUsd > 0 ? ` · ~${usd(marginUsd)}` : ""
+
   return (
     <>
       {selected?.useLimitOrder ? (
@@ -246,7 +256,7 @@ export function OneClickMenuActions({
           >
             Buy limit - {selected.sizingMode === "risk" ? "Risk" : "WS"}:
             {selected.orderSizePct}% SL:{selected.stopLossPct}% TP:
-            {selected.takeProfitPct}%
+            {selected.takeProfitPct}%{marginLabel}
           </Button>
           <Button
             type="button"
@@ -259,7 +269,7 @@ export function OneClickMenuActions({
           >
             Sell limit - {selected.sizingMode === "risk" ? "Risk" : "WS"}:
             {selected.orderSizePct}% SL:{selected.stopLossPct}% TP:
-            {selected.takeProfitPct}%
+            {selected.takeProfitPct}%{marginLabel}
           </Button>
         </>
       ) : null}
@@ -272,7 +282,7 @@ export function OneClickMenuActions({
             variant="ghost"
             size="sm"
             className="justify-start text-emerald-600 hover:text-emerald-700"
-            onClick={() => onLimitPrefill("buy", limitPx)}
+            onClick={() => onQuickOrder("buy", limitPx)}
           >
             Buy limit
           </Button>
@@ -281,7 +291,7 @@ export function OneClickMenuActions({
             variant="ghost"
             size="sm"
             className="justify-start text-red-500 hover:text-red-600"
-            onClick={() => onLimitPrefill("sell", limitPx)}
+            onClick={() => onQuickOrder("sell", limitPx)}
           >
             Sell limit
           </Button>
@@ -312,6 +322,16 @@ export function OneClickMenuActions({
   )
 }
 
+/** Order sizing for a one-click template, all in USDC. */
+function oneClickSizing(template: OrderTemplateItem, equity: number) {
+  const sizingAmount = equity * (template.orderSizePct / 100)
+  const notional =
+    template.sizingMode === "risk"
+      ? sizingAmount / (template.stopLossPct / 100)
+      : sizingAmount * template.leverage
+  return { sizingAmount, notional, margin: notional / template.leverage }
+}
+
 function OneClickConfirmDialog({
   open,
   side,
@@ -339,12 +359,7 @@ function OneClickConfirmDialog({
 }) {
   if (!template || !open) return null
 
-  const sizingAmount = equity * (template.orderSizePct / 100)
-  const notional =
-    template.sizingMode === "risk"
-      ? sizingAmount / (template.stopLossPct / 100)
-      : sizingAmount * template.leverage
-  const margin = notional / template.leverage
+  const { sizingAmount, notional, margin } = oneClickSizing(template, equity)
   const entryPrice = resolveOneClickEntryPrice({
     markPrice: markPx,
     useLimitOrder: template.useLimitOrder,
@@ -403,17 +418,17 @@ function OneClickConfirmDialog({
                 ? "Risk per wallet"
                 : "Wallet cash used"
             }
-            value={`${template.orderSizePct}% · $${sizingAmount.toFixed(2)}`}
+            value={`${template.orderSizePct}% · ${usd(sizingAmount)}`}
           />
           {template.sizingMode === "risk" ? (
             <SummaryRow
               label="Wallet cash used"
-              value={`About $${margin.toFixed(2)}`}
+              value={`About ${usd(margin)}`}
             />
           ) : null}
           <SummaryRow
             label="Position size"
-            value={`${sz.toFixed(6)} ${market} · $${preview.notionalUsd.toFixed(2)}`}
+            value={`${sz.toFixed(6)} ${market} · ${usd(preview.notionalUsd)}`}
           />
           <SummaryRow label="Leverage" value={`${template.leverage}x cross`} />
           <SummaryRow

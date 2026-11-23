@@ -11,6 +11,10 @@ import {
   type ExportItem,
 } from "@/lib/api/exports"
 import {
+  getShellSettingsErrorMessage,
+  saveNormalizeLoudness,
+} from "@/lib/api/shell-settings"
+import {
   cancelProjectRender,
   getProjectErrorMessage,
   getProjectRender,
@@ -19,6 +23,7 @@ import {
   type ProjectRenderInfo,
   type RenderQuality,
 } from "@/lib/api/video-projects"
+import { LOUDNESS_TARGET_LUFS } from "@/lib/audio-loudness"
 import { EXPORT_TITLE_MAX_LENGTH } from "@/lib/export-constraints"
 import {
   useEditorDocumentName,
@@ -49,7 +54,7 @@ export function StudioExportModal({
   const durationMs = useEditorDurationMs()
   const aspect = useEditorSelector((state) => state.aspect)
   const { documentId: projectId, flushSave } = useEditorRuntime()
-  const { config } = useShellRuntime()
+  const { config, onConfigChange } = useShellRuntime()
   const defaultFilename = brandKitExportFilename(
     config.brandKit.exportNamingPattern,
     projectName,
@@ -59,6 +64,9 @@ export function StudioExportModal({
   const [quality, setQuality] = React.useState<RenderQuality>("high")
   const [includeEndCard, setIncludeEndCard] = React.useState(
     config.brandKit.endCard.enabled
+  )
+  const [normalizeLoudness, setNormalizeLoudness] = React.useState(
+    config.normalizeLoudness
   )
   const [filename, setFilename] = React.useState(defaultFilename)
   const [status, setStatus] = React.useState<
@@ -75,12 +83,28 @@ export function StudioExportModal({
     filenameRef.current = filename
   }, [filename])
 
-  // Reset the form defaults whenever the modal is (re)opened.
+  // Reset the form defaults whenever the modal is (re)opened — on the open
+  // transition only. These values can change while the modal is open (saving
+  // the loudness toggle updates the shell config, renaming the project changes
+  // the default file name), and re-running then would throw away the file name
+  // the user typed, which is what titles the finished export.
+  const wasOpenRef = React.useRef(false)
   React.useEffect(() => {
-    if (!open) return
+    if (!open) {
+      wasOpenRef.current = false
+      return
+    }
+    if (wasOpenRef.current) return
+    wasOpenRef.current = true
     setFilename(defaultFilename)
     setIncludeEndCard(config.brandKit.endCard.enabled)
-  }, [open, defaultFilename, config.brandKit.endCard.enabled])
+    setNormalizeLoudness(config.normalizeLoudness)
+  }, [
+    open,
+    defaultFilename,
+    config.brandKit.endCard.enabled,
+    config.normalizeLoudness,
+  ])
 
   const applyRenderInfo = React.useCallback((info: ProjectRenderInfo) => {
     setStatus(info.status)
@@ -145,6 +169,18 @@ export function StudioExportModal({
     setCompletedExport(null)
     try {
       await flushSave()
+      // The renderer reads the loudness preference from the workspace when the
+      // job runs, so a changed toggle has to be saved before queueing.
+      if (normalizeLoudness !== config.normalizeLoudness) {
+        try {
+          await saveNormalizeLoudness(normalizeLoudness)
+        } catch (settingsError) {
+          setStatus("error")
+          setError(getShellSettingsErrorMessage(settingsError))
+          return
+        }
+        onConfigChange({ ...config, normalizeLoudness })
+      }
       const info = await startProjectRender(projectId, quality, includeEndCard)
       previewPendingRef.current = true
       applyRenderInfo(info)
@@ -347,19 +383,30 @@ export function StudioExportModal({
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 11,
-                      padding: "12px 13px",
-                      background: "var(--panel2)",
-                      border: "1px solid var(--line)",
-                      borderRadius: 11,
-                    }}
-                  >
-                    <Toggle on={includeEndCard} onToggle={() => setIncludeEndCard((v) => !v)} />
+                  <div style={toggleRow}>
+                    <Toggle
+                      on={includeEndCard}
+                      onToggle={() => setIncludeEndCard((v) => !v)}
+                      label="Include brand end card"
+                    />
                     <span style={{ fontSize: 12.5, fontWeight: 500 }}>Include brand end card</span>
+                  </div>
+
+                  <div style={toggleRow}>
+                    <Toggle
+                      on={normalizeLoudness}
+                      onToggle={() => setNormalizeLoudness((v) => !v)}
+                      label="Normalize loudness"
+                    />
+                    <div>
+                      <div style={{ fontSize: 12.5, fontWeight: 500 }}>
+                        Normalize loudness
+                      </div>
+                      <div style={{ fontSize: 10.5, color: "var(--mut)", marginTop: 2 }}>
+                        Levels the finished mix to {LOUDNESS_TARGET_LUFS} LUFS,
+                        the standard for social video.
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -426,6 +473,16 @@ export function StudioExportModal({
       />
     </>
   )
+}
+
+const toggleRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 11,
+  padding: "12px 13px",
+  background: "var(--panel2)",
+  border: "1px solid var(--line)",
+  borderRadius: 11,
 }
 
 const secondaryBtn: React.CSSProperties = {

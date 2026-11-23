@@ -7,6 +7,7 @@ const children = [
   start("Bot Worker", ["run", "bot-worker:dev"]),
   start("Whale Scanner", ["run", "whale-scanner:dev"]),
   start("Market Scanner", ["run", "market-scanner:dev"]),
+  start("Alert Worker", ["run", "alert-worker:dev"]),
   start("Backtest Worker", ["run", "backtest-worker:dev"]),
 ]
 

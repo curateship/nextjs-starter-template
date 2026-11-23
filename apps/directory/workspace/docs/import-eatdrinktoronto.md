@@ -1,0 +1,82 @@
+# Importing Eat Drink Toronto
+
+This one-off command copies one old Directory site into one CMS site. It reads
+the old database in a read-only transaction, keeps published listings published
+and drafts private, and can be run again safely: source IDs update their existing
+CMS listings, while existing category slugs are reused. Ratings from the old
+Directory Core block carry into the CMS listing rating field.
+
+Set `DIRECTORY_SOURCE_DATABASE_URL` to a read-only old-app database account.
+The CMS database and media-storage settings continue to come from `.env.local`.
+
+Preview the complete plan without changing either database or media storage:
+
+```bash
+pnpm run import:eatdrinktoronto -- --source-site <old-site-id> --site <cms-site-slug> --dry-run
+```
+
+Remove `--dry-run` to import. Use `--output <folder>` to choose where the
+command writes `report.json` and `dropped.json`; otherwise it writes them to
+`import-eatdrinktoronto-output` in this app.
+
+The report separates created, updated, and unchanged listings, plus stored,
+reused, and failed photos. `dropped.json` keeps opening hours, coordinates,
+maps, and custom blocks under each new listing ID for the later fields task.
+Remote images are limited to 10 MB, time out after 10 seconds, reject private
+network addresses, and must have both a supported image type and matching file
+contents.
+
+## Loading the fields the import left behind
+
+The import writes opening hours, coordinates and custom blocks to
+`dropped.json` rather than into CMS. A second command loads two of those three:
+
+```bash
+pnpm run load:eatdrinktoronto-fields -- --source-site <old-site-id> --site <cms-site-slug> --dry-run
+```
+
+**The hours need nothing but `dropped.json`.** Leave `--source-site` off and it
+loads them on their own:
+
+```bash
+pnpm run load:eatdrinktoronto-fields -- --site <cms-site-slug>
+```
+
+The tags are the part that needs `DIRECTORY_SOURCE_DATABASE_URL`, because
+their labels ("Popular for", "Atmosphere") are in the old database and not in
+`dropped.json`. Asking for tags without that address stops the run rather than
+inventing names. Drop `--dry-run` to write. `--dropped <file>` points it at a
+`dropped.json` somewhere other than the output folder.
+
+- **Hours** are read from the old free text — "Monday: 11:30 AM to 10 PM",
+  "Closed", "Open 24 hours", and lines with a lunch and a dinner service. A
+  start with no AM or PM takes the half of the day that puts it before the
+  closing time, so "12 to 10 PM" is noon and "5 to 10 PM" is the afternoon. A
+  line it cannot read is counted in the report and left out rather than
+  guessed at.
+- **Tags** become one custom section per old template, its fields taken from
+  the old template with their real labels. A field CMS has no home for — a
+  written-text field, a repeating one — is named in the report instead.
+- **Coordinates** are not loaded. There are none: the old site had zero.
+- **HTML entities are decoded on the way in.** The old app stored plain fields
+  encoded, so a description reading "burritos & quesadillas" came out of it
+  spelling the ampersand out, and landed on a listing card exactly like that.
+  The importer now turns the six codes the old app used back into the
+  characters they stand for, before the 300-character cut, so the limit counts
+  real characters. 1,383 of the 3,335 listings were affected. Rows imported
+  before this change keep their codes until the import is run again.
+- Run it twice. The second report shows `listingsChanged: 0`, because nothing
+  is written unless it differs from what is already stored.
+
+## Test road map
+
+1. Run `pnpm run db:setup` so migration 0060 has added the source markers.
+2. Run the dry-run command and confirm it prints a report, writes the two JSON
+   files, and changes neither database.
+3. Run the import twice. The second report should show no created listings and
+   the CMS listing and category totals should stay unchanged.
+4. Open the target site's `/directory`, then inspect several listings and one
+   nested category. Check their contact links, text, and locally stored photos.
+5. Open one imported listing in Admin → Listings and save it without changes.
+6. Compare five listings with their Eat Drink Toronto pages. Confirm every
+   missing hours, map, coordinate, or custom block appears in `dropped.json`.

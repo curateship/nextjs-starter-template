@@ -10,18 +10,19 @@ describe("summarizeGroupProgress", () => {
         { status: "running" },
         { status: "pending" },
       ])
-    ).toEqual({ done: 1, total: 3, allTerminal: false })
+    ).toEqual({ done: 1, failed: 0, total: 3, allTerminal: false })
 
     // Errored runs count as finished — the group must not poll forever.
     expect(
       summarizeGroupProgress([{ status: "done" }, { status: "error" }])
-    ).toEqual({ done: 2, total: 2, allTerminal: true })
+    ).toEqual({ done: 2, failed: 1, total: 2, allTerminal: true })
   })
 
   it("never reports an empty group as terminal", () => {
     // Right after enqueueing, a poll can race the insert and see zero rows.
     expect(summarizeGroupProgress([])).toEqual({
       done: 0,
+      failed: 0,
       total: 0,
       allTerminal: false,
     })

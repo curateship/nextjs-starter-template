@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { promisify } from "node:util"
 
-import { and, eq } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { settleGenerationCredit } from "@/server/generation"
@@ -15,13 +15,14 @@ import {
 } from "@/server/pomoder-media"
 import { generateBackground, generateSoundscape } from "@/server/providers"
 import {
+  enqueueRoomTransition,
   GENERATE_MEDIA_QUEUE,
   getBoss,
   PROCESS_MEDIA_QUEUE,
   ROOM_TRANSITION_QUEUE,
 } from "@/server/queue"
-import { notifyRoom } from "@/server/rooms"
-import { mediaAssets, rooms, workerHeartbeats } from "@/server/schema"
+import { advanceExpiredRoom, notifyRoom } from "@/server/rooms"
+import { mediaAssets, workerHeartbeats } from "@/server/schema"
 import { logger, startServerMonitoring } from "@/server/observability"
 import { processStorageDeletionJobs } from "@/server/storage-deletion"
 
@@ -73,31 +74,19 @@ await boss.work<{ roomId: string; sequence: number }>(
   { batchSize: 1 },
   async (jobs) => {
     for (const job of jobs) {
-      const [room] = await db
-        .select()
-        .from(rooms)
-        .where(
-          and(
-            eq(rooms.id, job.data.roomId),
-            eq(rooms.sequence, job.data.sequence)
-          )
+      const result = await advanceExpiredRoom(job.data.roomId, job.data.sequence)
+      // A job may fire ahead of the room clock (cross-machine skew); throwing
+      // lets pg-boss retry it once the phase is actually due.
+      if (result.kind === "not_due") throw new Error("ROOM_TRANSITION_NOT_DUE")
+      if (result.kind === "stale") continue
+      if (result.transitionAt) {
+        await enqueueRoomTransition(
+          result.room.id,
+          result.room.sequence,
+          result.transitionAt
         )
-        .limit(1)
-      if (!room || !room.phaseEndsAt || room.phaseEndsAt > new Date()) continue
-      const nextPhase = room.phase === "focus" ? "short" : "focus"
-      const minutes =
-        nextPhase === "focus" ? room.focusMinutes : room.shortBreakMinutes
-      await db
-        .update(rooms)
-        .set({
-          phase: nextPhase,
-          sequence: room.sequence + 1,
-          phaseStartedAt: new Date(),
-          phaseEndsAt: new Date(Date.now() + minutes * 60_000),
-          updatedAt: new Date(),
-        })
-        .where(eq(rooms.id, room.id))
-      await notifyRoom(room.id, "phase")
+      }
+      await notifyRoom(result.room.id, "phase")
     }
   }
 )

@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Laptop mockup — motion template</title>
+<!-- =====================================================================
+     LAPTOP MOCK-UP MOTION GRAPHIC — reusable template
+     A MacBook, a swappable desktop wallpaper, the Apple menu bar, the dock,
+     and app windows (browser + terminal), driven by a DIRECTED pan/zoom camera
+     synced to the intro. Fixed 1920x1080 stage, scaled to fit any viewport.
+
+     THE CHOREOGRAPHY (JS-driven, one directed take, then loops):
+       1. establish on the whole laptop,
+       2. push IN to the browser as it opens (seamless — see camera note),
+       3. one continuous SWEEP left→right across the tabs, close-up, as each
+          tab pops in under the lens (localhost last + active),
+       4. drop to the BOTTOM-RIGHT as the terminal pops up,
+       5. continue to the DOCK,
+       6. ZOOM OUT for the finale — then loop.
+     Honors prefers-reduced-motion (shows the finished scene, no motion).
+
+     CAMERA NOTE (why it doesn't "boomerang"): tweenCam interpolates the final
+     TRANSFORM (tx,ty,s) with one shared ease — NOT cx/cy/z separately. Easing
+     cx and z apart makes tx = 960 - cx*z a product of two eased values, so pan
+     and zoom fight and the frame swings. Lockstep transform easing = no swing.
+     (Ported from the promo scene-cl-laptop.html camera.)
+
+     HOW TO CUSTOMISE (see SKILL.md for the full guide):
+     - Wallpaper: change the url() in `.desktop` to any file in assets/.
+     - Windows:  drop your own markup inside a `.win` box (browser + terminal
+                 provided). Position it with left/top/width.
+     - Camera:   choreograph() near the bottom drives the take; tweak the
+                 durations/holds there. Never hardcode transforms.
+     ===================================================================== -->
+<style>
+:root{
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
+  --mono:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --surface:#1a1c1f; --line-2:#2b2e33; --dim:#7f868f; --muted:#c4c9d0; --ink:#eef1f4;
+  --green:#28c840; --e:cubic-bezier(.22,1,.36,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0b0d12;overflow:hidden;
+  font-family:var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+/* ---- the fixed export stage: 1920x1080, centred + scaled by fit() ---- */
+#stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;
+  transform-origin:50% 50%;overflow:hidden;
+  /* minimalist themed backdrop: a subtle dot-matrix over a soft cool glow behind
+     the laptop, on a dark slate gradient (not pure black). */
+  background:
+    radial-gradient(circle at center,rgba(255,255,255,.045) 1.2px,transparent 1.7px) 0 0/22px 22px,
+    radial-gradient(1300px 900px at 50% 40%,rgba(122,150,214,.15),transparent 72%),
+    linear-gradient(165deg,#151922 0%,#0f1219 52%,#0a0c11 100%);}
+
+/* ---- the world plane the camera pans/zooms over (screen + bezel live here) ---- */
+#world{position:absolute;left:0;top:0;width:1920px;height:1241px;z-index:1;
+  transform-origin:0 0;will-change:transform}
+
+/* ---- the laptop's desktop: SWAP THE WALLPAPER url() BELOW ----
+   Default is the native macOS "Sonoma" wallpaper (assets/macos-sonoma.jpg,
+   converted from /System/Library/Desktop Pictures/Sonoma.heic via sips). ---- */
+.desktop{position:absolute;inset:0;z-index:1;overflow:hidden;
+  background:url("assets/macos-sonoma.jpg") center/cover no-repeat,
+    linear-gradient(160deg,#2b3a4f 0%,#20293a 46%,#161c28 100%)}
+
+/* ---- Apple menu bar ---- */
+.menubar{position:absolute;top:0;left:0;right:0;height:34px;z-index:40;
+  display:flex;align-items:center;gap:20px;padding:0 22px;
+  text-shadow:0 1px 2px rgba(0,0,0,.45);font-size:14px;color:#e9eaec;font-weight:500;
+  font-family:var(--sans)}
+.menubar .apple{display:inline-flex;align-items:center;opacity:.95}
+.menubar .apple svg{display:block}
+.menubar .appn{font-weight:700}
+.menubar .mi{color:#c9cacd;font-weight:500}
+.menubar .right{margin-left:auto;display:flex;align-items:center;gap:16px;color:#c9cacd;font-size:13px}
+.menubar .right svg{display:block;opacity:.85}
+
+/* ---- app windows sit on the desktop; position each .win with left/top/width ---- */
+.win{position:absolute;z-index:10}
+.win > *{width:100%}
+/* browser is the hero: narrower + taller (a natural browser proportion),
+   horizontally centred in the 1920 screen (left=(1920-980)/2), and sat HIGH —
+   tabs land near world-y 210 (like scene-2-chaos) so the tab-sweep close-up
+   reveals the laptop's top bezel above it. Terminal overlaps its lower-right. */
+.win.browser{left:470px;top:132px;width:980px;z-index:12}
+.win.terminal{left:1178px;top:648px;width:630px;z-index:13}
+
+/* ---- intro entrance states (JS toggles these) ---- */
+.win{transition:opacity .55s var(--e),transform .6s var(--e);transform-origin:50% 62%}
+.win.cloak{opacity:0;transform:translateY(18px) scale(.972)}
+
+/* browser window (mirror of windows/browser.html) */
+.browser{border-radius:16px;overflow:hidden;background:var(--surface);font-family:var(--sans);
+  border:1px solid var(--line-2);box-shadow:0 40px 100px rgba(0,0,0,.55)}
+.browser .chrome{height:96px;background:#26282c}
+.browser .bar{height:52px;display:flex;align-items:center;gap:9px;padding:0 16px}
+.browser .tl{display:flex;gap:8px;margin-right:8px}
+.browser .tl span{width:13px;height:13px;border-radius:50%}
+.browser .tl .r{background:#ff5f57}.browser .tl .y{background:#febc2e}.browser .tl .g{background:#28c840}
+.browser .nav{display:flex;gap:6px;color:var(--dim);font-size:18px;margin-left:6px}
+.browser .omni{flex:1;height:32px;border-radius:9px;background:#1a1c1f;border:1px solid var(--line-2);
+  display:flex;align-items:center;gap:9px;padding:0 13px;color:var(--dim);font-size:14px;margin:0 10px}
+.browser .omni .lock{width:12px;height:12px;color:var(--green);flex:0 0 auto}
+.browser .tabs{height:44px;display:flex;align-items:flex-end;gap:4px;padding:0 12px}
+.browser .tab{position:relative;flex:0 1 172px;min-width:0;height:36px;border-radius:9px 9px 0 0;
+  background:transparent;display:flex;align-items:center;gap:8px;padding:0 11px;
+  white-space:nowrap;color:var(--dim);font-size:13.5px;
+  /* hidden until it opens — grows from the LEFT (scaleX) + rises + fades. Layout
+     stays put (the slot is always reserved); the reveal is transform-only. Exact
+     values from the promo's scene-2-chaos.html. */
+  opacity:0;transform:translateY(8px) scaleX(.4);transform-origin:left center;
+  transition:background .18s var(--e),color .18s var(--e)}
+.browser .tab.show{opacity:1;transform:translateY(0) scaleX(1);
+  transition:opacity .46s var(--e),transform .58s var(--e),background .18s var(--e),color .18s var(--e)}
+.browser .tab::after{content:"";position:absolute;right:-2px;top:50%;transform:translateY(-50%);
+  width:1px;height:16px;background:rgba(255,255,255,.13)}
+.browser .tab:has(+ .tab.hot)::after{display:none}
+.browser .tab.hot{color:var(--ink);background:#191b1e;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.browser .tab.hot::before,.browser .tab.hot::after{content:"";position:absolute;bottom:0;width:9px;height:9px;background:#191b1e;display:block}
+.browser .tab.hot::before{left:-9px;-webkit-mask:radial-gradient(circle at 0 0,#0000 9px,#000 9px);mask:radial-gradient(circle at 0 0,#0000 9px,#000 9px)}
+.browser .tab.hot::after{right:-9px;-webkit-mask:radial-gradient(circle at 100% 0,#0000 9px,#000 9px);mask:radial-gradient(circle at 100% 0,#0000 9px,#000 9px)}
+.browser .tab .inside{display:flex;align-items:center;gap:8px;min-width:0;flex:1 1 auto;
+  opacity:1;transition:opacity .16s var(--e) .04s}
+.browser .tab .fav{width:15px;height:15px;flex:0 0 auto;display:grid;place-items:center;border-radius:3px;overflow:hidden}
+.browser .tab .fav img{width:15px;height:15px;object-fit:contain;display:block}
+.browser .tab .fav.full img{object-fit:cover;border-radius:4px}
+.browser .tab .lbl{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.browser .tab x{color:var(--dim);flex:0 0 auto;font-style:normal}
+.browser .page{height:560px;position:relative;overflow:hidden;
+  background:radial-gradient(120% 90% at 50% -12%,#20232a 0%,#17191d 56%,#141517 100%)}
+/* --- example EMPTY UI SCAFFOLD shown on the active (localhost:3000) tab.
+   Pure greyscale wireframe blocks + a green accent — swap for real content. --- */
+.browser .page .scaffold{position:absolute;inset:0;display:flex;flex-direction:column}
+.browser .page .nb{height:56px;flex:0 0 auto;display:flex;align-items:center;gap:13px;
+  padding:0 30px;border-bottom:1px solid rgba(255,255,255,.05)}
+.browser .page .nb .logo{width:26px;height:26px;border-radius:8px;
+  background:linear-gradient(150deg,#3ad06a,#16a34a);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+.browser .page .nb .nm{width:104px;height:11px;border-radius:5px;background:#2c3037}
+.browser .page .nb .mn{margin-left:auto;display:flex;gap:20px}
+.browser .page .nb .mn i{display:block;width:54px;height:9px;border-radius:4px;background:#23262c}
+.browser .page .nb .cta{margin-left:22px;width:92px;height:30px;border-radius:8px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09)}
+.browser .page .hero{flex:1;display:flex;flex-direction:column;justify-content:center;gap:15px;padding:0 52px}
+.browser .page .hero .eb{width:118px;height:9px;border-radius:4px;background:rgba(58,208,106,.5)}
+.browser .page .hero .h{height:22px;border-radius:6px;background:#31353c}
+.browser .page .hero .h.a{width:70%}.browser .page .hero .h.b{width:52%}
+.browser .page .hero .p{height:11px;border-radius:5px;background:#22262b}
+.browser .page .hero .p.a{width:62%}.browser .page .hero .p.b{width:54%}
+.browser .page .hero .row{display:flex;gap:12px;margin-top:8px}
+.browser .page .hero .row .b1{width:134px;height:38px;border-radius:10px;background:linear-gradient(180deg,#3ad06a,#16a34a)}
+.browser .page .hero .row .b2{width:110px;height:38px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.browser .page .cards{display:flex;gap:16px;padding:0 52px 40px}
+.browser .page .cards .c{flex:1;height:104px;border-radius:12px;border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.02);padding:14px;display:flex;flex-direction:column;gap:9px}
+.browser .page .cards .c .ic{width:26px;height:26px;border-radius:8px;
+  background:rgba(58,208,106,.16);border:1px solid rgba(58,208,106,.28)}
+.browser .page .cards .c .l{height:9px;border-radius:4px;background:#2a2e34}
+.browser .page .cards .c .l.s{width:58%}
+
+/* terminal window (mirror of windows/terminal.html) */
+.term{border-radius:12px;overflow:hidden;background:#0b0c0d;font-family:var(--mono);
+  border:1px solid var(--line-2);box-shadow:0 40px 100px rgba(0,0,0,.55)}
+.term .tbar{height:34px;background:#151617;display:flex;align-items:center;gap:8px;padding:0 12px;
+  font-family:var(--sans);font-size:12.5px;color:var(--dim);border-bottom:1px solid #000}
+.term .tbar .dot{width:12px;height:12px;border-radius:50%;background:#3a3b3e}
+.term .tbar .dot.r{background:#ff5f57}.term .tbar .dot.y{background:#febc2e}.term .tbar .dot.g{background:#28c840}
+.term .tbar b{margin-left:8px;font-weight:600;color:var(--muted);font-family:var(--mono)}
+.term .body{padding:14px 16px 18px;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--muted);min-height:300px}
+.term .body .pr{color:var(--green)}
+.term .body .dim{color:var(--dim)}
+.term .body .ok{color:var(--green)}
+.term .body .cur{display:inline-block;width:8px;height:14px;background:var(--muted);
+  vertical-align:-2px;margin-left:2px;animation:blink .9s steps(1) infinite}
+@keyframes blink{50%{opacity:.15}}
+/* the `claude` command being typed, and its typing caret */
+.term .body .typed{color:var(--muted)}
+.term .body .tcur{display:none;width:8px;height:14px;background:var(--muted);vertical-align:-2px;margin-left:1px}
+.term.typing .body .tcur{display:inline-block;animation:blink .9s steps(1) infinite}
+/* Claude Code boot block — hidden until `claude` is typed, then cascades in.
+   Mascot art + version/model/cwd lifted from the promo scene-cl-laptop.html. */
+.term .body .boot{opacity:0;max-height:0;overflow:hidden;transition:opacity .3s var(--e),max-height .45s var(--e)}
+.term.booted .body .boot{opacity:1;max-height:260px;margin-top:6px}
+.term .body .boot>div{opacity:0;transform:translateY(5px);transition:opacity .34s var(--e),transform .4s var(--e)}
+.term.booted .body .boot>div{opacity:1;transform:none}
+.term.booted .body .boot>div:nth-child(1){transition-delay:.05s}
+.term.booted .body .boot>div:nth-child(2){transition-delay:.24s}
+.term.booted .body .boot>div:nth-child(3){transition-delay:.36s}
+.term.booted .body .boot>div:nth-child(4){transition-delay:.48s}
+.term .body .ccboot{display:flex;align-items:flex-start;gap:12px;margin:2px 0 6px}
+.term .body .ccart{margin:0;font-family:var(--mono);font-size:14px;line-height:1.05;color:#d97757}
+.term .body .ccb-t{line-height:1.5}
+.term .body .ccb-t b{color:var(--ink);font-weight:700}
+.term .body .cc{color:#d97757}
+
+/* ---- macOS dock ---- */
+.dock{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:38;
+  display:flex;align-items:flex-end;gap:14px;padding:10px 16px;border-radius:22px;
+  background:rgba(30,32,38,.42);backdrop-filter:blur(22px);
+  border:1px solid rgba(255,255,255,.10);box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.dock .di{width:54px;height:54px;border-radius:14px;display:grid;place-items:center}
+.dock .di img{width:54px;height:54px;border-radius:14px;object-fit:cover;
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.30)) drop-shadow(0 4px 6px rgba(0,0,0,.42))}
+.dock .di.inset img{width:48px;height:48px;border-radius:12px}
+
+/* ---- the welded MacBook bezel (sits over the screen, scales with the world) ---- */
+.laptopframe{position:absolute;left:-313.3px;top:-303.5px;width:2547px;height:auto;
+  z-index:2;pointer-events:none;user-select:none;-webkit-user-drag:none}
+
+@media(prefers-reduced-motion:reduce){
+  .term .body .cur{animation:none}
+  .win,.browser .tab,.browser .tab .inside{transition:none!important}
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="world">
+    <div class="desktop">
+
+      <div class="menubar">
+        <span class="apple"><svg viewBox="0 0 24 24" width="15" height="15" fill="#eaebed" aria-hidden="true"><path d="M17.05 12.04c-.03-2.6 2.13-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.9-1.74.03-3.35 1.01-4.25 2.57-1.81 3.15-.46 7.8 1.3 10.35.86 1.25 1.88 2.65 3.22 2.6 1.29-.05 1.78-.83 3.34-.83 1.56 0 2 .83 3.37.81 1.39-.03 2.27-1.27 3.12-2.53.98-1.45 1.39-2.86 1.41-2.93-.03-.01-2.71-1.04-2.74-4.13-.02-2.58 2.11-3.82 2.2-3.88M14.53 4.4c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-3 1.54-.66.76-1.24 1.98-1.08 3.15 1.14.09 2.3-.58 3.02-1.44"/></svg></span>
+        <span class="appn">Chrome</span>
+        <span class="mi">File</span><span class="mi">Edit</span><span class="mi">View</span><span class="mi">History</span><span class="mi">Help</span>
+        <div class="right">
+          <svg width="20" height="14" viewBox="0 0 20 14"><path fill="currentColor" d="M10 2C5.6 2 1.9 3.7 0 6.3l1.6 1.4C3.3 5.5 6.4 4 10 4s6.7 1.5 8.4 3.7L20 6.3C18.1 3.7 14.4 2 10 2Zm0 4c-2.6 0-5 1-6.6 2.7L5 10.1C6.3 8.8 8 8 10 8s3.7.8 5 2.1l1.6-1.4C15 7 12.6 6 10 6Zm0 4c-1 0-2 .4-2.7 1.1L10 14l2.7-2.9C12 10.4 11 10 10 10Z"/></svg>
+          <svg width="26" height="13" viewBox="0 0 26 13"><rect x="1" y="1.5" width="21" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".6"/><rect x="3" y="3.5" width="15" height="6" rx="1.5" fill="currentColor"/><rect x="23" y="4.5" width="2" height="4" rx="1" fill="currentColor" opacity=".6"/></svg>
+          <span>9:41</span>
+        </div>
+      </div>
+
+      <!-- BROWSER WINDOW (starts cloaked; tabs hidden until they .show) -->
+      <div class="win browser cloak">
+        <div class="browser">
+          <div class="chrome">
+            <div class="bar">
+              <div class="tl"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+              <div class="nav"><span>&lsaquo;</span><span>&rsaquo;</span><span>&#8635;</span></div>
+              <div class="omni"><svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>localhost:3000</div>
+              <div class="nav"><span>+</span></div>
+            </div>
+            <div class="tabs">
+              <div class="tab"><span class="inside"><span class="fav full"><img src="assets/claude-real.png" alt=""></span><span class="lbl">Claude &middot; new chat</span><x>&times;</x></span></div>
+              <div class="tab"><span class="inside"><span class="fav"><img src="assets/codex.svg" alt=""></span><span class="lbl">Codex &mdash; build</span><x>&times;</x></span></div>
+              <div class="tab"><span class="inside"><span class="fav full"><img src="assets/gemini-real.png" alt=""></span><span class="lbl">Gemini prompt</span><x>&times;</x></span></div>
+              <div class="tab"><span class="inside"><span class="fav full"><img src="assets/notion-real.png" alt=""></span><span class="lbl">notion.so</span><x>&times;</x></span></div>
+              <div class="tab"><span class="inside"><span class="fav"><img src="assets/stripe.svg" alt=""></span><span class="lbl">stripe &middot; dash</span><x>&times;</x></span></div>
+              <div class="tab hot"><span class="inside"><span class="fav"><img src="assets/localhost.svg" alt=""></span><span class="lbl">localhost:3000</span><x>&times;</x></span></div>
+            </div>
+          </div>
+          <div class="page">
+            <!-- example empty UI scaffold (the localhost:3000 tab's page) -->
+            <div class="scaffold" aria-hidden="true">
+              <div class="nb"><div class="logo"></div><div class="nm"></div>
+                <div class="mn"><i></i><i></i><i></i></div><div class="cta"></div></div>
+              <div class="hero">
+                <div class="eb"></div>
+                <div class="h a"></div><div class="h b"></div>
+                <div class="p a"></div><div class="p b"></div>
+                <div class="row"><div class="b1"></div><div class="b2"></div></div>
+              </div>
+              <div class="cards">
+                <div class="c"><div class="ic"></div><div class="l"></div><div class="l s"></div></div>
+                <div class="c"><div class="ic"></div><div class="l"></div><div class="l s"></div></div>
+                <div class="c"><div class="ic"></div><div class="l"></div><div class="l s"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TERMINAL WINDOW (starts cloaked; opens after the tabs) -->
+      <div class="win terminal cloak">
+        <div class="term">
+          <div class="tbar">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <b>~ — zsh</b>
+          </div>
+          <div class="body">
+            <div><span class="pr">~/project %</span> <span class="typed"></span><span class="tcur"></span></div>
+            <div class="boot" aria-hidden="true">
+              <div class="ccboot"><pre class="ccart"> ▐▛███▜▌
+▝▜█████▛▘
+  ▘▘ ▝▝</pre><div class="ccb-t"><b>Claude Code</b> <span class="dim">v2.1.197</span><br><span class="dim">Sonnet 4.5 &middot; Claude Max</span><br><span class="dim">~/project</span></div></div>
+              <div><span class="cc">⏺</span> Ready. What are we building?</div>
+              <div class="dim">type /help for commands</div>
+              <div><span class="dim">&gt;</span> <span class="cur"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DOCK -->
+      <div class="dock">
+        <div class="di"><img src="assets/finder.png" alt=""></div>
+        <div class="di"><img src="assets/chrome-real.png" alt=""></div>
+        <div class="di inset"><img src="assets/notion-real.png" alt=""></div>
+        <div class="di"><img src="assets/slack-real.png" alt=""></div>
+        <div class="di"><img src="assets/discord-real.png" alt=""></div>
+        <div class="di"><img src="assets/claude-real.png" alt=""></div>
+        <div class="di"><img src="assets/gemini-real.png" alt=""></div>
+        <div class="di"><img src="assets/codex-real.png" alt=""></div>
+        <div class="di"><img src="assets/figma-real.png" alt=""></div>
+        <div class="di"><img src="assets/framer.png" alt=""></div>
+        <div class="di"><img src="assets/photoshop-real.png" alt=""></div>
+        <div class="di"><img src="assets/aftereffects-real.png" alt=""></div>
+        <div class="di"><img src="assets/premiere-real.png" alt=""></div>
+        <div class="di"><img src="assets/terminal-real.png" alt=""></div>
+      </div>
+
+    </div><!-- /.desktop -->
+    <img class="laptopframe" src="assets/macbook-frame.png" alt="" aria-hidden="true">
+  </div><!-- /#world -->
+</div><!-- /#stage -->
+
+<script>
+/* ---- fit the stage to the viewport ---- */
+var stage=document.getElementById('stage'), world=document.getElementById('world');
+function fit(){var k=Math.min(innerWidth/1920,innerHeight/1080);
+  stage.style.transform='translate(-50%,-50%) scale('+k+')';}
+
+/* ---- camera: interpolate the FINAL TRANSFORM (tx,ty,s), lockstep eased, no swing.
+   (Easing cx/cy/z apart makes tx=960-cx*z a product of eased values → the frame
+   swings/boomerangs. Interpolating the composed transform keeps the path clean.) ---- */
+var cam={cx:960,cy:652,z:0.46};
+function camXf(c){return {tx:960-c.cx*c.z, ty:540-c.cy*c.z, s:c.z};}
+function applyCam(){var x=camXf(cam);world.style.transform='translate('+x.tx+'px,'+x.ty+'px) scale('+x.s+')';}
+function setCamNow(c){cam.cx=c.cx;cam.cy=c.cy;cam.z=c.z;applyCam();}
+function E_IO(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+var camAnim=null;
+function tweenCam(to,dur,onDone,ease){
+  ease=ease||E_IO;
+  var A=camXf(cam), B=camXf(to), st=performance.now(), id={}; camAnim=id;
+  (function fr(now){ if(camAnim!==id)return;
+    var p=Math.min(1,(now-st)/dur), e=ease(p);
+    world.style.transform='translate('+(A.tx+(B.tx-A.tx)*e)+'px,'+(A.ty+(B.ty-A.ty)*e)+'px) scale('+(A.s+(B.s-A.s)*e)+')';
+    if(p<1)requestAnimationFrame(fr); else{cam.cx=to.cx;cam.cy=to.cy;cam.z=to.z;camAnim=null; if(onDone)onDone();}
+  })(st);
+}
+
+/* measure a selector's rect in WORLD coords (transform-independent) */
+function rectOf(sel){var el=document.querySelector(sel); if(!el)return null;
+  var wt=world.style.transform; world.style.transform='none';
+  var wr=world.getBoundingClientRect(), er=el.getBoundingClientRect(),
+      k=stage.getBoundingClientRect().width/1920||1;
+  world.style.transform=wt;
+  return {x:(er.left-wr.left)/k, y:(er.top-wr.top)/k, w:er.width/k, h:er.height/k};}
+function regionOf(sels){var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,got=false;
+  sels.forEach(function(s){var r=rectOf(s); if(!r)return; got=true;
+    x0=Math.min(x0,r.x);y0=Math.min(y0,r.y);x1=Math.max(x1,r.x+r.w);y1=Math.max(y1,r.y+r.h);});
+  return got?{x:x0,y:y0,w:x1-x0,h:y1-y0}:null;}
+function camFor(reg,o){o=o||{};var fill=o.fill||0.9,zmax=o.zmax||1.6,zmin=o.zmin||0.1,b=o.bias||{};
+  var z=Math.min(zmax,(1920*fill)/reg.w,(1080*fill)/reg.h);z=Math.max(zmin,z);
+  return {cx:reg.x+reg.w/2+(b.dx||0), cy:reg.y+reg.h/2+(b.dy||0), z:z};}
+
+/* ---- scene handles + a cancellable timer set (so a loop restart is clean) ---- */
+function qsa(s){return Array.prototype.slice.call(document.querySelectorAll(s));}
+var winBrowser=document.querySelector('.win.browser'),
+    winTerminal=document.querySelector('.win.terminal'),
+    TABS=qsa('.browser .tabs .tab');
+var timers=[]; function at(ms,fn){timers.push(setTimeout(fn,ms));}
+function clearTimers(){timers.forEach(clearTimeout);timers=[];}
+
+function establishing(){return camFor(regionOf(['.laptopframe']),{fill:0.82,zmax:0.80});}
+/* ---- scene-2-chaos ONE-SWEEP (ported verbatim) ----
+   A trapezoidal speed profile: ease out of rest → CONSTANT-VELOCITY cruise →
+   ease into rest, one unbroken move. The constant cruise is the trick: evenly
+   spaced tabs then reveal at an even cadence instead of bunching at the ends. */
+var SWEEP_ACC=0.18, SWEEP_DEC=0.18;
+function E_SWEEP(t){
+  var c=1-SWEEP_ACC-SWEEP_DEC, v=1/(SWEEP_ACC/2+c+SWEEP_DEC/2);
+  if(t<=SWEEP_ACC)   return v*t*t/(2*SWEEP_ACC);
+  if(t<=SWEEP_ACC+c) return v*SWEEP_ACC/2 + v*(t-SWEEP_ACC);
+  var s=t-SWEEP_ACC-c;
+  return v*SWEEP_ACC/2 + v*c + v*(s - s*s/(2*SWEEP_DEC));
+}
+function revealers(list,cls){return list.map(function(el){return function(){el.classList.add(cls);};});}
+/* sweep the camera from->to as ONE move, firing each item off the camera's REAL
+   progress: item k fires when the sweep is spread*k/(n-1) of the way across, minus
+   `lead` so it's anticipated. Because each .show transition (~.5s) outlasts the gap
+   between fires, the next starts before the previous finishes — a seamless wave. */
+function sweepCam(from,to,dur,items,lead,spread,cb){
+  if(spread==null)spread=1;
+  var stt=performance.now(), id={}; camAnim=id; var n=items.length, i=0;
+  (function fr(now){ if(camAnim!==id)return;
+    var p=Math.min(1,(now-stt)/dur), e=E_SWEEP(p);
+    cam.cx=from.cx+(to.cx-from.cx)*e; cam.cy=from.cy+(to.cy-from.cy)*e; cam.z=from.z+(to.z-from.z)*e; applyCam();
+    while(i<n && e>=(n>1?spread*i/(n-1):0)-lead){items[i]();i++;}
+    if(p<1)requestAnimationFrame(fr);
+    else{ while(i<n){items[i]();i++;} cam.cx=to.cx;cam.cy=to.cy;cam.z=to.z; camAnim=null; if(cb)cb(); }
+  })(stt);
+}
+/* the tab row's first + last framings (constant cy + z = a pure horizontal cruise),
+   measured live so it tracks this layout. z≈1.7 matches scene-2-chaos's zoom feel. */
+function tabSweep(){
+  var was=TABS.map(function(t){return t.classList.contains('show');});
+  var wtf=winBrowser.style.transform, wtr=winBrowser.style.transition;
+  TABS.forEach(function(t){t.style.transition='none'; t.classList.add('show');});
+  winBrowser.style.transition='none'; winBrowser.style.transform='none';
+  var r0=rectOf('.browser .tabs .tab:nth-child(1)'),
+      rN=rectOf('.browser .tabs .tab:nth-child('+TABS.length+')');
+  TABS.forEach(function(t,i){ if(!was[i]) t.classList.remove('show'); });
+  void winBrowser.offsetWidth;
+  winBrowser.style.transform=wtf; winBrowser.style.transition=wtr;
+  TABS.forEach(function(t){t.style.transition='';});
+  var cy=r0.y+r0.h/2, z=1.7;
+  return { from:{cx:r0.x+r0.w/2, cy:cy, z:z}, to:{cx:rN.x+rN.w/2, cy:cy, z:z} };
+}
+var term=winTerminal.querySelector('.term'),
+    termTyped=winTerminal.querySelector('.term .typed');
+function resetTerminal(){
+  if(term) term.classList.remove('typing','booted');
+  if(termTyped) termTyped.textContent='';
+}
+/* type `claude` at the prompt, then boot Claude Code, then call done() */
+function typeClaude(done){
+  if(!term||!termTyped){ if(done)done(); return; }
+  term.classList.add('typing');
+  var cmd='claude', k=0;
+  (function tk(){
+    if(k<=cmd.length){ termTyped.textContent=cmd.slice(0,k); k++; at(80, tk); }
+    else at(430, function(){                       /* enter → Claude Code boots */
+      term.classList.remove('typing'); term.classList.add('booted');
+      at(1600, done);                              /* hold on the booted CLI, then move on */
+    });
+  })();
+}
+function resetScene(){
+  winBrowser.classList.add('cloak'); winTerminal.classList.add('cloak');
+  TABS.forEach(function(t){t.classList.remove('show');});
+  resetTerminal();
+}
+
+/* ---- the directed take (loops) ---- */
+function choreograph(){
+  clearTimers(); resetScene(); setCamNow(establishing());
+  var s=tabSweep();                                  /* first/last tab framings, up front */
+  at(650, function(){
+    winBrowser.classList.remove('cloak');            /* 1-2 — browser eases in */
+    tweenCam(s.from, 1000, function(){               /* push in, tight on the first tab */
+      /* 3 — ONE sweep across the tab row at the scene-2-chaos pace: 1.9s, lead .06,
+         spread .62 (≈3 tabs animating at once). localhost is last + active. */
+      sweepCam(s.from, s.to, 1900, revealers(TABS,'show'), 0.06, 0.62, toTerminal);
+    });
+  });
+}
+/* terminal's settled framing, measured with its entrance transform neutralised */
+function termTarget(){
+  var wtf=winTerminal.style.transform; winTerminal.style.transform='none';
+  var t=camFor(regionOf(['.win.terminal']),{fill:0.84,zmax:1.55});
+  winTerminal.style.transform=wtf;
+  return t;
+}
+function toTerminal(){                               /* 4 — pan to the bottom-right; the
+                                                       window opens AS the camera arrives */
+  at(360, function(){
+    /* on arrival, the terminal types `claude` + boots Claude Code, THEN we move on */
+    tweenCam(termTarget(), 1150, function(){ at(340, function(){ typeClaude(toDock); }); });
+    at(780, function(){ winTerminal.classList.remove('cloak'); }); /* opens ~2/3 in, as the lens arrives */
+  });
+}
+function toDock(){                                   /* 5 — continue to the dock */
+  at(1500, function(){ tweenCam(camFor(regionOf(['.dock']),{fill:0.72,zmax:1.35,bias:{dy:-46}}), 1300, toFinale); });
+}
+function toFinale(){                                 /* 6 — zoom out, then loop */
+  at(1400, function(){ tweenCam(establishing(), 1600, function(){ at(1900, choreograph); }); });
+}
+
+var reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+function boot(){fit(); setCamNow(establishing());
+  if(reduce){                                        /* no motion: show finished scene */
+    winBrowser.classList.remove('cloak');
+    winTerminal.classList.remove('cloak');
+    TABS.forEach(function(t){t.classList.add('show');});
+    if(termTyped) termTyped.textContent='claude';
+    if(term) term.classList.add('booted');
+    return;
+  }
+  choreograph();
+}
+addEventListener('resize',function(){fit();applyCam();});
+addEventListener('load',boot);
+</script>
+</body>
+</html>

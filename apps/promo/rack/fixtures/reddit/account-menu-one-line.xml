@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" class="android.widget.FrameLayout" package="com.reddit.frontpage" content-desc="" bounds="[300,0][1080,2400]">
+    <node index="0" text="u/new_fern_7" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[360,420][1020,480]" />
+    <node index="1" text="1.2k karma" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[360,520][680,570]" />
+    <node index="2" text="5d Reddit age" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[700,520][1020,570]" />
+  </node>
+</hierarchy>

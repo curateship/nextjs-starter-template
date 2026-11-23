@@ -3,6 +3,10 @@ import { privateKeyToAccount } from "viem/accounts"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { loadTradingAccountState } from "@/lib/hl/account-balance"
+import {
+  liquidationDistancePct,
+  positionMarkPx,
+} from "@/lib/trading/liquidation-risk"
 import { CURRENT_KEY_VERSION, encryptPrivateKey } from "@/server/hyperliquid/keys"
 import { assertNetworkEnabled } from "@/server/hyperliquid/transport"
 import {
@@ -206,21 +210,57 @@ export function serializeWallet(row: TradingWallet) {
 }
 
 /**
- * serializeWallet plus the live perps equity of each wallet's account on the
- * exchange (null when the lookup fails). Lookups run in parallel.
+ * serializeWallet plus the wallet's live margin health on the exchange:
+ * equity, margin in use, withdrawable, open-position count, and the worst
+ * (smallest) distance to liquidation across its positions. All null when the
+ * lookup fails. Lookups run in parallel.
  */
 export async function serializeWalletsWithEquity(rows: TradingWallet[]) {
   const { getInfoClient } = await import("@/server/hyperliquid/info")
   return Promise.all(
     rows.map(async (row) => {
       const address = (row.vaultAddress ?? row.accountAddress) as `0x${string}`
-      const equity = await loadTradingAccountState(
+      const health = await loadTradingAccountState(
         getInfoClient(row.network as TradingNetwork),
         address
       )
-        .then((state) => Number(state.equity))
+        .then((state) => {
+          const positions = state.clearinghouseState.assetPositions.filter(
+            ({ position }) => Number(position.szi) !== 0
+          )
+          let worst: number | null = null
+          for (const { position } of positions) {
+            const distance = liquidationDistancePct({
+              szi: Number(position.szi),
+              markPx:
+                positionMarkPx(position.positionValue, position.szi) ?? 0,
+              liquidationPx: position.liquidationPx
+                ? Number(position.liquidationPx)
+                : null,
+            })
+            if (distance !== null && (worst === null || distance < worst)) {
+              worst = distance
+            }
+          }
+          return {
+            equity: Number(state.equity),
+            margin_used: Number(
+              state.clearinghouseState.marginSummary.totalMarginUsed
+            ),
+            withdrawable: Number(state.withdrawable),
+            positions_count: positions.length,
+            worst_liq_distance_pct: worst,
+          }
+        })
         .catch(() => null)
-      return { ...serializeWallet(row), equity }
+      return {
+        ...serializeWallet(row),
+        equity: health?.equity ?? null,
+        margin_used: health?.margin_used ?? null,
+        withdrawable: health?.withdrawable ?? null,
+        positions_count: health?.positions_count ?? null,
+        worst_liq_distance_pct: health?.worst_liq_distance_pct ?? null,
+      }
     })
   )
 }

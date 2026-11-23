@@ -1,0 +1,673 @@
+"use client"
+
+import { useState, useEffect, useRef, useDeferredValue, useCallback } from "react"
+import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
+import {
+  AdminBulkDeleteButton,
+  AdminListFooter,
+  AdminListPending,
+  AdminRowAction,
+  AdminRowActions,
+  AdminSortableHead,
+  AdminSortButton,
+  AdminTableShell,
+  ConfirmDestructive,
+  RelativeDate,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
+import { dismissErrorToast, showErrorToast } from "@/lib/error-toast"
+import { showActionSuccess } from "@/lib/utils/admin-action-feedback"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table"
+import Trash2 from "lucide-react/dist/esm/icons/trash-2.js"
+import Settings from "lucide-react/dist/esm/icons/settings.js"
+import Users from "lucide-react/dist/esm/icons/users.js"
+import Upload from "lucide-react/dist/esm/icons/upload.js"
+import X from "lucide-react/dist/esm/icons/x.js"
+import Plus from "lucide-react/dist/esm/icons/plus.js"
+import SlidersHorizontal from "lucide-react/dist/esm/icons/sliders-horizontal.js"
+import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left.js"
+import Link from "@/components/app-link"
+import { getContactsWithStats, deleteContacts } from "@/lib/actions/newsletters/contact-actions"
+import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
+import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
+import type { Segment } from "@/lib/actions/newsletters/segment-actions"
+import { useClearSelectionOnListChange } from "@/lib/use-clear-selection"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import {
+  emptyContactFilterGroup,
+  formatContactFilterRule,
+  type ContactFilterGroup
+} from "@/lib/actions/newsletters/contact-filters"
+import { ContactFilterModal } from "@/components/admin/newsletter-builder/contacts/ContactFilterModal"
+import { ContactFormModal } from "@/components/admin/newsletter-builder/contacts/ContactFormModal"
+import { ContactImportModal } from "@/components/admin/newsletter-builder/contacts/ContactImportModal"
+
+type ContactSortColumn = "contact" | "source" | "status" | "tags" | "added" | "engaged"
+
+export default function ContactsPage() {
+  const { currentSite, loading: siteLoading, pageSize: contextPageSize } = useSiteSwitcher()
+  const [contacts, setContacts] = useState<CrmContact[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = contextPageSize
+  const contactSelection = useAdminBulkSelection()
+  const clearContactSelection = contactSelection.clearSelection
+  const contactSort = useAdminSort<ContactSortColumn>()
+  const [massDeleting, setMassDeleting] = useState(false)
+  const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState("")
+  const [total, setTotal] = useState(0)
+  const [searchQuery, setSearchQuery] = useState("")
+  const deferredSearchQuery = useDeferredValue(searchQuery)
+
+  const [addModalOpen, setAddModalOpen] = useState(false)
+  const [editContact, setEditContact] = useState<CrmContact | null>(null)
+
+  // Segment state
+  const [segments, setSegments] = useState<Segment[]>([])
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string>("")
+  const [addingToSegment, setAddingToSegment] = useState(false)
+
+  const [importModalOpen, setImportModalOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const contactLoadRequestIdRef = useRef(0)
+
+  // Filter state
+  const [filters, setFilters] = useState<ContactFilterGroup>(emptyContactFilterGroup)
+  const [filterModalOpen, setFilterModalOpen] = useState(false)
+  // Ticks never survive a change to what the table is showing.
+  useClearSelectionOnListChange(
+    contactSelection,
+    `${currentSite?.id}|${deferredSearchQuery}|${JSON.stringify(filters)}|${contactSort.sortColumn}|${contactSort.sortDirection}|${currentPage}|${pageSize}`
+  )
+
+
+  useEffect(() => {
+    if (currentSite?.id) {
+      getSegmentsBySite({ data: { siteId: currentSite.id } }).then(({ data }) => setSegments(data || []))
+    }
+  }, [currentSite?.id])
+
+  useEffect(() => {
+    clearContactSelection()
+  }, [clearContactSelection, currentSite?.id, siteLoading])
+
+  const loadContacts = useCallback(async () => {
+    const requestId = ++contactLoadRequestIdRef.current
+
+    if (siteLoading || !currentSite?.id) {
+      setLoading(siteLoading)
+      setError(null)
+      setContacts([])
+      setTotal(0)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      const result = await getContactsWithStats({ data: { siteId: currentSite.id, options: {
+        filterGroup: filters.rules.length ? filters : undefined,
+        searchQuery: deferredSearchQuery,
+        page: currentPage,
+        pageSize
+      } } })
+
+      if (requestId !== contactLoadRequestIdRef.current) {
+        return
+      }
+
+      if (result.error) {
+        setError(result.error)
+        setLoading(false)
+        return
+      }
+
+      setContacts(result.data ?? [])
+      setTotal(result.total)
+
+      setLoading(false)
+    } catch (err) {
+      if (requestId !== contactLoadRequestIdRef.current) {
+        return
+      }
+      setError(err instanceof Error ? err.message : "Failed to load contacts")
+      setLoading(false)
+    }
+  }, [currentSite?.id, currentPage, deferredSearchQuery, filters, pageSize, siteLoading])
+
+  useEffect(() => {
+    loadContacts()
+  }, [loadContacts])
+
+  const sortedContacts = [...contacts].sort((a, b) => {
+    if (!contactSort.sortColumn) return 0
+    const dir = contactSort.sortDirection === "asc" ? 1 : -1
+    if (contactSort.sortColumn === "contact") return a.email.localeCompare(b.email) * dir
+    if (contactSort.sortColumn === "status") return a.status.localeCompare(b.status) * dir
+    if (contactSort.sortColumn === "source") {
+      const aSource = a.metadata?.source || "manual"
+      const bSource = b.metadata?.source || "manual"
+      return aSource.localeCompare(bSource) * dir
+    }
+    if (contactSort.sortColumn === "tags") {
+      const aTag = a.metadata?.tags?.[0] || "\uffff"
+      const bTag = b.metadata?.tags?.[0] || "\uffff"
+      return aTag.localeCompare(bTag) * dir
+    }
+    if (contactSort.sortColumn === "added")
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    if (contactSort.sortColumn === "engaged") {
+      const aTime = a.last_engaged_at ? new Date(a.last_engaged_at).getTime() : 0
+      const bTime = b.last_engaged_at ? new Date(b.last_engaged_at).getTime() : 0
+      return (aTime - bTime) * dir
+    }
+    return 0
+  })
+  const contactIds = sortedContacts.map((contact) => contact.id)
+
+  const handleDelete = (id: string) => {
+    setErrorMessage("")
+    setPendingDeleteId(id)
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDeleteId) return
+    const contactId = pendingDeleteId
+    try {
+      const { success, error } = await deleteContacts({ data: { contactIds: [contactId] } })
+      if (error) {
+        setErrorMessage(error)
+        return
+      }
+      if (success) {
+        setPendingDeleteId(null)
+        loadContacts()
+        showActionSuccess("Contact deleted.")
+      }
+    } catch {
+      setErrorMessage("Failed to delete contact")
+    }
+  }
+
+  const confirmMassDelete = async () => {
+    setMassDeleting(true)
+    try {
+      const ids = Array.from(contactSelection.selectedIds)
+      const deletedCount = ids.length
+      const { success, error } = await deleteContacts({ data: { contactIds: ids } })
+      if (error) {
+        setErrorMessage(error)
+        return
+      }
+      if (success) {
+        contactSelection.clearSelection()
+        setMassDeleteConfirmOpen(false)
+        loadContacts()
+        showActionSuccess(deletedCount === 1 ? "Contact deleted." : "Contacts deleted.")
+      }
+    } catch {
+      setErrorMessage("Failed to delete contacts")
+    } finally {
+      setMassDeleting(false)
+    }
+  }
+
+  const handleAddToSegment = async () => {
+    if (!contactSelection.selectedCount) return
+    if (!selectedSegmentId) {
+      showErrorToast("Choose a segment to add these contacts to")
+      return
+    }
+
+    dismissErrorToast()
+    setAddingToSegment(true)
+    try {
+      const segName = segments.find((s) => s.id === selectedSegmentId)?.name || "segment"
+      const { added, error } = await addContactsToSegment({ data: { contactIds: Array.from(contactSelection.selectedIds), segmentId: selectedSegmentId } })
+      if (error) {
+        showErrorToast(error)
+      } else {
+        showActionSuccess(`${added} contact${added !== 1 ? "s" : ""} added to ${segName}.`)
+        contactSelection.clearSelection()
+        setSelectedSegmentId("")
+        loadContacts()
+      }
+    } catch {
+      showErrorToast("Failed to add contacts to segment")
+    } finally {
+      setAddingToSegment(false)
+    }
+  }
+
+  const handleContactCreated = (contact: CrmContact) => {
+    setContacts((prev) => [contact, ...prev])
+    setTotal((prev) => prev + 1)
+  }
+
+  const handleContactUpdated = (contact: CrmContact) => {
+    setContacts((prev) => prev.map((item) => (item.id === contact.id ? contact : item)))
+  }
+
+  const openEditModal = (contact: CrmContact) => {
+    setEditContact(contact)
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
+      case "cold":
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Cold</Badge>
+      case "unsubscribed":
+        return <Badge variant="secondary">Unsubscribed</Badge>
+      case "bounced":
+        return <Badge variant="destructive">Bounced</Badge>
+      case "complained":
+        return <Badge variant="destructive">Complained</Badge>
+      default:
+        return <Badge variant="secondary">{status}</Badge>
+    }
+  }
+
+  const getSourceBadge = (source: string) => {
+    switch (source) {
+      case "site_registration":
+        return (
+          <Badge variant="outline" className="border-amber-200 text-amber-700">
+            Site Registration
+          </Badge>
+        )
+      case "Email Form":
+        return (
+          <Badge variant="outline" className="border-sky-200 text-sky-700">
+            Email Form
+          </Badge>
+        )
+      case "lead_magnet":
+        return <Badge variant="outline">Lead Magnet</Badge>
+      case "paid_purchase":
+        return (
+          <Badge variant="outline" className="border-green-200 dark:border-green-900 text-green-700 dark:text-green-300">
+            Purchase
+          </Badge>
+        )
+      case "Notion Marketplace":
+        return (
+          <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
+            Notion Marketplace
+          </Badge>
+        )
+      case "import":
+        return (
+          <Badge variant="outline" className="border-blue-200 text-blue-700">
+            Import
+          </Badge>
+        )
+      case "manual":
+        return <Badge variant="outline">Manual</Badge>
+      case "ad":
+        return (
+          <Badge variant="outline" className="border-purple-200 text-purple-700">
+            Ad
+          </Badge>
+        )
+      default:
+        return <Badge variant="outline">{source}</Badge>
+    }
+  }
+
+  const activeFilterCount = filters.rules.length
+  const hasSearchQuery = deferredSearchQuery.trim().length > 0
+  // Ticks are cleared by useClearSelectionOnListChange; changing what is shown
+  // only has to send you back to the first page.
+  function resetSelectionForFilteredView() {
+    setCurrentPage(1)
+  }
+
+  function openFilterModal() {
+    setFilterModalOpen(true)
+  }
+
+  function handleApplyFilters(nextFilters: ContactFilterGroup) {
+    setFilters(nextFilters)
+    resetSelectionForFilteredView()
+  }
+
+  function removeAppliedRule(ruleId: string) {
+    setFilters((prev) => ({
+      ...prev,
+      rules: prev.rules.filter((rule) => rule.id !== ruleId)
+    }))
+    resetSelectionForFilteredView()
+  }
+
+  function clearAllFilters() {
+    setFilters(emptyContactFilterGroup())
+    resetSelectionForFilteredView()
+  }
+
+  return (
+    <>
+      <StickyHeader />
+      <AdminLayout>
+        <div className="w-full">
+          {/* Breadcrumb navigation + action buttons */}
+          <DashboardSubheader
+            items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Contacts" }]}
+          />
+
+          <AdminTableShell
+            error={error ? { message: error, onRetry: () => loadContacts() } : null}
+            title="Contacts"
+            icon={<Users className="text-muted-foreground" />}
+            count={total}
+            loading={loading}
+            selectedCount={contactSelection.selectedCount}
+            onClearSelection={contactSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={contactSelection.selectedCount}
+              />
+            }
+            controls={
+              <TableRightActions>
+                {contactSelection.selectedCount > 0 && segments.length > 0 ? (
+                  <>
+                    <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
+                      <TableRightActionsSelectTrigger className="w-[180px]" aria-label="Segment">
+                        <SelectValue placeholder="Select segment..." />
+                      </TableRightActionsSelectTrigger>
+                      <SelectContent>
+                        {segments.map((seg) => (
+                          <SelectItem key={seg.id} value={seg.id}>
+                            {seg.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <TableRightActionsButton
+                      variant={selectedSegmentId ? "default" : "outline"}
+                      className={selectedSegmentId ? "bg-green-600 dark:bg-green-500 hover:bg-green-700" : ""}
+                      onClick={handleAddToSegment}
+                      disabled={addingToSegment}
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                      <span className="hidden sm:inline">{addingToSegment ? "Adding..." : "Add to Segment"}</span>
+                    </TableRightActionsButton>
+                  </>
+                ) : null}
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value)
+                    setCurrentPage(1)
+                  }}
+                  placeholder="Search contacts"
+                />
+                <TableRightActionsButton variant="outline" className="relative" onClick={openFilterModal}>
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span className="hidden sm:inline">Filter</span>
+                  {activeFilterCount > 0 ? (
+                    <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                      {activeFilterCount}
+                    </span>
+                  ) : null}
+                </TableRightActionsButton>
+                <TableRightActionsButton onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline">Import CSV</span>
+                </TableRightActionsButton>
+                <TableRightActionsButton onClick={() => setAddModalOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Add Contact</span>
+                </TableRightActionsButton>
+              </TableRightActions>
+            }
+            footer={
+              !loading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={setCurrentPage}
+                />
+              ) : null
+            }
+          >
+
+            {/* Active filter chips */}
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
+                <Badge variant="outline" className="font-medium">
+                  Matching {filters.match === "all" ? "all" : "any"}
+                </Badge>
+                {filters.rules.map((rule) => (
+                  <Badge key={rule.id} variant="secondary" className="gap-1 pr-1">
+                    {formatContactFilterRule(rule)}
+                    <button
+                      type="button"
+                      onClick={() => removeAppliedRule(rule.id)}
+                      className="ml-1 hover:bg-muted rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="text-sm text-muted-foreground hover:text-foreground underline"
+                >
+                  Clear all ({total})
+                </button>
+              </div>
+            )}
+
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={contactSelection.isPageSelected(contactIds)}
+                        onCheckedChange={() => contactSelection.togglePage(contactIds)}
+                        aria-label="Select all contacts"
+                      />
+                    </TableHead>
+                    <AdminSortableHead column="main" sort={contactSort} sortKey="contact">Contact</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={contactSort} sortKey="source">Source</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={contactSort} sortKey="status">Status</AdminSortableHead>
+                    <AdminSortableHead column="content" sort={contactSort} sortKey="tags">Tags</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={contactSort} sortKey="added">Added</AdminSortableHead>
+                    <AdminSortableHead column="meta" sort={contactSort} sortKey="engaged">Last Engaged</AdminSortableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading && sortedContacts.length === 0 ? (
+                    <AdminListPending />
+                  ) : contacts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-32 text-center">
+                        <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="mb-4 text-muted-foreground">
+                          {hasSearchQuery && activeFilterCount > 0
+                            ? "No contacts match this search and filter"
+                            : hasSearchQuery
+                              ? "No contacts match this search"
+                              : activeFilterCount > 0
+                                ? "No contacts match this filter"
+                                : "No contacts yet"}
+                        </p>
+                        <Button onClick={() => fileInputRef.current?.click()} variant="outline">
+                          <Upload className="mr-2 h-4 w-4" />
+                          Import CSV
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedContacts.map((contact) => (
+                      <TableRow
+                        key={contact.id}
+                        data-state={contactSelection.selectedIds.has(contact.id) ? "selected" : undefined}
+                        className="group"
+                      >
+                        <TableCell column="select">
+                          <Checkbox
+                            checked={contactSelection.selectedIds.has(contact.id)}
+                            onCheckedChange={() => contactSelection.toggleOne(contact.id)}
+                            aria-label={`Select ${contact.email}`}
+                          />
+                        </TableCell>
+                        <TableCell column="main">
+                          <Link
+                            href={`/admin/newsletters/contacts/${contact.id}`}
+                            className="block min-w-0 transition-opacity hover:opacity-80"
+                          >
+                            <h4
+                              className="truncate text-sm font-medium hover:underline sm:text-base"
+                              title={
+                                contact.metadata?.first_name || contact.metadata?.last_name
+                                  ? `${contact.metadata.first_name || ""} ${contact.metadata.last_name || ""}`.trim()
+                                  : contact.email
+                              }
+                            >
+                              {contact.metadata?.first_name || contact.metadata?.last_name
+                                ? `${contact.metadata.first_name || ""} ${contact.metadata.last_name || ""}`.trim()
+                                : contact.email}
+                            </h4>
+                            {(contact.metadata?.first_name || contact.metadata?.last_name) && (
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm" title={contact.email}>{contact.email}</p>
+                            )}
+                          </Link>
+                        </TableCell>
+                        <TableCell column="content">{getSourceBadge(contact.metadata?.source || "manual")}</TableCell>
+                        <TableCell column="meta">{getStatusBadge(contact.status)}</TableCell>
+                        <TableCell column="content">
+                          <div className="flex flex-wrap gap-1">
+                            {contact.metadata?.tags?.length ? (
+                              contact.metadata.tags.slice(0, 3).map((tag: string) => (
+                                <Badge key={tag} variant="outline" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                            {(contact.metadata?.tags?.length ?? 0) > 3 && (
+                              <span className="text-xs text-muted-foreground">
+                                +{contact.metadata!.tags!.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={contact.created_at} /></TableCell>
+                        <TableCell column="mutedMeta"><RelativeDate date={contact.last_engaged_at} fallback="Never" /></TableCell>
+                        <TableCell column="meta">
+                          <AdminRowActions>
+                            <AdminRowAction
+                              icon={Settings}
+                              label="Contact settings"
+                              onClick={() => openEditModal(contact)}
+                            />
+                            <AdminRowAction
+                              icon={Trash2}
+                              label="Delete contact"
+                              onClick={() => handleDelete(contact.id)}
+                            />
+                          </AdminRowActions>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+
+          </AdminTableShell>
+
+          <ContactFilterModal
+            open={filterModalOpen}
+            filters={filters}
+            onApply={handleApplyFilters}
+            onOpenChange={setFilterModalOpen}
+            pageSize={pageSize}
+            searchQuery={deferredSearchQuery}
+            siteId={currentSite?.id}
+            total={total}
+          />
+
+          <ContactImportModal
+            open={importModalOpen}
+            fileInputRef={fileInputRef}
+            onError={showErrorToast}
+            onImported={loadContacts}
+            onOpenChange={setImportModalOpen}
+            siteId={currentSite?.id}
+          />
+
+          <ContactFormModal
+            addOpen={addModalOpen}
+            editContact={editContact}
+            onAddOpenChange={setAddModalOpen}
+            onCreated={handleContactCreated}
+            onEditClose={() => setEditContact(null)}
+            onError={showErrorToast}
+            onUpdated={handleContactUpdated}
+            siteId={currentSite?.id}
+          />
+
+          <ConfirmDestructive
+            action="delete-contact"
+            open={pendingDeleteId !== null}
+            title="Delete Contact"
+            description="Are you sure? This action cannot be undone."
+            error={errorMessage || null}
+            onCancel={() => { setPendingDeleteId(null); setErrorMessage("") }}
+            onConfirm={confirmDelete}
+          />
+
+          <ConfirmDestructive
+            action="delete-contact"
+            open={massDeleteConfirmOpen}
+            title={`Delete ${contactSelection.selectedCount} Contact${contactSelection.selectedCount !== 1 ? "s" : ""}`}
+            description={`Are you sure you want to delete ${contactSelection.selectedCount} contact${contactSelection.selectedCount !== 1 ? "s" : ""}? This action cannot be undone.`}
+            confirmLabel={`Delete ${contactSelection.selectedCount} Contact${contactSelection.selectedCount !== 1 ? "s" : ""}`}
+            disabled={massDeleting}
+            error={errorMessage || null}
+            onCancel={() => { setMassDeleteConfirmOpen(false); setErrorMessage("") }}
+            onConfirm={confirmMassDelete}
+          />
+        </div>
+      </AdminLayout>
+    </>
+  )
+}

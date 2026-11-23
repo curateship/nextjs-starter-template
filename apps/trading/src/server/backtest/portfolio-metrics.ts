@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from "drizzle-orm"
 import type {
   BacktestEquityPoint,
   GroupCombinedCurve,
+  GroupOpenPositions,
   GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import { db, type CustomShellDb } from "@/server/db"
@@ -11,20 +12,32 @@ import { tradingBacktests } from "@/server/schema"
 /**
  * One market's inputs to the blend: its starting capital and its equity curve.
  */
-type MarketCurve = { start: number; curve: BacktestEquityPoint[] }
+type MarketCurve = {
+  start: number
+  curve: BacktestEquityPoint[]
+}
 
 /** One point on the summed basket curve: bar time and total basket equity. */
 type CombinedPoint = { t: number; total: number }
 type BlendedCurve = { totalStart: number; series: CombinedPoint[] }
 
 /**
- * Blends every market's equity curve into one combined basket curve. Equal-
- * weight, no rebalancing: each market compounds from its own starting capital
- * and we sum them at each bar. A market's capital sits idle (flat at its start)
- * before its history begins, so markets with shorter histories don't distort
- * the early basket. Returns the total starting capital plus the summed curve.
+ * Blends every market's equity curve into one combined basket curve.
+ *
+ * THE POT IS THE STARTING BALANCE, ONCE. Every market in a group runs the same
+ * starting balance, and that one balance is the basket's capital — testing
+ * four markets does not mean four accounts existed. So the curve starts at that
+ * single number and each market adds its PROFIT to it, rather than each market
+ * contributing a whole account to a summed total. Summing the accounts was
+ * tried and reported a real loss at roughly a quarter of its size (July 26,
+ * 2026), and it put this drawdown on a different denominator from the Net P&L
+ * beside it.
+ *
+ * A market's profit is 0 (flat at its start) before its history begins, so
+ * markets with shorter histories don't distort the early basket. Returns the
+ * pot plus the combined curve.
  */
-function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
+export function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
   const ms = markets
     .filter((m) => Array.isArray(m.curve) && m.curve.length > 0)
     .map((m) => ({
@@ -32,7 +45,11 @@ function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
       pts: [...m.curve].sort((a, b) => a.t - b.t),
     }))
   if (ms.length === 0) return null
-  const totalStart = ms.reduce((sum, m) => sum + m.start, 0)
+  // Every market in a group runs the same starting balance, so this is just
+  // "the pot" — taken as the largest rather than the first so a group that
+  // somehow holds mixed balances still answers the same way whatever order the
+  // rows come back in.
+  const totalStart = Math.max(...ms.map((market) => market.start))
   if (totalStart <= 0) return null
 
   // Union of every bar time across all markets, in order.
@@ -53,8 +70,10 @@ function blendCurves(markets: MarketCurve[]): BlendedCurve | null {
         idx[i]++
       }
     }
-    let total = 0
-    for (const v of cur) total += v
+    let total = totalStart
+    for (let index = 0; index < cur.length; index += 1) {
+      total += cur[index] - ms[index].start
+    }
     series.push({ t, total })
   }
   return { totalStart, series }
@@ -98,11 +117,38 @@ function computeCombinedFromBlend(
 
   return {
     markets: marketCount,
+    startEquity: totalStart,
     combinedDrawdownPct: maxDrawdown * 100,
     drawdownAt,
     bucketLowPct: Math.min(0, (minTotal / totalStart - 1) * 100),
     bucketLowAt: minTotalAt,
   }
+}
+
+/**
+ * Money a group's markets were still holding when their windows closed, summed
+ * across the completed rows.
+ *
+ * Returns null when NO row carries the measurement — runs that finished before
+ * the engine recorded it, which are never rewritten after the fact. That case
+ * has to stay distinct from a real zero: "$0, everything closed" is a claim
+ * about what the markets did, and an unmeasured run cannot support it.
+ */
+export function tallyOpenPositions(
+  rows: { openNotionalUsd: number | null }[]
+): GroupOpenPositions | null {
+  let measured = 0
+  const total: GroupOpenPositions = { usd: 0, markets: 0 }
+  for (const row of rows) {
+    if (row.openNotionalUsd === null) continue
+    const value = Number(row.openNotionalUsd)
+    if (!Number.isFinite(value)) continue
+    measured += 1
+    if (value <= 0) continue
+    total.usd += value
+    total.markets += 1
+  }
+  return measured > 0 ? total : null
 }
 
 /** UI point ceiling for the results-page P&L chart. */
@@ -256,6 +302,7 @@ export async function loadGroupPortfolioSummary(
 ): Promise<{
   metrics: GroupPortfolioMetrics | null
   curve: GroupCombinedCurve | null
+  openPositions: GroupOpenPositions | null
 }> {
   const rows = await database
     .select({
@@ -263,6 +310,9 @@ export async function loadGroupPortfolioSummary(
       curve: sql<
         BacktestEquityPoint[] | null
       >`${tradingBacktests.result} -> 'equityCurve'`,
+      openNotionalUsd: sql<
+        number | null
+      >`(${tradingBacktests.result} ->> 'openNotionalUsd')::double precision`,
     })
     .from(tradingBacktests)
     .where(
@@ -272,18 +322,20 @@ export async function loadGroupPortfolioSummary(
         eq(tradingBacktests.status, "done")
       )
     )
+  const openTotals = tallyOpenPositions(rows)
   const markets = rows.flatMap((row) =>
     row.curve && row.curve.length > 0
       ? [{ start: Number(row.startingEquity), curve: row.curve }]
       : []
   )
   const blended = blendCurves(markets)
-  if (!blended) return { metrics: null, curve: null }
+  if (!blended) return { metrics: null, curve: null, openPositions: openTotals }
   return {
     metrics: computeCombinedFromBlend(blended, markets.length),
     curve: {
       startEquity: blended.totalStart,
       points: downsample(blended.series),
     },
+    openPositions: openTotals,
   }
 }

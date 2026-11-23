@@ -16,7 +16,7 @@ The app has three main panels:
 
 - Left navigator: Tasks, Files, Skills, Docs, and Changes.
 - Center editor: tabbed CodeMirror editor with save, diff preview, image paste, and dirty state.
-- Right sidebar: workspace list and workspace actions.
+- Right sidebar: workspace list and workspace actions, then a collapsible Notes box pinned to the bottom of the sidebar, just above the server address. The workspace list scrolls above it; the Notes box never scrolls away. The note is one free-text box for the whole app, not one per workspace. Its text and open/closed state save to localStorage on every keystroke (`personal-ide:workspace-notes`).
 
 The bottom bar is for pinned skill shortcuts and terminal input clearing. Hardcoded custom commands were removed.
 
@@ -78,9 +78,11 @@ When a new app is created:
 2. Rust resolves the repo's primary worktree from the Custom Shell scaffold and creates a Personal IDE worktree branch.
 3. Rust copies the Custom Shell app into the new app path inside that worktree.
 4. Local-only and generated scaffold folders such as `node_modules`, `.git`, `workspace`, and env files are skipped.
-5. Rust rewrites generated metadata, including `package.json`, `README.md`, `AGENTS.md`, `vite.config.ts`, `.gitignore`, and local database bootstrap files.
-6. Rust creates the initial generated-app commit scoped to that app folder.
-7. The generated app is registered as a normal repo-backed workspace, so Sync uses the repo's existing `origin`.
+5. Rust snapshots Custom Shell's complete local database and environment configuration, then writes the current styling into the new app as its reset styling.
+6. Rust rewrites generated metadata, including `package.json`, `README.md`, `AGENTS.md`, `vite.config.ts`, `.gitignore`, and local database bootstrap files.
+7. Rust creates the initial generated-app commit containing the app folder and port registry entry.
+8. The app and its assigned web port are registered in `local-apps.json`.
+9. The generated app is registered as a normal repo-backed workspace, so Sync uses the repo's existing `origin`.
 
 Tauri apps are detected by `src-tauri`. They are labeled as desktop apps and do not show the normal web server URL/play control because they must be run through Tauri, not as a plain browser app.
 
@@ -89,9 +91,11 @@ Tauri apps are detected by `src-tauri`. They are labeled as desktop apps and do 
 Workspace removal has two paths:
 
 - Detach: removes the workspace from Personal IDE and closes its terminals. Files, branch, and worktree stay on disk.
-- Delete: removes the worktree only if Git is clean. If there are uncommitted changes, the app refuses.
+- Delete: removes the worktree only if Git is clean. If there are uncommitted changes, the app refuses. It also refuses while the branch has commits not yet synced.
 
-Delete does not delete the Git branch in V1.
+Delete then closes the workspace's terminals, runs `docker compose down` when the app folder has a `docker-compose.yml`, removes the worktree, and deletes its local branch.
+
+The `docker` call is given the same PATH as the IDE's other commands (`default_command_path`). An IDE opened from the Dock only has `/usr/bin:/bin` on its PATH, and Docker lives in `/usr/local/bin`, so without it every app with a compose file failed to delete with "No such file or directory (os error 2)". Fixed 5 Nov 2026.
 
 ## File Browser
 
@@ -210,7 +214,7 @@ The terminal can still be visually fragile because PTY apps and shell redraw beh
 
 For web apps, Personal IDE can start a dev server in a workspace terminal and open its localhost URL.
 
-Known web apps use the fixed ports in `local-apps.json`. Web apps not listed there use the next compact generated ports after the highest fixed port, assigned by current workspace list order. Desktop/Tauri workspaces do not reserve ports, and deleted workspace numbers do not create port gaps.
+Known web apps use the fixed ports in `local-apps.json`. Web apps not listed there use the next compact generated ports after the highest fixed port, assigned by current workspace list order. When Personal IDE creates an app, it records that assigned port in `local-apps.json`. Desktop/Tauri workspaces do not reserve ports, and deleted workspace numbers do not create port gaps.
 
 For app folders inside a monorepo, the generated server command is:
 
@@ -230,9 +234,11 @@ CORE_APP_ORIGINS="http://127.0.0.1:<port>,http://localhost:<port>" CUSTOM_SHELL_
 
 Tauri apps are not started through this web server helper.
 
-Apps created from the Custom Shell scaffold are repo-backed workspaces. Their generated `vite.config.ts` defaults to port `3000`, and the Start Server helper passes the assigned workspace port at runtime.
+Apps created from the Custom Shell scaffold are repo-backed workspaces. Their generated `vite.config.ts` reads the app's assigned port from `local-apps.json`, and the Start Server helper passes the same port at runtime.
 
-Generated Custom Shell apps also get an ignored `.env.local` with local `CUSTOM_SHELL_APP_ORIGINS`, an app-named `CUSTOM_SHELL_DATABASE_URL`, an app-specific `CUSTOM_SHELL_POSTGRES_PORT`, app-branded login copy, and a `predev` database setup script. The setup script starts local Postgres with the app name as the Docker Compose project, creates the app database, applies copied SQL migrations, and seeds the local admin account before the dev server starts.
+Generated Custom Shell apps also get an ignored `.env.local` containing Custom Shell's environment configuration plus local `CUSTOM_SHELL_APP_ORIGINS`, an app-named `CUSTOM_SHELL_DATABASE_URL`, and an app-specific `CUSTOM_SHELL_POSTGRES_PORT`. App-specific values replace the Custom Shell versions. The generated app also gets app-branded login copy and a `predev` database setup script.
+
+At creation time, Personal IDE exports every table and row from Custom Shell's local database into an ignored local snapshot. On the generated app's first setup, migrations create its independent database and the snapshot replaces the empty data with the complete Custom Shell state. The current signed-in admin's styling is also written into `src/lib/scaffold-styling.ts`, so Styling reset keeps the captured look. Creation stops with a clear error if either export cannot be completed.
 
 `CUSTOM_SHELL_DATABASE_URL` is the only supported database URL override for Custom Shell-derived apps. `DATABASE_URL` and alternate Postgres URL schemes are intentionally not supported.
 

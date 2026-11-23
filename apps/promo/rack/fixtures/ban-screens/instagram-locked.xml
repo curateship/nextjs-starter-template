@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" resource-id="" class="android.widget.FrameLayout" package="com.instagram.android" content-desc="" bounds="[0,0][1080,2400]">
+    <node index="0" text="Your account has been temporarily locked" resource-id="" class="android.widget.TextView" package="com.instagram.android" content-desc="" bounds="[48,400][1032,500]" />
+    <node index="1" text="We've detected suspicious activity on your Instagram account and have temporarily locked it as a security precaution." resource-id="" class="android.widget.TextView" package="com.instagram.android" content-desc="" bounds="[48,520][1032,620]" />
+    <node index="2" text="Next" resource-id="" class="android.widget.TextView" package="com.instagram.android" content-desc="" bounds="[48,640][1032,740]" />
+  </node>
+  <node index="1" text="12:04" resource-id="com.android.systemui:id/clock" class="android.widget.TextView" package="com.android.systemui" content-desc="" bounds="[40,0][160,80]" />
+</hierarchy>

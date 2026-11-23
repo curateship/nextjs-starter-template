@@ -3,8 +3,9 @@ import { randomUUID } from "node:crypto"
 import { eq } from "drizzle-orm"
 
 import {
+  BOLLINGER_MODES,
   DEFAULT_INDICATORS,
-  EMA_TOGGLES,
+  EMA_LINES,
   INDICATOR_PARAM_FIELDS,
   PRICE_ACTION_PATTERNS,
   QQE_MA_TYPES,
@@ -31,6 +32,9 @@ function overlay(def: IndicatorConfig, row: IndicatorRow): IndicatorConfig {
   }
   if (row.name) config.name = row.name
   if (row.color) config.color = row.color
+  if (row.colors && Object.keys(row.colors).length > 0) {
+    config.colors = row.colors
+  }
   if (def.type === "session") {
     config.session = isSessionKey(row.session) ? row.session : (def.session as SessionKey)
   }
@@ -60,8 +64,11 @@ export type UpsertIndicatorInput = {
   params: Record<string, number>
   name?: string
   color?: string
+  colors?: Record<string, string>
   session?: SessionKey
 }
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/
 
 /** Creates or updates the user's row for one known indicator. */
 export async function upsertUserIndicator(
@@ -91,20 +98,30 @@ export async function upsertUserIndicator(
     }
   }
   if (def.type === "ema") {
-    for (const toggle of EMA_TOGGLES) {
-      const value = input.params[toggle.key]
-      if (value !== undefined && value !== 0 && value !== 1) {
-        throw new Error(`Invalid EMA parameter: ${toggle.key}`)
+    for (const line of EMA_LINES) {
+      const toggle = input.params[line.toggleKey]
+      if (toggle !== undefined && toggle !== 0 && toggle !== 1) {
+        throw new Error(`Invalid EMA parameter: ${line.toggleKey}`)
+      }
+      const period = input.params[line.periodKey]
+      if (
+        period !== undefined &&
+        (!Number.isFinite(period) ||
+          period < 2 ||
+          period > 400 ||
+          !Number.isInteger(period))
+      ) {
+        throw new Error(`Invalid EMA parameter: ${line.periodKey}`)
       }
     }
-    for (const field of INDICATOR_PARAM_FIELDS.ema) {
-      const value = input.params[field.key]
-      if (
-        value !== undefined &&
-        (!Number.isFinite(value) || value < 2 || !Number.isInteger(value))
-      ) {
-        throw new Error(`Invalid EMA parameter: ${field.key}`)
-      }
+  }
+  if (def.type === "bollinger") {
+    const mode = input.params.mode
+    if (
+      mode !== undefined &&
+      (!Number.isInteger(mode) || mode < 0 || mode >= BOLLINGER_MODES.length)
+    ) {
+      throw new Error("Invalid Bollinger parameter: mode")
     }
   }
   if (def.type === "qqe") {
@@ -150,6 +167,45 @@ export async function upsertUserIndicator(
       throw new Error("Invalid Fair Value Gap parameter: showFilled")
     }
   }
+  if (def.type === "base") {
+    // Ranges mirror the Base module's paramsSchema, so a value stored from the
+    // chart card is always one the indicator can actually run with.
+    const ranges: Record<string, [number, number]> = {
+      basePeriods: [4, 500],
+      pumpPeriods: [1, 499],
+      formedMinBars: [1, 1000],
+    }
+    for (const [key, [min, max]] of Object.entries(ranges)) {
+      const value = input.params[key]
+      if (
+        value !== undefined &&
+        (!Number.isInteger(value) || value < min || value > max)
+      ) {
+        throw new Error(`Invalid Base parameter: ${key}`)
+      }
+    }
+    const higher = input.params.formedRequireHigherBase
+    if (higher !== undefined && higher !== 0 && higher !== 1) {
+      throw new Error("Invalid Base parameter: formedRequireHigherBase")
+    }
+    for (const key of ["formedShowLong", "formedShowShort"]) {
+      const value = input.params[key]
+      if (value !== undefined && value !== 0 && value !== 1) {
+        throw new Error(`Invalid Base parameter: ${key}`)
+      }
+    }
+  }
+  if (def.type === "session") {
+    // Mirrors the Sessions module's paramsSchema, so a value saved from the
+    // chart card is always one the indicator can actually run with.
+    const ratio = input.params.wickBodyRatio
+    if (
+      ratio !== undefined &&
+      (!Number.isFinite(ratio) || ratio < 0.5 || ratio > 10)
+    ) {
+      throw new Error("Invalid Sessions parameter: wickBodyRatio")
+    }
+  }
   if (def.type === "trendline") {
     const lookback = input.params.swingLookback
     if (
@@ -185,13 +241,23 @@ export async function upsertUserIndicator(
     ...(def.type === "priceAction"
       ? PRICE_ACTION_PATTERNS.map((pattern) => pattern.key)
       : []),
-    ...(def.type === "ema" ? EMA_TOGGLES.map((toggle) => toggle.key) : []),
+    ...(def.type === "ema"
+      ? EMA_LINES.flatMap((line) => [line.periodKey, line.toggleKey])
+      : []),
   ]
   const params = Object.fromEntries(
     paramKeys
       .filter((key) => input.params[key] !== undefined)
       .map((key) => [key, input.params[key]])
   )
+  // Per-line colors: only the keys this type defines, only valid hex.
+  const colorEntries =
+    def.type === "ema" && input.colors
+      ? EMA_LINES.flatMap((line) => {
+          const value = input.colors?.[line.key]
+          return value && HEX_COLOR.test(value) ? [[line.key, value]] : []
+        })
+      : []
   const values = {
     userId,
     indicatorId: def.id,
@@ -201,6 +267,8 @@ export async function upsertUserIndicator(
     pinned: input.pinned,
     params,
     color: input.color ?? null,
+    colors:
+      colorEntries.length > 0 ? Object.fromEntries(colorEntries) : null,
     session: def.type === "session" ? (input.session ?? "nyse") : null,
     updatedAt: now(),
   }

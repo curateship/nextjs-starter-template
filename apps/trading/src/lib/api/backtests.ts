@@ -5,14 +5,18 @@ import {
   MAX_BACKTEST_BARS,
   MAX_EXTRA_MARKETS,
   MAX_RUN_BARS,
+  MAX_TIMELINE_EVENTS,
   MAX_TOTAL_RUN_BARS,
+  PREVIOUS_RUN_NAME_PREFIX,
   maxWindowDays,
-  windowBars,
+  totalRunBars,
   SIGNAL_WARMUP_CANDLES,
   warmupBarsFor,
   type BacktestCosts,
   type BacktestResult,
+  type BacktestTimeline,
   type GroupCombinedCurve,
+  type GroupOpenPositions,
   type GroupPortfolioMetrics,
 } from "@/lib/backtest/types"
 import {
@@ -24,6 +28,11 @@ import {
   type AutomationConfig,
   type AutomationTypeId,
 } from "@/lib/strategies/strategy-config"
+import {
+  isManualRunParams,
+  manualRunParamsSchema,
+  type ManualRunParams,
+} from "@/lib/backtest/manual-types"
 // Type-only — erased at build, so the node-only history module never reaches
 // the client bundle.
 import type { HistoryCandle } from "@/server/backtest/history"
@@ -120,7 +129,7 @@ export type BacktestDetail = {
   completedAt: string | null
   progress: number
   progressStage: string | null
-  params: AutomationConfig
+  params: AutomationConfig | ManualRunParams
   costs: BacktestCosts
   result: BacktestResult | null
 }
@@ -130,6 +139,10 @@ export type BacktestGroupRun = {
   id: string
   market: string
   status: "pending" | "running" | "done" | "error"
+  /** Why the run failed (queue-recorded), null unless status is "error". */
+  error: string | null
+  /** 0–100. For a shared-wallet basket this is the whole run's replay progress. */
+  progress: number
   netPnlPct: number | null
 }
 
@@ -157,8 +170,7 @@ const runBacktestSchema = z
     market: z.string().min(1).max(20),
     /**
      * Additional markets: the same config is replayed on each (one row per
-     * market). The background queue drains them one at a time, so this bounds a
-     * run group's total upstream cost.
+     * market). This limit bounds a run group's total history and engine cost.
      */
     extraMarkets: z
       .array(z.string().min(1).max(20))
@@ -227,10 +239,13 @@ const runBacktestFn = createServerFn({ method: "POST" })
   .inputValidator(runBacktestSchema)
   .handler(async ({ data }): Promise<{ backtestId: string }> => {
     const { requireAppOrigin } = await import("@/server/origin")
-    const { createUserBacktest } = await import("@/server/backtests")
+    const { createUserBacktestGroup, deleteReplaceableAutomationRuns } =
+      await import("@/server/backtests")
     requireAppOrigin()
     const user = await requireUser()
     const run = await resolveAutomationRun(user.id, data.automationId)
+    // This run replaces the automation's unnamed, unpinned previous run.
+    await deleteReplaceableAutomationRuns(user.id, data.automationId)
 
     // The window limits depend on the automation's interval, so they're
     // checked here rather than in the schema.
@@ -240,23 +255,30 @@ const runBacktestFn = createServerFn({ method: "POST" })
         `That window is too long for ${run.interval} candles — a run covers at most ${maxWindowDays(run.interval)} days at ${run.interval}. Shorten the window or use a coarser timeframe.`
       )
     }
-    const totalBars = markets.length * windowBars(run.interval, data.windowDays)
+    const totalBars = totalRunBars(
+      run.params,
+      run.interval,
+      data.windowDays,
+      markets.length
+    )
     if (totalBars > MAX_TOTAL_RUN_BARS) {
       throw new Error(
-        `This run would pull ~${totalBars.toLocaleString()} candles across ${markets.length} market(s), over the ${MAX_TOTAL_RUN_BARS.toLocaleString()} per-run limit. Use fewer markets, a shorter window, or a coarser timeframe.`
+        `This run would pull ~${totalBars.toLocaleString()} candles including required history across ${markets.length} market(s), over the ${MAX_TOTAL_RUN_BARS.toLocaleString()} per-run limit. Use fewer markets, a shorter window, or a coarser timeframe.`
       )
     }
 
-    // Enqueue markets as `pending` and return immediately; the background queue
-    // downloads history and runs the engine one market at a time so a big basket
-    // can't hold the request open or flood the candle source.
-    const result = await enqueueRun(user.id, data, run, { createUserBacktest })
+    // Enqueue markets as one atomic pending group and return immediately. The
+    // worker loads their history in the background; a shared wallet replays the group on
+    // one shared clock and account.
+    const result = await enqueueRun(user.id, data, run, {
+      createUserBacktestGroup,
+    })
     return result
   })
 
 type BacktestEnqueueServer = Pick<
   typeof import("@/server/backtests"),
-  "createUserBacktest"
+  "createUserBacktestGroup"
 >
 
 /**
@@ -270,30 +292,31 @@ async function enqueueRun(
   run: ResolvedAutomationRun,
   server: BacktestEnqueueServer
 ): Promise<{ backtestId: string }> {
-  const { createUserBacktest } = server
+  const { createUserBacktestGroup } = server
 
   const markets = [data.market, ...(data.extraMarkets ?? [])]
   const endTime = new Date()
   const startTime = new Date(endTime.getTime() - data.windowDays * 86_400_000)
-  const name =
+  // Unnamed runs carry the replaceable marker: the next backtest of this
+  // automation deletes them. Naming a run afterwards makes it a keeper.
+  const name = (
     data.name?.trim() ||
-    `${run.automationName} · ${markets.join(", ")} · ${run.interval}`
-  let mainId: string | null = null
-  for (const market of markets) {
-    const backtest = await createUserBacktest(
-      userId,
+    `${PREVIOUS_RUN_NAME_PREFIX} · ${run.automationName} · ${markets.join(", ")} · ${data.windowDays}d ${run.interval}`
+  ).slice(0, 255)
+  const group = await createUserBacktestGroup(
+    userId,
+    markets.map((market) =>
       buildRunInput({
         name,
-        groupId: mainId ?? undefined,
+        groupId: undefined,
         market,
         run,
         startTime,
         endTime,
       })
     )
-    mainId = mainId ?? backtest.id
-  }
-  return { backtestId: mainId as string }
+  )
+  return { backtestId: group.groupId }
 }
 
 /** Assembles a CreateBacktestInput from a run's shared config + one market's window. */
@@ -386,6 +409,7 @@ const loadBacktestGroupSummaryFn = createServerFn({ method: "GET" })
       BacktestListResponse & {
         groupMetrics: Record<string, GroupPortfolioMetrics>
         groupCurve: GroupCombinedCurve | null
+        groupOpenPositions: GroupOpenPositions | null
       }
     > => {
       const { listUserBacktests } = await import("@/server/backtests")
@@ -402,12 +426,17 @@ const loadBacktestGroupSummaryFn = createServerFn({ method: "GET" })
           ? { [data.groupId]: portfolio.metrics }
           : {},
         groupCurve: portfolio.curve,
+        groupOpenPositions: portfolio.openPositions,
       }
     }
   )
 
+/** Ids one progress request may ask about. `pollBacktestProgress` splits a
+ * larger basket across several requests, so callers never have to. */
+export const BACKTEST_PROGRESS_BATCH = 100
+
 const backtestProgressSchema = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(100),
+  ids: z.array(z.string().uuid()).min(1).max(BACKTEST_PROGRESS_BATCH),
 })
 
 const pollBacktestProgressFn = createServerFn({ method: "GET" })
@@ -475,10 +504,87 @@ const loadBacktestFn = createServerFn({ method: "POST" })
         id: sibling.id,
         market: sibling.market,
         status: sibling.status as BacktestGroupRun["status"],
+        error: sibling.error,
+        progress: sibling.progress,
         netPnlPct:
           sibling.netPnlPct === null ? null : Number(sibling.netPnlPct),
       })),
     }
+  })
+
+const latestAutomationBacktestSchema = z.object({
+  automationId: z.string().min(1),
+})
+
+/** The automation's most recent run group — rehydrates the editor's mode. */
+const loadLatestAutomationBacktestFn = createServerFn({ method: "POST" })
+  .inputValidator(latestAutomationBacktestSchema)
+  .handler(
+    async ({
+      data,
+    }): Promise<{
+      groupId: string
+      name: string
+      /** The window that run used, in days back — restores the setup form. */
+      windowDays: number
+      runs: BacktestGroupRun[]
+    } | null> => {
+      const { getLatestAutomationBacktestGroup, listGroupRuns } =
+        await import("@/server/backtests")
+      const user = await requireUser()
+      const latest = await getLatestAutomationBacktestGroup(
+        user.id,
+        data.automationId
+      )
+      if (!latest) return null
+      const siblings = await listGroupRuns(user.id, latest.groupId)
+      const windowDays = Math.max(
+        1,
+        Math.round(
+          (latest.endTime.getTime() - latest.startTime.getTime()) / 86_400_000
+        )
+      )
+      return {
+        groupId: latest.groupId,
+        name: latest.name,
+        windowDays,
+        runs: siblings.map((sibling) => ({
+          id: sibling.id,
+          market: sibling.market,
+          status: sibling.status as BacktestGroupRun["status"],
+          error: sibling.error,
+          progress: Number(sibling.progress ?? 0),
+          netPnlPct:
+            sibling.netPnlPct === null ? null : Number(sibling.netPnlPct),
+        })),
+      }
+    }
+  )
+
+const renameBacktestGroupSchema = z.object({
+  groupId: z.string().min(1),
+  name: z.string().trim().min(1).max(255),
+})
+
+/** Names a run group — a named group is a keeper the next run won't replace. */
+const renameBacktestGroupFn = createServerFn({ method: "POST" })
+  .inputValidator(renameBacktestGroupSchema)
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { renameUserBacktestGroup } = await import("@/server/backtests")
+    requireAppOrigin()
+    const user = await requireUser()
+    await renameUserBacktestGroup(user.id, data.groupId, data.name)
+    return { ok: true }
+  })
+
+const loadBacktestTimelineFn = createServerFn({ method: "POST" })
+  .inputValidator(backtestIdSchema)
+  .handler(async ({ data }): Promise<BacktestTimeline | null> => {
+    const { getUserBacktestTimeline } = await import("@/server/backtests")
+    const user = await requireUser()
+    const timeline = await getUserBacktestTimeline(user.id, data.backtestId)
+    return (timeline as BacktestTimeline | null) ?? null
   })
 
 /** Run candles, optionally re-sampled at a chosen display interval. */
@@ -565,6 +671,224 @@ const loadChartCandlesFn = createServerFn({ method: "POST" })
     return { candles, simStartMs }
   })
 
+// ---- Manual practice sessions ----------------------------------------------
+
+const practiceCandlesSchema = z.object({
+  market: z.string().min(1).max(20),
+  interval: z.enum(CANDLE_INTERVALS),
+  /** Requested range, ms since epoch; clamped server-side. */
+  fromMs: z.number().int().positive(),
+  toMs: z.number().int().positive(),
+})
+
+/**
+ * Candles for a practice session: an explicit range so the session can load
+ * deep history behind its start (support/resistance context), backfill older
+ * chunks on scroll, and fetch finer display timeframes. One request is
+ * bounded to the chart's bar ceiling.
+ */
+const loadPracticeCandlesFn = createServerFn({ method: "POST" })
+  .inputValidator(practiceCandlesSchema)
+  .handler(async ({ data }): Promise<BacktestCandlesResponse> => {
+    const { fetchCandleHistory } = await import("@/server/backtest/history")
+    await requireUser()
+    const stepMs = INTERVAL_MS[data.interval]
+    const toMs = Math.min(data.toMs, Date.now())
+    const fromMs = Math.max(data.fromMs, toMs - MAX_CHART_BARS * stepMs)
+    if (toMs <= fromMs) return { candles: [], simStartMs: fromMs }
+    const candles = await fetchCandleHistory(
+      data.market,
+      data.interval,
+      fromMs,
+      toMs
+    )
+    return { candles, simStartMs: fromMs }
+  })
+
+export function loadPracticeCandles(
+  input: z.input<typeof practiceCandlesSchema>
+) {
+  return loadPracticeCandlesFn({ data: input })
+}
+
+const manualSideStatsSchema = z.object({
+  netPnl: z.number(),
+  grossProfit: z.number(),
+  grossLoss: z.number(),
+  trades: z.number(),
+  wins: z.number(),
+  losses: z.number(),
+  winRate: z.number(),
+  profitFactor: z.number().nullable(),
+  avgTrade: z.number(),
+  avgWin: z.number(),
+  avgLoss: z.number(),
+  largestWin: z.number(),
+  largestLoss: z.number(),
+  sharpe: z.number(),
+})
+
+const manualTimelineEventSchema = z.union([
+  z.object({
+    t: z.number(),
+    k: z.literal("order"),
+    op: z.enum(["place", "move", "cancel", "fill"]),
+    purpose: z.string().max(40),
+    side: z.enum(["buy", "sell"]),
+    px: z.number(),
+    sz: z.number(),
+  }),
+  z.object({
+    t: z.number(),
+    k: z.literal("protect"),
+    stopPx: z.number().nullable(),
+    tpPx: z.number().nullable(),
+  }),
+])
+
+/**
+ * The browser-built result of a manual session. Manual results are
+ * self-reported practice numbers scoped to the user's own account, but the
+ * shapes and sizes are still validated so a bad client can't bloat the row.
+ */
+const manualResultSchema = z.object({
+  equityCurve: z
+    .array(z.object({ t: z.number(), eq: z.number() }))
+    .max(MAX_BACKTEST_BARS + 10),
+  trades: z
+    .array(
+      z.object({
+        n: z.number(),
+        side: z.enum(["long", "short"]),
+        entryTime: z.number(),
+        entryPx: z.number(),
+        exitTime: z.number(),
+        exitPx: z.number(),
+        qty: z.number(),
+        pnl: z.number(),
+        returnPct: z.number(),
+        cumPnl: z.number(),
+      })
+    )
+    .max(2000),
+  fills: z
+    .array(
+      z.object({
+        t: z.number(),
+        side: z.enum(["buy", "sell"]),
+        px: z.number(),
+        sz: z.number(),
+        fee: z.number(),
+        closedPnl: z.number(),
+        purpose: z.string().max(40),
+      })
+    )
+    .max(5000),
+  openPosition: z.null(),
+  stats: z.object({
+    all: manualSideStatsSchema,
+    long: manualSideStatsSchema,
+    short: manualSideStatsSchema,
+    netPnl: z.number(),
+    netPnlPct: z.number(),
+    maxDrawdownPct: z.number(),
+    maxDrawdownUsd: z.number(),
+    fees: z.number(),
+    buyHoldPct: z.number(),
+    startingEquity: z.number(),
+    endingEquity: z.number(),
+    halt: z.object({
+      // The manual engine only ever halts with kind null; the enum arm keeps
+      // the schema aligned with the shared BacktestHalt type.
+      kind: z
+        .enum(["drawdown_kill", "daily_loss_pause", "grid_stop"])
+        .nullable(),
+      reason: z.string().max(200).nullable(),
+    }),
+  }),
+  timeline: z
+    .object({
+      events: z.array(manualTimelineEventSchema).max(MAX_TIMELINE_EVENTS),
+      truncated: z.boolean().optional(),
+    })
+    .optional(),
+})
+
+const saveManualBacktestSchema = z
+  .object({
+    market: z.string().min(1).max(20),
+    interval: z.enum(CANDLE_INTERVALS),
+    /** Session window, ms since epoch. */
+    startMs: z.number().int().positive(),
+    endMs: z.number().int().positive(),
+    startingEquity: z.number().positive().max(1_000_000_000),
+    params: manualRunParamsSchema,
+    costs: z.object({
+      takerFeeBps: z.number().min(0).max(100),
+      makerFeeBps: z.number().min(0).max(100),
+      slippageBps: z.number().min(0).max(100),
+    }),
+    result: manualResultSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.endMs <= data.startMs) {
+      ctx.addIssue({ code: "custom", message: "Session window is empty." })
+    }
+    const bars = (data.endMs - data.startMs) / INTERVAL_MS[data.interval]
+    if (bars > MAX_BACKTEST_BARS) {
+      ctx.addIssue({ code: "custom", message: "Session window is too long." })
+    }
+  })
+
+/** Saves a finished manual practice session as a completed backtest row. */
+const saveManualBacktestFn = createServerFn({ method: "POST" })
+  .inputValidator(saveManualBacktestSchema)
+  .handler(async ({ data }): Promise<{ backtestId: string }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { createCompletedUserBacktest } = await import("@/server/backtests")
+    requireAppOrigin()
+    const user = await requireUser()
+
+    const start = new Date(data.startMs)
+    const name = `Manual · ${data.market} · ${Math.round(
+      (data.endMs - data.startMs) / 86_400_000
+    )}d ${data.interval} · ${start.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    })}`
+    const row = await createCompletedUserBacktest(
+      user.id,
+      {
+        name,
+        automationId: null,
+        market: data.market,
+        network: "mainnet",
+        interval: data.interval,
+        params: data.params,
+        costs: data.costs,
+        startTime: start,
+        endTime: new Date(data.endMs),
+        startingEquity: data.startingEquity,
+      },
+      data.result
+    )
+    return { backtestId: row.id }
+  })
+
+/**
+ * Accepts the engine's own BacktestResult (whose timeline/halt types are the
+ * shared wider unions); the schema narrows and validates it server-side.
+ */
+export function saveManualBacktest(
+  input: Omit<z.input<typeof saveManualBacktestSchema>, "result"> & {
+    result: BacktestResult
+  }
+) {
+  return saveManualBacktestFn({
+    data: input as z.input<typeof saveManualBacktestSchema>,
+  })
+}
+
 const deleteBacktestsSchema = z
   .object({
     ids: z.array(z.string().min(1)).max(500).optional(),
@@ -639,12 +963,46 @@ export function loadBacktestGroupSummary(groupId: string) {
   return loadBacktestGroupSummaryFn({ data: { groupId } })
 }
 
-export function pollBacktestProgress(ids: string[]) {
-  return pollBacktestProgressFn({ data: { ids } })
+/**
+ * Progress + stats for a basket of runs, in batches the request schema accepts.
+ *
+ * A run group can now be far larger than one request allows — the market cap
+ * scales with the window, so 4h over 500 days fits 222 markets. Asking for them
+ * all at once failed validation outright, which left the results table with no
+ * stats and every row showing a dash. Splitting here means no caller has to
+ * remember the limit.
+ */
+export async function pollBacktestProgress(
+  ids: string[]
+): Promise<BacktestProgressItem[]> {
+  if (ids.length === 0) return []
+  const batches: string[][] = []
+  for (let i = 0; i < ids.length; i += BACKTEST_PROGRESS_BATCH) {
+    batches.push(ids.slice(i, i + BACKTEST_PROGRESS_BATCH))
+  }
+  const results = await Promise.all(
+    batches.map((batch) => pollBacktestProgressFn({ data: { ids: batch } }))
+  )
+  return results.flat()
 }
 
 export function loadBacktest(backtestId: string) {
   return loadBacktestFn({ data: { backtestId } })
+}
+
+/** The run's replay tape — fetched lazily, only when someone replays. */
+export function loadBacktestTimeline(backtestId: string) {
+  return loadBacktestTimelineFn({ data: { backtestId } })
+}
+
+/** The automation's most recent run group, for editor-mode rehydration. */
+export function loadLatestAutomationBacktest(automationId: string) {
+  return loadLatestAutomationBacktestFn({ data: { automationId } })
+}
+
+/** Names a run group so the next run keeps it instead of replacing it. */
+export function renameBacktestGroup(groupId: string, name: string) {
+  return renameBacktestGroupFn({ data: { groupId, name } })
 }
 
 export function loadBacktestCandles(
@@ -808,9 +1166,12 @@ function serializeDetail(row: DetailRow): BacktestDetail {
     completedAt: row.completedAt?.toISOString() ?? null,
     progress: row.progress,
     progressStage: row.progressStage,
-    // Normalized so `params.kind` is always set (pre-kind rows lack it).
-    params:
-      normalizeAutomationConfig(row.params) ?? (row.params as AutomationConfig),
+    // Manual sessions pass through as-is; automation rows are normalized so
+    // `params.kind` is always set (pre-kind rows lack it).
+    params: isManualRunParams(row.params)
+      ? row.params
+      : (normalizeAutomationConfig(row.params) ??
+        (row.params as AutomationConfig)),
     costs: row.costs as BacktestCosts,
     result: (row.result as BacktestResult | null) ?? null,
   }

@@ -56,12 +56,39 @@ export const emaCrossIndicator: IndicatorModule<EmaCrossParams> = {
     showThird: true,
   },
   paramFields: [
-    { key: "showFast", label: "EMA 1 on", kind: "boolean" },
-    { key: "fast", label: "EMA 1 period" },
-    { key: "showSlow", label: "EMA 2 on", kind: "boolean" },
-    { key: "slow", label: "EMA 2 period" },
-    { key: "showThird", label: "EMA 3 on", kind: "boolean" },
-    { key: "third", label: "EMA 3 period" },
+    {
+      key: "showFast",
+      label: "EMA 1 on",
+      kind: "boolean",
+      info: "Show and use the first (fastest) moving-average line.",
+    },
+    {
+      key: "fast",
+      label: "EMA 1 period",
+      info: "How many candles the first, fastest moving average averages over.",
+    },
+    {
+      key: "showSlow",
+      label: "EMA 2 on",
+      kind: "boolean",
+      info: "Show and use the second moving-average line.",
+    },
+    {
+      key: "slow",
+      label: "EMA 2 period",
+      info: "How many candles the second moving average averages over.",
+    },
+    {
+      key: "showThird",
+      label: "EMA 3 on",
+      kind: "boolean",
+      info: "Show and use the third moving-average line.",
+    },
+    {
+      key: "third",
+      label: "EMA 3 period",
+      info: "How many candles the third, slowest moving average averages over.",
+    },
   ],
   warmupBars: (params) =>
     Math.max(

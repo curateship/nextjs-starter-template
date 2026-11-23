@@ -114,7 +114,7 @@ export function ProjectOverviewDashboard({
         <DashboardTable
           title="Top Opportunities"
           icon={
-            <TrendingUpIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <TrendingUpIcon className="text-muted-foreground" />
           }
           count={overview.topOpportunities.length}
           header={
@@ -176,7 +176,7 @@ export function ProjectOverviewDashboard({
         <DashboardTable
           title="Recent Jobs"
           icon={
-            <HistoryIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <HistoryIcon className="text-muted-foreground" />
           }
           count={overview.recentJobs.length}
           header={

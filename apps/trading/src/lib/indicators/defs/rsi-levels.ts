@@ -28,9 +28,23 @@ export const rsiLevelsIndicator: IndicatorModule<RsiLevelsParams> = {
   paramsSchema,
   defaultParams: { period: 14, buyBelow: 30, sellAbove: 70 },
   paramFields: [
-    { key: "period", label: "RSI period" },
-    { key: "buyBelow", label: "Buy below", step: 1 },
-    { key: "sellAbove", label: "Sell above", step: 1 },
+    {
+      key: "period",
+      label: "RSI period",
+      info: "How many candles the momentum reading is calculated over.",
+    },
+    {
+      key: "buyBelow",
+      label: "Buy below",
+      step: 1,
+      info: "Buy when momentum dips under this level (oversold).",
+    },
+    {
+      key: "sellAbove",
+      label: "Sell above",
+      step: 1,
+      info: "Sell when momentum rises above this level (overbought).",
+    },
   ],
   warmupBars: (params) => Math.max(params.period * 5, 50),
 

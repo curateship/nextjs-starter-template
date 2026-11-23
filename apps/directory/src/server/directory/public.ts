@@ -1,0 +1,1945 @@
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  ne,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm"
+import { getRequestHeader } from "@tanstack/react-start/server"
+
+import type { ContactLinks } from "@/lib/directory/contact-links"
+import { cleanContactLinks } from "@/lib/directory/contact-links"
+import {
+  cleanListingCoordinates,
+  cleanListingGallery,
+  cleanListingHours,
+  wallClockWeekdays,
+  type ListingHours,
+} from "@/lib/directory/listing-details"
+import {
+  cleanCustomValues,
+  customSectionsForDisplay,
+  type CustomSectionView,
+} from "@/lib/directory/custom-fields"
+import {
+  countedFieldFilters,
+  fieldFilterBoxes,
+  fieldFilterConditions,
+  fieldFilterToken,
+  type DirectoryFieldFilter,
+  type FieldFilterCondition,
+} from "@/lib/directory/field-filters"
+import {
+  directoryFilterGroups,
+  groupCategorySlugs,
+  type CategoryPlacement,
+  type DirectoryFilterGroup,
+} from "@/lib/directory/filter-groups"
+import {
+  NEARBY_LISTING_COUNT,
+  NEARBY_LISTING_RADIUS_KM,
+  DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
+  DIRECTORY_SUGGESTION_CATEGORY_LIMIT,
+  DIRECTORY_SUGGESTION_LISTING_LIMIT,
+  DIRECTORY_SUGGESTION_MIN_LENGTH,
+  type DirectorySort,
+  type DirectoryNearPoint,
+  type DirectorySuggestions,
+} from "@/lib/directory/public-search"
+import {
+  cleanWrittenPageBody,
+  type WrittenPageNode,
+} from "@/lib/pages/written-page-body"
+import {
+  searchSnippet,
+  siteSearchPattern,
+  type SiteSearchResult,
+} from "@/lib/pages/site-search"
+import { appUrl } from "@/server/app-url"
+import { db, type CustomShellDb } from "@/server/db"
+import { claimedListingIds, claimStateFor } from "@/server/directory/claims"
+import { distanceKmFrom } from "@/server/directory/distance"
+import {
+  activeFeaturedForListings,
+  featuredPriorityFor,
+} from "@/server/directory/featured"
+import { listCustomSections } from "@/server/directory/custom-sections"
+import type { CustomSection } from "@/lib/directory/custom-fields"
+import {
+  publishedSubtreeCounts,
+  readDirectoryCategoryCards,
+  resolvedCategoryChoice,
+} from "@/server/directory/category-cards"
+import {
+  directoryMapDisplayKey,
+  directorySettingsFor,
+} from "@/server/directory/settings"
+import { DIRECTORY_MAP_LISTING_LIMIT } from "@/lib/directory/listing-map"
+import { LISTING_PAGE_STATUSES } from "@/lib/directory/listing-status"
+import {
+  MAX_DIRECTORY_CATEGORY_CARDS,
+  type DirectoryCategoryCard,
+} from "@/lib/directory/category-cards"
+import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
+import type { ReviewStatus } from "@/lib/directory/review-status"
+import { customShellWorkspaces } from "@/server/schema"
+import { parseWorkspaceSettings } from "@/server/people/workspaces"
+import { listingShareImageVersion } from "@/lib/directory/listing-share-image"
+import {
+  categories,
+  categoryRelationships,
+  directoryListings,
+  LISTING_CONTENT_TYPE,
+} from "@/server/directory/schema"
+import { visitorWorkspaceId } from "@/server/workspaces/for-request"
+import { getHumanCheckSiteKey } from "@/server/auth/turnstile"
+import { CATEGORY_POST_LIMIT } from "@/lib/posts/post-sort"
+import {
+  postsArePublic,
+  publicPostsInCategory,
+  type PublicPostCard,
+} from "@/server/posts/cards"
+
+/**
+ * What a visitor is allowed to read.
+ *
+ * Every read here takes the site as its first argument and filters on it, the
+ * same as the admin's reads — and adds the one rule the admin's do not: **only
+ * published listings**. A draft is not "hidden from the list", it is not
+ * readable at all, by its address or by any other route into this file.
+ *
+ * The site is never a value the browser sends. It comes from
+ * `visitorSite()` below, which asks the shell's one answer, which reads the
+ * Host header on the server. A site id in a request body would let anybody ask
+ * for any site's content — including a switched-off one.
+ */
+
+/** The site a public directory page is being drawn for. */
+export type VisitorSite = {
+  id: string
+  name: string
+  /** The site's public accent, used when a listing needs a drawn share card. */
+  accentColor?: string
+  /**
+   * Where this site lives, built from the address actually being answered —
+   * `https://alpha.example.com`, never the deployment's own address.
+   *
+   * It matters because it goes into the page's JSON-LD, and a search engine
+   * told that Alpha's listing lives on the platform's domain would index the
+   * wrong address.
+   */
+  url: string
+}
+
+/**
+ * The address being answered, as a bare origin.
+ *
+ * Read on the server from the request, like everything else about the host.
+ * Outside a request — a script, a test — there is no host, and the
+ * deployment's own address is the truthful answer.
+ */
+function requestOrigin(): string {
+  let host: string | null = null
+  let forwarded: string | null = null
+  try {
+    host = getRequestHeader("host") ?? null
+    forwarded = getRequestHeader("x-forwarded-proto") ?? null
+  } catch {
+    host = null
+  }
+  if (!host) return appUrl()
+
+  // Behind a proxy the app itself speaks http while the visitor typed https,
+  // so the proxy's word beats ours. With no proxy, whatever the deployment
+  // says about itself.
+  const scheme = forwarded?.split(",")[0]?.trim()
+  if (scheme === "http" || scheme === "https") return `${scheme}://${host}`
+
+  try {
+    return `${new URL(appUrl()).protocol}//${host}`
+  } catch {
+    return `https://${host}`
+  }
+}
+
+/** The site whose address the visitor typed, or null when there is none. */
+export async function visitorSite(
+  database: CustomShellDb = db
+): Promise<VisitorSite | null> {
+  // The shell's one answer, so a public directory page and a public written
+  // page can never disagree about which site they are on.
+  const id = await visitorWorkspaceId(database)
+  if (!id) return null
+  return siteById(id, database)
+}
+
+/**
+ * One site by its id, in the shape a public page is told about it.
+ *
+ * For a read that has already been told which site it is for — a front page row
+ * the shell hands the site with — rather than one working it out from the
+ * address again.
+ */
+export async function siteById(
+  id: string,
+  database: CustomShellDb = db
+): Promise<VisitorSite | null> {
+  const [row] = await database
+    .select({
+      id: customShellWorkspaces.id,
+      name: customShellWorkspaces.name,
+      settings: customShellWorkspaces.settings,
+    })
+    .from(customShellWorkspaces)
+    .where(eq(customShellWorkspaces.id, id))
+    .limit(1)
+
+  if (!row) return null
+  return {
+    id: row.id,
+    name: row.name,
+    accentColor: parseWorkspaceSettings(row.settings).publicTheme.brandColor,
+    url: requestOrigin(),
+  }
+}
+
+/** What a page is told about the site it is drawing. Never its id. */
+export type PublicSite = { name: string; url: string }
+
+/** One listing as a card in a grid: enough to draw it, and nothing more. */
+export type PublicListingCard = {
+  id: string
+  title: string
+  slug: string
+  metaDescription: string
+  rating: number | null
+  featuredImage: string
+  /** The street address, plain text, or empty when the listing has none. */
+  address: string
+  /** The primary category if it has one, else the first it is in. */
+  category: PublicCategoryLink | null
+  /**
+   * The neighbourhood this listing is in, when the site has said which of its
+   * categories hold neighbourhoods. Null on every site that has not.
+   */
+  neighbourhood: PublicCategoryLink | null
+  /**
+   * The business itself looks after this page. Says nothing about who they are
+   * — a visitor is told the page is looked after, never by whom.
+   */
+  claimed: boolean
+  /** A paid placement that is active at the moment this row is read. */
+  featured: boolean
+  /** Present only while the visitor has asked for nearby listings. */
+  distanceKm?: number | null
+  /**
+   * The newest live deal's headline, like "20% off", for the card's Deal tag.
+   * Filled after the page cache by `withDealTags`, and only while the visitor
+   * may see the Deals page.
+   */
+  dealHeadline?: string
+}
+
+/** A category as a link: the two fields anything pointing at one needs. */
+export type PublicCategoryLink = {
+  name: string
+  slug: string
+}
+
+/** A category with everything a chip or a child tile shows. */
+export type PublicCategory = {
+  id: string
+  name: string
+  slug: string
+  description: string
+  metaDescription: string
+  featuredImage: string
+  parentId: string | null
+  /** Published listings in this category itself, not its children's. */
+  listingCount: number
+}
+
+export type PublicListing = {
+  id: string
+  title: string
+  slug: string
+  metaDescription: string
+  rating: number | null
+  featuredImage: string
+  gallery: string[]
+  hours: ListingHours
+  latitude: number | null
+  longitude: number | null
+  contactLinks: ContactLinks
+  body: WrittenPageNode
+  /**
+   * The fields this site invented, already put together with this listing's
+   * answers and with everything blank left out — so the page has nothing to
+   * decide and nothing empty to draw.
+   */
+  customSections: CustomSectionView[]
+  updatedAt: Date
+  createdAt: Date
+  featured: boolean
+  /**
+   * The place has shut for good. The page stays up and says so, without its
+   * hours or a way to call or get there. No list ever holds a closed listing.
+   */
+  closed: boolean
+}
+
+/** One page of the browse list, plus the filters the toolbar draws. */
+export type PublicBrowse = {
+  site: PublicSite
+  listings: PublicListingCard[]
+  total: number
+  page: number
+  pageSize: number
+  categories: PublicCategory[]
+  /**
+   * The tick boxes down the left, one group per parent category. Empty on a
+   * site whose categories are a flat list, which leaves the rail holding the
+   * rating rung alone.
+   */
+  filterGroups: DirectoryFilterGroup[]
+  /**
+   * The fields this site marked as filters, each a button beside the groups.
+   * Empty on a site that marked none.
+   */
+  fieldFilters: DirectoryFieldFilter[]
+  browseTitle: string
+  browseIntro: string
+  sort: DirectorySort
+  /**
+   * The row of category cards at the top of the page, or empty when this site
+   * has not switched one on — and also when it has, but every category it chose
+   * is empty. A heading over no cards is worse than no row.
+   */
+  categoryCards: DirectoryCategoryCard[]
+  /**
+   * This site both offers the map and has a key to draw it with. Half of that
+   * is not a map: a site that switched the view on and never pasted a key gets
+   * no button rather than a grey square.
+   */
+  mapAvailable: boolean
+}
+
+/**
+ * One listing as a pin: a grid card, plus the two numbers that place it.
+ *
+ * The card's `dealHeadline` is what gives the pin its deal marker, and it is
+ * filled after the cache by the endpoint, the same as a grid card's Deal tag.
+ */
+export type PublicMapPin = PublicListingCard & {
+  latitude: number
+  longitude: number
+}
+
+/**
+ * Narrowing the map to listings with a deal on.
+ *
+ * The condition is built by `listingHasDealOn` in
+ * `src/server/promotions/public.ts` and handed in, because that file is the
+ * only one allowed to read the deals table and it owns the rule for what
+ * counts as a deal being on. `now` is the site's wall clock behind the
+ * condition, and it is what the cache keys on.
+ */
+export type DirectoryMapDealsOn = { now: string; where: SQL }
+
+/** Everything the map view draws, for the filters the visitor has applied. */
+export type PublicDirectoryMap = {
+  /** The site's own browser key. Public by design, and only ever this one. */
+  apiKey: string
+  pins: PublicMapPin[]
+  /**
+   * Matching listings that have a location at all, before the cap. Bigger than
+   * `pins.length` is exactly when the visitor has to be told something is
+   * missing.
+   */
+  total: number
+}
+
+/**
+ * Everything the claim button on a listing's page needs to draw itself.
+ *
+ * The wording travels with it rather than being fetched separately, because the
+ * button and its message are one decision — a page that had the button but not
+ * the sentence under it would be the setting half applied.
+ */
+export type PublicClaimState = {
+  /** This site offers claiming at all. */
+  enabled: boolean
+  /**
+   * Whether the reader has an account, so the page can offer sign-in rather
+   * than a form that would refuse them at the end.
+   *
+   * A plain yes or no, never the id. The page has no use for who they are, and
+   * a public page is not a place to put one.
+   */
+  signedIn: boolean
+  /** Somebody already looks after it. Never says who. */
+  claimed: boolean
+  /** Where the reader's own claim stands, when they have made one. */
+  mine: ReviewStatus | null
+  buttonLabel: string
+  pendingMessage: string
+  approvedMessage: string
+}
+
+export type PublicListingPage = {
+  site: PublicSite
+  listing: PublicListing
+  shareImageVersion: string
+  categories: PublicCategoryLink[]
+  primaryCategory: PublicCategoryLink | null
+  /**
+   * The other places under this listing: the ones within a kilometre first,
+   * closest first and each carrying its distance, then others in the same
+   * neighbourhood with no distance. Empty when the listing has neither a map
+   * pin nor a neighbourhood.
+   */
+  nearby: PublicListingCard[]
+  claim: PublicClaimState
+  /**
+   * Whether "Message the owner" is offered: the site has it switched on and
+   * somebody holds the approved claim. Never who, and never their address.
+   */
+  ownerMessage: {
+    open: boolean
+    /** The human check's public key, or null when the site runs without one. */
+    humanCheckSiteKey: string | null
+  }
+}
+
+export type PublicCategoryPage = {
+  site: PublicSite
+  category: PublicCategory
+  /** The rail's groups, without the one this category itself belongs to. */
+  filterGroups: DirectoryFilterGroup[]
+  fieldFilters: DirectoryFieldFilter[]
+  /** Home → … → this one, for the breadcrumb. Ends with the category itself. */
+  ancestors: PublicCategoryLink[]
+  children: PublicCategory[]
+  listings: PublicListingCard[]
+  total: number
+  page: number
+  pageSize: number
+  browseTitle: string
+  /**
+   * The newest posts filed here, shown under the listings. Empty while the
+   * Posts page is not open to everyone.
+   */
+  posts: PublicPostCard[]
+}
+
+/**
+ * Published, on this site. The whole of what a visitor may see in a list. A
+ * closed listing is not here: it keeps its page and leaves every list.
+ */
+function publishedOnSite(siteId: string) {
+  return and(
+    eq(directoryListings.workspaceId, siteId),
+    eq(directoryListings.status, "published")
+  )
+}
+
+/** A listing whose own page opens: published, or closed and saying so. */
+function hasPageOnSite(siteId: string) {
+  return and(
+    eq(directoryListings.workspaceId, siteId),
+    inArray(directoryListings.status, [...LISTING_PAGE_STATUSES])
+  )
+}
+
+/** Published listing results contributed to the shell's whole-site search. */
+export async function directorySearchResults(
+  siteId: string,
+  rawQuery: string,
+  limit: number,
+  database: CustomShellDb = db
+): Promise<SiteSearchResult[]> {
+  const query = rawQuery.trim()
+  if (!query || limit < 1) return []
+
+  const pattern = siteSearchPattern(query)
+  const rows = await database
+    .select({
+      title: directoryListings.title,
+      slug: directoryListings.slug,
+      metaDescription: directoryListings.metaDescription,
+    })
+    .from(directoryListings)
+    .where(
+      and(
+        publishedOnSite(siteId),
+        or(
+          ilike(directoryListings.title, pattern),
+          ilike(directoryListings.metaDescription, pattern)
+        )
+      )
+    )
+    .orderBy(
+      desc(ilike(directoryListings.title, pattern)),
+      asc(directoryListings.title),
+      asc(directoryListings.id)
+    )
+    .limit(limit)
+
+  return rows.map((row) => ({
+    type: "Listing",
+    title: row.title,
+    snippet: searchSnippet(row.metaDescription, query),
+    path: `/directory/${row.slug}`,
+  }))
+}
+
+/**
+ * The short list the search box offers while somebody is still typing.
+ *
+ * The same matching rules as the browse list, just fewer rows: a visitor who
+ * ignores the suggestions and presses Enter must not get a different set of
+ * results from the one they were being offered.
+ *
+ * The per-visitor limit is the endpoint's, not this function's, so the read
+ * itself stays a plain query a test can call a hundred times.
+ */
+export async function readDirectorySuggestions(
+  siteId: string,
+  rawQuery: string,
+  database: CustomShellDb = db
+): Promise<Omit<DirectorySuggestions, "events">> {
+  const query = rawQuery.trim()
+  if (query.length < DIRECTORY_SUGGESTION_MIN_LENGTH) {
+    return { listings: [], categories: [] }
+  }
+
+  const pattern = siteSearchPattern(query)
+
+  // A category with nothing published in it is never offered. Clicking it
+  // would land on an empty page, which reads as a broken site rather than as
+  // an empty category.
+  const publishedCategoryIds = database
+    .selectDistinct({ id: categoryRelationships.categoryId })
+    .from(categoryRelationships)
+    .innerJoin(
+      directoryListings,
+      eq(directoryListings.id, categoryRelationships.contentId)
+    )
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, siteId),
+        eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
+        publishedOnSite(siteId)
+      )
+    )
+
+  const [listings, categoryRows] = await Promise.all([
+    database
+      .select({
+        title: directoryListings.title,
+        slug: directoryListings.slug,
+      })
+      .from(directoryListings)
+      .where(
+        and(
+          publishedOnSite(siteId),
+          or(
+            ilike(directoryListings.title, pattern),
+            ilike(directoryListings.metaDescription, pattern)
+          )
+        )
+      )
+      // A name that matches beats a description that matches, so "Luigi's
+      // Pizza" is above a bakery whose blurb happens to mention pizza.
+      .orderBy(
+        desc(ilike(directoryListings.title, pattern)),
+        asc(directoryListings.title),
+        asc(directoryListings.id)
+      )
+      .limit(DIRECTORY_SUGGESTION_LISTING_LIMIT),
+    database
+      .select({ title: categories.name, slug: categories.slug })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.workspaceId, siteId),
+          ilike(categories.name, pattern),
+          inArray(categories.id, publishedCategoryIds)
+        )
+      )
+      .orderBy(asc(categories.name), asc(categories.id))
+      .limit(DIRECTORY_SUGGESTION_CATEGORY_LIMIT),
+  ])
+
+  return { listings, categories: categoryRows }
+}
+
+function orderFor(
+  sort: DirectorySort,
+  workspaceId: string,
+  featuredFirst: boolean,
+  /** The category page being drawn, or null on every other page. */
+  featuredCategoryId: string | null = null
+) {
+  // When this site asks for it, paid placement leads whatever ordinary order
+  // the visitor chooses. Expired placement immediately falls back to the
+  // ordinary order below without a cleanup job.
+  //
+  // A spot bought in one category only leads that category's page. Everywhere
+  // else it is not in this sum at all, so the listing sorts on its own merits.
+  const featured = featuredFirst
+    ? [desc(featuredPriorityFor(workspaceId, featuredCategoryId))]
+    : []
+  // The id breaks every tie, so a page boundary cannot land mid-tie and show
+  // the same listing twice or skip one.
+  switch (sort) {
+    case "newest":
+      return [
+        ...featured,
+        desc(directoryListings.createdAt),
+        asc(directoryListings.id),
+      ]
+    case "title":
+      return [
+        ...featured,
+        asc(directoryListings.title),
+        asc(directoryListings.id),
+      ]
+    case "order":
+      return [
+        ...featured,
+        asc(directoryListings.displayOrder),
+        desc(directoryListings.createdAt),
+        asc(directoryListings.id),
+      ]
+    case "distance":
+      return [asc(directoryListings.id)]
+  }
+}
+
+/**
+ * The category each of these listings is shown under: its primary one, or the
+ * first by name when nobody marked one, and the neighbourhood it sits in.
+ *
+ * One query for the whole page rather than one per card — twelve cards used to
+ * mean twelve round trips, and the page only ever holds one page of them.
+ *
+ * Exported for the Deals page, whose cards name the same two things about the
+ * place running the deal. One reader, so a deal card and a listing card can
+ * never file the same place under two different categories.
+ */
+export async function categoryForCards(
+  siteId: string,
+  listingIds: string[],
+  neighbourhoodCategoryId: string,
+  database: CustomShellDb = db
+): Promise<{
+  shownUnder: Map<string, PublicCategoryLink>
+  neighbourhood: Map<string, PublicCategoryLink>
+}> {
+  if (listingIds.length === 0) {
+    return { shownUnder: new Map(), neighbourhood: new Map() }
+  }
+
+  const rows = await database
+    .select({
+      contentId: categoryRelationships.contentId,
+      name: categories.name,
+      slug: categories.slug,
+      parentId: categories.parentId,
+    })
+    .from(categoryRelationships)
+    .innerJoin(categories, eq(categories.id, categoryRelationships.categoryId))
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, siteId),
+        eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
+        inArray(categoryRelationships.contentId, listingIds)
+      )
+    )
+    .orderBy(desc(categoryRelationships.isPrimary), asc(categories.name))
+
+  const shownUnder = new Map<string, PublicCategoryLink>()
+  const neighbourhood = new Map<string, PublicCategoryLink>()
+  for (const row of rows) {
+    // Primary first in the sort, so the first row wins and the rest are the
+    // listing's other categories.
+    if (!shownUnder.has(row.contentId)) {
+      shownUnder.set(row.contentId, { name: row.name, slug: row.slug })
+    }
+    if (
+      neighbourhoodCategoryId &&
+      row.parentId === neighbourhoodCategoryId &&
+      !neighbourhood.has(row.contentId)
+    ) {
+      neighbourhood.set(row.contentId, { name: row.name, slug: row.slug })
+    }
+  }
+  return { shownUnder, neighbourhood }
+}
+
+/**
+ * Generic in the row on purpose. The map's rows carry a latitude and longitude
+ * the grid's do not, and a fixed row type here would drop them from the result
+ * type while `...row` kept them at runtime — a lie the compiler could not see.
+ */
+async function toCards<
+  Row extends {
+    id: string
+    title: string
+    slug: string
+    metaDescription: string
+    rating: number | null
+    featuredImage: string
+    contactLinks: unknown
+    distanceKm?: number | null
+  },
+>(
+  siteId: string,
+  rows: Row[],
+  /** Which parent category names a neighbourhood here, or empty for none. */
+  neighbourhoodCategoryId: string,
+  database: CustomShellDb,
+  /**
+   * The category page these cards are on, or null everywhere else. The badge
+   * has to agree with the order: a spot bought in one category badges that
+   * category's page and no other.
+   */
+  featuredScope: { categoryId: string | null } = { categoryId: null }
+): Promise<(Omit<Row, "contactLinks"> & PublicListingCard)[]> {
+  const ids = rows.map((row) => row.id)
+  // Both for the whole page at once. One query each rather than one per card:
+  // twelve cards used to mean twelve round trips for the category alone.
+  const [{ shownUnder, neighbourhood }, claimed, featured] = await Promise.all([
+    categoryForCards(siteId, ids, neighbourhoodCategoryId, database),
+    claimedListingIds(siteId, ids, database),
+    activeFeaturedForListings(siteId, ids, database, featuredScope),
+  ])
+  // The stored links never travel to a card. Only the address line does, and
+  // only through the cleaner.
+  return rows.map(({ contactLinks, ...row }) => ({
+    ...row,
+    address: cleanContactLinks(contactLinks).address,
+    category: shownUnder.get(row.id) ?? null,
+    neighbourhood: neighbourhood.get(row.id) ?? null,
+    claimed: claimed.has(row.id),
+    featured: featured.has(row.id),
+  }))
+}
+
+/** Published cards from this site, returned in the caller's requested order. */
+export async function publicListingCardsByIds(
+  siteId: string,
+  listingIds: string[],
+  database: CustomShellDb = db
+): Promise<PublicListingCard[]> {
+  const uniqueIds = [...new Set(listingIds)]
+  if (uniqueIds.length === 0) return []
+
+  const [rows, settings] = await Promise.all([
+    database
+      .select(cardColumns)
+      .from(directoryListings)
+      .where(
+        and(publishedOnSite(siteId), inArray(directoryListings.id, uniqueIds))
+      ),
+    directorySettingsFor(siteId, database),
+  ])
+  const cards = await toCards(
+    siteId,
+    rows,
+    settings.neighbourhoodCategoryId,
+    database
+  )
+  const byId = new Map(cards.map((card) => [card.id, card]))
+
+  return uniqueIds.flatMap((id) => {
+    const card = byId.get(id)
+    return card ? [card] : []
+  })
+}
+
+/** The columns a card needs, so a grid never fetches a listing's whole body. */
+const cardColumns = {
+  id: directoryListings.id,
+  title: directoryListings.title,
+  slug: directoryListings.slug,
+  metaDescription: directoryListings.metaDescription,
+  rating: directoryListings.rating,
+  featuredImage: directoryListings.featuredImage,
+  // The whole stored object, for the one line of it a card shows. It is read
+  // through the same cleaner the listing page uses rather than reached into,
+  // so a hand-edited row cannot put anything on a card.
+  contactLinks: directoryListings.contactLinks,
+}
+
+/**
+ * Every category on this site that has something published in it, with how
+ * many. A category holding only drafts is not shown: a visitor clicking it
+ * would land on an empty page and reasonably think the site was broken.
+ */
+export async function publicCategories(
+  siteId: string,
+  database: CustomShellDb = db
+): Promise<PublicCategory[]> {
+  const [rows, counts] = await Promise.all([
+    database
+      .select()
+      .from(categories)
+      .where(eq(categories.workspaceId, siteId))
+      .orderBy(asc(categories.displayOrder), asc(categories.name)),
+    database
+      .select({
+        categoryId: categoryRelationships.categoryId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(categoryRelationships)
+      .innerJoin(
+        directoryListings,
+        eq(directoryListings.id, categoryRelationships.contentId)
+      )
+      .where(
+        and(
+          eq(categoryRelationships.workspaceId, siteId),
+          eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
+          publishedOnSite(siteId)
+        )
+      )
+      .groupBy(categoryRelationships.categoryId),
+  ])
+
+  const countFor = new Map(counts.map((row) => [row.categoryId, row.count]))
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    description: row.description,
+    metaDescription: row.metaDescription,
+    featuredImage: row.featuredImage,
+    parentId: row.parentId ?? null,
+    listingCount: countFor.get(row.id) ?? 0,
+  }))
+}
+
+/**
+ * Where each of these slugs sits: its id and the parent it hangs under.
+ *
+ * Deliberately not `publicCategories`, which counts the published listings in
+ * every category on the site — a join and a group-by over the whole table for a
+ * page that only wants to know what some slugs mean. A slug nobody has comes
+ * back missing rather than as an error.
+ */
+async function categoriesForSlugs(
+  siteId: string,
+  slugs: readonly string[],
+  database: CustomShellDb
+): Promise<CategoryPlacement[]> {
+  if (!slugs.length) return []
+  return database
+    .select({
+      id: categories.id,
+      slug: categories.slug,
+      parentId: categories.parentId,
+    })
+    .from(categories)
+    .where(
+      and(
+        eq(categories.workspaceId, siteId),
+        inArray(categories.slug, [...slugs])
+      )
+    )
+}
+
+/**
+ * The ids of the listings in any of these categories.
+ *
+ * **These categories only, never their children.** That is what the directory
+ * app does, and rolling children up would mean a listing appearing on a page
+ * it was never put on.
+ *
+ * Any of them rather than all of them, because two boxes ticked in one group
+ * means "Italian or Portuguese". Two groups are two of these subqueries, and
+ * `and` between them is what makes ticking across groups mean "and".
+ */
+function listingIdsInCategories(
+  siteId: string,
+  categoryIds: readonly string[],
+  database: CustomShellDb
+) {
+  return database
+    .select({ id: categoryRelationships.contentId })
+    .from(categoryRelationships)
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, siteId),
+        eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
+        inArray(categoryRelationships.categoryId, [...categoryIds])
+      )
+    )
+}
+
+/**
+ * What a visitor has narrowed the list to: the same search, the same category
+ * and the same location for every way of drawing it.
+ *
+ * One place rather than two because the grid and the map show *the same
+ * results*. Written twice they would drift, and a map quietly showing a
+ * different set from the grid beside it is the worst version of this feature.
+ */
+type BrowseQuery = {
+  search?: string
+  /**
+   * The ticked categories, already grouped by the parent they hang under.
+   * Either within a group, and across groups: `[[italian, portuguese],
+   * [annex]]` is an Italian or Portuguese place in the Annex.
+   */
+  categoryGroups?: string[][]
+  /** Stars and up. A listing with no rating at all is out. */
+  minRating?: number
+  /** The site's own fields, ticked. Each one narrows; see `field-filters.ts`. */
+  fieldConditions?: FieldFilterCondition[]
+  /**
+   * Only places open at this moment, as the site's wall clock reads it:
+   * "2026-10-20T21:30". Absent is no filter.
+   */
+  openAt?: string
+  sort: DirectorySort
+  featuredFirst: boolean
+  /**
+   * The category whose page this is. A spot bought in that category leads the
+   * page and earns the badge here; on every other page it does neither. Only
+   * the category page sets it.
+   */
+  featuredCategoryId?: string
+  near?: DirectoryNearPoint
+  radius?: number
+}
+
+function browseQuery(
+  siteId: string,
+  options: BrowseQuery,
+  database: CustomShellDb
+) {
+  const filters = [publishedOnSite(siteId)]
+
+  const search = options.search?.trim()
+  if (search) {
+    const pattern = `%${search}%`
+    // Title and the line under it. Not the slug — a visitor searches for what
+    // a place is called, and the admin's list already searches addresses.
+    const searchFilter = or(
+      ilike(directoryListings.title, pattern),
+      ilike(directoryListings.metaDescription, pattern)
+    )
+    if (searchFilter) filters.push(searchFilter)
+  }
+
+  for (const group of options.categoryGroups ?? []) {
+    if (!group.length) continue
+    filters.push(
+      inArray(
+        directoryListings.id,
+        // Written as a subquery rather than two round trips: an empty category
+        // then matches nothing on its own, with no "did I get an empty list"
+        // branch to get wrong.
+        listingIdsInCategories(siteId, group, database)
+      )
+    )
+  }
+
+  // A place with no rating is not a place rated 4 and over, so it goes. The
+  // column is null for a listing nobody has scored, and `>=` already refuses
+  // null, but the intent is worth saying out loud because the opposite
+  // reading — "show me everything that isn't bad" — is the plausible one.
+  if (options.minRating !== undefined) {
+    filters.push(gte(directoryListings.rating, options.minRating))
+  }
+
+  for (const condition of options.fieldConditions ?? []) {
+    filters.push(fieldFilterWhere(condition))
+  }
+
+  if (options.openAt) filters.push(openAtWhere(options.openAt))
+
+  const where = and(...filters)
+  const distanceKm = options.near
+    ? distanceKmFrom(
+        options.near,
+        directoryListings.latitude,
+        directoryListings.longitude
+      )
+    : undefined
+  const nearWhere =
+    options.near && options.radius && distanceKm
+      ? and(
+          where,
+          or(
+            sql`${distanceKm} <= ${options.radius}`,
+            sql`${directoryListings.latitude} is null`
+          )
+        )
+      : where
+  const ordinaryOrder = orderFor(
+    options.sort === "distance" ? "order" : options.sort,
+    siteId,
+    options.featuredFirst,
+    options.featuredCategoryId ?? null
+  )
+  const ordered =
+    options.sort === "distance" && distanceKm
+      ? [sql`${distanceKm} asc nulls last`, ...ordinaryOrder]
+      : options.near
+        ? [sql`${directoryListings.latitude} is null`, ...ordinaryOrder]
+        : ordinaryOrder
+
+  return { where: nearWhere, ordered, distanceKm }
+}
+
+/** A time as the hours store it, "09:30". Anything else is not a time. */
+const STORED_TIME = "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+
+/**
+ * Open at this wall-clock moment, worked out in the query from the `hours`
+ * column, so the count and the pages match what the grid shows.
+ *
+ * The same two questions `listingHoursStatus` asks on a listing's page:
+ *
+ * - **Yesterday's stretch ran past midnight** and has not closed yet. A bar
+ *   open 20:00 to 02:00 on Monday is open at 01:30 on Tuesday.
+ * - **Today's stretch holds this time.** A stretch that closes earlier than it
+ *   opens runs past midnight, so tonight it holds everything after it opens.
+ *   One that opens and closes at the same time is open all day.
+ *
+ * A day with no hours, or times that are not times, answers no rather than
+ * maybe, so a listing with no hours set is left out. The chip says so.
+ * "HH:MM" text compares in the same order as the times it holds, with the
+ * plain "C" ordering so no language rule can reorder digits and colons.
+ */
+function openAtWhere(wallClock: string): SQL {
+  const { today, yesterday, time } = wallClockWeekdays(wallClock)
+  const at = sql`${time}::text COLLATE "C"`
+  const opens = (day: string) =>
+    sql`(${directoryListings.hours} -> ${day}::text ->> 'open') COLLATE "C"`
+  const closes = (day: string) =>
+    sql`(${directoryListings.hours} -> ${day}::text ->> 'close') COLLATE "C"`
+  const hasTimes = (day: string) =>
+    sql`(${opens(day)} ~ ${STORED_TIME} AND ${closes(day)} ~ ${STORED_TIME})`
+
+  return sql`(
+    (${hasTimes(yesterday)}
+      AND ${opens(yesterday)} >= ${closes(yesterday)}
+      AND ${at} < ${closes(yesterday)})
+    OR
+    (${hasTimes(today)}
+      AND CASE
+        WHEN ${opens(today)} < ${closes(today)}
+          THEN ${at} >= ${opens(today)} AND ${at} < ${closes(today)}
+        ELSE ${at} >= ${opens(today)} OR ${at} < ${closes(today)}
+      END)
+  ) IS TRUE`
+}
+
+/**
+ * One stored answer, asked as "does this listing's answers contain this".
+ * Containment rather than reading the value out, so the question means the
+ * same for a yes or no as for a choice, and Postgres can answer it from an
+ * index on the column if a site ever grows big enough to want one.
+ */
+function hasStoredAnswer(section: string, key: string, answer: unknown): SQL {
+  return sql`${directoryListings.customValues} @> ${JSON.stringify({
+    [section]: { [key]: answer },
+  })}::jsonb`
+}
+
+function fieldFilterWhere(condition: FieldFilterCondition): SQL {
+  if (condition.kind === "toggle") {
+    return hasStoredAnswer(condition.section, condition.key, true)
+  }
+  // Two answers to one choice mean either of them.
+  return sql`(${sql.join(
+    condition.answers.map((answer) =>
+      hasStoredAnswer(condition.section, condition.key, answer)
+    ),
+    sql` or `
+  )})`
+}
+
+/**
+ * The field filter buttons, each box with how many listings ticking it would
+ * show on this page.
+ *
+ * Counted under everything else the visitor has applied: the category page
+ * they are on, the boxes ticked in other groups, the search and the distance.
+ * "Has wifi (310)" on a page that then shows seven listings and no second page
+ * is a number the page cannot back up, and Tyler caught exactly that on 17 Oct
+ * 2026.
+ *
+ * A field's own ticks are left out of its own count, because two answers to
+ * one choice mean either. With "Cheap" ticked, "Fancy" still says how many
+ * fancy places there are, which is what ticking it as well would add.
+ *
+ * Fields with nothing ticked share one query. Each field with something ticked
+ * needs its own, because what it is counted under is different. A site with
+ * six filters and one of them on is two round trips.
+ */
+async function readFieldFilters(
+  siteId: string,
+  sections: CustomSection[],
+  context: BrowseQuery,
+  /** The ticked tokens. A ticked box stays drawn at 0 so it can be unticked. */
+  ticked: readonly string[],
+  database: CustomShellDb
+): Promise<DirectoryFieldFilter[]> {
+  const fields = fieldFilterBoxes(sections)
+  if (!fields.length) return []
+
+  const conditions = context.fieldConditions ?? []
+  type Field = (typeof fields)[number]
+  const isOwn = (field: Field, condition: FieldFilterCondition) =>
+    condition.section === field.section && condition.key === field.key
+  const batches = [
+    fields.filter((field) => !conditions.some((c) => isOwn(field, c))),
+    ...fields
+      .filter((field) => conditions.some((c) => isOwn(field, c)))
+      .map((field) => [field]),
+  ].filter((batch) => batch.length > 0)
+
+  const counts = new Map<string, number>()
+  await Promise.all(
+    batches.map(async (batch) => {
+      const { where } = browseQuery(
+        siteId,
+        {
+          ...context,
+          fieldConditions: conditions.filter(
+            (condition) => !batch.some((field) => isOwn(field, condition))
+          ),
+        },
+        database
+      )
+      // No alias on the table: `where` is written against its real name.
+      const result = await database.execute(sql`
+        SELECT
+          wanted.section AS "section",
+          wanted.key AS "key",
+          jsonb_typeof(directory_listings.custom_values -> wanted.section -> wanted.key)
+            AS "kind",
+          directory_listings.custom_values -> wanted.section ->> wanted.key
+            AS "answer",
+          count(*)::int AS "count"
+        FROM directory_listings
+        CROSS JOIN (VALUES ${sql.join(
+          batch.map((field) => sql`(${field.section}::text, ${field.key}::text)`),
+          sql`, `
+        )}) AS wanted(section, key)
+        WHERE ${where}
+          AND directory_listings.custom_values -> wanted.section ->> wanted.key
+            IS NOT NULL
+        GROUP BY 1, 2, 3, 4
+      `)
+
+      for (const row of result.rows as Array<{
+        section: string
+        key: string
+        kind: string
+        answer: string
+        count: number
+      }>) {
+        // Counted the way the filter asks: a yes is the JSON `true`, and an
+        // answer is a string. Anything else stored there matches neither box.
+        if (row.kind === "boolean" && row.answer === "true") {
+          counts.set(fieldFilterToken(row.section, row.key), row.count)
+        } else if (row.kind === "string") {
+          counts.set(
+            fieldFilterToken(row.section, row.key, row.answer),
+            row.count
+          )
+        }
+      }
+    })
+  )
+  return countedFieldFilters(fields, (token) => counts.get(token) ?? 0, ticked)
+}
+
+/** One page of published listings, ordered and counted. */
+async function listingPage(
+  siteId: string,
+  options: BrowseQuery & {
+    page: number
+    pageSize: number
+    neighbourhoodCategoryId: string
+  },
+  database: CustomShellDb
+): Promise<{ listings: PublicListingCard[]; total: number; page: number }> {
+  const page = Math.max(1, Math.trunc(options.page))
+  const offset = (page - 1) * options.pageSize
+  const { where, ordered, distanceKm } = browseQuery(siteId, options, database)
+
+  const rows = await database
+    .select({
+      ...cardColumns,
+      ...(distanceKm ? { distanceKm } : {}),
+      total: sql<number>`count(*) over()::int`,
+    })
+    .from(directoryListings)
+    .where(where)
+    .orderBy(...ordered)
+    .limit(options.pageSize)
+    .offset(offset)
+
+  // A stale address may ask for a page beyond the end. The window count has
+  // no row to ride on then, so that rare case does one count-only fallback.
+  let total = rows[0]?.total
+  if (total === undefined && offset > 0) {
+    const [countRow] = await database
+      .select({ total: sql<number>`count(*)::int` })
+      .from(directoryListings)
+      .where(where)
+    total = countRow?.total ?? 0
+  }
+
+  const cardRows = rows.map(({ total: _total, ...row }) => row)
+
+  return {
+    listings: await toCards(
+      siteId,
+      cardRows,
+      options.neighbourhoodCategoryId,
+      database,
+      { categoryId: options.featuredCategoryId ?? null }
+    ),
+    total: total ?? 0,
+    page,
+  }
+}
+
+/** The browse page: one page of listings and the filters above it. */
+async function readPublicBrowseUncached(
+  site: VisitorSite,
+  options: {
+    search?: string
+    /** The ticked category slugs. Absent is none ticked, never "all". */
+    categories?: string[]
+    minRating?: number
+    /** The ticked field filter tokens, from `readDirectoryFieldFilters`. */
+    fields?: string[]
+    /** Only places open at this wall-clock moment. */
+    openAt?: string
+    sort?: DirectorySort
+    page: number
+    near?: DirectoryNearPoint
+    radius?: number
+  },
+  database: CustomShellDb = db
+): Promise<PublicBrowse> {
+  const [allCategories, settings, sections] = await Promise.all([
+    publicCategories(site.id, database),
+    directorySettingsFor(site.id, database),
+    listCustomSections(site.id, database),
+  ])
+  const resolvedSort =
+    options.sort ?? (options.near ? "distance" : settings.defaultSort)
+
+  // A category address nobody has is treated as no filter rather than as an
+  // error: a stale link should still show the directory.
+  const query = {
+    search: options.search,
+    page: options.page,
+    near: options.near,
+    radius: options.radius,
+    minRating: options.minRating,
+    fieldConditions: fieldFilterConditions(sections, options.fields ?? []),
+    openAt: options.openAt,
+    sort: resolvedSort,
+    categoryGroups: groupCategorySlugs(allCategories, options.categories ?? []),
+    pageSize: settings.pageSize,
+    featuredFirst: settings.featuredFirst,
+    neighbourhoodCategoryId: settings.neighbourhoodCategoryId,
+  }
+  const [{ listings, total, page }, fieldFilters] = await Promise.all([
+    listingPage(site.id, query, database),
+    readFieldFilters(site.id, sections, query, options.fields ?? [], database),
+  ])
+
+  return {
+    site: { name: site.name, url: site.url },
+    listings,
+    total,
+    page,
+    pageSize: settings.pageSize,
+    categories: allCategories.filter((category) => category.listingCount > 0),
+    filterGroups: directoryFilterGroups(allCategories),
+    fieldFilters,
+    browseTitle: settings.browseTitle,
+    browseIntro: settings.browseIntro,
+    sort: resolvedSort,
+    // Two more queries, and only for a site that switched the row on.
+    categoryCards: settings.browseCategoriesEnabled
+      ? await readDirectoryCategoryCards(
+          site.id,
+          resolvedCategoryChoice(
+            {
+              source: settings.browseCategorySource,
+              pickedCategoryIds: settings.browsePickedCategoryIds,
+            },
+            MAX_DIRECTORY_CATEGORY_CARDS
+          ),
+          database
+        )
+      : [],
+    mapAvailable: settings.mapEnabled && settings.hasMapKey,
+  }
+}
+
+export function readPublicBrowse(
+  site: VisitorSite,
+  options: {
+    search?: string
+    /** The ticked category slugs. Absent is none ticked, never "all". */
+    categories?: string[]
+    minRating?: number
+    fields?: string[]
+    openAt?: string
+    sort?: DirectorySort
+    page: number
+    near?: DirectoryNearPoint
+    radius?: number
+  },
+  database: CustomShellDb = db
+): Promise<PublicBrowse> {
+  const resolvedOptions = {
+    ...options,
+    radius: options.near
+      ? (options.radius ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM)
+      : undefined,
+  }
+  return cachedPublicDirectoryRead(
+    site.id,
+    "browse",
+    {
+      site: { name: site.name, url: site.url },
+      search: resolvedOptions.search ?? "",
+      // Every filter the answer depends on is in the key. A ticked box left
+      // out of it would hand the second visitor the first one's results.
+      // Sorted, so two addresses listing the same boxes in a different order
+      // are one entry rather than two.
+      categories: [...(resolvedOptions.categories ?? [])].sort().join(","),
+      minRating: resolvedOptions.minRating ?? null,
+      fields: [...(resolvedOptions.fields ?? [])].sort().join(","),
+      // The minute, so an "Open now" answer is never older than the clock
+      // it was read by.
+      openAt: resolvedOptions.openAt ?? null,
+      sort: resolvedOptions.sort ?? "",
+      page: resolvedOptions.page,
+      near: resolvedOptions.near ?? null,
+      radius: resolvedOptions.radius ?? null,
+    },
+    () => readPublicBrowseUncached(site, resolvedOptions, database)
+  )
+}
+
+/**
+ * The pins for the filters a visitor has applied, capped, and how many there
+ * really are.
+ *
+ * Everything about *which* listings is `browseQuery`, the same one the grid
+ * uses, plus one extra rule: a listing with no coordinates is not on the map.
+ * That is not a filter the visitor chose, so the count it is measured against
+ * counts the same way — the sentence above a capped map compares mappable
+ * listings with mappable listings, never with the grid's total.
+ */
+async function readDirectoryMapUncached(
+  site: VisitorSite,
+  options: {
+    search?: string
+    /** The ticked category slugs. Absent is none ticked, never "all". */
+    categories?: string[]
+    minRating?: number
+    fields?: string[]
+    openAt?: string
+    sort?: DirectorySort
+    near?: DirectoryNearPoint
+    radius?: number
+    dealsOn?: DirectoryMapDealsOn
+  },
+  database: CustomShellDb
+): Promise<Omit<PublicDirectoryMap, "apiKey"> | null> {
+  // Asked here rather than trusted from the browse payload: this is a door of
+  // its own, and a site that never switched the map on must not be able to have
+  // its listing coordinates read by calling it directly.
+  const settings = await directorySettingsFor(site.id, database)
+  if (!settings.mapEnabled) return null
+  const sections = options.fields?.length
+    ? await listCustomSections(site.id, database)
+    : []
+
+  // A category address nobody has is no filter rather than an error, the same
+  // as the grid: a stale link should still show the map.
+  const placements = await categoriesForSlugs(
+    site.id,
+    options.categories ?? [],
+    database
+  )
+
+  const { where, ordered } = browseQuery(
+    site.id,
+    {
+      search: options.search,
+      categoryGroups: groupCategorySlugs(placements, options.categories ?? []),
+      minRating: options.minRating,
+      fieldConditions: fieldFilterConditions(sections, options.fields ?? []),
+      openAt: options.openAt,
+      sort: options.sort ?? (options.near ? "distance" : settings.defaultSort),
+      featuredFirst: settings.featuredFirst,
+      near: options.near,
+      radius: options.radius,
+    },
+    database
+  )
+
+  // The deals filter joins the query rather than being applied to the pins
+  // afterwards. Filtering 100 cached pins down would cap first and narrow
+  // second, so a site with 300 mappable listings would hide the deals that
+  // happen to sort past the hundredth, and the "showing 12 of 300" sentence
+  // would be counting the wrong thing.
+  const mappable = and(
+    where,
+    isNotNull(directoryListings.latitude),
+    isNotNull(directoryListings.longitude),
+    options.dealsOn?.where
+  )
+
+  const rows = await database
+    .select({
+      ...cardColumns,
+      latitude: directoryListings.latitude,
+      longitude: directoryListings.longitude,
+      total: sql<number>`count(*) over()::int`,
+    })
+    .from(directoryListings)
+    .where(mappable)
+    .orderBy(...ordered)
+    .limit(DIRECTORY_MAP_LISTING_LIMIT)
+
+  const total = rows[0]?.total ?? 0
+  // The query already refuses a row missing either number, so this narrowing
+  // drops nothing. It is written as a check rather than a cast so the promise
+  // the type makes — a pin always has both — is one the compiler proved.
+  const pinRows = rows.flatMap(({ total: _total, ...row }) =>
+    row.latitude === null || row.longitude === null
+      ? []
+      : [{ ...row, latitude: row.latitude, longitude: row.longitude }]
+  )
+
+  return {
+    pins: await toCards(
+      site.id,
+      pinRows,
+      settings.neighbourhoodCategoryId,
+      database
+    ),
+    total,
+  }
+}
+
+export async function readDirectoryMap(
+  site: VisitorSite,
+  options: {
+    search?: string
+    /** The ticked category slugs. Absent is none ticked, never "all". */
+    categories?: string[]
+    minRating?: number
+    fields?: string[]
+    openAt?: string
+    sort?: DirectorySort
+    near?: DirectoryNearPoint
+    radius?: number
+    dealsOn?: DirectoryMapDealsOn
+  },
+  database: CustomShellDb = db
+): Promise<PublicDirectoryMap | null> {
+  const resolvedOptions = {
+    ...options,
+    radius: options.near
+      ? (options.radius ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM)
+      : undefined,
+  }
+  const pins = await cachedPublicDirectoryRead(
+    site.id,
+    "map",
+    {
+      search: resolvedOptions.search ?? "",
+      categories: [...(resolvedOptions.categories ?? [])].sort().join(","),
+      minRating: resolvedOptions.minRating ?? null,
+      fields: [...(resolvedOptions.fields ?? [])].sort().join(","),
+      openAt: resolvedOptions.openAt ?? null,
+      sort: resolvedOptions.sort ?? "",
+      near: resolvedOptions.near ?? null,
+      radius: resolvedOptions.radius ?? null,
+      // The clock, not the condition: an SQL object has no stable shape to key
+      // on, and the clock is what makes two "Deals only" maps different.
+      dealsOn: resolvedOptions.dealsOn?.now ?? null,
+    },
+    () => readDirectoryMapUncached(site, resolvedOptions, database)
+  )
+  if (!pins) return null
+
+  // Read after the cache, like every other secret-shaped value here: a key
+  // pasted a minute ago should reach the next visitor, not the one after the
+  // cache expires.
+  const apiKey = await directoryMapDisplayKey(site.id, database)
+  if (!apiKey) return null
+
+  return { apiKey, ...pins }
+}
+
+/**
+ * The other places to show under a listing, closest first.
+ *
+ * **The pin comes first.** Up to four published listings within
+ * `NEARBY_LISTING_RADIUS_KM` of this one, measured with the same
+ * `distanceKmFrom` the near-me search uses, so "within 1 km" means the same on
+ * a listing page as it does on the browse page. Each one carries its distance.
+ *
+ * **The neighbourhood tops the row up.** Most listings have a street address
+ * and no map pin, and a pinned one out in the suburbs can have nothing within a
+ * kilometre, so the rest of the four are other places in this listing's
+ * neighbourhood. They carry no distance, because there is none to print.
+ * Tyler's call on 1 Oct 2026: the row is always four when the site has four to
+ * give, and the walkable ones are always at the top.
+ *
+ * A listing with no pin and no neighbourhood gets nothing, and the page draws
+ * no row at all.
+ */
+async function nearbyListings(
+  siteId: string,
+  listingId: string,
+  coordinates: { latitude: number; longitude: number } | null,
+  /** The listing's own neighbourhood category, or empty when it has none. */
+  listingNeighbourhoodId: string,
+  featuredFirst: boolean,
+  neighbourhoodCategoryId: string,
+  database: CustomShellDb
+): Promise<PublicListingCard[]> {
+  const walkable = coordinates
+    ? await withinWalkingDistance(siteId, listingId, coordinates, database)
+    : []
+  if (walkable.length >= NEARBY_LISTING_COUNT || !listingNeighbourhoodId) {
+    return toCards(siteId, walkable, neighbourhoodCategoryId, database)
+  }
+
+  const topUp = await sameNeighbourhood(
+    siteId,
+    listingId,
+    listingNeighbourhoodId,
+    walkable.map((row) => row.id),
+    NEARBY_LISTING_COUNT - walkable.length,
+    featuredFirst,
+    database
+  )
+  // One list in, one list out, so the cards are built in a single pass and a
+  // place found both ways cannot be printed twice.
+  return toCards(
+    siteId,
+    [...walkable, ...topUp],
+    neighbourhoodCategoryId,
+    database
+  )
+}
+
+/** The pinned part: published listings inside the radius, closest first. */
+async function withinWalkingDistance(
+  siteId: string,
+  listingId: string,
+  coordinates: { latitude: number; longitude: number },
+  database: CustomShellDb
+) {
+  const distanceKm = distanceKmFrom(
+    coordinates,
+    directoryListings.latitude,
+    directoryListings.longitude
+  )
+  return (
+    database
+      .select({ ...cardColumns, distanceKm })
+      .from(directoryListings)
+      .where(
+        and(
+          publishedOnSite(siteId),
+          ne(directoryListings.id, listingId),
+          // A listing with no pin has a null distance, and `null <= 1` is null,
+          // so this one line is also what keeps the unpinned ones out.
+          sql`${distanceKm} <= ${NEARBY_LISTING_RADIUS_KM}`
+        )
+      )
+      // The title breaks a tie. Two places at the same distance would otherwise
+      // swap places every time the page's cache refreshed.
+      .orderBy(sql`${distanceKm} asc`, asc(directoryListings.title))
+      .limit(NEARBY_LISTING_COUNT)
+  )
+}
+
+/**
+ * The top-up: published listings filed under the same neighbourhood, in the
+ * site's own order, with no distance on them.
+ */
+async function sameNeighbourhood(
+  siteId: string,
+  listingId: string,
+  neighbourhoodId: string,
+  alreadyShown: string[],
+  wanted: number,
+  featuredFirst: boolean,
+  database: CustomShellDb
+) {
+  const neighbours = database
+    .select({ id: categoryRelationships.contentId })
+    .from(categoryRelationships)
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, siteId),
+        eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
+        eq(categoryRelationships.categoryId, neighbourhoodId)
+      )
+    )
+
+  return database
+    .select(cardColumns)
+    .from(directoryListings)
+    .where(
+      and(
+        publishedOnSite(siteId),
+        ne(directoryListings.id, listingId),
+        alreadyShown.length
+          ? notInArray(directoryListings.id, alreadyShown)
+          : undefined,
+        inArray(directoryListings.id, neighbours)
+      )
+    )
+    .orderBy(...orderFor("order", siteId, featuredFirst))
+    .limit(wanted)
+}
+
+/**
+ * One listing by its address, or null. A closed listing is found, and says it
+ * is closed.
+ *
+ * Null covers all three ways this misses — no such address, a draft, another
+ * site's listing — on purpose. A visitor is told the same thing in each case,
+ * and so is anybody calling this endpoint directly.
+ */
+type CachedPublicListingPage = Omit<
+  PublicListingPage,
+  "claim" | "ownerMessage"
+> & {
+  claim: Omit<PublicClaimState, "signedIn" | "claimed" | "mine">
+  /** The site's switch. Whether anybody owns the listing is read per request. */
+  ownerMessagesEnabled: boolean
+}
+
+async function readPublicListingUncached(
+  site: VisitorSite,
+  slug: string,
+  database: CustomShellDb = db
+): Promise<CachedPublicListingPage | null> {
+  const [row] = await database
+    .select()
+    .from(directoryListings)
+    .where(and(hasPageOnSite(site.id), eq(directoryListings.slug, slug)))
+    .limit(1)
+
+  if (!row) return null
+  const closed = row.status === "closed"
+  const coordinates = cleanListingCoordinates(row.latitude, row.longitude)
+
+  const links = await database
+    .select({
+      id: categories.id,
+      name: categories.name,
+      slug: categories.slug,
+      // Which of these is the listing's neighbourhood, for the row at the
+      // foot of the page. The site names the parent that holds them.
+      parentId: categories.parentId,
+      isPrimary: categoryRelationships.isPrimary,
+    })
+    .from(categoryRelationships)
+    .innerJoin(categories, eq(categories.id, categoryRelationships.categoryId))
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, site.id),
+        eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE),
+        eq(categoryRelationships.contentId, row.id)
+      )
+    )
+    .orderBy(desc(categoryRelationships.isPrimary), asc(categories.name))
+
+  const primary = links.find((link) => link.isPrimary) ?? links[0] ?? null
+
+  const [settings, featured, sections] = await Promise.all([
+    directorySettingsFor(site.id, database),
+    activeFeaturedForListings(site.id, [row.id], database, {
+      categoryId: null,
+    }),
+    listCustomSections(site.id, database),
+  ])
+
+  // The site has to have said which parent holds its neighbourhoods, or no
+  // category counts as one and the row falls back to the pin alone.
+  const listingNeighbourhood = settings.neighbourhoodCategoryId
+    ? (links.find((link) => link.parentId === settings.neighbourhoodCategoryId)
+        ?.id ?? "")
+    : ""
+  // The other places nearby stay on a closed listing's page. Somebody who
+  // came for a bakery that has shut is the one most likely to want another.
+  const nearby = await nearbyListings(
+    site.id,
+    row.id,
+    coordinates,
+    listingNeighbourhood,
+    settings.featuredFirst,
+    settings.neighbourhoodCategoryId,
+    database
+  )
+
+  return {
+    site: { name: site.name, url: site.url },
+    listing: {
+      id: row.id,
+      title: row.title,
+      slug: row.slug,
+      metaDescription: row.metaDescription,
+      rating: row.rating,
+      featuredImage: row.featuredImage,
+      gallery: cleanListingGallery(row.gallery),
+      hours: cleanListingHours(row.hours),
+      latitude: coordinates?.latitude ?? null,
+      longitude: coordinates?.longitude ?? null,
+      // Cleaned on the way out as well as in, exactly as the admin's read
+      // does: a row edited straight in the database is still only allowed to
+      // hand a page shapes it knows are safe.
+      contactLinks: cleanContactLinks(row.contactLinks),
+      body: cleanWrittenPageBody(row.body),
+      // Cleaned against the site's definitions here too, for the same reason
+      // the links and the body are: a row edited straight in the database
+      // only ever hands a page shapes this app knows.
+      customSections: customSectionsForDisplay(
+        sections,
+        cleanCustomValues(sections, row.customValues)
+      ),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      featured: featured.has(row.id),
+      closed,
+    },
+    shareImageVersion: listingShareImageVersion({
+      title: row.title,
+      kicker: primary?.name ?? null,
+      siteName: site.name,
+      accentColor: site.accentColor ?? "",
+      updatedAt: row.updatedAt,
+    }),
+    categories: links.map((link) => ({ name: link.name, slug: link.slug })),
+    primaryCategory: primary
+      ? { name: primary.name, slug: primary.slug }
+      : null,
+    nearby,
+    claim: {
+      enabled: settings.claimsEnabled,
+      buttonLabel: settings.claimButtonLabel,
+      pendingMessage: settings.claimPendingMessage,
+      approvedMessage: settings.claimApprovedMessage,
+    },
+    ownerMessagesEnabled: settings.ownerMessagesEnabled,
+  }
+}
+
+export async function readPublicListing(
+  site: VisitorSite,
+  slug: string,
+  // Who is reading is deliberately used only after the shared page cache.
+  // The visitor's own claim status must never be handed to another visitor.
+  options: { viewerId?: string | null } = {},
+  database: CustomShellDb = db
+): Promise<PublicListingPage | null> {
+  const page = await cachedPublicDirectoryRead(
+    site.id,
+    "listing",
+    {
+      site: {
+        name: site.name,
+        url: site.url,
+        accentColor: site.accentColor ?? "",
+      },
+      slug,
+    },
+    () => readPublicListingUncached(site, slug, database)
+  )
+  if (!page) return null
+
+  const claimState = await claimStateFor(
+    site.id,
+    page.listing.id,
+    options.viewerId ?? null,
+    database
+  )
+  const { ownerMessagesEnabled, ...shared } = page
+  const ownerMessageOpen = ownerMessagesEnabled && claimState.claimed
+  return {
+    ...shared,
+    claim: {
+      ...page.claim,
+      signedIn: Boolean(options.viewerId),
+      claimed: claimState.claimed,
+      mine: claimState.mine,
+    },
+    ownerMessage: {
+      open: ownerMessageOpen,
+      humanCheckSiteKey: ownerMessageOpen ? getHumanCheckSiteKey() : null,
+    },
+  }
+}
+
+/** Home → … → this category, for the breadcrumb. */
+function ancestorsOf(
+  category: PublicCategory,
+  all: PublicCategory[]
+): PublicCategoryLink[] {
+  const byId = new Map(all.map((row) => [row.id, row]))
+  const chain: PublicCategoryLink[] = []
+
+  let walker: PublicCategory | undefined = category
+  // A tree that somehow pointed at itself would loop forever, so the walk is
+  // bounded rather than trusted. The same twenty the admin's own tree check
+  // uses.
+  for (let depth = 0; walker && depth < 20; depth += 1) {
+    chain.unshift({ name: walker.name, slug: walker.slug })
+    walker = walker.parentId ? byId.get(walker.parentId) : undefined
+  }
+  return chain
+}
+
+/** One category's page, or null when this site has no category at that address. */
+async function readPublicCategoryUncached(
+  site: VisitorSite,
+  slug: string,
+  options: {
+    page: number
+    categories?: string[]
+    minRating?: number
+    fields?: string[]
+  },
+  database: CustomShellDb = db
+): Promise<PublicCategoryPage | null> {
+  const [all, settings, sections] = await Promise.all([
+    publicCategories(site.id, database),
+    directorySettingsFor(site.id, database),
+    listCustomSections(site.id, database),
+  ])
+  const category = all.find((row) => row.slug === slug)
+  if (!category) return null
+  const children = all.filter((row) => row.parentId === category.id)
+
+  const query = {
+    // The page's own category is a group of one, so the rail's groups sit
+    // beside it under the same "and" the browse page uses. Ticking the Annex
+    // on the Italian page means Italian and in the Annex.
+    categoryGroups: [
+      [category.id],
+      ...groupCategorySlugs(all, options.categories ?? []),
+    ],
+    minRating: options.minRating,
+    fieldConditions: fieldFilterConditions(sections, options.fields ?? []),
+    sort: settings.defaultSort,
+    page: options.page,
+    pageSize: settings.pageSize,
+    featuredFirst: settings.featuredFirst,
+    // The one page where a spot bought in this category counts. It leads the
+    // page and wears the badge; on the browse page and on every other category
+    // it sorts like anything else.
+    featuredCategoryId: category.id,
+    neighbourhoodCategoryId: settings.neighbourhoodCategoryId,
+  }
+  const [{ listings, total, page }, childCounts, posts, fieldFilters] =
+    await Promise.all([
+      listingPage(site.id, query, database),
+      publishedSubtreeCounts(
+        site.id,
+        children.map((row) => row.id),
+        database
+      ),
+      postsArePublic(site.id, database).then((open) =>
+        open
+          ? publicPostsInCategory(
+              site.id,
+              category.id,
+              CATEGORY_POST_LIMIT,
+              database
+            )
+          : []
+      ),
+      readFieldFilters(
+        site.id,
+        sections,
+        query,
+        options.fields ?? [],
+        database
+      ),
+    ])
+
+  return {
+    site: { name: site.name, url: site.url },
+    category,
+    // Its own group is left out: every listing on this page is already in
+    // this category, so drawing "Italian" here would offer a box that can
+    // only narrow the page to itself or empty it.
+    filterGroups: directoryFilterGroups(all).filter(
+      (group) => group.id !== category.parentId
+    ),
+    fieldFilters,
+    ancestors: ancestorsOf(category, all),
+    children: children.map((row) => ({
+      ...row,
+      listingCount: childCounts.get(row.id) ?? 0,
+    })),
+    listings,
+    total,
+    page,
+    pageSize: settings.pageSize,
+    browseTitle: settings.browseTitle,
+    posts,
+  }
+}
+
+export function readPublicCategory(
+  site: VisitorSite,
+  slug: string,
+  options: {
+    page: number
+    categories?: string[]
+    minRating?: number
+    fields?: string[]
+  },
+  database: CustomShellDb = db
+): Promise<PublicCategoryPage | null> {
+  return cachedPublicDirectoryRead(
+    site.id,
+    "category",
+    {
+      site: { name: site.name, url: site.url },
+      slug,
+      page: options.page,
+      categories: [...(options.categories ?? [])].sort().join(","),
+      minRating: options.minRating ?? null,
+      fields: [...(options.fields ?? [])].sort().join(","),
+    },
+    () => readPublicCategoryUncached(site, slug, options, database)
+  )
+}

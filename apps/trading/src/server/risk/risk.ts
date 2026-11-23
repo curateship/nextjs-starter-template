@@ -107,7 +107,10 @@ export function checkOrderIntent(
     })
   }
 
-  if (intent.leverage > limits.maxLeverage) {
+  // A reduce-only order only shrinks exposure, so a leverage ceiling must never
+  // block it — otherwise a position opened above the current limit could never
+  // be closed. Exposure-increasing orders (including reverses) are still checked.
+  if (!intent.reduceOnly && intent.leverage > limits.maxLeverage) {
     violations.push({
       code: "max_leverage",
       message: `Leverage ${intent.leverage}x exceeds the ${limits.maxLeverage}x limit.`,

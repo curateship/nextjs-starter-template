@@ -1,0 +1,14 @@
+Packages:
+  Package [com.reddit.frontpage] (a1b2c3):
+    versionName=2025.40.0
+    requested permissions:
+      android.permission.INTERNET
+      android.permission.ACCESS_FINE_LOCATION
+      android.permission.ACCESS_COARSE_LOCATION
+    install permissions:
+      android.permission.INTERNET: granted=true
+    User 0: ceDataInode=123 installed=true hidden=false
+      runtime permissions:
+        android.permission.POST_NOTIFICATIONS: granted=true, flags=[ USER_SET ]
+        android.permission.ACCESS_FINE_LOCATION: granted=false, flags=[ USER_SET ]
+        android.permission.ACCESS_COARSE_LOCATION: granted=true, flags=[ USER_SET ]

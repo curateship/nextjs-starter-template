@@ -20,8 +20,24 @@ import {
   duckEnvelopeToVolumeExpr,
   type Interval,
 } from "@/lib/audio-ducking"
+import {
+  loudnormApplyFilter,
+  loudnormMeasureFilter,
+  parseLoudnormMeasurement,
+} from "@/lib/audio-loudness"
+import { getMusicTrack } from "@/lib/music-library"
 import { getSoundEffect } from "@/lib/sound-effects"
 import { requireTextFont } from "@/lib/text-fonts"
+import {
+  captionExportWindows,
+  captionWordAnimation,
+  isAnimatedCaption,
+  resolveCaptionAnimation,
+} from "@/lib/caption-animations"
+import {
+  resolveIncomingTransition,
+  type ClipTransition,
+} from "@/lib/clip-transitions"
 import {
   requireCanonicalTimeline,
   SAVED_TIMELINE_INVALID_MESSAGE,
@@ -32,7 +48,7 @@ import { now } from "@/server/security"
 import { extractVideoThumbnail } from "@/server/video-download"
 import {
   getCurrentWorkspaceBrandKit,
-  getCurrentWorkspaceDuckingDb,
+  getCurrentWorkspaceExportAudio,
 } from "@/server/workspaces"
 import type {
   AspectRatio,
@@ -80,6 +96,7 @@ function renderSize(aspect: AspectRatio, quality: RenderQuality) {
 }
 
 const OUTPUT_FPS = 30
+const AUDIO_BITRATE = "192k"
 // Text clips are authored against this height in the editor preview; export
 // scales their font size by outputHeight / DESIGN_HEIGHT to match.
 const DESIGN_HEIGHT = 1080
@@ -146,7 +163,14 @@ export function timelineEndMs(tracks: EditorTrack[]) {
 // A clip flattened with its track's mute + duck state; visual order is
 // bottom-first (the preview stacks track 0 on top, so later overlays must win).
 // `duck` marks audio that should be lowered under other tracks' audio.
-type RenderClip = { clip: EditorClip; muted: boolean; duck: boolean }
+// `transition` is the resolved (adjacency-checked, clamped) blend at the seam
+// entering a visual clip, or null for a hard cut.
+type RenderClip = {
+  clip: EditorClip
+  muted: boolean
+  duck: boolean
+  transition?: ClipTransition | null
+}
 type RenderWatermark = {
   file: string
   position: BrandKitConfig["watermark"]["position"]
@@ -170,16 +194,28 @@ function flattenForRender(tracks: EditorTrack[]) {
   for (let i = tracks.length - 1; i >= 0; i--) {
     const track = tracks[i]
     const duck = !!track.duck
-    for (const clip of track.clips ?? []) {
-      if (!clip.durationMs || clip.durationMs <= 0) continue
+    const clips = track.clips ?? []
+    clips.forEach((clip, idx) => {
+      if (!clip.durationMs || clip.durationMs <= 0) return
       if (clip.kind === "audio") {
         audio.push({ clip, muted: track.muted || !!clip.muted, duck })
       } else if (clip.kind === "text") {
         if (clip.text?.trim()) visuals.push({ clip, muted: true, duck: false })
       } else if (clip.mediaId) {
-        visuals.push({ clip, muted: track.muted || !!clip.muted, duck })
+        // The predecessor on the same track (clips are stored sorted) decides
+        // whether this seam blends.
+        const transition = resolveIncomingTransition(
+          clip,
+          idx > 0 ? clips[idx - 1] : null
+        )
+        visuals.push({
+          clip,
+          muted: track.muted || !!clip.muted,
+          duck,
+          transition,
+        })
       }
-    }
+    })
   }
   return { visuals, audio }
 }
@@ -253,7 +289,9 @@ export async function renderProject(
       }
     }
     const brandKit = await getCurrentWorkspaceBrandKit(userId)
-    const duckingGain = dbToGain(await getCurrentWorkspaceDuckingDb(userId))
+    const { duckingDb, normalizeLoudness } =
+      await getCurrentWorkspaceExportAudio(userId)
+    const duckingGain = dbToGain(duckingDb)
     const logoFile =
       brandKit.watermark.enabled || includeEndCard
         ? await resolveBrandLogo({ userId, dir, brandKit })
@@ -294,8 +332,11 @@ export async function renderProject(
 
     const outFile = path.join(dir, "out.mp4")
     await runFfmpeg([...command, outFile])
+    const finalFile = normalizeLoudness
+      ? await normalizeExportLoudness(dir, outFile)
+      : outFile
 
-    const bytes = await readFile(outFile)
+    const bytes = await readFile(finalFile)
     const storagePath = `renders/${userId}/${projectId}.mp4`
     await uploadToR2(storagePath, bytes, "video/mp4")
     const renderedAt = now()
@@ -335,6 +376,49 @@ export async function renderProject(
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+}
+
+// Levels the finished mix to the export loudness target and returns the file to
+// upload. Pass 1 measures the rendered audio, pass 2 applies the correction as
+// one fixed gain, so the ducking envelope keeps its shape (see
+// lib/audio-loudness.ts). The video stream is copied — only the AAC track is
+// re-encoded. A render with no audio, or a silent one, is returned untouched.
+async function normalizeExportLoudness(dir: string, file: string) {
+  if (!(await hasAudioStream(file))) return file
+
+  const stderr = await runFfmpeg([
+    "-i",
+    file,
+    "-vn",
+    "-af",
+    loudnormMeasureFilter(),
+    "-f",
+    "null",
+    "-",
+  ])
+  const measurement = parseLoudnormMeasurement(stderr)
+  if (!measurement) {
+    console.warn("Loudness measurement unavailable; exporting the mix as-is")
+    return file
+  }
+
+  const normalized = path.join(dir, "out-normalized.mp4")
+  await runFfmpeg([
+    "-i",
+    file,
+    "-c:v",
+    "copy",
+    "-af",
+    loudnormApplyFilter(measurement),
+    "-c:a",
+    "aac",
+    "-b:a",
+    AUDIO_BITRATE,
+    "-movflags",
+    "+faststart",
+    normalized,
+  ])
+  return normalized
 }
 
 async function storeRenderThumbnail({
@@ -420,7 +504,9 @@ async function buildFfmpegCommand(options: {
   const voiceIntervals: Interval[] = []
   for (const { clip, muted, duck } of audio) {
     if (muted || duck) continue
-    if (clip.soundEffectId || clip.mediaId) voiceIntervals.push(sourceInterval(clip))
+    if (clip.soundEffectId || clip.musicTrackId || clip.mediaId) {
+      voiceIntervals.push(sourceInterval(clip))
+    }
   }
   for (const { clip, muted, duck } of visuals) {
     if (muted || duck) continue
@@ -429,7 +515,12 @@ async function buildFfmpegCommand(options: {
     }
   }
   const hasDuckSource =
-    audio.some((a) => a.duck && !a.muted && (a.clip.soundEffectId || a.clip.mediaId)) ||
+    audio.some(
+      (a) =>
+        a.duck &&
+        !a.muted &&
+        (a.clip.soundEffectId || a.clip.musicTrackId || a.clip.mediaId)
+    ) ||
     visuals.some(
       (v) =>
         v.duck &&
@@ -456,7 +547,11 @@ async function buildFfmpegCommand(options: {
     audioLabels.push(label)
   }
 
-  for (const { clip, muted, duck } of visuals) {
+  // Dip-to-black seams collected here and composited on top after every clip,
+  // so the fade to black covers whatever is beneath (including lower tracks).
+  const dipSeams: { seamS: number; halfS: number }[] = []
+
+  for (const { clip, muted, duck, transition } of visuals) {
     const startS = clip.startMs / 1000
     const endS = (clip.startMs + clip.durationMs) / 1000
     const durS = clip.durationMs / 1000
@@ -465,31 +560,41 @@ async function buildFfmpegCommand(options: {
       const words = clip.words
       if (words?.length) {
         // Karaoke: the highlight moves word-by-word, so render one frame per
-        // active word and overlay each for that word's sub-window.
+        // active word and overlay each for that word's sub-window. Animated
+        // captions further subdivide each word's window so the active word's
+        // entrance (scale/slide/fade) is baked into the frames — matching the
+        // preview's continuous CSS transform.
+        const animated = isAnimatedCaption(resolveCaptionAnimation(clip.animation))
         for (let i = 0; i < words.length; i++) {
           const fromMs = i === 0 ? 0 : words[i].startMs
           const toMs =
             i === words.length - 1 ? clip.durationMs : words[i + 1].startMs
-          const segStartS = (clip.startMs + fromMs) / 1000
-          const segEndS = (clip.startMs + toMs) / 1000
-          if (segEndS <= segStartS) continue
-          const png = await renderTextPng(clip, size, i)
-          const file = path.join(dir, `text-${visualStep}.png`)
-          await writeFile(file, png)
-          inputs.push(
-            "-loop",
-            "1",
-            "-t",
-            String(segEndS - segStartS),
-            "-i",
-            file
-          )
-          filters.push(
-            `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${segStartS}/TB[l${visualStep}]`,
-            `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${segStartS.toFixed(3)},${segEndS.toFixed(3)})'[v${visualStep + 1}]`
-          )
-          inputIndex += 1
-          visualStep += 1
+          if (toMs <= fromMs) continue
+          const subWindows = animated
+            ? captionExportWindows(fromMs, toMs, words[i].startMs)
+            : [{ fromMs, toMs, progress: undefined as number | undefined }]
+          for (const sub of subWindows) {
+            const segStartS = (clip.startMs + sub.fromMs) / 1000
+            const segEndS = (clip.startMs + sub.toMs) / 1000
+            if (segEndS <= segStartS) continue
+            const png = await renderTextPng(clip, size, i, sub.progress)
+            const file = path.join(dir, `text-${visualStep}.png`)
+            await writeFile(file, png)
+            inputs.push(
+              "-loop",
+              "1",
+              "-t",
+              String(segEndS - segStartS),
+              "-i",
+              file
+            )
+            filters.push(
+              `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${segStartS}/TB[l${visualStep}]`,
+              `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${segStartS.toFixed(3)},${segEndS.toFixed(3)})'[v${visualStep + 1}]`
+            )
+            inputIndex += 1
+            visualStep += 1
+          }
         }
         // Frames + increments handled above; skip the single-overlay path.
         continue
@@ -517,17 +622,64 @@ async function buildFfmpegCommand(options: {
           file
         )
       }
+      // Dip-to-black is a top overlay (queued below); the clip itself renders
+      // normally. Crossfade/slide draw this clip early over the previous one.
+      const reach =
+        transition && transition.kind !== "dip" ? transition : null
+      if (transition?.kind === "dip") {
+        dipSeams.push({ seamS: startS, halfS: transition.durationMs / 2000 })
+      }
       // object-contain: scale to fit, overlay centered — no pad, so lower
       // layers stay visible in the letterbox area exactly like the preview.
-      filters.push(
-        `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease,setpts=PTS-STARTPTS+${startS}/TB[l${visualStep}]`,
-        `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
-      )
+      if (reach) {
+        // Draw D seconds early over the outgoing clip's tail. tpad clones this
+        // clip's first frame backward to fill the reach-back so content is
+        // continuous at the seam (it plays from the seam onward, unchanged);
+        // crossfade ramps alpha 0->1, slide travels in from the right.
+        const d = reach.durationMs / 1000
+        const drawStartS = startS - d
+        const chain = [
+          `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease`,
+          `tpad=start_duration=${d.toFixed(3)}:start_mode=clone`,
+        ]
+        if (reach.kind === "crossfade") {
+          chain.push("format=rgba", `fade=t=in:st=0:d=${d.toFixed(3)}:alpha=1`)
+        }
+        chain.push(`setpts=PTS-STARTPTS+${drawStartS.toFixed(3)}/TB`)
+        const xExpr =
+          reach.kind === "slide"
+            ? `'if(gte(t,${startS.toFixed(3)}),(W-w)/2,(W-w)/2+(W-(W-w)/2)*((${startS.toFixed(3)}-t)/${d.toFixed(3)}))'`
+            : "(W-w)/2"
+        filters.push(
+          `${chain.join(",")}[l${visualStep}]`,
+          `[v${visualStep}][l${visualStep}]overlay=x=${xExpr}:y=(H-h)/2:enable='between(t,${drawStartS.toFixed(3)},${endS.toFixed(3)})'[v${visualStep + 1}]`
+        )
+      } else {
+        filters.push(
+          `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease,setpts=PTS-STARTPTS+${startS}/TB[l${visualStep}]`,
+          `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+        )
+      }
       if (clip.kind === "video" && !muted && audioPresence.get(clip.mediaId!)) {
         pushAudio(inputIndex, clip.startMs, duck)
       }
     }
     inputIndex += 1
+    visualStep += 1
+  }
+
+  // Dip-to-black seams: a full-frame black overlay whose alpha ramps up to the
+  // seam then back down, composited on top of all clips (a lavfi color source,
+  // so no extra -i input). Sourced entirely from each side's own footage — the
+  // clips play through underneath unchanged.
+  for (const { seamS, halfS } of dipSeams) {
+    const fromS = seamS - halfS
+    const toS = seamS + halfS
+    filters.push(
+      `color=c=black:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${(2 * halfS).toFixed(3)}[dipsrc${visualStep}]`,
+      `[dipsrc${visualStep}]format=yuva420p,fade=t=in:st=0:d=${halfS.toFixed(3)}:alpha=1,fade=t=out:st=${halfS.toFixed(3)}:d=${halfS.toFixed(3)}:alpha=1,setpts=PTS-STARTPTS+${fromS.toFixed(3)}/TB[dip${visualStep}]`,
+      `[v${visualStep}][dip${visualStep}]overlay=x=0:y=0:enable='between(t,${fromS.toFixed(3)},${toS.toFixed(3)})'[v${visualStep + 1}]`
+    )
     visualStep += 1
   }
 
@@ -539,6 +691,11 @@ async function buildFfmpegCommand(options: {
       if (!effect) throw new Error("A sound effect no longer exists")
       file = path.join(PUBLIC_ASSET_DIR, "sound-effects", effect.fileName)
       if (!existsSync(file)) throw new Error("A sound effect file is missing")
+    } else if (clip.musicTrackId) {
+      const music = getMusicTrack(clip.musicTrackId)
+      if (!music) throw new Error("A music track no longer exists")
+      file = path.join(PUBLIC_ASSET_DIR, "music", music.fileName)
+      if (!existsSync(file)) throw new Error("A music track file is missing")
     } else if (clip.mediaId) {
       file = sourceFiles.get(clip.mediaId)
     }
@@ -652,7 +809,9 @@ async function buildFfmpegCommand(options: {
     scriptFile,
     "-map",
     `[${finalVideo}]`,
-    ...(hasAudio ? ["-map", "[aout]", "-c:a", "aac", "-b:a", "192k"] : []),
+    ...(hasAudio
+      ? ["-map", "[aout]", "-c:a", "aac", "-b:a", AUDIO_BITRATE]
+      : []),
     "-c:v",
     "libx264",
     "-preset",
@@ -785,7 +944,10 @@ function layoutWords(
 async function renderTextPng(
   clip: EditorClip,
   size: { width: number; height: number },
-  activeWordIndex?: number
+  activeWordIndex?: number,
+  // Entrance progress (0..1) for the active word when the clip carries an
+  // animated caption preset; undefined/none renders the resting look.
+  animationProgress?: number
 ) {
   const font = requireTextFont(clip.fontId)
   const fontFile = renderFontPath(font.fileName)
@@ -795,6 +957,14 @@ async function renderTextPng(
 
   const scale = size.height / DESIGN_HEIGHT
   const fontSize = (clip.fontSize ?? 80) * scale
+
+  // When set, the active word is drawn as a separate transformed overlay so it
+  // can scale/translate/fade; the same math the preview applies in CSS.
+  const animation = resolveCaptionAnimation(clip.animation)
+  const wordAnim =
+    isAnimatedCaption(animation) && activeWordIndex != null
+      ? captionWordAnimation(animation, animationProgress ?? 1)
+      : null
   const color = HEX_COLOR.test(clip.color ?? "") ? clip.color! : "#ffffff"
   const lineHeight = fontSize * 1.15
   const maxWidth = size.width * 0.9
@@ -822,6 +992,9 @@ async function renderTextPng(
 
   let maxLineWidth = 0
   const spans: string[] = []
+  // Geometry of the active word when it is animated (drawn as an overlay below).
+  let activeWordGeom: { x: number; baseline: number; text: string; width: number } | null =
+    null
   lineSegments.forEach((segs, li) => {
     const baseline = firstBaseline + li * lineHeight
     const lineWidth =
@@ -833,10 +1006,16 @@ async function renderTextPng(
       // and the rest dimmed.
       let x = centerX - lineWidth / 2
       for (const seg of segs) {
-        const opacity = seg.index === activeWordIndex ? 1 : KARAOKE_DIM
-        spans.push(
-          `<tspan x="${x.toFixed(1)}" y="${baseline.toFixed(1)}" fill-opacity="${opacity}">${escapeXml(seg.text) || " "}</tspan>`
-        )
+        const isActive = seg.index === activeWordIndex
+        if (isActive && wordAnim) {
+          // Skip the inline span; the transformed overlay draws this word.
+          activeWordGeom = { x, baseline, text: seg.text, width: seg.width }
+        } else {
+          const opacity = isActive ? 1 : KARAOKE_DIM
+          spans.push(
+            `<tspan x="${x.toFixed(1)}" y="${baseline.toFixed(1)}" fill-opacity="${opacity}">${escapeXml(seg.text) || " "}</tspan>`
+          )
+        }
         x += seg.width + charWidth
       }
     } else {
@@ -864,12 +1043,29 @@ async function renderTextPng(
   // preview) so it reads cleanly on the highlight.
   const textFilter = highlight ? "" : ` filter="url(#shadow)"`
   const textAnchor = karaoke ? "start" : "middle"
+
+  // The animated active word, drawn on top with its own transform group so it
+  // can scale about its center and shift vertically — matching the preview's
+  // CSS transform (dy is em-relative there, user-unit-relative here). Scale is
+  // about the word's visual center (~0.3em above the baseline).
+  let activeOverlay = ""
+  if (wordAnim && activeWordGeom) {
+    const geom: { x: number; baseline: number; text: string; width: number } =
+      activeWordGeom
+    const cx = geom.x + geom.width / 2
+    const cy = geom.baseline - fontSize * 0.3
+    const dy = wordAnim.dyEm * fontSize
+    const transform = `translate(0 ${dy.toFixed(2)}) translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${wordAnim.scale.toFixed(4)}) translate(${(-cx).toFixed(2)} ${(-cy).toFixed(2)})`
+    activeOverlay = `<g transform="${transform}"><text${textFilter} text-anchor="start" font-family="${escapeXml(font.family)}" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}" fill-opacity="${wordAnim.opacity.toFixed(3)}"><tspan x="${geom.x.toFixed(1)}" y="${geom.baseline.toFixed(1)}">${escapeXml(geom.text) || " "}</tspan></text></g>`
+  }
+
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">
   <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
     <feDropShadow dx="0" dy="${2 * scale}" stdDeviation="${6 * scale}" flood-color="#000000" flood-opacity="0.45"/>
   </filter>
   ${highlightRect}
   <text${textFilter} text-anchor="${textAnchor}" font-family="${escapeXml(font.family)}" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>
+  ${activeOverlay}
 </svg>`
 
   const { Resvg } = loadResvg()
@@ -965,9 +1161,10 @@ function hasAudioStream(file: string) {
 }
 
 // Long-form ffmpeg runner (renders take minutes, unlike the 30s thumbnail
-// helper in video-download); keeps the stderr tail for the server log.
+// helper in video-download); resolves with the stderr tail, which the server
+// log uses on failure and the loudness pass parses its measurement out of.
 function runFfmpeg(args: string[]) {
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     const child = spawn("ffmpeg", ["-y", ...args], {
       timeout: RENDER_TIMEOUT_MS,
     })
@@ -984,7 +1181,7 @@ function runFfmpeg(args: string[]) {
     })
     child.on("close", (code) => {
       if (code === 0) {
-        resolve()
+        resolve(stderr)
       } else {
         console.error("ffmpeg render stderr tail:", stderr)
         reject(new Error("Render failed"))

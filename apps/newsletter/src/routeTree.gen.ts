@@ -9,25 +9,35 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
+import { Route as AuthenticatedEmailSettingsRouteImport } from './routes/_authenticated/email-settings'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
-import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
-import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
-import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
-import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
+import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
+import { Route as AuthenticatedAutomationsIndexRouteImport } from './routes/_authenticated/automations/index'
+import { Route as AuthenticatedAutomationsAutomationIdRouteImport } from './routes/_authenticated/automations/$automationId'
+import { Route as AuthenticatedBroadcastsIndexRouteImport } from './routes/_authenticated/broadcasts/index'
+import { Route as AuthenticatedBroadcastsBroadcastIdRouteImport } from './routes/_authenticated/broadcasts/$broadcastId'
+import { Route as AuthenticatedBroadcastsTemplatesRouteImport } from './routes/_authenticated/broadcasts/templates'
+import { Route as ApiV1UnsubscribeRouteImport } from './routes/api/v1/unsubscribe'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
+import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as ApiV1ContactsIngestRouteImport } from './routes/api/v1/contacts/ingest'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
@@ -35,26 +45,25 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedContactsRoute = AuthenticatedContactsRouteImport.update({
+  id: '/contacts',
+  path: '/contacts',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedEmailSettingsRoute =
+  AuthenticatedEmailSettingsRouteImport.update({
+    id: '/email-settings',
+    path: '/email-settings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminSettingsRoute =
-  AuthenticatedAdminSettingsRouteImport.update({
-    id: '/admin/settings',
-    path: '/admin/settings',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminNotificationsRoute =
-  AuthenticatedAdminNotificationsRouteImport.update({
-    id: '/admin/notifications',
-    path: '/admin/notifications',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
-  id: '/admin/media',
-  path: '/admin/media',
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAdminFeedbackRoute =
@@ -63,18 +72,75 @@ const AuthenticatedAdminFeedbackRoute =
     path: '/admin/feedback',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminSettingsTabRoute =
-  AuthenticatedAdminSettingsTabRouteImport.update({
-    id: '/$tab',
-    path: '/$tab',
-    getParentRoute: () => AuthenticatedAdminSettingsRoute,
+const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
+  id: '/admin/media',
+  path: '/admin/media',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminNotificationsRoute =
+  AuthenticatedAdminNotificationsRouteImport.update({
+    id: '/admin/notifications',
+    path: '/admin/notifications',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/admin/settings',
+    path: '/admin/settings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAutomationsIndexRoute =
+  AuthenticatedAutomationsIndexRouteImport.update({
+    id: '/automations/',
+    path: '/automations/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAutomationsAutomationIdRoute =
+  AuthenticatedAutomationsAutomationIdRouteImport.update({
+    id: '/automations/$automationId',
+    path: '/automations/$automationId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedBroadcastsIndexRoute =
+  AuthenticatedBroadcastsIndexRouteImport.update({
+    id: '/broadcasts/',
+    path: '/broadcasts/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedBroadcastsBroadcastIdRoute =
+  AuthenticatedBroadcastsBroadcastIdRouteImport.update({
+    id: '/broadcasts/$broadcastId',
+    path: '/broadcasts/$broadcastId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedBroadcastsTemplatesRoute =
+  AuthenticatedBroadcastsTemplatesRouteImport.update({
+    id: '/broadcasts/templates',
+    path: '/broadcasts/templates',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const ApiV1UnsubscribeRoute = ApiV1UnsubscribeRouteImport.update({
+  id: '/api/v1/unsubscribe',
+  path: '/api/v1/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminFeedbackCommentsRoute =
   AuthenticatedAdminFeedbackCommentsRouteImport.update({
     id: '/comments',
     path: '/comments',
     getParentRoute: () => AuthenticatedAdminFeedbackRoute,
   } as any)
+const AuthenticatedAdminSettingsTabRoute =
+  AuthenticatedAdminSettingsTabRouteImport.update({
+    id: '/$tab',
+    path: '/$tab',
+    getParentRoute: () => AuthenticatedAdminSettingsRoute,
+  } as any)
+const ApiV1ContactsIngestRoute = ApiV1ContactsIngestRouteImport.update({
+  id: '/api/v1/contacts/ingest',
+  path: '/api/v1/contacts/ingest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
@@ -84,39 +150,69 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
+  '/contacts': typeof AuthenticatedContactsRoute
+  '/email-settings': typeof AuthenticatedEmailSettingsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
+  '/broadcasts/$broadcastId': typeof AuthenticatedBroadcastsBroadcastIdRoute
+  '/broadcasts/templates': typeof AuthenticatedBroadcastsTemplatesRoute
+  '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/automations/': typeof AuthenticatedAutomationsIndexRoute
+  '/broadcasts/': typeof AuthenticatedBroadcastsIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/api/v1/contacts/ingest': typeof ApiV1ContactsIngestRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/contacts': typeof AuthenticatedContactsRoute
+  '/email-settings': typeof AuthenticatedEmailSettingsRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
+  '/broadcasts/$broadcastId': typeof AuthenticatedBroadcastsBroadcastIdRoute
+  '/broadcasts/templates': typeof AuthenticatedBroadcastsTemplatesRoute
+  '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
+  '/automations': typeof AuthenticatedAutomationsIndexRoute
+  '/broadcasts': typeof AuthenticatedBroadcastsIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/api/v1/contacts/ingest': typeof ApiV1ContactsIngestRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/contacts': typeof AuthenticatedContactsRoute
+  '/_authenticated/email-settings': typeof AuthenticatedEmailSettingsRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/automations/$automationId': typeof AuthenticatedAutomationsAutomationIdRoute
+  '/_authenticated/broadcasts/$broadcastId': typeof AuthenticatedBroadcastsBroadcastIdRoute
+  '/_authenticated/broadcasts/templates': typeof AuthenticatedBroadcastsTemplatesRoute
+  '/api/v1/unsubscribe': typeof ApiV1UnsubscribeRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/automations/': typeof AuthenticatedAutomationsIndexRoute
+  '/_authenticated/broadcasts/': typeof AuthenticatedBroadcastsIndexRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/api/v1/contacts/ingest': typeof ApiV1ContactsIngestRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRouteTypes {
@@ -124,61 +220,93 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/contacts'
+    | '/email-settings'
     | '/workspaces'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/automations/$automationId'
+    | '/broadcasts/$broadcastId'
+    | '/broadcasts/templates'
+    | '/api/v1/unsubscribe'
+    | '/admin/'
+    | '/automations/'
+    | '/broadcasts/'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
+    | '/api/v1/contacts/ingest'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/contacts'
+    | '/email-settings'
     | '/workspaces'
     | '/'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
+    | '/automations/$automationId'
+    | '/broadcasts/$broadcastId'
+    | '/broadcasts/templates'
+    | '/api/v1/unsubscribe'
+    | '/admin'
+    | '/automations'
+    | '/broadcasts'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
+    | '/api/v1/contacts/ingest'
     | '/api/v1/media/$mediaId/file'
   id:
     | '__root__'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/contacts'
+    | '/_authenticated/email-settings'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/automations/$automationId'
+    | '/_authenticated/broadcasts/$broadcastId'
+    | '/_authenticated/broadcasts/templates'
+    | '/api/v1/unsubscribe'
+    | '/_authenticated/admin/'
+    | '/_authenticated/automations/'
+    | '/_authenticated/broadcasts/'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
+    | '/api/v1/contacts/ingest'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiV1UnsubscribeRoute: typeof ApiV1UnsubscribeRoute
+  ApiV1ContactsIngestRoute: typeof ApiV1ContactsIngestRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -188,6 +316,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/contacts': {
+      id: '/_authenticated/contacts'
+      path: '/contacts'
+      fullPath: '/contacts'
+      preLoaderRoute: typeof AuthenticatedContactsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/email-settings': {
+      id: '/_authenticated/email-settings'
+      path: '/email-settings'
+      fullPath: '/email-settings'
+      preLoaderRoute: typeof AuthenticatedEmailSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/workspaces': {
       id: '/_authenticated/workspaces'
       path: '/workspaces'
@@ -195,25 +337,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/settings': {
-      id: '/_authenticated/admin/settings'
-      path: '/admin/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/notifications': {
-      id: '/_authenticated/admin/notifications'
-      path: '/admin/notifications'
-      fullPath: '/admin/notifications'
-      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/media': {
-      id: '/_authenticated/admin/media'
-      path: '/admin/media'
-      fullPath: '/admin/media'
-      preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/feedback': {
@@ -223,12 +351,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/settings/$tab': {
-      id: '/_authenticated/admin/settings/$tab'
-      path: '/$tab'
-      fullPath: '/admin/settings/$tab'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
-      parentRoute: typeof AuthenticatedAdminSettingsRoute
+    '/_authenticated/admin/media': {
+      id: '/_authenticated/admin/media'
+      path: '/admin/media'
+      fullPath: '/admin/media'
+      preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/notifications': {
+      id: '/_authenticated/admin/notifications'
+      path: '/admin/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/automations/': {
+      id: '/_authenticated/automations/'
+      path: '/automations'
+      fullPath: '/automations/'
+      preLoaderRoute: typeof AuthenticatedAutomationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/automations/$automationId': {
+      id: '/_authenticated/automations/$automationId'
+      path: '/automations/$automationId'
+      fullPath: '/automations/$automationId'
+      preLoaderRoute: typeof AuthenticatedAutomationsAutomationIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/broadcasts/': {
+      id: '/_authenticated/broadcasts/'
+      path: '/broadcasts'
+      fullPath: '/broadcasts/'
+      preLoaderRoute: typeof AuthenticatedBroadcastsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/broadcasts/$broadcastId': {
+      id: '/_authenticated/broadcasts/$broadcastId'
+      path: '/broadcasts/$broadcastId'
+      fullPath: '/broadcasts/$broadcastId'
+      preLoaderRoute: typeof AuthenticatedBroadcastsBroadcastIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/broadcasts/templates': {
+      id: '/_authenticated/broadcasts/templates'
+      path: '/broadcasts/templates'
+      fullPath: '/broadcasts/templates'
+      preLoaderRoute: typeof AuthenticatedBroadcastsTemplatesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/v1/unsubscribe': {
+      id: '/api/v1/unsubscribe'
+      path: '/api/v1/unsubscribe'
+      fullPath: '/api/v1/unsubscribe'
+      preLoaderRoute: typeof ApiV1UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/feedback/comments': {
       id: '/_authenticated/admin/feedback/comments'
@@ -236,6 +420,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/feedback/comments'
       preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
       parentRoute: typeof AuthenticatedAdminFeedbackRoute
+    }
+    '/_authenticated/admin/settings/$tab': {
+      id: '/_authenticated/admin/settings/$tab'
+      path: '/$tab'
+      fullPath: '/admin/settings/$tab'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
+      parentRoute: typeof AuthenticatedAdminSettingsRoute
+    }
+    '/api/v1/contacts/ingest': {
+      id: '/api/v1/contacts/ingest'
+      path: '/api/v1/contacts/ingest'
+      fullPath: '/api/v1/contacts/ingest'
+      preLoaderRoute: typeof ApiV1ContactsIngestRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
@@ -277,21 +475,39 @@ const AuthenticatedAdminSettingsRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedContactsRoute: typeof AuthenticatedContactsRoute
+  AuthenticatedEmailSettingsRoute: typeof AuthenticatedEmailSettingsRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
+  AuthenticatedAutomationsAutomationIdRoute: typeof AuthenticatedAutomationsAutomationIdRoute
+  AuthenticatedBroadcastsBroadcastIdRoute: typeof AuthenticatedBroadcastsBroadcastIdRoute
+  AuthenticatedBroadcastsTemplatesRoute: typeof AuthenticatedBroadcastsTemplatesRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAutomationsIndexRoute: typeof AuthenticatedAutomationsIndexRoute
+  AuthenticatedBroadcastsIndexRoute: typeof AuthenticatedBroadcastsIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedContactsRoute: AuthenticatedContactsRoute,
+  AuthenticatedEmailSettingsRoute: AuthenticatedEmailSettingsRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
+  AuthenticatedAutomationsAutomationIdRoute:
+    AuthenticatedAutomationsAutomationIdRoute,
+  AuthenticatedBroadcastsBroadcastIdRoute:
+    AuthenticatedBroadcastsBroadcastIdRoute,
+  AuthenticatedBroadcastsTemplatesRoute: AuthenticatedBroadcastsTemplatesRoute,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  AuthenticatedAutomationsIndexRoute: AuthenticatedAutomationsIndexRoute,
+  AuthenticatedBroadcastsIndexRoute: AuthenticatedBroadcastsIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -301,6 +517,8 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiV1UnsubscribeRoute: ApiV1UnsubscribeRoute,
+  ApiV1ContactsIngestRoute: ApiV1ContactsIngestRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
 }
 export const routeTree = rootRouteImport

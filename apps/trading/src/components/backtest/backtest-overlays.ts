@@ -6,7 +6,10 @@ import type {
   ChartZone,
 } from "@/components/chart/price-chart"
 import { CHIP_COLORS } from "@/components/chart/trade-chips"
+import { orderLabelFor } from "@/lib/automations/node-registry"
 import type { BacktestResult } from "@/lib/backtest/types"
+import type { AutomationProtection } from "@/lib/automations/automation"
+import { trailingStopPath } from "@/lib/strategies/trailing-stop"
 import type { IndicatorConfig } from "@/lib/trading/indicators-config"
 
 export type StrategyChartOverlays = {
@@ -96,4 +99,172 @@ export function buildRunMarkers(result: BacktestResult): ChartMarker[] {
     }
   }
   return markers
+}
+
+/** A sell whose price lands this close to a rung's buy counts as that rung. */
+const RUNG_MATCH_TOLERANCE = 0.001
+
+/**
+ * Which ladder step a buy was: `dca:b:0` is the first rung, so it reads
+ * "Rung 1". Exits carry no rung in their purpose, so they are matched by price
+ * below instead.
+ */
+function buyRungIndex(purpose: string): number | null {
+  const match = purpose.match(/:b:(\d+)$/)
+  return match ? Number(match[1]) : null
+}
+
+/**
+ * Names the ladder steps an exit closed — "Rung 2", "Rungs 1-3", "Rungs 1, 3".
+ *
+ * Deliberately the step NUMBERS, not a tally. An earlier version said "all 1
+ * rung", which reads as rung #1 rather than "one rung", and threw away the one
+ * thing worth knowing: WHICH step just got closed.
+ */
+function rungNames(indexes: number[]): string {
+  const steps = [...new Set(indexes)].sort((a, b) => a - b).map((i) => i + 1)
+  if (steps.length === 0) return ""
+  if (steps.length === 1) return `Rung ${steps[0]}`
+  const contiguous = steps.every((n, i) => i === 0 || n === steps[i - 1] + 1)
+  return contiguous
+    ? `Rungs ${steps[0]}-${steps[steps.length - 1]}`
+    : `Rungs ${steps.join(", ")}`
+}
+
+/**
+ * One static arrow per fill: every DCA ladder buy and every exit sell drawn at
+ * the exact price and time it happened, instead of one blended averaged-down
+ * entry per round trip. These markers carry no letter, so the chart renders
+ * them as its lightweight native green up / red down arrows (no animated chips)
+ * — a long run with a deep ladder stays cheap to draw. Each carries the words
+ * and the dollar value the chart shows when you hover it.
+ */
+export function buildRunFillMarkers(result: BacktestResult): ChartMarker[] {
+  // Buys of the cycle currently open, so a sell can say which rung it sold at.
+  // The engine's exit purposes (`dca:s:all`, `dca:exit`) carry no rung number —
+  // the ladder rests ONE order for the whole position at the step above its
+  // deepest buy, so the rung is recoverable from the price and only from the
+  // price. Cleared on every sell, since that closes the position.
+  let openBuys: { rung: number; px: number }[] = []
+
+  return result.fills.map((fill) => {
+    const rung = buyRungIndex(fill.purpose)
+    let label: string
+
+    if (fill.side === "buy") {
+      if (rung !== null) openBuys.push({ rung, px: fill.px })
+      label = rung !== null ? `Rung ${rung + 1}` : orderLabelFor(fill.purpose)
+    } else {
+      // Only claim a rung when the prices genuinely agree — a stop-out or a
+      // bounce fill lands nowhere near a rung, and inventing a number for it
+      // would be worse than saying nothing.
+      const soldAt = openBuys
+        .filter(
+          (buy) =>
+            buy.px > 0 &&
+            Math.abs(fill.px / buy.px - 1) <= RUNG_MATCH_TOLERANCE
+        )
+        // Nearest, not first: a reclaim can re-arm a rung at an unusual price,
+        // and naming the wrong step would be worse than naming none.
+        .sort(
+          (a, b) =>
+            Math.abs(fill.px / a.px - 1) - Math.abs(fill.px / b.px - 1)
+        )[0]
+      // Both exit paths close the WHOLE position — the ladder's own sell rests
+      // for everything it holds, and the forced exit is a reduce-only market
+      // order sized to the full position. So name the steps that just closed.
+      const closed = rungNames(openBuys.map((buy) => buy.rung))
+      const at = soldAt ? ` at Rung ${soldAt.rung + 1}` : ""
+      if (/:exit$/.test(fill.purpose)) {
+        label = closed ? `Exit ${closed}` : "Exit"
+      } else if (/:s:all$/.test(fill.purpose)) {
+        label = closed ? `Sell ${closed}${at}` : `Sell all${at}`
+      } else {
+        label = `${orderLabelFor(fill.purpose)}${at}`
+      }
+      openBuys = []
+    }
+
+    return {
+      time: fill.t,
+      side: fill.side,
+      price: fill.px,
+      // What this arrow is and what it cost. Size is recorded in coins; the
+      // dollars are what compare across a basket, so the chart reads
+      // "Rung 3 · $219" instead of leaving a bare arrow among identical ones.
+      label,
+      value: fill.px * fill.sz,
+    }
+  })
+}
+
+/**
+ * Dashed red stop-path segments for a run that used a trailing stop — one
+ * line per trade so the ratchet is visible bar by bar. Fixed-stop and no-stop
+ * runs return nothing. The per-bar levels come from the same shared math the
+ * engine's exits use.
+ */
+export function buildTrailingStopOverlays(
+  protection: AutomationProtection | undefined,
+  result: BacktestResult,
+  candles: { t: number; h: string | number; l: string | number }[]
+): ChartOverlayLine[] {
+  if (
+    !protection ||
+    (protection.long?.stopLossMode !== "trailing" &&
+      protection.short?.stopLossMode !== "trailing")
+  ) {
+    return []
+  }
+  const bars = candles.map((candle) => ({
+    t: candle.t,
+    h: Number(candle.h),
+    l: Number(candle.l),
+  }))
+  const lines: ChartOverlayLine[] = []
+  const segments = [
+    ...result.trades.map((trade) => ({
+      side: trade.side,
+      entryPx: trade.entryPx,
+      from: trade.entryTime,
+      to: trade.exitTime,
+    })),
+    ...(result.openPosition
+      ? [
+          {
+            side: result.openPosition.side,
+            entryPx: result.openPosition.entryPx,
+            from: result.openPosition.entryTime,
+            to: Number.POSITIVE_INFINITY,
+          },
+        ]
+      : []),
+  ]
+  for (const [index, segment] of segments.entries()) {
+    const settings =
+      segment.side === "long" ? protection.long : protection.short
+    if (!settings?.stopLossPct || settings.stopLossMode !== "trailing") {
+      continue
+    }
+    const window = bars.filter(
+      (bar) => bar.t >= segment.from && bar.t <= segment.to
+    )
+    const points = trailingStopPath(
+      settings,
+      segment.side,
+      segment.entryPx,
+      window
+    )
+    if (points.length > 0) {
+      lines.push({
+        id: `trailing-stop-${index}`,
+        // Label only the first segment so the chart legend shows one chip.
+        label: index === 0 ? "Trailing stop" : "",
+        color: "#f23645",
+        dashed: true,
+        points,
+      })
+    }
+  }
+  return lines
 }

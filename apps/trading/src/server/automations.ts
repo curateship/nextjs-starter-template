@@ -50,6 +50,8 @@ export type InspectedAutomation = {
 export function inspectAutomation(row: TradingAutomation): InspectedAutomation {
   const parsedDraft = storedDraftSchema.safeParse(row.graph)
   if (!parsedDraft.success) {
+    // Callers that inspect MANY rows must catch this — one unreadable draft
+    // must not take a whole list down. See the list handler in lib/api.
     throw new Error("Automation draft could not be read")
   }
   const { backtest, ...graph } = parsedDraft.data
@@ -172,6 +174,9 @@ export async function saveUserAutomation(
         )
       )
       .returning()
+    // Saving never touches a deployed bot: runs keep trading on the settings
+    // they started with. The bot page notices the drift and the admin applies
+    // it by hand (pause → apply → resume) via applyAutomationSettings.
     return row ?? null
   } catch (error) {
     throwFriendlyUniqueNameError(error)

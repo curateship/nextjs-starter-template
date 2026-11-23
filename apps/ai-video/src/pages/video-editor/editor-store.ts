@@ -1,11 +1,15 @@
 import * as React from "react"
 
+import type { CaptionAnimationId } from "../../lib/caption-animations.ts"
+import type { ClipTransition } from "../../lib/clip-transitions.ts"
 import {
   applyHookVariant,
   type HookVariantInput,
 } from "../../lib/hook-variants.ts"
+import type { MusicTrackId } from "../../lib/music-library.ts"
 import type { SoundEffectId } from "../../lib/sound-effects.ts"
 import type { TextFontId } from "../../lib/text-fonts.ts"
+import type { ProjectTimeline } from "../../lib/timeline-schema.ts"
 import { PlaybackClock } from "./playback-clock.ts"
 import {
   DEFAULT_PX_PER_SECOND,
@@ -34,6 +38,8 @@ export type EditorClip = {
   url?: string
   muted?: boolean
   soundEffectId?: SoundEffectId
+  // Bundled music bed (public/music); inserted onto its own ducked track.
+  musicTrackId?: MusicTrackId
   sourceDurationMs?: number
   trimStartMs: number
   // Text clips.
@@ -47,6 +53,9 @@ export type EditorClip = {
   // Per-word timings for voice-synced captions; the active word is highlighted
   // as playback reaches it. Unset = static text (rendered all one color).
   words?: ClipWord[]
+  // Entrance animation played by the active karaoke word each time it becomes
+  // the spoken word. Unset or "none" = static highlight (the historical look).
+  animation?: CaptionAnimationId
   // Normalized 0–1 position of the text block's CENTER on the frame
   // (default 0.5/0.5 = centered). Set by dragging the text in the preview.
   x?: number
@@ -55,6 +64,10 @@ export type EditorClip = {
   // the media while the slot keeps its timeline position and length.
   replaceable?: boolean
   segmentLabel?: string
+  // Blend at the seam entering this clip (crossfade/dip/slide). Unset = hard
+  // cut. Only rendered when the preceding same-track clip butts against this
+  // one and both are visual — see lib/clip-transitions.ts.
+  transition?: ClipTransition
 }
 
 export type EditorTrack = {
@@ -88,6 +101,8 @@ export type EditorAction =
       trackId?: string
     }
   | { type: "ADD_CLIP_TO_NEW_TRACK"; clip: EditorClip; atMs: number }
+  // Music bed: its own new track, ducked under voice, starting at t=0.
+  | { type: "ADD_MUSIC_BED"; clip: EditorClip }
   | {
       type: "MOVE_CLIP"
       clipId: string
@@ -386,6 +401,21 @@ export function editorReducer(
     case "ADD_CLIP_TO_NEW_TRACK":
       return placeClipInNewTrack(state, action.clip, action.atMs)
 
+    case "ADD_MUSIC_BED": {
+      // A music bed lives on its own track marked to duck under voice, so it
+      // dips under speech automatically (see audio-ducking). Starts at t=0.
+      const track: EditorTrack = {
+        id: editorId(),
+        muted: false,
+        duck: true,
+        clips: [{ ...action.clip, startMs: 0 }],
+      }
+      return {
+        ...pushUndo(state, [...state.tracks, track]),
+        selectedClipId: action.clip.id,
+      }
+    }
+
     case "ADD_CAPTION_CLIPS": {
       if (action.clips.length === 0) return state
       // Captions arrive non-overlapping from the server; give them their own
@@ -474,7 +504,8 @@ export function editorReducer(
       const addKeptSegment = (endMs: number) => {
         const durationMs = endMs - sourceCursorMs
         if (durationMs < MIN_CLIP_MS) return
-        const id = first ? found.clip.id : editorId()
+        const isFirst = first
+        const id = isFirst ? found.clip.id : editorId()
         first = false
         clips.push({
           ...found.clip,
@@ -482,6 +513,10 @@ export function editorReducer(
           startMs: timelineCursorMs,
           durationMs,
           trimStartMs: found.clip.trimStartMs + sourceCursorMs,
+          // Only the first kept segment keeps the incoming transition (its seam
+          // with the preceding clip survives). Later segments butt against a
+          // same-content cut, so they must not carry a blend.
+          transition: isFirst ? found.clip.transition : undefined,
         })
         timelineCursorMs += durationMs
       }
@@ -528,10 +563,12 @@ export function editorReducer(
     case "DUPLICATE_CLIP": {
       const found = findClip(state.tracks, action.clipId)
       if (!found) return state
-      // The copy prefers the slot right after the original on its track.
+      // The copy prefers the slot right after the original on its track. Drop
+      // any incoming transition: the copy butts against its source clip, and a
+      // blend between a clip and its own duplicate is never intended.
       return placeClip(
         state,
-        { ...found.clip, id: editorId() },
+        { ...found.clip, id: editorId(), transition: undefined },
         found.clip.startMs + found.clip.durationMs,
         found.track.id
       )
@@ -588,6 +625,7 @@ export function editorReducer(
         mediaId: action.media.mediaId,
         url: action.media.url,
         soundEffectId: undefined,
+        musicTrackId: undefined,
         name: action.media.name,
         sourceDurationMs: isTimed ? action.media.sourceDurationMs : undefined,
         trimStartMs: 0,
@@ -628,6 +666,10 @@ export function editorReducer(
         return state
       }
 
+      // The left half keeps the clip's incoming transition (its seam with the
+      // preceding clip is unchanged). The right half's new left edge is a
+      // same-content cut against the left half, so it must NOT carry the
+      // transition — that would render a spurious blend mid-clip.
       const left: EditorClip = { ...clip, durationMs: offset }
       const right: EditorClip = {
         ...clip,
@@ -635,6 +677,7 @@ export function editorReducer(
         startMs: clip.startMs + offset,
         durationMs: clip.durationMs - offset,
         trimStartMs: clip.trimStartMs + offset,
+        transition: undefined,
       }
       const tracks = withTrack(state.tracks, found.track.id, (t) => ({
         ...t,
@@ -756,6 +799,9 @@ type EditorStoreSnapshot = {
   state: EditorState
   durationMs: number
   saveStatus: SaveStatus
+  // Set once a save is rejected because the project changed elsewhere. Edits
+  // stay in memory but autosave stops until the user reloads.
+  hasConflict: boolean
   documentName: string
   documentThumbnailUrl: string | null
 }
@@ -765,6 +811,7 @@ export type EditorStore = {
   subscribe: (listener: () => void) => () => void
   dispatch: React.Dispatch<EditorAction>
   setSaveStatus: (status: SaveStatus) => void
+  setHasConflict: () => void
   setDocumentName: (name: string) => void
   setDocumentThumbnailUrl: (url: string | null) => void
 }
@@ -778,6 +825,7 @@ export function createEditorStore(
     state,
     durationMs: timelineDurationMs(state.tracks),
     saveStatus: "saved",
+    hasConflict: false,
     documentName,
     documentThumbnailUrl,
   }
@@ -806,6 +854,10 @@ export function createEditorStore(
       })
     },
     setSaveStatus: (saveStatus) => update({ ...snapshot, saveStatus }),
+    setHasConflict: () => {
+      if (snapshot.hasConflict) return
+      update({ ...snapshot, hasConflict: true, saveStatus: "error" })
+    },
     setDocumentName: (documentName) => update({ ...snapshot, documentName }),
     setDocumentThumbnailUrl: (documentThumbnailUrl) =>
       update({ ...snapshot, documentThumbnailUrl }),
@@ -822,6 +874,9 @@ type EditorContextValue = {
   setDocumentName: (name: string) => void
   setDocumentThumbnailUrl: (url: string | null) => void
   flushSave: () => Promise<void>
+  // Persist an explicit snapshot straight away through the same versioned
+  // save path autosave uses (the corrupt-timeline reset).
+  saveSnapshot: (snapshot: ProjectTimeline) => Promise<void>
 }
 
 // The provider component lives in editor-provider.tsx (files exporting
@@ -862,6 +917,11 @@ export function useEditorDurationMs() {
 export function useEditorSaveStatus() {
   const { store } = useEditorRuntime()
   return useEditorStoreSelector(store, (snapshot) => snapshot.saveStatus)
+}
+
+export function useEditorHasConflict() {
+  const { store } = useEditorRuntime()
+  return useEditorStoreSelector(store, (snapshot) => snapshot.hasConflict)
 }
 
 export function useEditorDocumentName() {

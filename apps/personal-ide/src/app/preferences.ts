@@ -1,6 +1,10 @@
 import type { ThemeMode } from "@/components/kibo-ui/theme-switcher"
 
-import { APP_THEME_STORAGE_KEY, PINNED_SKILLS_STORAGE_KEY } from "@/app/constants"
+import {
+  APP_THEME_STORAGE_KEY,
+  PINNED_SKILLS_STORAGE_KEY,
+  WORKSPACE_NOTES_STORAGE_KEY,
+} from "@/app/constants"
 
 function isAppTheme(value: string | null): value is ThemeMode {
   return value === "light" || value === "dark" || value === "system"
@@ -54,4 +58,20 @@ function uniqueStrings(values: unknown[]) {
     }
   }
   return result
+}
+
+export function loadWorkspaceNotes(): { text: string; open: boolean } {
+  try {
+    const value = JSON.parse(localStorage.getItem(WORKSPACE_NOTES_STORAGE_KEY) ?? "{}")
+    return {
+      text: typeof value?.text === "string" ? value.text : "",
+      open: value?.open !== false,
+    }
+  } catch {
+    return { text: "", open: true }
+  }
+}
+
+export function saveWorkspaceNotes(notes: { text: string; open: boolean }) {
+  localStorage.setItem(WORKSPACE_NOTES_STORAGE_KEY, JSON.stringify(notes))
 }

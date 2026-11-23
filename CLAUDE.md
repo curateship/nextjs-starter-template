@@ -1,12 +1,65 @@
 # CLAUDE.md
 
-Monorepo-wide guidance for agents. App-specific rules live in each app's own `apps/<name>/CLAUDE.md`.
+A map of the repo. It holds no rules of its own. Everything it points at is the
+rule, and the file it points at is the one to read.
 
-## Dev Servers
+## How to reply
 
-- Every new app must receive one unused port under its app key in `local-apps.json` when the app is created.
-- **`local-apps.json` is the only place where an app port may be assigned. Never duplicate or hardcode the port in app code, scripts, tests, environment defaults, Dockerfiles, or documentation; those consumers must read it from `local-apps.json`.**
-- Never use another port or change an existing assignment unless the user explicitly requests that exact reassignment.
-- **Never start a new dev server if one is already running.** If an app's configured port is taken, that running server IS the one to use — do not spawn another on a fallback port. Running duplicate servers on scattered ports mucks everything up and confuses which URL is real.
-- Before running `npm run dev`, check whether the port is already listening: `lsof -iTCP -sTCP:LISTEN -nP | grep :<port>`. If it is, reuse that instance.
-- All Vite apps set `strictPort: true`, so `npm run dev` errors out instead of silently hopping to the next port. Keep it that way.
+**Re-read `.agents/skills/unslop/SKILL.md` before every reply**, not once a
+session, and check your draft against it before sending. It also covers every
+summary of finished work and every doc you write. The
+section at the end, "Writing for Tyler", is the part that is about him
+specifically, and it wins wherever the two halves disagree.
+
+## Where the work happens
+
+These apps are active, and they are the only ones worked on. The list is the
+Active workspaces in the Personal IDE (Tyler, 30 Oct 2026; Travel and Viral
+added 5 Nov 2026):
+
+- `apps/shell` — the template every app is copied from.
+- `apps/trade`, `apps/directory`, `apps/video`, `apps/project`,
+  `apps/pomodoro`, `apps/promo`, `apps/date`, `apps/course`, `apps/note`,
+  `apps/fitness`, `apps/task`, `apps/travel`, `apps/viral` — the products,
+  each a copy of the shell, and each one a shell merge goes into.
+- `apps/personal`, `apps/personal-ide` — active, but not copies of the shell,
+  so a shell merge leaves them alone.
+
+Each has its own `CLAUDE.md`. Read that app's file before touching that app.
+Anything else under `apps/` is on its way out and is not worked on, fixed, or
+merged into.
+
+## The docs
+
+`docs/README.md` indexes everything. The ones that change how you work:
+
+- `docs/how-we-work.md` — how a discussion with Tyler goes, when a plan is
+  wanted, and what counts as evidence.
+- `docs/shell/shell-and-apps.md` — the rulebook for the shell and the apps built
+  on it.
+- `docs/shell/working-rules.md` — how to scope a change and how to prove it.
+- `docs/local-enviroment.md` — ports and dev servers.
+
+An app's own docs live in that app's `workspace/docs/`, and its tasks in
+`workspace/tasks/`.
+
+## The skills
+
+`.agents/skills/` holds them. `unslop` is always on. Reach for `check-yourself`
+the moment Tyler says an answer is wrong or asks whether you are sure,
+`validate-app` before calling any browser-facing work done, `deploy-app`
+when Tyler asks to deploy or launch an app, and
+`Design/admin-3-panel-design` ("Admin - 3 panel design") when he asks to turn
+a dashboard into the three-panel design.
+
+## Four rules that never wait for a file to be opened
+
+- **Never start a dev server.** Use the one already running on the app's port
+  from `local-apps.json`. If that port is serving another worktree, it is not
+  yours: say so and stop.
+- **Never edit a shell-origin file from inside an app.** An edited shell file is
+  a fork that conflicts on every future merge.
+- **Write the doc in the same turn as the code**, in the app's
+  `workspace/docs/`.
+- **Only one shell session per agent.** Finish or close it before opening
+  another.

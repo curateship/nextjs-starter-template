@@ -1,0 +1,296 @@
+import { createFileRoute } from "@tanstack/react-router"
+
+import {
+  DirectoryBreadcrumbs,
+  type Crumb,
+} from "@/components/directory/public/directory-breadcrumbs"
+import { DirectoryRouteError } from "@/components/directory/public/directory-error"
+import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { ClosedBadge } from "@/components/directory/public/closed-badge"
+import { FeaturedBadge } from "@/components/directory/public/featured-badge"
+import { PublicTitleBand } from "@/components/shared/public-title-band"
+import { JsonLd } from "@/components/directory/public/json-ld"
+import { pageGutter } from "@/lib/layout/shell-gutter"
+import { ListingCustomSections } from "@/components/directory/public/listing-custom-sections"
+import { ListingEventsBox } from "@/components/directory/public/listing-events"
+import { FollowButton } from "@/components/promotions/public/follow-button"
+import { ListingDealsBox } from "@/components/promotions/public/listing-deals"
+import { ListingSidebar } from "@/components/directory/public/listing-sidebar"
+import { NearbyListings } from "@/components/directory/public/nearby-listings"
+import { RecentlyViewedListings } from "@/components/directory/public/recently-viewed-listings"
+import {
+  ListingGallery,
+  ListingHoursCard,
+} from "@/components/directory/public/listing-rich-details"
+import { WrittenPageBody } from "@/components/pages/written-page-body"
+import { writtenPageBodyIsEmpty } from "@/lib/pages/written-page-body"
+import { Card, CardContent } from "@/components/ui/card"
+import { loadDirectoryListing } from "@/lib/api/directory/public"
+import { requirePageVisible } from "@/lib/api/content/pages"
+import { forwardOldAddress } from "@/lib/api/directory/old-addresses"
+import {
+  directoryDescription,
+  directoryHead,
+  directoryTitle,
+  listingJsonLd,
+  listingPageShareImage,
+} from "@/lib/directory/public-seo"
+
+/**
+ * One listing's page: one fixed layout, not a block renderer.
+ *
+ * That is deliberate and it is why this file is short. A listing here is a
+ * plain record — picture, title, categories, links, one written body — so
+ * there is nothing to arrange and no template to inherit from. The directory
+ * app this is ported from has a block system; that layer was cut on purpose,
+ * and a listing that needs more gets a column rather than a block.
+ *
+ * The address is `/directory/<slug>`, and the underscore in this file's name
+ * keeps it out from under the browse page — otherwise the browse route would
+ * have to render this one inside itself.
+ *
+ * A closed listing opens like any other, with "Permanently closed" under its
+ * name and no hours, phone or directions. It keeps the link working for
+ * everybody who saved it, and it is in no list on the site.
+ *
+ * Three misses look identical from out here — no such address, a draft, and
+ * another site's listing — because the endpoint answers null to all three. A
+ * visitor is told the same thing in each case, which is the point: a draft
+ * must not be distinguishable from a page that was never written.
+ */
+type ListingSearch = { claim?: "start" }
+
+export const Route = createFileRoute("/directory_/$slug")({
+  validateSearch: (search: Record<string, unknown>): ListingSearch =>
+    search.claim === "start" ? { claim: "start" } : {},
+  loader: async ({ params }) => {
+    // A listing page follows the directory's own switch. Hiding the directory
+    // and leaving every listing inside it readable would be the switch not
+    // working.
+    const [, page] = await Promise.all([
+      requirePageVisible("/directory"),
+      loadDirectoryListing(params.slug),
+    ])
+
+    // An address the record used to have forwards to the one it has now.
+    if (!page) return forwardOldAddress("listing", params.slug)
+    return page
+  },
+  head: ({ loaderData }) => {
+    if (!loaderData) return {}
+    return directoryHead(
+      directoryTitle(loaderData.listing.title, loaderData.site.name),
+      directoryDescription(
+        loaderData.listing.metaDescription,
+        `${loaderData.listing.title} on ${loaderData.site.name}.`
+      ),
+      listingPageShareImage({
+        featuredImage: loaderData.listing.featuredImage,
+        siteUrl: loaderData.site.url,
+        slug: loaderData.listing.slug,
+        version: loaderData.shareImageVersion,
+      })
+    )
+  },
+  component: ListingRoute,
+  // A visitor must never be shown the server's own words for a failure.
+  errorComponent: DirectoryRouteError,
+})
+
+function ListingRoute() {
+  const {
+    site,
+    listing,
+    categories,
+    primaryCategory,
+    nearby,
+    claim,
+    ownerMessage,
+    whatsOn,
+    dealsHere,
+    follow,
+  } = Route.useLoaderData()
+  const search = Route.useSearch()
+
+  const crumbs: Crumb[] = [
+    { label: site.name, home: true },
+    { label: "Directory" },
+    ...(primaryCategory
+      ? [{ label: primaryCategory.name, categorySlug: primaryCategory.slug }]
+      : []),
+    { label: listing.title },
+  ]
+
+  const coordinates =
+    listing.latitude !== null && listing.longitude !== null
+      ? { latitude: listing.latitude, longitude: listing.longitude }
+      : null
+
+  // What the wide column has to show. Worked out once, because the page asks
+  // twice: each card asks whether to draw itself, and the layout asks whether
+  // there is a wide column at all.
+  const hasWriting =
+    !writtenPageBodyIsEmpty(listing.body) || categories.length > 0
+  const hasMain =
+    hasWriting ||
+    listing.gallery.length > 0 ||
+    listing.customSections.length > 0 ||
+    Boolean(whatsOn?.events.length) ||
+    Boolean(dealsHere?.length) ||
+    nearby.length > 0
+
+  // A listing with none of it — no write-up, no tags, no photos, nothing else
+  // like it — is drawn as one column instead of a narrow card beside an empty
+  // half of the page.
+  const main = (
+    <>
+      {listing.gallery.length ? (
+        <Card>
+          <ListingGallery title={listing.title} images={listing.gallery} />
+        </Card>
+      ) : null}
+
+      {hasWriting ? (
+        <Card>
+          <CardContent className="grid gap-3">
+            {/* The search description is not drawn here. It is the sentence
+                for a search result and for a card, and on 1,658 of the
+                imported listings it is word for word the first line of the
+                write-up below — the same thing said twice. A listing page
+                shows what the venue says about itself and nothing else. */}
+            {categories.length ? (
+              <p className="text-xs text-muted-foreground">
+                {categories.map((category) => category.name).join(" · ")}
+              </p>
+            ) : null}
+            {/*
+             * The same renderer the shell's written pages use. It builds React
+             * elements from the stored nodes and never a string of markup, so
+             * nothing an admin typed can be anything but the text of a
+             * paragraph.
+             */}
+            <WrittenPageBody body={listing.body} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Whatever this site invented, each in a card of its own. Empty
+          sections never arrive here — the server leaves them out. */}
+      <ListingCustomSections sections={listing.customSections} />
+
+      <ListingDealsBox deals={dealsHere} />
+      <ListingEventsBox whatsOn={whatsOn} listingSlug={listing.slug} />
+
+      <NearbyListings listings={nearby} />
+    </>
+  )
+
+  const sidebar = (
+    <>
+      <ListingSidebar
+        listing={listing}
+        coordinates={coordinates}
+        claim={claim}
+        ownerMessage={ownerMessage}
+        startClaimOpen={search.claim === "start"}
+        closed={listing.closed}
+      />
+      {/* A closed place's hours would read as an invitation. */}
+      {listing.closed ? null : <ListingHoursCard hours={listing.hours} />}
+    </>
+  )
+
+  return (
+    <DirectoryFrame
+      hero={
+        <PublicTitleBand
+          crumbs={<DirectoryBreadcrumbs crumbs={crumbs} inBand />}
+          title={listing.title}
+          // The Featured badge sits under the name. The rating does not: it is
+          // the chip over the listing's photo, where the directory's own cards
+          // print it. A listing with no photo has nowhere to hang that chip, so
+          // its card keeps the stars.
+          intro={
+            listing.closed || listing.featured || follow ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {listing.closed ? <ClosedBadge /> : null}
+                {listing.featured ? <FeaturedBadge /> : null}
+                {/* Only while this visitor may see deals at all. */}
+                {follow ? (
+                  <FollowButton
+                    key={listing.id}
+                    listingId={listing.id}
+                    listingTitle={listing.title}
+                    start={follow}
+                  />
+                ) : null}
+              </div>
+            ) : undefined
+          }
+        />
+      }
+    >
+      <JsonLd
+        data={listingJsonLd({
+          siteName: site.name,
+          siteUrl: site.url,
+          title: listing.title,
+          slug: listing.slug,
+          description: listing.metaDescription,
+          image: listing.featuredImage,
+          gallery: listing.gallery,
+          hours: listing.hours,
+          address: listing.contactLinks.address,
+          latitude: listing.latitude,
+          longitude: listing.longitude,
+          createdAt: listing.createdAt,
+          updatedAt: listing.updatedAt,
+          closed: listing.closed,
+        })}
+      />
+
+      {/* Two columns on a wide screen, the narrow card on the right. */}
+      {hasMain ? (
+        <div
+          className="grid items-start lg:grid-cols-[minmax(0,1.36fr)_minmax(16rem,0.64fr)]"
+          // The space between the cards is the site's own, from Settings →
+          // Public → Styling → Spacing, like every other gap on a public page.
+          // A fixed Tailwind gap here ignored a site that widened or tightened
+          // its spacing, so the page's columns sat closer than its grids.
+          style={{ gap: pageGutter }}
+        >
+          {/* First in the page, and second on a wide screen. On a phone that
+              puts the photo, the name and the phone number at the top, which
+              is what the page was opened for; `order` moves the wide column
+              above it only once the two fit side by side.
+
+              Sticks while the wide column scrolls past it. `top-4` keeps it
+              clear of the top of the window rather than touching it. */}
+          <div
+            className="grid content-start lg:sticky lg:top-4 lg:order-2"
+            style={{ gap: pageGutter }}
+          >
+            {sidebar}
+          </div>
+          <div
+            className="grid content-start lg:order-1"
+            style={{ gap: pageGutter }}
+          >
+            {main}
+          </div>
+        </div>
+      ) : (
+        <div
+          className="grid content-start lg:max-w-md"
+          style={{ gap: pageGutter }}
+        >
+          {sidebar}
+        </div>
+      )}
+
+      {/* Records this listing and shows the ones opened before it, under
+          both columns so its cards have the page's full width. */}
+      <RecentlyViewedListings currentListingId={listing.id} />
+    </DirectoryFrame>
+  )
+}

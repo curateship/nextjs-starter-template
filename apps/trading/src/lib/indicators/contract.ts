@@ -24,7 +24,7 @@ export type IndicatorSignal = { time: number; side: "buy" | "sell" }
 
 /**
  * Chart-agnostic paint. `indicators` rides the existing theme-aware
- * IndicatorConfig render path (EMA/VWAP/Bollinger/base overlays and the
+ * IndicatorConfig render path (EMA/Bollinger/base overlays and the
  * RSI/MACD sub-panes); lines/zones/barColors are raw series for anything
  * that path can't express (channels, consolidation zones, bar recoloring).
  */
@@ -47,7 +47,10 @@ export type IndicatorPaint = {
   barColors: { time: number; color: string }[]
 }
 
-export type IndicatorOutput = { paint: IndicatorPaint; signals: IndicatorSignal[] }
+export type IndicatorOutput = {
+  paint: IndicatorPaint
+  signals: IndicatorSignal[]
+}
 
 /** Field metadata the generic params form renders. */
 export type IndicatorParamField = {
@@ -56,6 +59,18 @@ export type IndicatorParamField = {
   kind?: "number" | "select" | "boolean"
   step?: number
   options?: string[]
+  /** Display text per option, when the stored values aren't readable on their
+   * own (session keys). Positional; falls back to the option itself. */
+  optionLabels?: string[]
+  /** One plain sentence shown in an info tooltip beside the field's label. */
+  info?: string
+  /**
+   * Only render this field on the chart's indicator settings — it governs what
+   * the chart DRAWS (which arrows, how far apart), which an automation node has
+   * no picture to draw. The parameter itself is unchanged and still parses, so
+   * a graph saved with it keeps running exactly as before.
+   */
+  chartOnly?: boolean
 }
 
 export type IndicatorModule<P = Record<string, unknown>> = {
@@ -66,6 +81,8 @@ export type IndicatorModule<P = Record<string, unknown>> = {
   paramsSchema: z.ZodType<P>
   defaultParams: P
   paramFields: IndicatorParamField[]
+  /** Optional inspector sections. Fields not listed remain visible in Other settings. */
+  paramGroups?: { title: string; keys: string[] }[]
   /** Bars of history needed before the last-bar signal is trustworthy. */
   warmupBars: (params: P) => number
   /** Pure and causal: computing over a prefix matches the full series. */

@@ -1,0 +1,279 @@
+import type * as React from "react"
+import { BookmarkIcon, ListFilterIcon } from "lucide-react"
+
+import { ClientFilterSelect } from "@/components/project/client-filter-select"
+import { ProjectDot } from "@/components/project/task-bits"
+import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import {
+  TASK_PRIORITIES,
+  TASK_PRIORITY_LABEL,
+  TASK_STATUSES,
+  TASK_STATUS_LABEL,
+  type ProjectColor,
+  type TaskPriority,
+  type TaskStatus,
+} from "@/lib/project/rules"
+import { DUE_FILTERS, NO_TASK_FILTERS, type DueFilter, type TaskFilters } from "@/lib/project/task-filters"
+import { TASK_GROUPING_LABEL } from "@/lib/project/task-groups"
+
+/** A project the Project row offers. */
+export type FilterProject = { id: string; name: string; color: ProjectColor }
+
+const ALL = "all"
+
+/**
+ * The project page's filters behind one Filter button, as Tyler drew them on
+ * 13 Oct 2026: a row each for Status, Priority and Due, then
+ * Group (Tyler, 19 Oct 2026: "add a new row called 'Group' like notion"),
+ * which took the Board's "Group by person" switch in, then Clear and Save as
+ * view. Clear leaves Group alone, since it arranges the tasks rather than
+ * hiding any. The button
+ * counts the filters set. Where the panel is too narrow for the header's
+ * search box, the search is the popover's first row instead. Due was a
+ * dropdown of its own in the header until Tyler moved it in here on 19 Oct
+ * 2026. Who the task is for is still a dropdown of its own in the project
+ * page's header (Tyler, 14 Oct 2026), so Clear leaves it alone. My dashboard adds
+ * a Client row (Features 16 Oct, part 9), since its tasks come from many
+ * projects, and the site admin's a Project row, which its Projects card sets
+ * too (task "My dashboard/01 Project cards", 29 Oct 2026).
+ */
+export function TaskFilterPopover({
+  filters,
+  onChange,
+  search,
+  group,
+  onSaveView,
+  clients,
+  projects,
+  buttonVariant = "outline",
+}: {
+  filters: TaskFilters
+  onChange: (patch: Partial<TaskFilters>) => void
+  /** Draw the search box inside, where the header has no room for its own. */
+  search?: boolean
+  /** What the tab groups by and its choices; left out where a tab has no groups. */
+  group?: {
+    value: string
+    options: readonly string[]
+    /** Each choice's name; left out, the project List's names. */
+    labels?: Record<string, string>
+    onChange: (next: string) => void
+  }
+  onSaveView: () => void
+  /** The clients of the projects shown, for a Client row. Left out, there is no row. */
+  clients?: string[]
+  /** The projects offered in a Project row. Left out, there is no row. */
+  projects?: readonly FilterProject[]
+  /** Ghost in the project page's header, where every control is. */
+  buttonVariant?: "outline" | "ghost"
+}) {
+  const count = [
+    filters.status,
+    filters.priority,
+    filters.due,
+    clients && filters.client,
+    projects && filters.project,
+  ].filter(Boolean).length
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <DashboardToolbarButton type="button" variant={buttonVariant} aria-label={count ? `Filter, ${count} set` : "Filter"}>
+          <ListFilterIcon className="size-4" />
+          {/* The tasks panel's header is the container: on a phone the icon stays and the word goes. */}
+          <span className="@max-4xl:sr-only">Filter</span>
+          {count ? <span className="text-muted-foreground">{count}</span> : null}
+        </DashboardToolbarButton>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="grid w-80 gap-3 p-3">
+        {search ? (
+          <DashboardToolbarSearch
+            className="sm:flex-1"
+            inputClassName="sm:w-full lg:w-full"
+            name="task-search-in-filters"
+            aria-label="Search tasks by title and notes"
+            placeholder="Search tasks"
+            value={filters.q ?? ""}
+            onChange={(event) => onChange({ q: event.target.value || undefined })}
+          />
+        ) : null}
+        <TaskFilterFields
+          idPrefix="filter"
+          filters={filters}
+          onChange={onChange}
+          clients={clients}
+          projects={projects}
+        />
+        {group ? (
+          <>
+            <Separator className="-mx-3 w-auto" />
+            <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3">
+              <FilterRow id="filter-group" label="Group">
+                <Select value={group.value} onValueChange={group.onChange}>
+                  <SelectTrigger id="filter-group" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {group.options.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {(group.labels ?? (TASK_GROUPING_LABEL as Record<string, string>))[option]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterRow>
+            </div>
+          </>
+        ) : null}
+        <div className="grid grid-cols-2 gap-2">
+          <Button type="button" variant="outline" onClick={() => onChange(NO_TASK_FILTERS)}>
+            Clear
+          </Button>
+          <Button type="button" variant="outline" onClick={onSaveView}>
+            <BookmarkIcon className="size-4" />
+            Save as view
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * The filter rows, label beside choice: Status, Priority and Due,
+ * Client where `clients` is given, and Project where `projects` is. The Filter popover and the Edit view
+ * window both draw these, so a view is edited with the same choices it was
+ * made with.
+ */
+export function TaskFilterFields({
+  idPrefix,
+  filters,
+  onChange,
+  clients,
+  projects,
+  children,
+}: {
+  /** Starts each row's id, so two sets on one page never share one. */
+  idPrefix: string
+  filters: TaskFilters
+  onChange: (patch: Partial<TaskFilters>) => void
+  clients?: readonly string[]
+  projects?: readonly FilterProject[]
+  /** More rows after Client and Project, such as the Edit view window's Assigned to. */
+  children?: React.ReactNode
+}) {
+  return (
+    <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
+      <FilterRow id={`${idPrefix}-status`} label="Status">
+        <Select
+          value={filters.status ?? ALL}
+          onValueChange={(value) => onChange({ status: value === ALL ? undefined : (value as TaskStatus) })}
+        >
+          <SelectTrigger id={`${idPrefix}-status`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any status</SelectItem>
+            {TASK_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {TASK_STATUS_LABEL[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-priority`} label="Priority">
+        <Select
+          value={filters.priority ?? ALL}
+          onValueChange={(value) =>
+            onChange({ priority: value === ALL ? undefined : (value as TaskPriority) })
+          }
+        >
+          <SelectTrigger id={`${idPrefix}-priority`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any priority</SelectItem>
+            {TASK_PRIORITIES.map((priority) => (
+              <SelectItem key={priority} value={priority}>
+                {TASK_PRIORITY_LABEL[priority]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      <FilterRow id={`${idPrefix}-due`} label="Due">
+        <Select
+          value={filters.due ?? ALL}
+          onValueChange={(value) => onChange({ due: value === ALL ? undefined : (value as DueFilter) })}
+        >
+          <SelectTrigger id={`${idPrefix}-due`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any time</SelectItem>
+            {DUE_FILTERS.map((option) => (
+              <SelectItem key={option.key} value={option.key}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterRow>
+      {clients ? (
+        <FilterRow id={`${idPrefix}-client`} label="Client">
+          <ClientFilterSelect
+            id={`${idPrefix}-client`}
+            value={filters.client}
+            clients={clients}
+            onChange={(client) => onChange({ client })}
+          />
+        </FilterRow>
+      ) : null}
+      {projects ? (
+        <FilterRow id={`${idPrefix}-project`} label="Project">
+          <Select
+            value={filters.project ?? ALL}
+            onValueChange={(value) => onChange({ project: value === ALL ? undefined : value })}
+          >
+            <SelectTrigger id={`${idPrefix}-project`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Any project</SelectItem>
+              {projectsWith(projects, filters.project).map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  <ProjectDot color={project.color} />
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterRow>
+      ) : null}
+      {children}
+    </div>
+  )
+}
+
+export function FilterRow({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+  return (
+    <>
+      <Label htmlFor={id} className="font-normal text-muted-foreground">
+        {label}
+      </Label>
+      {children}
+    </>
+  )
+}
+
+/** The projects offered, plus the one picked if it has since gone, so the choice never reads blank. */
+function projectsWith(projects: readonly FilterProject[], picked: string | undefined): readonly FilterProject[] {
+  if (!picked || projects.some((project) => project.id === picked)) return projects
+  return [...projects, { id: picked, name: "A closed project", color: "slate" }]
+}

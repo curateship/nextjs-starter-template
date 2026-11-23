@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-import { FleetDashboard } from "@/components/bots/fleet-dashboard"
+import { BotRunsDashboard } from "@/components/bots/bot-runs-dashboard"
 import { loadBots } from "@/lib/api/bots"
 
 export const Route = createFileRoute("/_authenticated/bots/")({
@@ -10,5 +10,5 @@ export const Route = createFileRoute("/_authenticated/bots/")({
 
 function BotsRoute() {
   const initial = Route.useLoaderData()
-  return <FleetDashboard initial={initial} />
+  return <BotRunsDashboard initial={initial} />
 }

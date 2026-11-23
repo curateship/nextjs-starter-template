@@ -1,197 +1,74 @@
 import * as React from "react"
-import { ClientOnly, useRouter } from "@tanstack/react-router"
-import { XIcon } from "lucide-react"
+import { ClientOnly, Link, useRouter } from "@tanstack/react-router"
+import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
 import {
-  formatFocusDays,
-  pct,
-  price as fmtPrice,
-  signedUsd,
-} from "@/components/backtest/backtest-format"
-import { BotActivityTabs } from "@/components/bots/bot-activity-tabs"
-import { buildBotRoundTrips } from "@/components/bots/bot-round-trips"
+  BacktestMarketsTable,
+  sortMarketRows,
+  useMarketSort,
+} from "@/components/backtest/backtest-markets-table"
+import { truncateWords } from "@/lib/format"
+import { Breadcrumbs } from "@/components/breadcrumbs"
+import { StrategyTester } from "@/components/backtest/strategy-tester"
+import { BotEventsList } from "@/components/bots/bot-events-list"
 import {
-  buildBotFillMarkers,
-  buildBotProtectionMenuItems,
-  buildBotProtectionOverlays,
-  type BotChartMenuItem,
-} from "@/components/bots/bot-chart-overlays"
-import { BotMarketsPanel } from "@/components/bots/bot-markets-panel"
-import { BotOrderControls } from "@/components/bots/bot-order-controls"
-import {
-  BotWorkspaceHeader,
+  BotLifecycleControls,
   type BotCommand,
-} from "@/components/bots/bot-workspace-header"
-import { ChartToolbar } from "@/components/chart/chart-toolbar"
-import {
-  PriceChart,
-  type ChartCandle,
-  type ChartFocusPoint,
-  type ChartFocusResult,
-  type ChartMarker,
-  type PriceChartHandle,
-} from "@/components/chart/price-chart"
+} from "@/components/bots/bot-lifecycle-controls"
+import { BotLiveChartPanel } from "@/components/bots/bot-live-chart-panel"
+import { BotMarketsDialog } from "@/components/bots/bot-markets-dialog"
+import { buildBotRungLines } from "@/components/bots/bot-rung-lines"
+import { buildBotMarketRows } from "@/components/bots/bot-market-rows"
+import { buildBotResult } from "@/components/bots/bot-result"
+import { BotSummaryPanel } from "@/components/bots/bot-summary-panel"
+import { BotPositionsTable } from "@/components/bots/bot-positions-table"
+import { useBotLive } from "@/components/bots/use-bot-live"
+import { useMarketRows } from "@/lib/hl/hooks"
+import { BotSettingsBanner } from "@/components/bots/bot-settings-banner"
+import { WorkerOfflineBanner } from "@/components/bots/worker-offline-banner"
+import { ViewSwitcher } from "@/components/automations/automation-view-switcher"
+import { IconButton } from "@/components/icon-button"
+import { PanelToggle } from "@/components/panel-toggles"
+import { togglePanel } from "@/lib/panel-collapse"
+import { ArrowLeftIcon, Loader2Icon, SettingsIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import {
+  BOTTOM_COLLAPSED_HEIGHT,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
 import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import {
   getBotErrorMessage,
   loadBotDetail,
+  renameBot,
   sendCommand,
-  updateBot,
   type BotDetailResponse,
 } from "@/lib/api/bots"
-import {
-  automationProtectionSchema,
-  type AutomationProtection,
-} from "@/lib/automations/automation"
-import { candleIntervalMs, useMarketRows } from "@/lib/hl/hooks"
-import type { TradingNetwork } from "@/lib/hl/network"
-import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
-import {
-  isAutomationConfig,
-  automationConfigSchema,
-  type AutomationConfig,
-} from "@/lib/strategies/strategy-config"
+import { PREVIOUS_RUN_NAME_PREFIX } from "@/lib/backtest/types"
+import { isAutomationConfig } from "@/lib/strategies/strategy-config"
+import type { CandleInterval } from "@/lib/hl/ws"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
-import { usePersistedLayout } from "@/lib/use-persisted-layout"
-import { cn } from "@/lib/utils"
-
-type ParamValues = Record<string, string>
-const PROTECTIVE_KEYS = ["takeProfitPct", "stopLossPct"] as const
-const NO_PROTECTIVE_KEYS: readonly (typeof PROTECTIVE_KEYS)[number][] = []
+import { usePanelLayout } from "@/lib/use-panel-layout"
+import { usePersistedState } from "@/lib/use-persisted-state"
 
 /**
- * Right-click menu on the bot chart: adds whichever TP/SL isn't set yet at
- * the clicked price, saving immediately. Fixed at the cursor; closes on
- * outside click or Escape (same pattern as the trade terminal's order menu).
- */
-function BotChartMenu({
-  menu,
-  market,
-  items,
-  onPick,
-  onResetView,
-  onClose,
-}: {
-  menu: { price: number; x: number; y: number } | null
-  market: string
-  items: BotChartMenuItem[]
-  onPick: (item: BotChartMenuItem) => void
-  onResetView: () => void
-  onClose: () => void
-}) {
-  React.useEffect(() => {
-    if (!menu) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [menu, onClose])
-
-  if (!menu) return null
-
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-40"
-        onClick={onClose}
-        onContextMenu={(event) => {
-          event.preventDefault()
-          onClose()
-        }}
-      />
-      <div
-        className="fixed z-50 min-w-52 rounded-md border bg-popover p-1 text-sm shadow-md"
-        style={{
-          left: Math.min(menu.x, window.innerWidth - 230),
-          top: Math.min(menu.y, window.innerHeight - 120),
-        }}
-      >
-        <div className="px-2 py-1.5 font-mono text-xs text-muted-foreground tabular-nums">
-          {market} @ {fmtPrice(menu.price)}
-        </div>
-        {items.length > 0 ? (
-          items.map((item) => (
-            <Button
-              key={item.key}
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "w-full justify-start",
-                item.tone === "up"
-                  ? "text-emerald-600 hover:text-emerald-700"
-                  : "text-red-500 hover:text-red-600"
-              )}
-              onClick={() => onPick(item)}
-            >
-              {item.label}
-            </Button>
-          ))
-        ) : (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">
-            TP / SL already set — drag the lines to move them.
-          </div>
-        )}
-        <div className="my-1 border-t" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start"
-          onClick={() => {
-            onResetView()
-            onClose()
-          }}
-        >
-          Reset View
-        </Button>
-      </div>
-    </>
-  )
-}
-
-/** Automation rules stay fixed on the bot; protection is edited in its rail. */
-function AutomationBotSettings({
-  bot,
-  config,
-}: {
-  bot: BotDetailResponse["bot"]
-  config: AutomationConfig
-}) {
-  const source = bot.source_name ?? "Saved Automation"
-  return (
-    <div className="grid gap-4 p-4 text-sm">
-      <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{source}</span> ·{" "}
-        {config.interval} · {config.rules.length} action{" "}
-        {config.rules.length === 1 ? "rule" : "rules"}
-      </div>
-      <p className="text-muted-foreground">
-        This bot keeps the Automation rules it copied at creation. Use the order
-        controls beside the chart to change take profit or stop loss.
-      </p>
-    </div>
-  )
-}
-
-/**
- * The bot workspace: backtest-style chart layout around a live bot. Left rail
- * shows the locked strategy parameters, the right rail edits SL/TP live, the
- * header runs the lifecycle.
+ * Viewer for one saved bot run — the same four panels as the editor's Bot
+ * mode (summary · chart · markets · trades + events). Lifecycle controls sit
+ * in the chart toolbar so a kept run that is still trading can be paused or
+ * flattened right here; strategy editing stays on the automation's canvas.
  */
 export function BotWorkspace({
   botId,
@@ -201,463 +78,485 @@ export function BotWorkspace({
   initial: BotDetailResponse
 }) {
   const router = useRouter()
-  const { data, refresh } = useIntervalLoader(
-    () => loadBotDetail(botId),
-    initial
+  const { data, refresh } = useIntervalLoader(() => loadBotDetail(botId), initial)
+  const { bot, states, stats, trades } = data
+
+  const [botCommandBusy, setBotCommandBusy] = React.useState(false)
+  async function runBotCommand(command: BotCommand) {
+    setBotCommandBusy(true)
+    try {
+      await sendCommand(bot.id, command)
+      await refresh()
+    } catch (error) {
+      toast.error(getBotErrorMessage(error))
+    } finally {
+      setBotCommandBusy(false)
+    }
+  }
+
+  // The current unnamed run lands here straight after deploy. Naming keeps
+  // it: the run is finished and filed (closing any open position at market
+  // and stopping it — renameUserBot's semantics), and the next deploy from
+  // the editor starts fresh.
+  const replaceable = bot.name.startsWith(PREVIOUS_RUN_NAME_PREFIX)
+  const hasOpenPosition = states.some(
+    (state) => state.paper_position && Number(state.paper_position.szi) !== 0
   )
-  const { bot, states, stats, trades, events } = data
-  const network = (
-    bot.network === "mainnet" ? "mainnet" : "testnet"
-  ) as TradingNetwork
+  const [saveRunOpen, setSaveRunOpen] = React.useState(false)
+  const [keepName, setKeepName] = React.useState("")
+  const [keeping, setKeeping] = React.useState(false)
+  const [marketsOpen, setMarketsOpen] = React.useState(false)
+  const openPositionMarkets = React.useMemo(
+    () =>
+      states
+        .filter(
+          (state) =>
+            state.paper_position && Number(state.paper_position.szi) !== 0
+        )
+        .map((state) => state.market),
+    [states]
+  )
+  async function keepRun() {
+    const trimmed = keepName.trim()
+    if (!trimmed || keeping) return
+    setKeeping(true)
+    try {
+      await renameBot(bot.id, trimmed)
+      await refresh()
+      setSaveRunOpen(false)
+      setKeepName("")
+    } catch (error) {
+      toast.error(getBotErrorMessage(error))
+    } finally {
+      setKeeping(false)
+    }
+  }
 
-  // Runnable bots carry a validated Automation snapshot. Anything else is
-  // retired history and stays read-only.
-  const botConfig = React.useMemo(() => {
-    if (!isAutomationConfig(bot.params)) return null
-    return bot.params.kind === "automation" ? bot.params : null
-  }, [bot.params])
-  const automationConfig = botConfig
-  // Per-side protection (long vs short). Old bots stored a single flat pair —
-  // coerce it so the rail and chart lines read the same shape either way.
-  const protection = React.useMemo<AutomationProtection | null>(() => {
-    if (!automationConfig) return null
-    const parsed = automationProtectionSchema.safeParse(
-      automationConfig.protection ?? {}
-    )
-    return parsed.success ? (parsed.data as AutomationProtection) : {}
-  }, [automationConfig])
+  const automationConfig = React.useMemo(
+    () => (isAutomationConfig(bot.params) ? bot.params : null),
+    [bot.params]
+  )
 
-  const [selectedMarket, setSelectedMarket] = React.useState(
+  // Remembered per run, so coming back reopens the chart you were looking
+  // at. A market that left the run's list falls back to the first one.
+  const [selectedMarket, setSelectedMarket] = usePersistedState(
+    `bot-run-market:${botId}`,
     bot.markets[0] ?? ""
   )
-  // Keep the selection valid if the bot's markets change under us.
   React.useEffect(() => {
     if (!bot.markets.includes(selectedMarket) && bot.markets[0]) {
       setSelectedMarket(bot.markets[0])
     }
-  }, [bot.markets, selectedMarket])
+  }, [bot.markets, selectedMarket, setSelectedMarket])
 
-  const state = states.find((row) => row.market === selectedMarket) ?? null
-  // The open position's side chooses which levels the rail/chart edit. Flat
-  // defaults to long so you can pre-set the long exit before an entry fires.
-  const positionSzi = state?.paper_position
-    ? Number(state.paper_position.szi)
-    : 0
-  const activeSide: "long" | "short" = positionSzi < 0 ? "short" : "long"
-  const activeLevels = protection?.[activeSide] ?? null
-  const openOrders = data.open_orders.filter(
-    (order) => order.market === selectedMarket
+  const live = useBotLive(data, selectedMarket)
+  // Live marks for EVERY market, for the cross-market Positions tab.
+  const allMarketRows = useMarketRows(live.network)
+  const priceOf = React.useCallback(
+    (market: string) =>
+      Number(allMarketRows.find((row) => row.coin === market)?.markPx ?? 0),
+    [allMarketRows]
   )
-  const marketTrades = React.useMemo(
-    () => trades.filter((trade) => trade.market === selectedMarket),
-    [trades, selectedMarket]
-  )
+  const [focusedTradeN, setFocusedTradeN] = React.useState<number | null>(null)
+  const marketSort = useMarketSort("net")
 
-  const markets = useMarketRows(network)
-  const marketRow = markets.find((row) => row.coin === selectedMarket)
-  const markPrice = Number(marketRow?.markPx ?? 0)
-  const dayChangePct =
-    marketRow && Number(marketRow.prevDayPx) > 0
-      ? (Number(marketRow.markPx) / Number(marketRow.prevDayPx) - 1) * 100
-      : null
-  const [interval, setInterval] = React.useState<CandleInterval>(
-    botConfig?.interval ?? "15m"
-  )
-  const [marketsOpen, setMarketsOpen] = React.useState(true)
-  const [controlsOpen, setControlsOpen] = React.useState(true)
-  const [settingsOpen, setSettingsOpen] = React.useState(false)
-  const [busy, setBusy] = React.useState(false)
-  const [slTpBusy, setSlTpBusy] = React.useState(false)
-  const [slTpError, setSlTpError] = React.useState<string | null>(null)
-  const [chartMenu, setChartMenu] = React.useState<{
-    price: number
-    x: number
-    y: number
-  } | null>(null)
-  const chartApiRef = React.useRef<PriceChartHandle | null>(null)
-  const registerChartApi = React.useCallback((api: PriceChartHandle | null) => {
-    chartApiRef.current = api
-  }, [])
-
-  // The editable protective levels (TP/SL) as form strings. Archived legacy
-  // bots are read-only, so they expose nothing here.
-  const seed = React.useMemo<ParamValues>(() => {
-    const out: ParamValues = {}
-    if (!activeLevels) return out
-    out.takeProfitPct = activeLevels.takeProfitPct
-      ? String(activeLevels.takeProfitPct)
-      : ""
-    out.stopLossPct = activeLevels.stopLossPct
-      ? String(activeLevels.stopLossPct)
-      : ""
-    return out
-  }, [activeLevels])
-
-  // Hovered candle for the toolbar's O/H/L/C readout (null while not hovering).
-  const [ohlc, setOhlc] = React.useState<ChartCandle | null>(null)
-  const [selectedTradeId, setSelectedTradeId] = React.useState<string | null>(
-    null
-  )
-
-  // The SL/TP draft holds ONLY the protective keys the right rail edits; every
-  // other param is read fresh from the bot at save time (see applyValues). So a
-  // params change from elsewhere — the Settings sheet, or a status change that
-  // bumps updated_at — can never be clobbered by a stale draft.
-  const protectiveKeys = botConfig ? PROTECTIVE_KEYS : NO_PROTECTIVE_KEYS
-  const seedProtective = React.useMemo(() => {
-    const values: ParamValues = {}
-    for (const key of protectiveKeys) values[key] = seed[key] ?? ""
-    return values
-  }, [seed, protectiveKeys])
-  const [draft, setDraft] = React.useState<ParamValues>(seedProtective)
-  const dirty = protectiveKeys.some(
-    (key) => (draft[key] ?? "") !== (seedProtective[key] ?? "")
-  )
-
-  // Re-sync the draft from the server only when the user has no unsaved edits,
-  // so a status change (which also bumps updated_at) never wipes half-typed
-  // SL/TP. seededFor stays stale while dirty, so the sync catches up the moment
-  // the edit is saved or reverted.
-  const seededFor = React.useRef(bot.updated_at)
-  React.useEffect(() => {
-    if (bot.updated_at === seededFor.current || dirty) return
-    seededFor.current = bot.updated_at
-    setDraft(seedProtective)
-    setSlTpError(null)
-  }, [bot.updated_at, dirty, seedProtective])
-
-  const notify = React.useCallback(
-    (text: string, tone: "ok" | "error") => {
-      if (tone === "ok") toast.success(text)
-      else toast.error(text)
-      setTimeout(() => void refresh(), 800)
-    },
-    [refresh]
-  )
-
-  async function run(command: BotCommand) {
-    setBusy(true)
-    try {
-      await sendCommand(botId, command)
-      if (command === "flatten") {
-        notify("Flatten sent — closing the position and pausing the bot.", "ok")
-      }
-      await refresh()
-    } catch (error) {
-      notify(getBotErrorMessage(error), "error")
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  /**
-   * Validate + save the protective (SL/TP) edits. The protective keys are
-   * merged onto the bot's current params read fresh at call time, so only the
-   * SL/TP the user touched changes — never a stale copy of the other params.
-   */
-  async function applyValues(protective: ParamValues) {
-    setSlTpError(null)
-    if (!botConfig) return // archived legacy bots are read-only
-
-    const num = (raw?: string) => {
-      const value = Number(raw)
-      return raw && value > 0 ? value : undefined
-    }
-    const takeProfitPct = num(protective.takeProfitPct)
-    const stopLossPct = num(protective.stopLossPct)
-    // Only the open side's levels change; the other side is left intact.
-    const base = protection ?? {}
-    const nextConfig = {
-      ...botConfig,
-      protection: {
-        ...base,
-        [activeSide]: { takeProfitPct, stopLossPct },
-      },
-    }
-    const parsed = automationConfigSchema.safeParse(nextConfig)
-    if (!parsed.success) {
-      setSlTpError(parsed.error.issues[0]?.message ?? "Invalid levels")
-      return
-    }
-    setSlTpBusy(true)
-    try {
-      await updateBot({
-        botId,
-        name: bot.name,
-        markets: bot.markets,
-        params: parsed.data,
-      })
-      notify(
-        bot.status === "running"
-          ? "Protection updated — bot restarting with the new levels."
-          : "Protection updated.",
-        "ok"
-      )
-    } catch (error) {
-      setSlTpError(getBotErrorMessage(error))
-    } finally {
-      setSlTpBusy(false)
-    }
-  }
-
-  // Chart lines + the drag-targets that map SL/TP lines back to the bot's
-  // settings. Archived legacy bots draw no lines.
-  const chart = React.useMemo(
+  // DCA only: the ladder's pending buys as yellow "waiting" lines, labeled
+  // with the dollars each rung will spend. Paper cash stands in as the
+  // equity estimate for pre-arm previews (live runs fall back to percents).
+  const rungLines = React.useMemo(
     () =>
-      activeLevels
-        ? buildBotProtectionOverlays(activeLevels, state)
-        : { lines: [], targets: {} },
-    [activeLevels, state]
+      buildBotRungLines(
+        live.state?.strategy_state,
+        automationConfig?.dca,
+        live.state?.paper_cash ?? null
+      ),
+    [live.state?.strategy_state, automationConfig?.dca, live.state?.paper_cash]
   )
 
-  /** Dropping a TP/SL line re-prices and saves immediately — no confirm. */
-  function handleLineDrag(id: string, px: number) {
-    const target = chart.targets[id]
-    if (!target || !(px > 0)) return
-    const value = target.toValue(px, markPrice)
-    if (!value) return
-    const next = { ...draft, [target.key]: value }
-    setDraft(next)
-    void applyValues(next)
-  }
-
-  /** Right-click on the chart: add whichever protective levels aren't set. */
-  function handleChartContextMenu(px: number, x: number, y: number) {
-    if (!protection || !(px > 0)) return
-    setChartMenu({ price: px, x, y })
-  }
-
-  function pickMenuItem(item: BotChartMenuItem) {
-    setChartMenu(null)
-    const next = { ...draft, [item.key]: item.value }
-    setDraft(next)
-    void applyValues(next)
-  }
-
-  // Price-pinned O/C chips for recent fills, backtest-style. Chips (and the
-  // focus ring below) must sit on exact bar times, so fills snap to the candle
-  // bucket of the current chart interval.
-  const intervalMs = candleIntervalMs(interval)
-  const markers = React.useMemo<ChartMarker[]>(
-    () => buildBotFillMarkers(marketTrades.slice(0, 200), intervalMs),
-    [marketTrades, intervalMs]
+  const marketRows = React.useMemo(
+    () =>
+      sortMarketRows(
+        buildBotMarketRows(bot.markets, states, trades),
+        marketSort.sortColumn,
+        marketSort.sortDirection
+      ),
+    [bot.markets, states, trades, marketSort.sortColumn, marketSort.sortDirection]
   )
 
-  // Fills paired into entry → exit round trips, shaped like backtest trades —
-  // the Trades tab and the chart focus below both read from this.
-  const roundTrips = React.useMemo(
-    () => buildBotRoundTrips(marketTrades, markPrice),
-    [marketTrades, markPrice]
+  // Per-market equity base: cash minus what this market realized.
+  const closedPnl = live.trips
+    .filter((trip) => !trip.open)
+    .reduce((sum, trip) => sum + trip.pnl, 0)
+  const startingEquity =
+    live.state?.paper_cash != null && live.state.paper_cash - closedPnl > 0
+      ? live.state.paper_cash - closedPnl
+      : (bot.paper_starting_equity ?? 10_000)
+  const result = React.useMemo(
+    () =>
+      buildBotResult(live.trips, live.marketTrades, live.state, startingEquity),
+    [live.trips, live.marketTrades, live.state, startingEquity]
   )
-  const focusedTrip = selectedTradeId
-    ? (roundTrips.find((trip) => trip.id === selectedTradeId) ?? null)
-    : null
 
-  // Clicking a trade row pulses rings at its entry (and exit, once closed).
-  const focusPoints = React.useMemo<ChartFocusPoint[]>(() => {
-    if (!focusedTrip) return []
-    const long = focusedTrip.side === "long"
-    const snap = (ms: number) => Math.floor(ms / intervalMs) * intervalMs
-    const points: ChartFocusPoint[] = [
-      {
-        time: snap(focusedTrip.entryTime),
-        side: long ? "buy" : "sell",
-        label: "Entry",
-        price: focusedTrip.entryPx,
-      },
-    ]
-    if (focusedTrip.exitTime != null && focusedTrip.exitPx != null) {
-      points.push({
-        time: snap(focusedTrip.exitTime),
-        side: long ? "sell" : "buy",
-        label: "Exit",
-        price: focusedTrip.exitPx,
-      })
-    }
-    return points
-  }, [focusedTrip, intervalMs])
+  // Collapsible panels, persisted — the backtest group workspace's pattern.
+  const summaryPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const tradesPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const [summaryCollapsed, setSummaryCollapsed] = React.useState(false)
+  const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
+  const [tradesCollapsed, setTradesCollapsed] = React.useState(false)
+  const horizontalLayout = usePanelLayout("bot-run-workspace-horizontal")
+  const verticalLayout = usePanelLayout("bot-run-workspace-vertical")
 
-  // Result box spanning entry → exit (closed trips only), backtest-style.
-  const focusResult = React.useMemo<ChartFocusResult | null>(() => {
-    if (!focusedTrip || focusedTrip.exitTime == null) return null
-    const spanMs = focusedTrip.exitTime - focusedTrip.entryTime
-    return {
-      up: focusedTrip.pnl >= 0,
-      pctText: pct(focusedTrip.returnPct),
-      pnlText: signedUsd(focusedTrip.pnl),
-      bars: Math.max(1, Math.round(spanMs / intervalMs)),
-      daysText: formatFocusDays(spanMs / 86_400_000),
-    }
-  }, [focusedTrip, intervalMs])
-
-  const outerLayout = usePersistedLayout("bot-workspace-vertical")
-  const innerLayout = usePersistedLayout("bot-workspace-horizontal")
-
-  const chartMenuItems =
-    chartMenu && protection
-      ? buildBotProtectionMenuItems(
-          activeLevels ?? {},
-          state,
-          markPrice,
-          chartMenu.price
-        )
-      : []
+  // Toggles live in the bottom panel's tab bar — see the three-panel workspace
+  // standard in `.agents/skills/Ui-standards`. That panel collapses to exactly
+  // this row, so the buttons that reopen the panels never disappear.
+  const panelToggles = (
+    <div className="flex shrink-0 items-center gap-1">
+      <PanelToggle
+        side="left"
+        collapsed={summaryCollapsed}
+        label={summaryCollapsed ? "Show summary panel" : "Hide summary panel"}
+        onClick={() => togglePanel(summaryPanelRef, "21%")}
+      />
+      <PanelToggle
+        side="right"
+        collapsed={marketsCollapsed}
+        label={marketsCollapsed ? "Show markets panel" : "Hide markets panel"}
+        onClick={() => togglePanel(marketsPanelRef, "26%")}
+      />
+      <PanelToggle
+        side="bottom"
+        collapsed={tradesCollapsed}
+        label={tradesCollapsed ? "Show trades panel" : "Hide trades panel"}
+        onClick={() => togglePanel(tradesPanelRef, "32%")}
+      />
+    </div>
+  )
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60">
-      <BotWorkspaceHeader
-        bot={bot}
-        stats={stats}
-        markPrice={markPrice}
-        dayChangePct={dayChangePct}
-        selectedMarket={selectedMarket}
-        busy={busy}
-        marketsOpen={marketsOpen}
-        onToggleMarkets={() => setMarketsOpen((open) => !open)}
-        controlsOpen={controlsOpen}
-        onToggleControls={() => setControlsOpen((open) => !open)}
-        onBack={() => void router.navigate({ to: "/bots" })}
-        onCommand={(command) => void run(command)}
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
-      <ClientOnly fallback={null}>
-        <div className="min-h-0 flex-1 p-2 md:p-3">
-          <ResizablePanelGroup
-            orientation="vertical"
-            defaultLayout={outerLayout.defaultLayout}
-            onLayoutChanged={outerLayout.onLayoutChanged}
+    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60 dark:bg-background">
+      {/* A saved run is a history record — same header anatomy as the
+          backtest group workspace. Strategy editing lives on the automation's
+          canvas, never here. */}
+      <div className="relative flex items-center gap-3 border-b bg-card px-4 py-2">
+        <IconButton
+          label="Back to bot runs"
+          onClick={() => void router.navigate({ to: "/bots" })}
+        >
+          <ArrowLeftIcon className="size-4" />
+        </IconButton>
+        <Breadcrumbs
+          crumbs={[
+            { label: "Bot", to: "/bots" },
+            { label: truncateWords(bot.name, 12) },
+          ]}
+        />
+        {/* Same centered Canvas · Backtest · Bot pills as the editor — Bot is
+            this page; the other two navigate to the automation's editor. */}
+        {bot.automation_id ? (
+          <div className="absolute left-1/2 hidden -translate-x-1/2 xl:block">
+            <ViewSwitcher
+              segments={[
+                {
+                  id: "canvas",
+                  label: "Canvas",
+                  active: false,
+                  onSelect: () =>
+                    void router.navigate({
+                      to: "/automations/$automationId",
+                      params: { automationId: bot.automation_id! },
+                    }),
+                },
+                {
+                  id: "backtest",
+                  label: "Backtest",
+                  active: false,
+                  onSelect: () =>
+                    void router.navigate({
+                      to: "/automations/$automationId",
+                      params: { automationId: bot.automation_id! },
+                      search: { view: "backtest" },
+                    }),
+                },
+                {
+                  id: "bot",
+                  label: "Bot",
+                  active: true,
+                  onSelect: () => {},
+                },
+              ]}
+            />
+          </div>
+        ) : null}
+        <div className="flex-1" />
+        {replaceable ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={() => setSaveRunOpen(true)}
           >
-          <ResizablePanel id="main" defaultSize="68%" minSize="35%">
-            <ResizablePanelGroup
-              orientation="horizontal"
-              defaultLayout={innerLayout.defaultLayout}
-              onLayoutChanged={innerLayout.onLayoutChanged}
+            Save run
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={() => setMarketsOpen(true)}
+        >
+          <SettingsIcon className="size-4" />
+          Settings
+        </Button>
+        {bot.automation_id ? (
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-8 xl:hidden"
+          >
+            <Link
+              to="/automations/$automationId"
+              params={{ automationId: bot.automation_id }}
             >
-              {marketsOpen ? (
-                <ResizablePanel id="markets" defaultSize="20%" minSize="14%">
+              Open automation
+            </Link>
+          </Button>
+        ) : null}
+      </div>
+
+      {/* Mounted on demand: the market list rides the browser-only price
+          feed, so it must never render on the server. */}
+      {marketsOpen ? (
+        <BotMarketsDialog
+          botId={bot.id}
+          open={marketsOpen}
+          onOpenChange={setMarketsOpen}
+          markets={bot.markets}
+          network={live.network}
+          isDca={Boolean(automationConfig?.dca)}
+          openPositionMarkets={openPositionMarkets}
+          onSaved={refresh}
+        />
+      ) : null}
+
+      {/* Saving finishes the run — with an open position that means closing
+          it at market, so the button says exactly that. */}
+      <Dialog
+        open={saveRunOpen}
+        onOpenChange={(open) => {
+          if (!keeping) setSaveRunOpen(open)
+        }}
+      >
+        <DialogContent variant="admin" className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save this run</DialogTitle>
+            <DialogDescription>
+              A saved run becomes a permanent record in your history.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-3">
+            <Input
+              value={keepName}
+              onChange={(event) => setKeepName(event.target.value)}
+              placeholder="Run name"
+              aria-label="Run name"
+            />
+            <p className="text-xs text-muted-foreground">
+              Unnamed runs are replaced by your next deploy. Saving finishes
+              this run — it stops trading and files the result
+              {hasOpenPosition
+                ? ", and closes its open position at market"
+                : ""}
+              .
+            </p>
+          </DialogBody>
+          <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={keeping}
+              onClick={() => setSaveRunOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant={hasOpenPosition ? "destructive" : "default"}
+              disabled={keeping || !keepName.trim()}
+              onClick={() => void keepRun()}
+            >
+              {keeping ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              {hasOpenPosition ? "Close position & save" : "Save run"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {!data.workerOnline ? (
+        <WorkerOfflineBanner className="border-b px-4 py-1.5 text-xs" />
+      ) : null}
+      <BotSettingsBanner
+        settingsBehind={bot.settings_behind}
+        botId={bot.id}
+        desiredState={bot.desired_state}
+        commandBusy={botCommandBusy}
+        onPause={() => runBotCommand("pause")}
+        onChanged={refresh}
+      />
+
+      <ClientOnly fallback={null}>
+        <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">
+          <ResizablePanelGroup
+            key={verticalLayout.layoutKey}
+            orientation="vertical"
+            defaultLayout={verticalLayout.defaultLayout}
+            onLayoutChanged={verticalLayout.onLayoutChanged}
+          >
+            <ResizablePanel id="main" defaultSize="68%" minSize="35%">
+              <ResizablePanelGroup
+                key={horizontalLayout.layoutKey}
+                orientation="horizontal"
+                defaultLayout={horizontalLayout.defaultLayout}
+                onLayoutChanged={horizontalLayout.onLayoutChanged}
+              >
+                <ResizablePanel
+                  id="summary"
+                  panelRef={summaryPanelRef}
+                  collapsible
+                  collapsedSize="0%"
+                  defaultSize="21%"
+                  minSize="16%"
+                  maxSize="34%"
+                  onResize={(size) =>
+                    setSummaryCollapsed(size.asPercentage < 0.5)
+                  }
+                >
                   <WorkspacePanel>
-                    <BotMarketsPanel
-                      markets={bot.markets}
-                      states={states}
-                      marketRows={markets}
-                      selectedMarket={selectedMarket}
-                      onSelect={setSelectedMarket}
-                    />
-                  </WorkspacePanel>
-                </ResizablePanel>
-              ) : null}
-              {marketsOpen ? <ResizableHandle gap /> : null}
-              <ResizablePanel id="chart" defaultSize="62%" minSize="30%">
-                <WorkspacePanel className="flex flex-col">
-                  <ChartToolbar
-                    intervals={CANDLE_INTERVALS}
-                    interval={interval}
-                    onIntervalChange={setInterval}
-                    legend={{ chips: markers.length > 0 }}
-                    ohlc={ohlc}
-                  />
-                  <div className="min-h-0 flex-1">
-                    <PriceChart
-                      network={network}
-                      coin={selectedMarket}
-                      interval={interval}
-                      priceLines={chart.lines}
-                      markers={markers}
-                      automationConfig={automationConfig}
-                      focusPoints={focusPoints}
-                      focusResult={focusResult}
-                      onCrosshairOhlc={setOhlc}
-                      onLineDragEnd={handleLineDrag}
-                      onChartContextMenu={handleChartContextMenu}
-                      registerApi={registerChartApi}
-                    />
-                  </div>
-                </WorkspacePanel>
-              </ResizablePanel>
-              {controlsOpen ? <ResizableHandle gap /> : null}
-              {controlsOpen ? (
-                <ResizablePanel id="controls" defaultSize="20%" minSize="14%">
-                  <WorkspacePanel>
-                    <BotOrderControls
-                      market={selectedMarket}
-                      mode={bot.mode}
-                      draft={draft}
-                      dirty={dirty}
-                      busy={slTpBusy}
-                      error={slTpError}
-                      mid={markPrice}
-                      state={state}
+                    <BotSummaryPanel
+                      bot={bot}
+                      state={live.state}
                       stats={stats}
-                      openOrders={openOrders}
-                      onDraftChange={(key, value) =>
-                        setDraft((current) => ({ ...current, [key]: value }))
-                      }
-                      onApply={() => void applyValues(draft)}
+                      openOrders={live.openOrders}
+                      selectedMarket={selectedMarket}
+                      markPrice={live.markPrice}
+                      dayChangePct={live.dayChangePct}
                     />
                   </WorkspacePanel>
                 </ResizablePanel>
-              ) : null}
-            </ResizablePanelGroup>
-          </ResizablePanel>
-          <ResizableHandle gap />
-          <ResizablePanel id="activity" defaultSize="32%" minSize="15%">
-            <WorkspacePanel>
-              <BotActivityTabs
-                trips={roundTrips}
-                openOrders={openOrders}
-                events={events}
-                stats={stats}
-                selectedTradeId={selectedTradeId}
-                onSelectTrade={setSelectedTradeId}
-              />
-            </WorkspacePanel>
-          </ResizablePanel>
+                <ResizableHandle gap collapsed={summaryCollapsed} />
+                <ResizablePanel id="chart" defaultSize="53%" minSize="30%">
+                  <WorkspacePanel className="flex flex-col">
+                    <BotLiveChartPanel
+                      key={selectedMarket}
+                      network={live.network}
+                      market={selectedMarket}
+                      interval={
+                        (automationConfig?.interval ?? "15m") as CandleInterval
+                      }
+                      automationConfig={automationConfig}
+                      fills={live.marketTrades}
+                      trips={live.trips}
+                      focusedTradeN={focusedTradeN}
+                      priceLines={rungLines}
+                    />
+                  </WorkspacePanel>
+                </ResizablePanel>
+                <ResizableHandle gap collapsed={marketsCollapsed} />
+                <ResizablePanel
+                  id="markets"
+                  panelRef={marketsPanelRef}
+                  collapsible
+                  collapsedSize="0%"
+                  defaultSize="26%"
+                  minSize="18%"
+                  maxSize="42%"
+                  onResize={(size) =>
+                    setMarketsCollapsed(size.asPercentage < 0.5)
+                  }
+                >
+                  <WorkspacePanel className="flex flex-col">
+                    {/* The backtest side panel's anatomy: title row, actions
+                        up top, results in the middle, run naming at the
+                        bottom. */}
+                    <div className="flex min-h-10 shrink-0 items-center gap-2 border-b px-4 py-2.5">
+                      <h2 className="text-xs font-semibold tracking-wide uppercase">
+                        Bot
+                      </h2>
+                      <span className="text-[10px] text-muted-foreground">
+                        {bot.markets.length}{" "}
+                        {bot.markets.length === 1 ? "market" : "markets"}
+                      </span>
+                      <div className="ml-auto">
+                        <BotLifecycleControls
+                          bot={bot}
+                          busy={botCommandBusy}
+                          onCommand={(command) => void runBotCommand(command)}
+                        />
+                      </div>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-auto">
+                      <BacktestMarketsTable
+                        rows={marketRows}
+                        state={marketSort}
+                        selectedId={selectedMarket}
+                        onSelect={(row) => setSelectedMarket(row.id)}
+                        emptyLabel="No markets."
+                      />
+                    </div>
+                  </WorkspacePanel>
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            </ResizablePanel>
+            {/* The trades panel collapses to its own tab bar, not to nothing,
+                so this gutter always has two visible panels to separate. */}
+            <ResizableHandle gap />
+            <ResizablePanel
+              id="trades"
+              panelRef={tradesPanelRef}
+              collapsible
+              collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+              defaultSize="32%"
+              minSize="15%"
+              onResize={() =>
+                setTradesCollapsed(tradesPanelRef.current?.isCollapsed() ?? false)
+              }
+            >
+              <WorkspacePanel>
+                <StrategyTester
+                  result={result}
+                  startingEquity={startingEquity}
+                  markPrice={live.markPrice}
+                  selectedTradeN={focusedTradeN}
+                  onSelectTrade={(trade) => setFocusedTradeN(trade?.n ?? null)}
+                  toggles={panelToggles}
+                  extraTabs={[
+                    {
+                      value: "positions",
+                      label: "Positions",
+                      content: (
+                        <BotPositionsTable
+                          states={data.states}
+                          trades={data.trades}
+                          priceOf={priceOf}
+                          selectedMarket={selectedMarket}
+                          onSelectMarket={setSelectedMarket}
+                        />
+                      ),
+                    },
+                    {
+                      value: "events",
+                      label: "Events",
+                      content: <BotEventsList events={data.events} />,
+                    },
+                  ]}
+                />
+              </WorkspacePanel>
+            </ResizablePanel>
           </ResizablePanelGroup>
         </div>
       </ClientOnly>
-
-      <BotChartMenu
-        menu={chartMenu}
-        market={selectedMarket}
-        items={chartMenuItems}
-        onPick={pickMenuItem}
-        onResetView={() => chartApiRef.current?.resetView()}
-        onClose={() => setChartMenu(null)}
-      />
-
-      <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <SheetContent
-          side="right"
-          className="w-full gap-0 p-0 sm:max-w-md"
-          showCloseButton={false}
-          aria-describedby={undefined}
-        >
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <SheetTitle className="text-sm">Edit bot</SheetTitle>
-            <SheetClose asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground"
-              >
-                <XIcon />
-                <span className="sr-only">Close</span>
-              </Button>
-            </SheetClose>
-          </div>
-          <div className="min-h-0 flex-1">
-            {automationConfig ? (
-              <AutomationBotSettings bot={bot} config={automationConfig} />
-            ) : (
-              <div className="p-4 text-sm text-muted-foreground">
-                This bot uses a retired strategy and is archived — its history
-                stays readable, but nothing can be edited. Create a new bot from
-                a saved Automation instead.
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   )
 }

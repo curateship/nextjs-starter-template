@@ -3,12 +3,15 @@ import { z } from "zod"
 
 import {
   createDefaultBrandKitConfig,
+  createDefaultStyling,
   createDefaultTopRightNavigation,
-  DEFAULT_ADMIN_ROUTE,
   iconMeta,
+  normalizeBrandKit,
+  normalizeStyling,
   type BrandKitConfig,
   type IconKey,
   type ShellSection,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/ai-video"
 import {
@@ -16,15 +19,14 @@ import {
   DUCK_DB_MAX,
   DUCK_DB_MIN,
 } from "@/lib/audio-ducking"
+import { DEFAULT_NORMALIZE_LOUDNESS } from "@/lib/audio-loudness"
 import {
-  brandKitConfigSchema,
   shellSectionSchema,
   shellTopRightNavigationItemSchema,
 } from "@/lib/shell-config-schema"
 import {
+  clampSidebarWidth,
   DEFAULT_SIDEBAR_WIDTH,
-  MAX_SIDEBAR_WIDTH,
-  MIN_SIDEBAR_WIDTH,
 } from "@/lib/sidebar-width"
 import { voiceDefaultsSchema, type VoiceDefaults } from "@/lib/voice-settings"
 import { db, type AiVideoDb } from "@/server/db"
@@ -33,8 +35,6 @@ import { now, uuid } from "@/server/security"
 
 const DEFAULT_WORKSPACE_NAME = "My project"
 const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
-const INVALID_WORKSPACE_SETTINGS_MESSAGE =
-  "Saved workspace settings are invalid. Reset them with the current settings form."
 
 export type WorkspaceSettings = {
   icon: IconKey
@@ -42,45 +42,19 @@ export type WorkspaceSettings = {
   brandKit: BrandKitConfig
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
-  // Route the app opens to when a user lands on the app root ("/" = home).
-  defaultRoute: string
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
   // How far a ducked ("music") track drops under voice on export, in dB
   // (negative; 0 = off). Applied by the renderer.
   duckingDb: number
+  // Level every export to the standard loudness target. Applied by the
+  // renderer; the export modal's toggle writes this default.
+  normalizeLoudness: boolean
   // Saved ElevenLabs voiceover defaults; null until the user saves one.
   voiceDefaults: VoiceDefaults | null
 }
-
-const workspaceSettingsSchema = z
-  .object({
-    icon: z.custom<IconKey>(isWorkspaceIcon, {
-      message: "Workspace icon is invalid",
-    }),
-    favicon: z.string(),
-    brandKit: brandKitConfigSchema,
-    topRightNavigation: z.array(shellTopRightNavigationItemSchema),
-    sections: z.array(shellSectionSchema),
-    // Default fills rows saved before the landing route was configurable.
-    defaultRoute: z.string().min(1).max(2048).default(DEFAULT_ADMIN_ROUTE),
-    // Default fills rows saved before this field existed.
-    sidebarWidth: z
-      .number()
-      .int()
-      .min(MIN_SIDEBAR_WIDTH)
-      .max(MAX_SIDEBAR_WIDTH)
-      .default(DEFAULT_SIDEBAR_WIDTH),
-    // Default fills rows saved before ducking existed.
-    duckingDb: z
-      .number()
-      .min(DUCK_DB_MIN)
-      .max(DUCK_DB_MAX)
-      .default(DEFAULT_DUCK_DB),
-    // Default fills rows saved before voice defaults existed.
-    voiceDefaults: voiceDefaultsSchema.nullable().default(null),
-  })
-  .strict()
 
 export async function getOrCreateCurrentWorkspace(
   userId: string,
@@ -147,12 +121,17 @@ export async function getCurrentWorkspaceBrandKit(
   return parseWorkspaceSettings(workspace.settings).brandKit
 }
 
-export async function getCurrentWorkspaceDuckingDb(
+// The two audio settings the export renderer needs, read in one workspace load.
+export async function getCurrentWorkspaceExportAudio(
   userId: string,
   database: AiVideoDb = db
 ) {
   const workspace = await getOrCreateCurrentWorkspace(userId, database)
-  return parseWorkspaceSettings(workspace.settings).duckingDb
+  const settings = parseWorkspaceSettings(workspace.settings)
+  return {
+    duckingDb: settings.duckingDb,
+    normalizeLoudness: settings.normalizeLoudness,
+  }
 }
 
 export async function createUserWorkspace(
@@ -168,7 +147,7 @@ export async function createUserWorkspace(
 
   const currentWorkspace = await findCurrentWorkspace(userId, database)
   const baseSettings = currentWorkspace
-    ? parseWorkspaceSettingsForReset(currentWorkspace.settings).settings
+    ? parseWorkspaceSettings(currentWorkspace.settings)
     : defaultWorkspaceSettings()
 
   return database.transaction(async (tx) => {
@@ -225,7 +204,7 @@ export async function updateUserWorkspace(
     .set({
       name: trimmedName.slice(0, 255),
       settings: parseWorkspaceSettings({
-        ...parseWorkspaceSettingsForReset(existing.settings).settings,
+        ...parseWorkspaceSettings(existing.settings),
         ...data.settings,
       }),
       updatedAt: now(),
@@ -366,7 +345,7 @@ export function serializeWorkspace(
   row: AiVideoWorkspace,
   currentWorkspaceId: string | null
 ) {
-  const settings = parseWorkspaceSettingsForReset(row.settings).settings
+  const settings = parseWorkspaceSettings(row.settings)
   return {
     id: row.id,
     name: row.name,
@@ -378,66 +357,80 @@ export function serializeWorkspace(
   }
 }
 
+/**
+ * Read saved workspace settings one field at a time, matching how ai-agents
+ * and analytic read theirs.
+ *
+ * Every field falls back on its own, so a row saved before a field existed —
+ * or one whose styling predates a newly added sub-field — keeps everything
+ * else it has. Adding a setting can no longer cost a workspace its sidebar.
+ * This replaces an all-or-nothing strict parse that reset the whole workspace
+ * to defaults whenever any single field was stale.
+ *
+ * Retired keys (`topNavigation`, `defaultRoute`) need no special handling now:
+ * unknown keys are simply never read.
+ *
+ * Read path only — settings coming from the form are still validated strictly
+ * by `shellConfigSchema` before anything is written.
+ */
 export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
-  const parsed = workspaceSettingsSchema.safeParse(stripLegacySettings(value))
-  if (!parsed.success) {
-    throw new Error(INVALID_WORKSPACE_SETTINGS_MESSAGE)
-  }
-
-  return parsed.data
-}
-
-// Removes the retired `topNavigation` key from persisted workspace settings.
-//
-// Why this exists: the settings schema is `.strict()`, so a row saved while
-// `topNavigation` was still a field would otherwise fail to parse and reset the
-// workspace to default settings on load. This repo's migrations are applied by
-// hand out-of-band, so a strict reject would break every existing workspace in
-// the window between deploying this code and running that cleanup.
-//
-// Narrow and temporary: it strips only this one named key, and every settings
-// save rewrites the row without it. Delete once no workspace row still carries
-// `topNavigation`.
-function stripLegacySettings(value: unknown): unknown {
+  const fallback = defaultWorkspaceSettings()
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return value
+    return fallback
   }
-  if (!("topNavigation" in value)) {
-    return value
-  }
-  const rest = { ...(value as Record<string, unknown>) }
-  delete rest.topNavigation
-  return rest
-}
+  const settings = value as Partial<WorkspaceSettings>
 
-export function parseWorkspaceSettingsForReset(value: unknown): {
-  settings: WorkspaceSettings
-  error: string | null
-} {
-  try {
-    return {
-      settings: parseWorkspaceSettings(value),
-      error: null,
-    }
-  } catch (error) {
-    return {
-      settings: defaultWorkspaceSettings(),
-      error:
-        error instanceof Error
-          ? error.message
-          : INVALID_WORKSPACE_SETTINGS_MESSAGE,
-    }
+  const sections = z.array(shellSectionSchema).safeParse(settings.sections)
+  const topRightNavigation = z
+    .array(shellTopRightNavigationItemSchema)
+    .safeParse(settings.topRightNavigation)
+  const voiceDefaults = voiceDefaultsSchema
+    .nullable()
+    .safeParse(settings.voiceDefaults ?? null)
+
+  return {
+    icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
+    favicon:
+      typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+    brandKit: normalizeBrandKit(settings.brandKit),
+    topRightNavigation: topRightNavigation.success
+      ? topRightNavigation.data
+      : fallback.topRightNavigation,
+    sections: sections.success ? sections.data : fallback.sections,
+    styling: normalizeStyling(settings.styling),
+    // Clamp + fall back to default for rows saved before this field existed.
+    sidebarWidth:
+      typeof settings.sidebarWidth === "number"
+        ? clampSidebarWidth(settings.sidebarWidth)
+        : fallback.sidebarWidth,
+    duckingDb:
+      typeof settings.duckingDb === "number" &&
+      Number.isFinite(settings.duckingDb)
+        ? Math.min(DUCK_DB_MAX, Math.max(DUCK_DB_MIN, settings.duckingDb))
+        : fallback.duckingDb,
+    normalizeLoudness:
+      typeof settings.normalizeLoudness === "boolean"
+        ? settings.normalizeLoudness
+        : fallback.normalizeLoudness,
+    voiceDefaults: voiceDefaults.success
+      ? voiceDefaults.data
+      : fallback.voiceDefaults,
   }
 }
 
 function defaultWorkspaceSettings(): WorkspaceSettings {
-  return parseWorkspaceSettings({
+  return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
     brandKit: createDefaultBrandKitConfig(),
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
-  })
+    styling: createDefaultStyling(),
+    sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+    duckingDb: DEFAULT_DUCK_DB,
+    normalizeLoudness: DEFAULT_NORMALIZE_LOUDNESS,
+    voiceDefaults: null,
+  }
 }
 
 function createDefaultWorkspaceSections(): ShellSection[] {
@@ -464,10 +457,26 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
         {
           type: "item",
+          id: "item-ai-generations",
+          label: "AI Generations",
+          href: "/admin/ai-generations",
+          icon: "sparkles",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-export",
           label: "Export",
           href: "/admin/export",
           icon: "download",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-automations",
+          label: "Automations",
+          href: "/admin/automations",
+          icon: "workflow",
           visible: true,
         },
         {

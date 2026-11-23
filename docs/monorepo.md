@@ -1,6 +1,6 @@
 # Monorepo Setup
 
-This repo is an npm workspace monorepo managed by Turbo. The root owns shared commands, workspace discovery, local port config, and deployment entrypoints. Each app owns its own framework setup, scripts, and runtime code.
+This repo is a pnpm workspace monorepo managed by Turbo. The root owns shared commands, workspace discovery, local port config, and deployment entrypoints. Each app owns its own framework setup, scripts, and runtime code.
 
 ## Root Layout
 
@@ -24,79 +24,59 @@ Root `package.json` registers:
 ["apps/*", "packages/*", "services/*"]
 ```
 
-The current apps are:
+Four apps are live, and they are the only ones worked on:
 
-- `apps/hub` - main Hub app, package name `@repo/hub`
-- `apps/custom-shell` - Custom Shell app
-- `apps/core` - Core app
-- `apps/ai-video` - AI Video app
-- `apps/anti-detect` - Antidetect app
-- `apps/ai-agents` - AI Agents app
-- `apps/seo` - SEO app
-- `apps/trading` - Trading app
-- `apps/personal-ide` - desktop Personal IDE app
+- `apps/shell` - the template every app is copied from, and a running app
+  in its own right
+- `apps/trade` - the trading app
+- `apps/directory` - the directory app (was `apps/cms`, renamed 23 Oct 2026)
+- `apps/video` - the video app
+
+The shell's folder was `apps/custom-shell`, and its package name was
+`custom-shell`, until 17 Oct 2026. Both are `shell` now, on the same port 3002.
+Older commits, tasks and notes that say `apps/custom-shell` mean `apps/shell`.
+These names stayed as they were on purpose, because changing them would lose
+saved data or settings, or would rewrite every app for no gain:
+
+- The `CUSTOM_SHELL_*` settings names in every app's `.env` files.
+- The file `src/lib/custom-shell.tsx` and every `@/lib/custom-shell` import.
+- The shell's local database, still named `custom_shell` in the same Docker
+  container. `scripts/setup-database.mjs`, `src/server/database-url.ts` and
+  `drizzle.config.ts` all name it.
+- Storage bucket names such as `custom-shell-media`, and browser-saved keys
+  such as `custom-shell-settings-card-`.
+
+The Personal IDE looks for the shell under `apps/shell` first and then under
+`apps/custom-shell`, so it still finds the shell in older worktrees.
+
+`apps/personal-ide` is the Tauri desktop tool that creates workspaces for those
+apps. Everything else under `apps/` is an older app on its way out: not worked
+on, not fixed, and never merged into.
 
 `packages/` is reserved for shared code when a real shared package is needed. `services/` currently contains `traefik-config-writer`.
 
 ## Root Commands
 
-Common commands run through the root:
+`pnpm run dev`, `pnpm run build` and `pnpm run lint` run through the root, and
+Turbo orchestrates all three. `dev` is persistent and uncached. `build` depends
+on upstream builds and stores app build outputs. Per-app shortcuts follow the
+`dev:<app>` pattern and are listed in the root `package.json`.
 
-```bash
-npm run dev
-npm run build
-npm run lint
-```
-
-App-specific root shortcuts are also defined, such as:
-
-```bash
-npm run dev:hub
-npm run dev:custom-shell
-npm run dev:core
-npm run dev:ai-video
-npm run dev:anti-detect
-npm run dev:ai-agents
-npm run dev:personal-ide
-```
-
-Turbo handles `dev`, `build`, and `lint` orchestration. `dev` is persistent and uncached. `build` depends on upstream builds and stores app build outputs.
+Do not run `pnpm run dev`. A server is already running for every app, and
+`docs/local-enviroment.md` explains why starting a second one takes the app away
+from somebody.
 
 ## Local Ports
 
 Local app ports live in `local-apps.json`:
 
-```json
-{
-  "hub": 3000,
-  "custom-shell": 3002,
-  "core": 3003,
-  "ai-video": 3004,
-  "anti-detect": 3005,
-  "seo": 3009,
-  "ai-agents": 3008,
-  "trading": 3007
-}
-```
-
-The app configs, Personal IDE, and the `localapps` helper read from this file. Change ports there first, then keep app docs in sync.
-
-Current local URLs:
-
-- Hub: `http://localhost:3000`
-- Custom Shell: `http://localhost:3002`
-- Core: `http://localhost:3003`
-- AI Video: `http://localhost:3004`
-- Antidetect: `http://localhost:3005`
-- SEO: `http://localhost:3009`
-- AI Agents: `http://localhost:3008`
-- Trading: `http://localhost:3007`
+The app configs, runtime scripts, tests, Personal IDE, and the `localapps` helper read from this file. Directory also derives its local origin from this registry. Change ports only there; do not duplicate assignments in code or documentation.
 
 ## Personal IDE
 
 Personal IDE is a Tauri desktop app. It can create isolated workspaces for other apps and start their dev servers from its terminal panel.
 
-For known local apps, Personal IDE uses `local-apps.json` for the server URL. For unknown workspaces, it falls back to ports above the configured local app range.
+For known local apps, Personal IDE uses `local-apps.json` for the server URL. For unknown workspaces, it falls back to ports above the configured local app range. Apps created by Personal IDE have their assigned port added to the registry automatically.
 
 ## Agent Setup
 
@@ -110,36 +90,50 @@ Project skills live in:
 
 The shared skill set is intentionally small and flat:
 
+- `unslop` - how to write anything, including every reply. Always on
+- `Ui-standards` - the one UI standard for every app
+- `check-yourself` - prove the last answer instead of defending it
 - `plan-change` - refine requests, specifications, and implementation plans
-- `new-features-suggestion` - scan a codebase and confirm feature opportunities in batches of ten
-- `polish-app-suggestions` - inspect an app and confirm polish opportunities in batches of ten
 - `implement-change` - build and test focused code changes
 - `validate-app` - verify changed workflows in a running app
 - `audit-change` - review changes for correctness, security, and commit readiness
 - `commit-change` - create an explicitly requested local commit without pushing
 - `migrate-legacy-code` - perform explicit legacy-system cutovers
 - `ship-release` - prepare and execute authorized production releases
+- `new-features-suggestion` and `polish-app-suggestions` - confirm opportunities
+  in batches of ten
 
 Use `.agents/skills/` for repo-local agent workflows, not app runtime code. App-specific agent instructions should live in the relevant app folder when needed.
 
-Each app has its own `AGENTS.md`. Those files route agents to:
+Each app has its own `CLAUDE.md`, with an `AGENTS.md` beside it that points at
+it. Both are maps and hold no rules of their own. They route agents to:
 
-- shared skills in `.agents/skills/`
-- app docs in `workspace/docs/`
+- shared skills in `.agents/skills/`, starting with `unslop`, which says how to
+  write
+- the shell's docs in `docs/shell/`, one copy for every app
+- the app's own docs in `workspace/docs/`
 - app tasks in `workspace/tasks/`
 
-Every app carries the same `workspace/docs/ui-rules.md` and routes UI work to it from its `AGENTS.md`. App-specific UI guides may add stricter conventions, but the shared copies should remain identical.
+The single UI standard lives in `.agents/skills/Ui-standards/SKILL.md`, and every app routes UI work there from its `AGENTS.md`. App-specific UX guides may describe the product without restating or weakening the shared conventions.
 
 ## Deployment
 
-The root `Dockerfile` builds the Hub app for production using Next standalone output. Production infrastructure is managed outside the app code, with Coolify running on the VPS.
+The root `Dockerfile` is one reusable recipe for any app built on Custom Shell. It has two targets — `web` and `worker` — and takes the app's folder name as a build argument:
 
-Hub is currently the production Docker target. Other apps can be built through their workspace scripts, but they are not the root Dockerfile target.
+```sh
+docker build --target web    --build-arg APP=shell -t shell-web .
+docker build --target worker --build-arg APP=shell -t shell-worker .
+```
+
+An app is those two things running side by side: the website, which brings the database up to date on the way in and then serves on port 3000, and a background worker, which runs automations, scheduled newsletters and the app's own registered jobs whether or not anyone is on the site. Both carry their own health checks.
+
+Apps never share a database or any settings with each other. Production infrastructure is managed outside the app code, with Coolify running on the VPS.
+
+The full guide — the two Coolify resources, the values they need, the release order, the health checks and rollback — is `docs/deployment.md`.
 
 ## Documentation
 
-Useful docs:
-
-- `docs/local-enviroment.md` - local URLs and helper command notes
-- `docs/scalability.md` - scalability notes
-- `docs/monorepo.md` - this overview
+`docs/README.md` indexes every doc in the repo. The two that decide how work is
+done here are `docs/how-we-work.md`, for how a discussion goes and what counts
+as evidence, and `docs/shell/shell-and-apps.md`, for what an app may and may not
+edit.

@@ -6,8 +6,10 @@ export function isFullBleedLocation(location: {
   const search = location.search as { run?: string; draft?: unknown }
   return (
     location.pathname === "/trade" ||
+    location.pathname === "/journal" ||
     /^\/bots\/.+/.test(location.pathname) ||
     /^\/automations\/.+/.test(location.pathname) ||
+    /^\/backtest\/.+/.test(location.pathname) ||
     (location.pathname === "/backtest" && Boolean(search.run || search.draft))
   )
 }

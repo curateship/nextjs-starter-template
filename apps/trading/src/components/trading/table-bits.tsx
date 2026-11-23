@@ -39,10 +39,16 @@ export function StickyTable({
   )
 }
 
-export function EmptyState({ text }: { text: string }) {
+/**
+ * Centered empty message for a terminal panel. The optional hint is a quieter
+ * second line naming the next step — kept fainter than the message so an empty
+ * panel never reads as an alert in a screen traders stare at all day.
+ */
+export function EmptyState({ text, hint }: { text: string; hint?: string }) {
   return (
-    <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-      {text}
+    <div className="flex h-full flex-col items-center justify-center gap-1 px-4 text-center text-xs text-muted-foreground">
+      <span>{text}</span>
+      {hint ? <span className="text-muted-foreground/70">{hint}</span> : null}
     </div>
   )
 }

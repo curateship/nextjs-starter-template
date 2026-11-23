@@ -254,7 +254,7 @@ export function RankingsDashboard({ project }: { project: ProjectItem }) {
 
       <DashboardTable
         title="Rankings"
-        icon={<RadarIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<RadarIcon className="text-muted-foreground" />}
         count={total}
         status={status}
         controls={
@@ -349,12 +349,8 @@ export function RankingsDashboard({ project }: { project: ProjectItem }) {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || rows.length === 0}
-        emptyText={
-          loading
-            ? "Loading rankings..."
-            : "No tracked keywords. Track keywords from the Keywords tab to monitor their Google positions."
-        }
+        isEmpty={!loading && rows.length === 0}
+        emptyText="No tracked keywords. Track keywords from the Keywords tab to monitor their Google positions."
         emptyColSpan={7}
         footer={{
           type: "pagination",

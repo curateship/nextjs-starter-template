@@ -9,6 +9,7 @@ interface SliderProps {
   min: number
   max: number
   step: number
+  disabled?: boolean
   className?: string
 }
 
@@ -18,6 +19,7 @@ export function Slider({
   min,
   max,
   step,
+  disabled = false,
   className,
 }: SliderProps) {
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,15 +28,16 @@ export function Slider({
   }
 
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("relative", disabled && "cursor-not-allowed opacity-50", className)}>
       <input
         type="range"
         min={min}
         max={max}
         step={step}
         value={value[0]}
+        disabled={disabled}
         onChange={handleChange}
-        className="w-full h-2 rounded-lg appearance-none cursor-pointer slider"
+        className="w-full h-2 rounded-lg appearance-none cursor-pointer slider disabled:cursor-not-allowed"
         style={{
           background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${
             ((value[0] - min) / (max - min)) * 100

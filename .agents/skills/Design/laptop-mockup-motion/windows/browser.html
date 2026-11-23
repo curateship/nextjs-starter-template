@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Browser window mockup — tab-opening animation</title>
+<!-- Standalone browser-window mockup with a looping NEW-TAB OPEN animation.
+     The same .browser markup is embedded inline in ../template.html. Swap the
+     .omni text, the .tab list, and the .page contents per project. Favicons
+     live in ../assets/.
+
+     THE ANIMATION (all in the <script> at the bottom, edit the TAB object):
+       + nudges → a new tab grows in from width 0 → favicon/title fade in →
+       it becomes the active tab → the address bar swaps → a load bar sweeps →
+       the page cross-fades to "loaded" → holds → closes → loops.
+     Honors prefers-reduced-motion (parks on the opened+loaded end state). -->
+<style>
+:root{
+  --surface:#1a1c1f; --line-2:#2b2e33; --dim:#8a9099; --muted:#c4c9d0; --ink:#eef1f4;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
+  --e:cubic-bezier(.22,1,.36,1); --green:#28c840; --blue:#4f8cff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#0c0d0e;min-height:100vh;display:grid;place-items:center;font-family:var(--sans)}
+
+/* ---- the reusable browser window ---- */
+.browser{width:900px;border-radius:16px;overflow:hidden;background:var(--surface);
+  border:1px solid var(--line-2);box-shadow:0 40px 100px rgba(0,0,0,.6)}
+.browser .chrome{background:#26282c}
+.browser .bar{height:52px;display:flex;align-items:center;gap:9px;padding:0 16px}
+.browser .tl{display:flex;gap:8px;margin-right:8px}
+.browser .tl span{width:13px;height:13px;border-radius:50%}
+.browser .tl .r{background:#ff5f57}.browser .tl .y{background:#febc2e}.browser .tl .g{background:#28c840}
+.browser .nav{display:flex;gap:6px;color:var(--dim);font-size:18px;margin-left:6px}
+.browser .omni{flex:1;height:32px;border-radius:9px;background:#1a1c1f;border:1px solid var(--line-2);
+  display:flex;align-items:center;gap:9px;padding:0 13px;color:var(--dim);font-size:14px;margin:0 10px;
+  overflow:hidden}
+.browser .omni .lock{width:12px;height:12px;color:var(--green);flex:0 0 auto}
+.browser .omni .url{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  transition:opacity .22s var(--e)}
+/* the "+" new-tab button — nudges when a tab is opening */
+.browser .plus{display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:7px;color:var(--dim);font-size:20px;line-height:1;
+  transition:background .18s var(--e),color .18s var(--e),transform .18s var(--e)}
+.browser .plus.click{background:rgba(255,255,255,.10);color:var(--ink);transform:scale(.9)}
+
+.browser .tabs{height:44px;display:flex;align-items:flex-end;gap:4px;padding:0 12px}
+.browser .tab{position:relative;flex:0 1 172px;min-width:0;height:36px;border-radius:9px 9px 0 0;
+  background:transparent;border:0;display:flex;align-items:center;gap:8px;padding:0 11px;
+  white-space:nowrap;color:var(--dim);font-size:13.5px;
+  transition:flex-basis .34s var(--e),max-width .34s var(--e),padding .34s var(--e),
+    opacity .26s var(--e),background .18s var(--e),color .18s var(--e)}
+.browser .tab::after{content:"";position:absolute;right:-2px;top:50%;transform:translateY(-50%);
+  width:1px;height:16px;background:rgba(255,255,255,.13)}
+.browser .tab:last-child::after,.browser .tab:has(+ .tab.hot)::after{display:none}
+.browser .tab:not(.hot):hover{background:rgba(255,255,255,.05);color:var(--muted)}
+.browser .tab.hot{color:var(--ink);background:#191b1e;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.browser .tab.hot::before,.browser .tab.hot::after{content:"";position:absolute;bottom:0;width:9px;height:9px;background:#191b1e;display:block}
+.browser .tab.hot::before{left:-9px;-webkit-mask:radial-gradient(circle at 0 0,#0000 9px,#000 9px);mask:radial-gradient(circle at 0 0,#0000 9px,#000 9px)}
+.browser .tab.hot::after{right:-9px;-webkit-mask:radial-gradient(circle at 100% 0,#0000 9px,#000 9px);mask:radial-gradient(circle at 100% 0,#0000 9px,#000 9px)}
+.browser .tab .fav{width:15px;height:15px;flex:0 0 auto;display:grid;place-items:center;border-radius:3px;overflow:hidden}
+.browser .tab .fav img{width:15px;height:15px;object-fit:contain;display:block}
+.browser .tab .fav.full{border-radius:4px}.browser .tab .fav.full img{object-fit:cover;border-radius:4px}
+.browser .tab .lbl{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.browser .tab x{color:var(--dim);flex:0 0 auto;font-style:normal}
+
+/* --- opening/closing tab states (driven by JS) --- */
+.browser .tab.collapsed{flex-basis:0;max-width:0;padding-left:0;padding-right:0;opacity:0;overflow:hidden}
+.browser .tab .inside{display:flex;align-items:center;gap:8px;min-width:0;flex:1 1 auto;
+  opacity:1;transition:opacity .2s var(--e)}
+.browser .tab.collapsed .inside{opacity:0}
+
+/* --- the load bar under the toolbar --- */
+.browser .loadbar{height:2px;background:transparent}
+.browser .loadbar i{display:block;height:100%;width:0;border-radius:0 2px 2px 0;
+  background:linear-gradient(90deg,var(--blue),var(--green));opacity:0}
+.browser .loadbar.go i{width:100%;opacity:1;transition:width .85s ease-out,opacity .3s ease}
+.browser .loadbar.done i{opacity:0;transition:opacity .35s ease}
+
+/* --- page area: cross-fades between a fresh "new tab" and a loaded page --- */
+.browser .page{position:relative;height:360px;overflow:hidden;
+  background:linear-gradient(180deg,#191b1e,#141517)}
+.browser .page .view{position:absolute;inset:0;opacity:0;transition:opacity .4s var(--e);
+  display:flex;flex-direction:column}
+.browser .page .view.show{opacity:1}
+
+/* new-tab view: a calm centered search field + quick tiles */
+.newtab{align-items:center;justify-content:center;gap:26px}
+.newtab .search{width:58%;height:44px;border-radius:22px;background:#232629;border:1px solid var(--line-2);
+  display:flex;align-items:center;gap:11px;padding:0 18px;color:var(--dim);font-size:14.5px}
+.newtab .search .g{width:16px;height:16px;flex:0 0 auto;opacity:.7}
+.newtab .tiles{display:flex;gap:16px}
+.newtab .tile{width:52px;height:52px;border-radius:14px;background:#202327;border:1px solid var(--line-2);
+  display:grid;place-items:center}
+.newtab .tile img{width:26px;height:26px;object-fit:contain;border-radius:6px}
+
+/* loaded view: a simple site (header + hero lines) rendering in */
+.loaded{padding:0}
+.loaded .top{height:46px;flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:0 22px;
+  border-bottom:1px solid rgba(255,255,255,.06)}
+.loaded .top .brand{width:22px;height:22px;border-radius:6px;
+  background:linear-gradient(135deg,var(--green),#0f8f2c)}
+.loaded .top .word{width:96px;height:10px;border-radius:5px;background:#2b2f33}
+.loaded .top .navline{margin-left:auto;display:flex;gap:16px}
+.loaded .top .navline span{width:52px;height:8px;border-radius:4px;background:#23262a}
+.loaded .hero{flex:1 1 auto;padding:40px 46px;display:flex;flex-direction:column;gap:16px}
+.loaded .hero .h{height:22px;border-radius:6px;background:#2f343a}
+.loaded .hero .h.w1{width:66%}.loaded .hero .h.w2{width:48%}
+.loaded .hero .p{height:11px;border-radius:5px;background:#22262a}
+.loaded .hero .p.w1{width:80%}.loaded .hero .p.w2{width:72%}
+.loaded .hero .cta{margin-top:10px;width:150px;height:38px;border-radius:10px;
+  background:linear-gradient(90deg,var(--blue),#3f6ee0)}
+/* the loaded content lifts in when the page "arrives" */
+.loaded .top,.loaded .hero>*{opacity:0;transform:translateY(8px)}
+.browser .page .view.loaded.show .top,
+.browser .page .view.loaded.show .hero>*{opacity:1;transform:none;
+  transition:opacity .5s var(--e),transform .5s var(--e)}
+.browser .page .view.loaded.show .hero>*{transition-delay:.06s}
+
+@media(prefers-reduced-motion:reduce){
+  .browser .tab,.browser .omni .url,.browser .loadbar.go i,
+  .browser .page .view,.loaded .top,.loaded .hero>*{transition:none!important}
+}
+</style>
+</head>
+<body>
+  <div class="browser">
+    <div class="chrome">
+      <div class="bar">
+        <div class="tl"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <div class="nav"><span>&lsaquo;</span><span>&rsaquo;</span><span>&#8635;</span></div>
+        <div class="omni"><svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span class="url">localhost:3000</span></div>
+        <div class="plus" aria-hidden="true">+</div>
+      </div>
+      <div class="tabs">
+        <div class="tab"><span class="inside"><span class="fav full"><img src="../assets/claude-real.png" alt=""></span><span class="lbl">Claude &middot; new chat</span><x>&times;</x></span></div>
+        <div class="tab"><span class="inside"><span class="fav"><img src="../assets/codex.svg" alt=""></span><span class="lbl">Codex &mdash; build</span><x>&times;</x></span></div>
+        <div class="tab"><span class="inside"><span class="fav full"><img src="../assets/gemini-real.png" alt=""></span><span class="lbl">Gemini prompt</span><x>&times;</x></span></div>
+        <div class="tab"><span class="inside"><span class="fav full"><img src="../assets/notion-real.png" alt=""></span><span class="lbl">notion.so</span><x>&times;</x></span></div>
+        <div class="tab"><span class="inside"><span class="fav"><img src="../assets/stripe.svg" alt=""></span><span class="lbl">stripe &middot; dash</span><x>&times;</x></span></div>
+        <div class="tab hot"><span class="inside"><span class="fav"><img src="../assets/localhost.svg" alt=""></span><span class="lbl">localhost:3000</span><x>&times;</x></span></div>
+      </div>
+    </div>
+    <div class="loadbar"><i></i></div>
+    <div class="page">
+      <!-- fresh "new tab" state -->
+      <div class="view newtab">
+        <div class="search"><svg class="g" viewBox="0 0 24 24" fill="none" stroke="#8a9099" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>Search or type a URL</div>
+        <div class="tiles">
+          <div class="tile"><img src="../assets/claude-real.png" alt=""></div>
+          <div class="tile"><img src="../assets/notion-real.png" alt=""></div>
+          <div class="tile"><img src="../assets/gemini-real.png" alt=""></div>
+          <div class="tile"><img src="../assets/globe.svg" alt=""></div>
+        </div>
+      </div>
+      <!-- loaded page state -->
+      <div class="view loaded">
+        <div class="top"><span class="brand"></span><span class="word"></span>
+          <span class="navline"><span></span><span></span><span></span></span></div>
+        <div class="hero">
+          <div class="h w1"></div><div class="h w2"></div>
+          <div class="p w1"></div><div class="p w2"></div>
+          <div class="cta"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =====================================================================
+   NEW-TAB OPEN ANIMATION — edit TAB to change what opens.
+   ===================================================================== */
+var TAB = {
+  fav: '../assets/globe.svg',   // favicon for the tab that opens
+  favFull: false,               // true = square/photo favicon (object-fit:cover)
+  title: 'granular.build',      // tab label
+  url: 'granular.build'         // address-bar text once it loads
+};
+
+var browser = document.querySelector('.browser');
+var tabsEl  = browser.querySelector('.tabs');
+var plus    = browser.querySelector('.plus');
+var urlEl   = browser.querySelector('.omni .url');
+var loadbar = browser.querySelector('.loadbar');
+var newView = browser.querySelector('.view.newtab');
+var loadView= browser.querySelector('.view.loaded');
+var baseHot = browser.querySelector('.tab.hot');   // the tab that's active at rest
+var baseUrl = urlEl.textContent;
+var reduce  = matchMedia('(prefers-reduced-motion:reduce)').matches;
+var opened  = null;   // the tab node we create
+
+function makeTab(){
+  var t = document.createElement('div');
+  t.className = 'tab collapsed';
+  t.innerHTML = '<span class="inside"><span class="fav'+(TAB.favFull?' full':'')+'">'+
+    '<img src="'+TAB.fav+'" alt=""></span><span class="lbl">'+TAB.title+'</span><x>&times;</x></span>';
+  return t;
+}
+
+/* open: + nudge → tab grows in → becomes active → address swaps → load → page in */
+function openTab(done){
+  plus.classList.add('click');
+  setTimeout(function(){ plus.classList.remove('click'); }, 220);
+
+  opened = makeTab();
+  tabsEl.appendChild(opened);
+  // force reflow so the transition from .collapsed runs
+  void opened.offsetWidth;
+  opened.classList.remove('collapsed');
+
+  setTimeout(function(){                       // tab has reached full width
+    baseHot.classList.remove('hot');
+    opened.classList.add('hot');
+    urlEl.style.opacity = '0';
+    setTimeout(function(){ urlEl.textContent = TAB.url; urlEl.style.opacity = '1'; }, 180);
+
+    loadbar.classList.add('go');               // load bar sweeps
+    setTimeout(function(){                      // page swaps to loaded
+      newView.classList.remove('show');
+      loadView.classList.add('show');
+      loadbar.classList.remove('go'); loadbar.classList.add('done');
+      setTimeout(function(){ loadbar.classList.remove('done'); loadbar.querySelector('i').style.width='0'; }, 400);
+      if(done) done();
+    }, 780);
+  }, 360);
+}
+
+/* close: page back to new-tab → tab collapses out → active returns to base */
+function closeTab(done){
+  loadView.classList.remove('show');
+  opened.classList.remove('hot');
+  baseHot.classList.add('hot');
+  urlEl.style.opacity = '0';
+  setTimeout(function(){ urlEl.textContent = baseUrl; urlEl.style.opacity = '1'; }, 180);
+  opened.classList.add('collapsed');
+  setTimeout(function(){
+    if(opened && opened.parentNode) opened.parentNode.removeChild(opened);
+    opened = null;
+    newView.classList.add('show');
+    if(done) done();
+  }, 360);
+}
+
+function loop(){ openTab(function(){ setTimeout(function(){
+  closeTab(function(){ setTimeout(loop, 1200); });
+}, 2600); }); }
+
+/* boot */
+newView.classList.add('show');
+if(reduce){
+  // park on the opened + loaded end state, no motion
+  opened = makeTab(); opened.classList.remove('collapsed'); tabsEl.appendChild(opened);
+  baseHot.classList.remove('hot'); opened.classList.add('hot');
+  urlEl.textContent = TAB.url;
+  newView.classList.remove('show'); loadView.classList.add('show');
+} else {
+  setTimeout(loop, 900);
+}
+</script>
+</body>
+</html>

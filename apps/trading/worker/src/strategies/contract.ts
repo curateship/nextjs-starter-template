@@ -47,6 +47,34 @@ export type PositionState = {
   entryPx: string
 } | null
 
+export type SharedWalletCandidate = {
+  market: string
+  candleTime: number
+  exposurePct: number
+  volumeMultiple: number
+  dailyVolumeUsd: number
+}
+
+export type SharedWalletPortfolioControl = {
+  submit: (candidate: SharedWalletCandidate) => void
+  observe?: (market: string, candleTime: number) => void
+  ready?: (candleTime: number) => boolean
+  reserve: (market: string, candleTime: number, exposurePct: number) => boolean
+  restore: (market: string, exposurePct: number) => boolean
+  release: (market: string) => void
+  reservedPct: () => number
+  /** Set a market's held exposure directly (DCA reserves only what has filled). */
+  setExposure?: (market: string, exposurePct: number) => void
+  /** Total exposure this market may still hold: the cap minus everyone else's. */
+  remaining?: (market: string) => number
+  reportEquity?: (
+    market: string,
+    equity: number,
+    startingEquity: number
+  ) => void
+  equity?: (fallback: number) => number
+}
+
 export type StrategyCtx<S> = {
   market: string
   /** Latest mid price, "0" until first tick. */
@@ -58,6 +86,8 @@ export type StrategyCtx<S> = {
   equity: string
   /** Equity at the start of the run — the baseline compounding scales against. */
   startingEquity?: string
+  /** Shared exposure gate used by multi-market runners of one bot. */
+  sharedWalletPortfolio?: SharedWalletPortfolioControl
   state: S
   setState: (next: S) => void
   emit: (type: string, message: string, data?: unknown) => void
@@ -67,6 +97,19 @@ export type StrategyCtx<S> = {
 export type WarmupSpec = {
   candleIntervals: CandleInterval[]
   requiresLiveBook?: boolean
+}
+
+/**
+ * Strategy-owned state exposed to the backtest replay recorder — details the
+ * runner can't see generically (a DCA ladder lives inside opaque strategy
+ * state). Shapes here are what the replay chart draws.
+ */
+export type StrategySnapshot = {
+  qfl?: {
+    base: number
+    stopPx: number | null
+    rungs: { i: number; px: number; filled: number; target: number }[]
+  }
 }
 
 /**
@@ -185,6 +228,8 @@ export interface Strategy<P, S> {
     remainingSz: string
   ) => void
   onTick?: (ctx: StrategyCtx<S>, params: P) => void
+  /** Called after an operator flatten is confirmed to have left no position. */
+  onFlatten?: (ctx: StrategyCtx<S>, params: P) => void
   /**
    * Price levels at which onTick would request an exit right now (TP / SL /
    * trailing stop), given the current position and state. Pure — must not
@@ -194,6 +239,11 @@ export interface Strategy<P, S> {
    * ignores it (real ticks are continuous).
    */
   exitTriggers?: (ctx: StrategyCtx<S>, params: P) => number[]
+  /**
+   * Pure snapshot of strategy-owned replay state (e.g. a DCA ladder). Only
+   * the backtest recorder reads it, once per bar — must not call setState.
+   */
+  snapshot?: (ctx: StrategyCtx<S>, params: P) => StrategySnapshot | null
   /** Pure derivation of the orders the bot wants resting right now. */
   desiredOrders: (ctx: StrategyCtx<S>, params: P) => DesiredOrder[]
 }

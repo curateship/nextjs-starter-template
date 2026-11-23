@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { pct, usd } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 export type WalletOption = {
@@ -30,6 +31,7 @@ export function AccountStrip({
   selectedValue,
   onWalletChange,
   left,
+  beforeWallet,
   actions,
 }: {
   options: WalletOption[]
@@ -37,6 +39,8 @@ export function AccountStrip({
   onWalletChange: (value: string) => void
   /** Market/coin info rendered on the left of the bar. */
   left?: ReactNode
+  /** Controls rendered just before the wallet select (e.g. Practice). */
+  beforeWallet?: ReactNode
   /** Controls rendered next to the wallet select (e.g. panel settings). */
   actions?: ReactNode
 }) {
@@ -58,6 +62,7 @@ export function AccountStrip({
       ) : null}
 
       <div className="ml-auto flex items-center gap-2">
+        {beforeWallet}
         <Select
           value={selectedValue ?? ""}
           onValueChange={onWalletChange}
@@ -142,19 +147,19 @@ export function AccountSummaryPanel({
           bot worker offline
         </Badge>
       ) : null}
-      <SummaryRow label="Equity" value={formatUsd(equity)} />
+      <SummaryRow label="Equity" value={usd(equity)} />
       <SummaryRow
         label="Unrealized PnL"
-        value={formatUsd(unrealized)}
+        value={usd(unrealized)}
         tone={unrealized > 0 ? "up" : unrealized < 0 ? "down" : undefined}
       />
       <SummaryRow
         label={isPaper ? "Position value" : "Margin used"}
-        value={`${formatUsd(marginUsed)}${isPaper ? "" : ` (${marginPct.toFixed(1)}%)`}`}
+        value={`${usd(marginUsed)}${isPaper ? "" : ` (${pct(marginPct, 1)})`}`}
       />
       <SummaryRow
         label={isPaper ? "Cash" : "Withdrawable"}
-        value={formatUsd(summary?.withdrawable ?? 0)}
+        value={usd(summary?.withdrawable ?? 0)}
       />
     </div>
   )
@@ -183,12 +188,4 @@ function SummaryRow({
       </span>
     </div>
   )
-}
-
-function formatUsd(value: number): string {
-  return value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 2,
-  })
 }

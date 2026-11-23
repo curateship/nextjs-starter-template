@@ -16,7 +16,6 @@ describe("chart order menu", () => {
     const markup = renderToStaticMarkup(
       <ChartOrderMenu
         menu={{ price: 1_744.2, px: "1744.2", x: 100, y: 100 }}
-        market="ETH"
         oneClickActions={
           <>
             <button type="button">Buy limit - WS:10% SL:2% TP:5%</button>
@@ -29,7 +28,8 @@ describe("chart order menu", () => {
       />
     )
 
-    expect(markup).toContain("ETH @ 1,744.2")
+    // The market/price caption was removed — the menu shows actions only.
+    expect(markup).not.toContain("1,744.2")
     expect(markup).toContain("Buy limit - WS:10% SL:2% TP:5%")
     expect(markup).toContain("Sell limit - WS:10% SL:2% TP:5%")
     expect(markup).toContain("Add alert")

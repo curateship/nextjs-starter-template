@@ -41,11 +41,10 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
       getDefaultApiUsageLimit(),
     ])
 
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettingsForReset } =
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
       await import("@/server/workspaces")
     const workspace = await getOrCreateCurrentWorkspace(user.id)
-    const { settings: workspaceSettings, error: workspaceSettingsError } =
-      parseWorkspaceSettingsForReset(workspace.settings)
+    const workspaceSettings = parseWorkspaceSettings(workspace.settings)
     const shellGlobals = row
       ? parseShellGlobals(row.settings)
       : pickShellGlobals(createDefaultShellConfig())
@@ -55,7 +54,9 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         : API_USAGE_DEFAULT_COST_PER_CREDIT_USD
 
     return {
-      settingsError: workspaceSettingsError,
+      // Reading workspace settings can no longer fail — `parseWorkspaceSettings`
+      // falls back field by field rather than rejecting the whole row.
+      settingsError: null as string | null,
       settings: {
         ...shellGlobals,
         apiUsageCostPerCreditUsd,
@@ -63,11 +64,12 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         defaultApiUsageMonthlyCredits,
         sidebarWidth: workspaceSettings.sidebarWidth,
         duckingDb: workspaceSettings.duckingDb,
-        defaultRoute: workspaceSettings.defaultRoute,
+        normalizeLoudness: workspaceSettings.normalizeLoudness,
         favicon: workspaceSettings.favicon,
         brandKit: workspaceSettings.brandKit,
         topRightNavigation: workspaceSettings.topRightNavigation,
         sections: workspaceSettings.sections,
+        styling: workspaceSettings.styling,
       },
     }
   }
@@ -80,12 +82,10 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
     const user = await requireAdminUser()
 
     const updatedAt = now()
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettingsForReset } =
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
       await import("@/server/workspaces")
     const workspace = await getOrCreateCurrentWorkspace(user.id)
-    const { settings: workspaceSettings } = parseWorkspaceSettingsForReset(
-      workspace.settings
-    )
+    const workspaceSettings = parseWorkspaceSettings(workspace.settings)
     const workspaceName = data.workspaceName.trim()
     if (!workspaceName) {
       throw new Error("Workspace name is required")
@@ -103,11 +103,12 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             duckingDb: data.duckingDb,
-            defaultRoute: data.defaultRoute,
+            normalizeLoudness: data.normalizeLoudness,
             favicon: data.favicon,
             brandKit,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
+            styling: data.styling,
           },
           updatedAt,
         })
@@ -168,10 +169,10 @@ const saveSidebarWidthFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAppOrigin()
     const user = await requireUser()
-    const { getOrCreateCurrentWorkspace, parseWorkspaceSettingsForReset } =
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
       await import("@/server/workspaces")
     const workspace = await getOrCreateCurrentWorkspace(user.id)
-    const { settings } = parseWorkspaceSettingsForReset(workspace.settings)
+    const settings = parseWorkspaceSettings(workspace.settings)
 
     const [updated] = await db
       .update(aiVideoWorkspaces)
@@ -198,6 +199,44 @@ export function saveSidebarWidth(sidebarWidth: number) {
   return saveSidebarWidthFn({ data: { sidebarWidth } })
 }
 
+// Per-user save for the export modal's "Normalize loudness" toggle. Like the
+// sidebar width this is not admin-gated: it is the exporting user's own
+// workspace preference, and the renderer reads it when the job runs.
+const saveNormalizeLoudnessFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ normalizeLoudness: z.boolean() }))
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const settings = parseWorkspaceSettings(workspace.settings)
+
+    const [updated] = await db
+      .update(aiVideoWorkspaces)
+      .set({
+        settings: { ...settings, normalizeLoudness: data.normalizeLoudness },
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(aiVideoWorkspaces.id, workspace.id),
+          eq(aiVideoWorkspaces.userId, user.id)
+        )
+      )
+      .returning({ id: aiVideoWorkspaces.id })
+
+    if (!updated) {
+      throw new Error("Workspace not found")
+    }
+
+    return data
+  })
+
+export function saveNormalizeLoudness(normalizeLoudness: boolean) {
+  return saveNormalizeLoudnessFn({ data: { normalizeLoudness } })
+}
+
 function parseShellGlobals(value: unknown) {
   return requireCanonicalShellGlobals(value)
 }
@@ -212,6 +251,7 @@ function pickShellGlobals(settings: ShellConfig) {
       API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
     mediaUploadMaxMb: settings.mediaUploadMaxMb,
+    adminRoute: settings.adminRoute,
   }
 }
 

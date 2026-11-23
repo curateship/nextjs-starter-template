@@ -154,7 +154,7 @@ export function ClustersDashboard({ project }: { project: ProjectItem }) {
       <DashboardTable
         title="Topic Clusters"
         icon={
-          <FolderTreeIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <FolderTreeIcon className="text-muted-foreground" />
         }
         count={total}
         controls={
@@ -240,12 +240,8 @@ export function ClustersDashboard({ project }: { project: ProjectItem }) {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || rows.length === 0}
-        emptyText={
-          loading
-            ? "Loading clusters..."
-            : "No clusters yet. Build clusters to group keywords into topics."
-        }
+        isEmpty={!loading && rows.length === 0}
+        emptyText="No clusters yet. Build clusters to group keywords into topics."
         emptyColSpan={7}
         footer={{
           type: "pagination",

@@ -25,16 +25,20 @@ export const EMPTY_TERMINAL_STATE: WorkspaceTerminalState = {
 export const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
 export const APP_THEME_STORAGE_KEY = "personal-ide:theme"
 export const TERMINAL_SESSIONS_STORAGE_KEY = "personal-ide:terminal-sessions"
+export const WORKSPACE_NOTES_STORAGE_KEY = "personal-ide:workspace-notes"
 export const SHARED_SKILLS_PATH = ".agents/skills"
 export const TASKS_PATH = "workspace/tasks"
 export const DOCS_PATH = "workspace/docs"
 export const SETTINGS_TAB_PATH = "__personal_ide_settings__"
 export const REPO_TAB_PATH_PREFIX = "__personal_ide_repo__/"
 export const DEFAULT_TASK_TEMPLATE = "---\nstatus: active\n---\n\n"
+export const DEFAULT_START_TASK_PROMPT =
+  'Work on task "{{title}}" from {{path}}.{{skill}} Update the task status frontmatter as progress changes.'
 export const DEFAULT_TASK_FILTER = "active"
 export const DONE_TASK_STATUS = "done"
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   defaultTaskTemplate: DEFAULT_TASK_TEMPLATE,
+  startTaskPrompt: DEFAULT_START_TASK_PROMPT,
 }
 export const SKILL_TAG_FILTERS = [
   { value: "all", label: "All" },

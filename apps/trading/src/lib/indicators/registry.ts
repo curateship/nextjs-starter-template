@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import type { IndicatorModule } from "./contract"
+import { baseIndicator } from "./defs/base"
 import { bollingerIndicator } from "./defs/bollinger"
 import { breakoutIndicator } from "./defs/breakout"
 import { emaCrossIndicator } from "./defs/ema-cross"
@@ -9,20 +10,21 @@ import { macdCrossIndicator } from "./defs/macd-cross"
 import { priceActionIndicator } from "./defs/price-action"
 import { qqeIndicator } from "./defs/qqe"
 import { rsiLevelsIndicator } from "./defs/rsi-levels"
+import { sessionIndicator } from "./defs/session"
 import { trendlineIndicator } from "./defs/trendline"
-import { vwapCrossIndicator } from "./defs/vwap-cross"
 
 export const INDICATOR_IDS = [
   "qqe",
   "ema_cross",
   "rsi_levels",
   "macd_cross",
-  "vwap_cross",
   "breakout",
   "bollinger",
   "price_action",
   "fair_value_gap",
   "trendline",
+  "base",
+  "session",
 ] as const
 
 export type IndicatorId = (typeof INDICATOR_IDS)[number]
@@ -42,12 +44,13 @@ export const INDICATORS: Record<IndicatorId, AnyIndicatorModule> = {
   ema_cross: erase(emaCrossIndicator),
   rsi_levels: erase(rsiLevelsIndicator),
   macd_cross: erase(macdCrossIndicator),
-  vwap_cross: erase(vwapCrossIndicator),
   breakout: erase(breakoutIndicator),
   bollinger: erase(bollingerIndicator),
   price_action: erase(priceActionIndicator),
   fair_value_gap: erase(fairValueGapIndicator),
   trendline: erase(trendlineIndicator),
+  base: erase(baseIndicator),
+  session: erase(sessionIndicator),
 }
 
 /** Indicator params are always scalar (numbers, enums, flags) — this keeps

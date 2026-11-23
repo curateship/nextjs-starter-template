@@ -8,6 +8,7 @@ import {
   automationConfigSchema,
   automationWarmupBars,
 } from "@/lib/strategies/strategy-config"
+import { isManualRunParams } from "./manual-types"
 
 export type BacktestEquityPoint = {
   /** Bar close time, ms since epoch. */
@@ -31,6 +32,7 @@ export type BacktestTrade = {
   n: number
   side: "long" | "short"
   entryTime: number
+  /** The real price this piece was bought at (a DCA rung's own fill price). */
   entryPx: number
   exitTime: number
   exitPx: number
@@ -42,6 +44,12 @@ export type BacktestTrade = {
   returnPct: number
   /** Running sum of pnl through this trade. */
   cumPnl: number
+  /**
+   * The position's blended average cost at the moment this piece closed — not a
+   * traded price, just where the whole ladder's average sat. The chart draws it
+   * as a reference line; older stored trades don't carry it.
+   */
+  avgPx?: number
 }
 
 export type BacktestOpenPosition = {
@@ -98,13 +106,82 @@ export type BacktestStats = {
   warnings?: string[]
 }
 
+/**
+ * How hard the one shared wallet was worked over a run, measured bar by bar on
+ * the reservation bank itself rather than inferred from the trade list. Only a
+ * DCA basket shares a wallet; every market of such a run carries the same copy,
+ * because these are whole-basket numbers. The measurements are optional: runs
+ * stored before they existed simply don't have them, and their tiles read "—".
+ */
+export type BacktestPortfolioUsage = {
+  sharedAccount: true
+  marketCount: number
+  /** The most of the shared wallet ever deployed at once, in percent. */
+  peakExposurePct?: number
+  /** How long the wallet stayed up at that peak, in milliseconds. */
+  timeAtPeakMs?: number
+  /** Time-weighted average of the wallet deployed, in percent. */
+  avgExposurePct?: number
+  /** When the peak was reached, ms since epoch. Absent on older runs. */
+  peakAt?: number | null
+}
+
 export type BacktestResult = {
   equityCurve: BacktestEquityPoint[]
   trades: BacktestTrade[]
   fills: BacktestFill[]
   openPosition: BacktestOpenPosition
   stats: BacktestStats
+  /**
+   * Dollar value this market was still holding at its last bar, priced at that
+   * bar's close — 0 when it finished flat. A backtest window ends mid-trade, so
+   * this is the slice of the result that is still an open bet, not a booked
+   * one. Absent on runs stored before it was recorded.
+   */
+  openNotionalUsd?: number
+  /** Present when sibling rows are contributions to one shared account. */
+  portfolio?: BacktestPortfolioUsage
+  /**
+   * Replay tape. Stripped into its own DB column at save time and loaded
+   * lazily by the replay chart — never part of the always-loaded blob.
+   */
+  timeline?: BacktestTimeline
 }
+
+/**
+ * One recorded change in the engine's order state — what the replay chart
+ * folds into "what was resting on the book at this moment". Deltas only,
+ * appended once per bar after orders settle; fills of resting orders close
+ * their line with op "fill" (the fill itself is already in `fills`).
+ */
+export type BacktestTimelineEvent =
+  | {
+      t: number
+      k: "order"
+      op: "place" | "move" | "cancel" | "fill"
+      purpose: string
+      side: "buy" | "sell"
+      px: number
+      sz: number
+    }
+  | { t: number; k: "protect"; stopPx: number | null; tpPx: number | null }
+  | {
+      t: number
+      k: "qfl"
+      base: number | null
+      stopPx: number | null
+      rungs: { i: number; px: number; filled: number; target: number }[]
+    }
+  | { t: number; k: "note"; type: string; message: string }
+
+export type BacktestTimeline = {
+  events: BacktestTimelineEvent[]
+  /** True when the event cap was hit; later events were dropped. */
+  truncated?: boolean
+}
+
+/** Hard cap on recorded events per run — keeps the tape column bounded. */
+export const MAX_TIMELINE_EVENTS = 20_000
 
 /**
  * Whole-basket risk for a run group, measured on the *combined* equity curve
@@ -116,6 +193,13 @@ export type BacktestResult = {
 export type GroupPortfolioMetrics = {
   /** Completed markets blended into the combined curve. */
   markets: number
+  /**
+   * The basket's capital base — the denominator for its return. ONE shared
+   * wallet for a shared-account group (the markets take turns on one pot), the
+   * summed starting capital for independent-wallet markets. Never the naive sum
+   * of a shared group's per-market equity, which double-counts the one wallet.
+   */
+  startEquity: number
   /** Combined basket peak-to-trough drawdown %, ≤ 0 (0 = only ever rose). */
   combinedDrawdownPct: number
   /** Bar time (ms) of the drawdown trough; null when there is no drawdown. */
@@ -127,6 +211,19 @@ export type GroupPortfolioMetrics = {
   bucketLowPct: number
   /** Bar time (ms) of the basket's lowest combined equity. */
   bucketLowAt: number | null
+}
+
+/**
+ * Money a run group never got back out: what its markets were still holding
+ * when the test window closed. Summed across every completed market, so it
+ * answers "of the result on screen, how much is still an open bet?" — and it
+ * works whether the markets shared one wallet (DCA) or ran on their own.
+ */
+export type GroupOpenPositions = {
+  /** Combined value of every still-open position, in dollars. */
+  usd: number
+  /** Markets still holding something when their window ended. */
+  markets: number
 }
 
 /**
@@ -180,6 +277,12 @@ export const INTERVAL_MS: Record<BacktestInterval, number> = {
 export const MAX_RUN_BARS = 5000
 
 /**
+ * Auto-name prefix marking a run group as replaceable: the next backtest of
+ * the same automation deletes it. Naming (or pinning) a group keeps it.
+ */
+export const PREVIOUS_RUN_NAME_PREFIX = "Previous run"
+
+/**
  * Ceiling on candles in a single backtest run window. Backtest history comes
  * from Binance, which keeps years per interval, so this is far higher than
  * Hyperliquid's ~5000 live-chart limit — ~5.7 years at 1h, ~1.4 years at 15m.
@@ -190,11 +293,18 @@ export const MAX_RUN_BARS = 5000
 export const MAX_BACKTEST_BARS = 50_000
 
 /**
- * Most additional markets a single config may replay across. The background
- * queue runs them one at a time, so this bounds a run group's total upstream
- * cost. Shared by the run/config validators and the market-picker UI.
+ * Runaway backstop on how many additional markets one config may replay across.
+ * Deliberately far above any real basket: what actually bounds a run is
+ * MAX_TOTAL_RUN_BARS, and that already scales the right way — a market costs its
+ * window of candles, so a shorter window or coarser candles buys more markets.
+ *
+ * This used to be 50, which meant every run was pinned to 51 markets no matter
+ * what: halving the window bought nothing, and "Randomize markets" filled the
+ * same 51 slots. Sized past the ~500 Binance USDT perps so the bar budget is
+ * what binds in practice, and the server still rejects a basket that overruns it
+ * with a message naming the real number.
  */
-export const MAX_EXTRA_MARKETS = 50
+export const MAX_EXTRA_MARKETS = 500
 
 /**
  * Candles the runner pre-loads before simStart so signals are warmed up.
@@ -212,6 +322,8 @@ export const SIGNAL_WARMUP_CANDLES = 1500
  * path-dependent) via its module's floor.
  */
 export function warmupBarsFor(params: unknown): number {
+  // Manual practice sessions have no indicators — nothing needs warming up.
+  if (isManualRunParams(params)) return 0
   const parsed = automationConfigSchema.safeParse(params)
   if (!parsed.success) return SIGNAL_WARMUP_CANDLES
   return automationWarmupBars(parsed.data)
@@ -239,6 +351,19 @@ export function windowBars(
   return Math.ceil((windowDays * 86_400_000) / INTERVAL_MS[interval])
 }
 
+/** Full history cost for a grouped run, including strategy warm-up per market. */
+export function totalRunBars(
+  params: unknown,
+  interval: BacktestInterval,
+  windowDays: number,
+  marketCount: number
+): number {
+  return (
+    Math.max(0, marketCount) *
+    (windowBars(interval, windowDays) + warmupBarsFor(params))
+  )
+}
+
 /**
  * Total candles one run request may download across its whole market basket.
  * Per-market windows are already capped at MAX_BACKTEST_BARS; this bounds the
@@ -248,6 +373,31 @@ export function windowBars(
  * per-market window (20 × 50,000).
  */
 export const MAX_TOTAL_RUN_BARS = 1_000_000
+
+/**
+ * Markets that actually fit in one run at this interval and window: the shared
+ * bar budget divided by what a single market costs, never more than the basket
+ * cap. Same arithmetic as the MAX_TOTAL_RUN_BARS check the server applies when
+ * a run starts, so the picker can never offer a basket the run would reject.
+ *
+ * The number moves with the timeframe because a market's cost does: 30 days of
+ * 15m candles is 2,880 bars, the same 30 days of 1m is 43,200. Coarser candles
+ * are cheaper, so more markets fit.
+ */
+export function maxRunMarkets(
+  params: unknown,
+  interval: BacktestInterval,
+  windowDays: number
+): number {
+  const perMarket = Math.max(
+    1,
+    windowBars(interval, windowDays) + warmupBarsFor(params)
+  )
+  return Math.max(
+    1,
+    Math.min(MAX_EXTRA_MARKETS + 1, Math.floor(MAX_TOTAL_RUN_BARS / perMarket))
+  )
+}
 
 /**
  * User-configurable candle ceiling bounds (Settings → Max chart candles).

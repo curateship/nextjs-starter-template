@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/intro"
+            android:textSize="15sp" />
+
+        <!-- Shown until the phone is paired. -->
+        <LinearLayout
+            android:id="@+id/pairSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/serverLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:labelFor="@+id/serverField"
+                android:text="@string/server_label"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/serverField"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/server_hint"
+                android:importantForAutofill="no"
+                android:inputType="textUri"
+                android:minHeight="48dp" />
+
+            <TextView
+                android:id="@+id/codeLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:labelFor="@+id/codeField"
+                android:text="@string/code_label"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/codeField"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/code_hint"
+                android:importantForAutofill="no"
+                android:inputType="number"
+                android:maxLength="6"
+                android:minHeight="48dp" />
+
+            <Button
+                android:id="@+id/pairButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/pair" />
+        </LinearLayout>
+
+        <!-- Shown once the phone is paired. -->
+        <LinearLayout
+            android:id="@+id/pairedSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/pairedLine"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="15sp" />
+
+            <Switch
+                android:id="@+id/controlSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:minHeight="48dp"
+                android:text="@string/in_control"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/answerLine"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/unpairButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/unpair" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/messageLine"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/httpWarning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textSize="14sp" />
+
+        <!-- Shown while Date is off in the phone's accessibility settings. -->
+        <LinearLayout
+            android:id="@+id/accessSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/accessibility_explain"
+                android:textSize="15sp" />
+
+            <Button
+                android:id="@+id/accessButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/open_accessibility" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

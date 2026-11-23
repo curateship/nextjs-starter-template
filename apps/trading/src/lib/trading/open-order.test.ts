@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   cancelOpenOrders,
   describeOpenOrder,
+  triggerPnlUsd,
 } from "@/lib/trading/open-order"
 
 const baseOrder = {
@@ -117,5 +118,51 @@ describe("open order display and modification", () => {
         orderType: "Limit",
       })
     ).toThrow("Unsupported trigger order type")
+  })
+})
+
+describe("triggerPnlUsd", () => {
+  it("prices a stop on a long as the loss it would realize", () => {
+    // Long 2 @ 100, stop at 90 → sell closes the long, losing 10 a coin.
+    expect(
+      triggerPnlUsd({ triggerPx: 90, entryPx: 100, sz: 2, side: "A" })
+    ).toBeCloseTo(-20)
+  })
+
+  it("prices a target on a long as the gain it would realize", () => {
+    expect(
+      triggerPnlUsd({ triggerPx: 115, entryPx: 100, sz: 2, side: "A" })
+    ).toBeCloseTo(30)
+  })
+
+  it("flips the sign for a short, where a higher price is the loss", () => {
+    // Short 3 @ 100, stop at 110 → buying back 10 higher costs 30.
+    expect(
+      triggerPnlUsd({ triggerPx: 110, entryPx: 100, sz: 3, side: "B" })
+    ).toBeCloseTo(-30)
+    expect(
+      triggerPnlUsd({ triggerPx: 95, entryPx: 100, sz: 3, side: "B" })
+    ).toBeCloseTo(15)
+  })
+
+  it("says nothing rather than guessing when the entry is unknown", () => {
+    expect(
+      triggerPnlUsd({ triggerPx: 90, entryPx: null, sz: 2, side: "A" })
+    ).toBeNull()
+  })
+
+  it("rejects nonsense inputs instead of returning NaN", () => {
+    expect(
+      triggerPnlUsd({ triggerPx: 0, entryPx: 100, sz: 2, side: "A" })
+    ).toBeNull()
+    expect(
+      triggerPnlUsd({ triggerPx: 90, entryPx: 0, sz: 2, side: "A" })
+    ).toBeNull()
+    expect(
+      triggerPnlUsd({ triggerPx: 90, entryPx: 100, sz: 0, side: "A" })
+    ).toBeNull()
+    expect(
+      triggerPnlUsd({ triggerPx: Number.NaN, entryPx: 100, sz: 2, side: "A" })
+    ).toBeNull()
   })
 })

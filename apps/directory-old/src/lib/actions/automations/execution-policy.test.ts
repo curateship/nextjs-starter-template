@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+
+import { RetryableAutomationError } from './errors'
+import { deriveAutomationRunStatus, shouldRetryAutomationNode } from './execution-policy'
+
+describe('automation execution policy', () => {
+  it('derives success, partial, failed, and no-op run outcomes', () => {
+    assert.equal(deriveAutomationRunStatus([{ failed: false, createdContent: true }]), 'success')
+    assert.equal(deriveAutomationRunStatus([{ failed: true, createdContent: false }, { failed: false, createdContent: true }]), 'partial')
+    assert.equal(deriveAutomationRunStatus([{ failed: true, createdContent: false }]), 'failed')
+    assert.equal(deriveAutomationRunStatus([{ failed: false, createdContent: false }]), 'noop')
+  })
+
+  it('retries retryable nodes on temporary failures for at most three attempts', () => {
+    const temporary = new RetryableAutomationError('Temporary failure')
+    assert.equal(shouldRetryAutomationNode(true, temporary, 1), true)
+    assert.equal(shouldRetryAutomationNode(true, temporary, 2), true)
+    assert.equal(shouldRetryAutomationNode(true, temporary, 3), false) // attempt cap reached
+    assert.equal(shouldRetryAutomationNode(false, temporary, 1), false) // node opts out of retries
+    assert.equal(shouldRetryAutomationNode(true, new Error('Invalid response'), 1), false) // not a temporary error
+  })
+})

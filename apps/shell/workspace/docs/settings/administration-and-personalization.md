@@ -1,0 +1,801 @@
+# Administration and personalization
+
+Settings is the control room for the active workspace and platform. The rail is
+two cards, and the line between them is who wrote the screen: the shell wrote
+everything in the first card, and the app wrote everything in the second.
+
+**Platform settings** is every screen the shell draws, one list with no
+headings: General settings, Email, Payments, AI, SEO and Social. AI holds the
+AI provider keys card, one key per provider. SEO is the public site's
+search defaults, and Social its X card choices. They sat under a Public
+heading until 9 Nov 2026 (Tyler: "move the 2 settings in public into
+platform settings and remove that subsection").
+
+**Navigation and Styling are not in Settings.** Since 9 Nov 2026 they are the
+Admin dashboard's Navigations and Styling sections, with the members', each
+role's and the public site's (Tyler: "consolidate the pages, navigation and
+styling into the admin dashboard ... We'll pull the styling from settings
+here including platform and public styling").
+`../ui/admin.md` says what each holds. The old addresses,
+`/admin/settings/navigation`, `/styling`, `/member-navigation`,
+`/role-navigation-<role>`, `/public-navigation` and `/public-styling`, forward
+to the matching section and tab (`lib/admin-dashboard/moved-settings.ts`).
+A Members or Public row an app has claimed with its own screen stays in
+Settings, in its old place in the list, under the app's name for it.
+
+**App settings** holds what the app itself added, and nothing else. The card is
+always drawn, so an admin can tell at a glance whether this app has settings of
+its own. An app that added none gets the sentence "This app has no settings of
+its own." rather than an empty box, which is what Custom Shell itself shows.
+
+The card is called **App settings** in every app rather than after the app. The
+app's name is an editable field, so the card would rename itself the moment
+somebody changed it, and an admin already knows which app they are in.
+
+Four things moved to get here. On 25 Sep 2026, Security, Notifications, Storage
+and AI stopped being rows and became cards on General settings; each was a single
+card already. On 8 Oct 2026 Tyler asked for AI to have its own row again, so the
+AI provider keys card left General settings for the AI row. On the same day the Members and Public rows moved into the app's
+card, on the reasoning that the shell can scaffold a public site and cannot be
+right about one for every app. **Tyler's call on 5 Oct 2026 moved them back.**
+Every one of those screens is the shell's own, writing the shell's `ShellConfig`,
+so they belong beside the shell's other rows, and an app's card that is mostly
+the shell's work says the wrong thing about what the app did. An app may still
+take a row over, which is a separate question from which card draws it. An
+address saved before any of this, such as `/admin/settings/security`, opens
+General settings, because an unknown tab id falls back to General and General is
+where that content now lives.
+
+## What is on General settings
+
+Six cards, in this order. Each collapses on its own and remembers the choice
+per browser.
+
+1. **General settings** — app name, site name, the two home routes, the sky
+   city, rows per page, toast duration, the logo and the browser tab icon.
+2. **Notifications** — one switch for whether the bell lights up the moment
+   something happens, then the twelve kinds a bell may show. These were two
+   cards on two screens before 25 Sep 2026 and are one question.
+3. **Sessions** — how long a sign-in lasts. Tightening a limit asks first,
+   because it signs people out.
+4. **Old data** — what the app deletes for itself once a day.
+5. **Cloudflare R2** — where uploaded files are kept.
+6. **Maintenance mode** — last, because it is the one that shuts the app.
+
+**Sky city** (Tyler, 8 Nov 2026: "we need a time zone setting because it
+shows the sun and its almost night here", then picking real sun times for a
+city): a page cover set to Sky follows this city's real sunrise and sunset, so
+its evenings come earlier in winter. Typed and left, the city is looked up
+once by name (Open-Meteo's free geocoding, from the server; `api/notes/sky-city.ts`)
+and kept as its name and place; the line under the field says what was found
+and today's sun times there, in the viewer's time. The sky then works out each
+day's sunrise and sunset itself (`src/lib/notes/sky-city.ts`). Empty, the sky
+uses fixed hours on each viewer's own clock, night from 6 PM. One city for
+the whole app.
+
+Cloudflare R2 on General settings and AI provider keys on the AI row each load
+from the server when their screen opens. Both report their own
+Saving…/Saved state to the sticky header, and both report nothing while idle so
+the page's own save still shows. `use-reported-save-status.ts` holds that rule.
+
+## An app's own settings rows
+
+An app adds rows to the App settings card through `settings.tabs` in its
+`src/app/options.ts`. Those rows are the whole of that card.
+
+**An app may also take over a Members or Public row.** It registers a tab with
+that row's id, and its own screen takes that place and keeps the position in the
+Platform card, so a claimed Public → Styling row sits between Navigation and SEO whoever draws
+it. A claimed row does not move into the App settings card: an admin looks for
+public styling where public styling has always been, not under a different
+heading because a different team wrote it. The five claimable ids are
+`member-navigation`, `public-navigation`, `public-styling`, `public-seo` and
+`public-social`, listed as `REPLACEABLE_SETTINGS_TAB_IDS` in `lib/app-options.ts`.
+The admin's own six rows are refused out loud, and so is an id an app used twice.
+
+Two reasons a real app needs this. Pomodoro's member pages draw their own
+sidebar from a list in its own code and never read `memberSections`, so the
+shell's member Navigation screen there edits settings no page of its reads. CMS
+gives each site its own domain, which is a different question about public
+navigation than a one-site app has.
+
+**Claiming a row does not move the data.** `ShellConfig` still holds
+`publicTheme`, `publicNavigation`, `memberSections` and the rest, and the
+shell's `PublicPageFrame` and sidebar are still what draw from them. A
+replacement screen has to write those same fields. One that writes somewhere of
+its own is a settings screen that changes nothing.
+
+## Every setting that is on or off is a switch
+
+One shape, everywhere in Settings: **the switch on the left, what it does to its
+right.** `SettingsSwitchRow` in `src/components/settings/settings-switch-row.tsx`
+is the only way to draw one, and longer guidance goes behind its info icon
+rather than under the row.
+
+Tyler asked for this on 25 Sep 2026. Until then a toggle was one of two shapes.
+Most were tick boxes with their words beside them. A few — the breadcrumb
+switches, Show on phones, Sticky header, Full width — were a label on the left
+with the switch pushed to the far right of the card by `justify-between`, which
+on a wide card put the control an inch from the words explaining it. Neither
+lined up with the other. With one shape a column of settings reads down its
+left edge.
+
+It is a switch and not a tick box because every one of these takes effect the
+moment it is flipped rather than when a form is submitted, which is the rule
+written on `Switch` itself.
+
+**The one thing still drawn as a tick box** is the small square that shows or
+hides a single link inside the sidebar, top right menu and public menu editors.
+That is a control in a row of controls next to a drag handle and a bin, not a
+setting with a sentence beside it, and a switch there would make every row taller.
+
+## Saving
+
+Settings saving follows these rules:
+
+- Save after 700 milliseconds without another edit.
+- Put saves in one queue and give each save a version, so an older response
+  cannot replace a newer change.
+- Show saving, saved, or not saved in the sticky page header.
+- Announce saved and failed states to assistive technology.
+
+Two things stop the save, and the header names both of them. An empty workspace
+name reads "Not saved — add a workspace name". A half-typed colour anywhere on
+Admin → Styling → Public reads "Not saved — fix the brand colour on Public →
+Styling", with the field's own name in it: brand colour, hover colour, soft
+tint, button text colour, dark-mode brand colour, canvas colour, border colour,
+divider colour, header and footer colour, or one of the four modal colours. A
+colour left on Theme default or Muted has no hex to get wrong, so it is never
+named.
+
+Naming the field is the point. Both of these are typed on one tab and stop the
+save on every tab, so the person who later edits General settings and loses the
+edit is usually not looking at the field that broke it. The reason is worked out
+by `shellConfigSaveRefusal` in `lib/custom-shell.tsx`, which asks
+`publicThemeColorProblem` in `lib/public-theme.ts` for the colour; the same one
+sentence feeds the header and every button below.
+
+Four buttons depend on that save and used to run, spin and change nothing
+while it was refused. Upload font, Remove font, Save current look and Delete
+preset now each say so: "The font was not uploaded. Fix the brand colour on
+Admin → Styling → Public first." Applying a preset is left alone, because a preset
+writes every colour at once and applying one is the way out of a bad colour.
+
+Provider key fields preserve exactly what the admin typed for the save in
+progress, even if another settings field changes while that request is running.
+
+The Email, Payments, AI and R2 storage cards save themselves through one hook,
+`useSettingsAutoSave` in `src/components/settings/use-settings-auto-save.ts`.
+Each field has its own timer. An edit made while another save is still running
+is saved straight after it, never dropped. Pasting an AI key and tabbing away
+while a second key was saving used to lose the first key. Remove waits for every
+save in flight before it runs. These cards report to the sticky header through
+`useReportedSaveStatus`, and report nothing when idle so the page's own status
+shows.
+
+Every masked key box is `SecretKeyField` (`secret-key-field.tsx`). A saved key
+shows as dots with "Set ••••" and its last four characters. Clicking the box
+clears the dots for typing. A label, a dropdown and its options in a settings
+row is `SettingsSelectRow` (`settings-select-row.tsx`), beside
+`SettingsSwitchRow` and `SettingsSliderRow`.
+
+The maintenance switch has its own server action because it shares the global
+settings record with this page. Both writers lock and merge the record so one
+change cannot erase another.
+
+## Navigation and style choices
+
+These editors are drawn in the Admin dashboard's Navigations section, a tab
+each, as Settings drew them (`../ui/admin.md`). The Platform tab combines Your
+sidebar, Top left shortcuts and Your top right menu. The Members tab combines
+the member sidebar and member top right menu separately, so editing one role's
+links does not change the other role's links.
+
+**How they look** (Tyler, 9 Nov 2026, a drawing of the Platform tab with
+"redesign the navigation page", `assets/pasted-image-1794279721805662000.png`):
+
+- White cards 16px apart, each with a faint 1px edge of its own (#f0f0f2),
+  on a light grey (#f7f7f8), following neither Panel cards nor the card
+  border setting ("unwire the card to setting", then "needs more spacing",
+  "the card border is too thick and dark", "the gray background needs to
+  be darker", then "background a bit lighter and the border still too
+  dark").
+- Each card's reset is a quiet button at the right of its heading: Reset to
+  defaults on a sidebar, Reset on a top right menu. Each asks first.
+- Top left shows and Top left max items sit in a light grey box at the top of
+  Your sidebar.
+- A sidebar section is a bordered box, 12px from the next. Its grey heading
+  row has the grip, the name in small capitals (typed in place), Add link and
+  a bin. Then one row per link: the grip, its icon on a grey tile, the name,
+  "3 children" when it has any, a switch that shows or hides it, and a bin.
+  Add section is a dashed button the whole width under the sections.
+- Shortcuts, top right buttons, public menu links, action items and social
+  accounts are chips with a grip, an icon, the name, a switch where it can
+  be hidden, and a bin where it can be deleted. A dashed "+ Add" chip ends
+  each row.
+- These boxes and chips draw their lines in a light grey of their own, not
+  the Divider lines setting.
+- **The Public tab** (Tyler: "redesign the public page", with a drawing,
+  `assets/pasted-image-1794280958417214000.png`) is three cards of rows,
+  Header, Breadcrumbs and Footer, each row its name and line on the left and
+  its controls on the right as small bordered tiles (`settings-rows.tsx`).
+  Header: Header behaviour (Sticky header, Full width, Glass blur), Header
+  sizing (Navigation width, Space after the logo, Menu text size in pixels,
+  and Logo size picked from three drawings), Header style (Navigation &
+  footer font, and Menu position picked from Left or Centre), Public menu
+  and Action items. Footer: Public footer, Footer alignment (Follow the
+  site, Left or Centred, by drawing), Social accounts and Copyright. The
+  drawing showed a Right menu position too; the setting stores Left or
+  Centre only, so there is no Right.
+- Sidebar boxes stop at 42rem rather than spanning a wide card ("make the
+  sidebar elements not full width").
+
+Top left shows and Top left max items sit side by side at the top of Your
+sidebar on the Platform tab. The Members tab has its own Top
+left shows at the top of Member sidebar, because admins and members choose
+separately (Tyler, 13 Oct 2026). The three choices are Sidebar links (the
+default), Breadcrumb and Shortcuts. `../ui/app-shell-and-navigation.md`
+describes what each one draws.
+
+Top left max items controls how many links appear in the standard signed-in
+header before the remaining links move into the vertical three-dot menu. It
+applies to Sidebar links and Shortcuts, and is one number for admins and
+members. Choices are Show all, 3, 4, 5, 6, 7, and 8. Show all remains the
+default for an installation with no saved limit. Phones keep their compact
+navigation menu, and an app-owned replacement header controls its own contents.
+
+Top left shortcuts is its own card on the Platform tab, between
+Your sidebar and Your top right menu. It edits the one list both admins and
+members see when their choice is Shortcuts. It works like the top right menu
+editor: drag a chip to reorder, "+ Add" adds a link and opens its window
+(icon, name and page), the switch turns a link off and leaves it in the
+editor with a Hidden pill, and the trash can deletes it after asking. A link
+with no name or no page stays out of the header until it has both.
+
+All of these are app-wide and live in the global settings row, so no migration
+was needed. A row saved before they existed reads as Sidebar links for both
+roles and no shortcuts. A settings tab left open from before they existed
+saves without them, and the server keeps the saved values instead of wiping
+them. Changes use the existing automatic save and survive a reload.
+
+
+The header's colour-mode button is now a **settings cog**. It holds the three
+colour modes as one pill — follow the device, light, dark — and under them
+whatever switches the app running on this shell adds, such as Trade's "Hide
+profit and loss". It is one row in Your top right menu, called Settings, and it
+reorders and hides like every other row there. A menu saved before the change
+kept a row called Theme; that row IS this control, so it keeps the place and
+the on-or-off state it was left in.
+
+The cog can also hold links. Pressing the Settings chip's name in a top right
+menu card opens a dropdown, "Links inside Settings" (Tyler, 10 Nov 2026:
+"clicking on the button should open a dropdown to add it instead"). The
+dropdown lists the links and ends in one line holding an icon, a short name
+box, a short address box and Add (Tyler, 10 Nov 2026: "make it one row").
+Add puts a new link at the bottom of the list. Pressing a listed
+link loads it into the form to change it, and the bin deletes it at once. The
+chip wears a "2 links" pill once it has any.
+
+- The links sit at the bottom of the cog's panel, under a line, one full-width
+  row each, in the order dragged. Pressing one goes to the page and closes the
+  panel. An address starting with http opens in a new tab.
+- Your top right menu and the member top right menu each have their own list,
+  so a link added for yourself is not shown to members.
+- A link with no name or no address stays in the editor but is not drawn. A
+  member is never shown a link to an admin page.
+- The links go where the cog goes. Switching Settings off hides them, and on a
+  phone they fold into the three-dot menu with the cog's rows.
+- They are saved on the Settings row itself (`links` on the `settings` item of
+  `topRightNavigation` and `memberTopRightNavigation`), so no migration was
+  needed. Reset on the card deletes them along with the row's links.
+
+Public pages keep their own separate colour-mode button, because a visitor who
+is not signed in has no settings to put in a menu.
+
+Navigation settings can rename, reorder, hide, and group known navigation
+items.
+
+A hidden admin link does not make its route public.
+
+Styling settings control:
+
+- Colors and borders.
+- Logo and icon.
+- Font choices and sidebar dimensions.
+- Public branding.
+
+### One logo for everything
+
+General settings has a single Logo field, and it uses the media library's
+square image picker. That one picture is the logo above the signed-out pages
+and the icon in every browser tab, on public pages as well as signed-in ones.
+There is no separate favicon field, no dark logo field and no dark favicon
+field. It is also the picture beside the site name at the top of the sidebar.
+
+The app makes the dark-mode version itself. It reads the uploaded picture and
+flips lightness alone, so dark ink becomes light ink and light ink becomes dark
+while hue and saturation stay where they are. A navy mark comes back as pale
+blue rather than the orange a photographic negative would give. An SVG stays an
+SVG and is recoloured as text, so the signed-out logo is still a vector at any
+size; every other format is redrawn pixel by pixel and saved as PNG, which is
+the raster format that keeps a logo's transparent background.
+
+Saving checks that the picture belongs to the admin's media library. The server
+then writes the dark twin plus 16px, 32px, 180px and 512px PNG files from each
+of the two, light and dark. Only the chosen version is linked from the page. The
+other is still stored: it is what proves the stored chain was built from the
+logo now saved, it is what makes the Browser tab icon setting instant, and
+keeping it in the set is what lets the replacement sweep delete it when the logo
+changes. The first page response includes the matching
+browser icon links, so public pages have the right icon before any browser code
+runs. Each save gets a new storage address to avoid stale browser caches.
+Replacing or clearing the logo stops serving the old links and removes the
+generated files. The original media-library image remains available.
+
+**A Browser tab icon setting picks which of the two versions the tab shows**, and
+only one is ever offered to the browser. It starts on the dark-mode version,
+because tab strips are dark or grey far more often than they are white and a
+logo drawn in near-black disappears on them. An admin whose tabs sit on white
+picks the logo as uploaded instead. Both versions stay generated either way, so
+flipping the setting redraws nothing.
+
+Handing the browser both and letting it choose was tried first and did not work.
+Marking the everyday mark `(prefers-color-scheme: light)` sounds like "only on a
+light browser", but that query also matches a browser that states no preference
+at all, so the everyday mark won for nearly everybody and the tab looked
+unchanged. One unconditioned set is the only honest way to say which mark the
+tab shows.
+
+The sidebar follows a short order of preference. An app that builds distinct
+sites, meaning `workspaces.siteBranding` is on, can give each site its own
+picture, and that picture wins for that site. Every other app falls back to the
+one uploaded logo, with its dark twin on a dark sidebar. That gate matters:
+without it a picture left on a workspace row by an older screen would beat the
+uploaded logo forever, which is exactly what happened before it was added. With
+neither, the sidebar draws the plain shape chosen in the site editor's Icon
+list. The picture is contained rather than cropped, so a logo wider than it is
+tall keeps both its ends.
+
+Nothing is redrawn on a save that leaves the logo alone. The app checks the
+whole chain rather than the logo by itself, so an install carrying a separately
+chosen favicon from before this rule rebuilds once on its next settings save
+and is in step from then on. **Clearing the Logo field clears the browser tab
+icon with it**, because they are the same picture. An install that had a
+favicon set and no logo therefore loses that favicon on its next settings save.
+Pick the picture in the Logo field before saving and it comes back as both.
+
+Admin → Styling → Public is separate from Admin → Styling → Platform,
+which is why they sit in different cards. Platform Styling changes the signed-in
+workspace used by admins and members. Public Styling changes only the pages a
+visitor can see before signing in. Font, corners,
+background pattern, and button choices are app-wide. Brand colour belongs to
+the current site when the app gives
+workspaces their own public domains. An app without public workspace domains
+uses one app-wide brand colour instead.
+
+**Public Navigation is three cards, one per part of a public page**: Header
+layout, Breadcrumbs, and Public footer. It was six until 25 Sep 2026, when
+Tyler asked for the menu and the user panel to sit with the header and the
+copyright line with the footer. The header and the menu in it are one thing to
+an admin, so they are one card.
+
+Header layout holds its own fields first, then a **Public menu** section for
+the links beside the site name, then a **User panel** section for the Sign in
+and Register buttons and the signed-in menu. Public footer holds its links and
+then a **Copyright** section. Each section carries a heading and a line above
+it, drawn by `SettingsCardSection`.
+
+Its fields read in the order the header is built: Sticky keeps the full header
+at the top while a visitor scrolls, then Full width and Navigation width decide
+how far it spreads, then Menu position keeps desktop links in the normal header
+flow or centres them on the page, while phones keep the existing menu button.
+Small, standard, and large set the logo to 32px, 48px, or 64px high. Standard,
+scrolling, and left are the defaults. The public header still shows the logo,
+site name, search, and colour-mode choice before any menu or footer links have
+been added.
+
+Space after the logo moves the menu along the bar. It is empty space between
+the logo and the first menu word, from 0 to 400 pixels, and 0 is the spacing
+the header always had, so nothing moves until a number is typed. It applies
+from 1024px up, where the menu words are in the bar; a narrower screen is
+unchanged because the menu is behind the menu button there. With Menu position
+on Centre the menu stays in the middle of the page and the space only widens
+the logo's own room: at a 1600px window the centred menu measured 800px from
+the left edge both at 0 and at 200.
+
+Menu text size sets how big the menu words are, from 12 to 24 pixels. Every
+word in the menu follows it, on a phone as well, including the links inside a
+group. 14 is the default, because 14 is what a menu link measured before the
+setting existed.
+
+It had measured 14 by accident rather than by choice. The menu's lists ask for
+16, but `PublicMenuLink` carries the 14 the footer and the missing-page screen
+want, and that won. A group's own word is a button rather than a link, so it
+had no such override and drew at 16: one menu could hold two sizes, 14 for a
+plain link and 16 for the word that opens a group. The setting now decides
+every word in the menu, so they match. On a menu of plain links nothing moves;
+on a menu with groups, the group's word comes down to meet the rest.
+
+Full width spreads the logo, menu and buttons across the whole window. Otherwise
+Navigation width caps them at a number of pixels from 320 to 2560. Until a
+number is typed there, the header follows the page width in Public Styling, so a
+header saved before this setting existed stays where it was. A number outside
+the range is marked and refused, and the last good width stays in use. Glass
+blur effect is None, Light, Medium or Heavy. Medium is the blur the header
+always had. The blur only shows where the page scrolls under a see-through
+header, so it needs Sticky on, and a solid header colour from Styling covers it.
+
+The User panel section is copied from the directory app's
+User Panel. Edit user panel opens one window with three cards. Sign in and
+Register each have an icon, a name, an address, a button style (Primary,
+Outline or Ghost) and a Show on phones switch. Leaving a button's address empty
+hides that button everywhere, which is how a site with closed sign-ups drops
+Register. Signed-in menu links is a draggable list of up to 20 links, each with
+an icon, a label and an address. Save refuses a nameless button, a link with no
+label or address, and any address that is not a site path or a safe web
+address, and names the problem in a toast. The defaults are Sign in to /login
+and Create an account to /register, both shown on phones, with no extra links,
+which is exactly what the header showed before the card existed.
+
+Breadcrumbs is its own card, one switch per kind of page:
+written pages, Search, and Pricing. Every switch starts off, so nothing on the
+public site changes until one is turned on. The trail itself is described in
+[Public pages, search, and SEO](../content/public-pages-search-and-seo.md).
+
+**A chip is picked up anywhere on it.** Every draggable chip in Settings, the
+public menu links and dropdown groups, the action items, the social accounts
+and the signed-in top-right menu, drags from any part of itself, not only from
+the six-dot grip on its left. The grip stays as the picture that says a chip
+moves. Tyler reported on 27 Sep 2026 that a chip would not stick where he
+dragged it: grabbing a chip by its name, which is the biggest thing on it, did
+nothing at all, because only the grip listened. A click on the name still opens
+that chip's window, because a pointer has to travel 8px before it counts as a
+drag. The pointer is an open hand over the chip and an arrow over the name, so
+the two things a chip does are both visible before either is tried. The
+keyboard still reorders: tab to a chip, space to lift it, the arrows to move
+it, space to drop it.
+
+**A link opens in a popover, not a window.** Every editor in Navigations
+that changes a link opens as a popover under the chip, row or + that was
+pressed (Tyler, 10 Nov 2026: "replace all of the other modals that changes
+links to a popover instead"). That covers a sidebar link with its child links,
+a top right menu link, a top left shortcut, a public menu link, a public
+dropdown group and a social account, and the + that adds each of them. The
+account corner's settings are not a link and still open in a window.
+
+- The frame is `EditPopover` in `src/components/ui/edit-popover.tsx`: a
+  title, a body that scrolls when the screen is short, and the same footer
+  order a window has.
+- The editors that hold a draft (the public link, group and social account)
+  use `FormPopover`. Once something is typed, a click outside or Escape asks
+  "Discard changes?" first, as their windows did.
+- The editors that save as you type (sidebar, top right, top left) close on a
+  click outside and save the last edit as they close.
+- The cards inside, and a sidebar link's child rows, take their colour and
+  line from Styling → Cards inside modals, as they did when these were
+  windows (Tyler: "wire the bg to the card settings"). The popover's own
+  background and outer line come from Styling → Modal and popover, as a
+  window's (Tyler: "the outer of the card should be wired too"). Both rules
+  are in `theme.css`, under `[data-edit-popover]`. That tile's preview draws two
+  cards, each with a heading and input boxes inside, so it is clear the
+  setting paints the card and not the boxes.
+- The icon picker still opens its own window over the popover, and closing it
+  leaves the popover open.
+
+In the next paragraph, and in older notes, "window" means this popover.
+
+**A chip's own window types normally.** The window that edits a chip is drawn in
+`document.body`, outside the chip, but React sends its keys and presses up the
+component tree, so they arrived at the chip's drag listeners as though they had
+happened on the chip. dnd-kit reads a space as "lift this chip" and stops the
+key doing anything else, so a space could not be typed into a link's name or any
+other box in the window, and holding the mouse down in a box armed a drag. Tyler
+reported the missing space on 30 Sep 2026. Each of the chip's listeners now
+checks where the event happened and ignores anything that did not happen inside
+the chip itself, which is why the window types normally while the whole chip
+still drags. The rule lives in `useSortableChip` in
+`src/components/settings/nav-editor-shared.ts`, and
+`nav-editor-shared.test.tsx` holds both halves: a space in the window is left
+alone, and a space on the chip still lifts it.
+
+**A chip's own buttons answer the keyboard.** A key lifts a chip only when the
+chip itself has focus. Enter or Space on a button inside it, such as "Edit
+settings for Pricing" or the bin, presses that button, the same as a click.
+Before, dnd-kit read Enter or Space anywhere in the chip as "lift", so tabbing
+to the edit button and pressing Enter picked the chip up instead of opening its
+popover. The pointer still drags from anywhere on the chip. Same rule, same
+file, and the test checks both: Enter on the inner button is left to it, and
+Enter on the chip still lifts the chip.
+
+**A dropped chip slides into its new place.** The public menu chips, the public
+footer links and the footer's social accounts settle the way the action items
+and the top-right chips already did, instead of snapping to the new order the
+moment the mouse is let go. Tyler reported the snap on 29 Sep 2026. Each chip
+in those three rows is now tracked by an id of its own rather than by the slot
+it sits in, so the browser keeps the chip you dragged and moves it. Before
+that, slot one was always slot one and only the words inside it changed, which
+no animation can cover. Nothing is saved differently: the id lives in the
+browser for as long as the settings page is open and is never written to the
+site's settings.
+
+**A window closes once.** That id has to outlive the link being edited. Pressing
+Done hands the row a new object for that link, and the id is what the browser
+keys the chip on, so a fresh id threw the chip away and built another one in its
+place. The open window went with it and a second window was drawn and then
+closed, which is the double flash Tyler reported on 30 Sep 2026. A link with no
+id of its own now inherits the id of whatever stood in its place on the last
+draw, as long as that object has really left the row, so the chip and its window
+survive the save. Deleting a link shortens the row and every chip left keeps its
+own id, and a new link stands where nothing stood before, so neither inherits
+anything. Measured through the settings screen: pressing Done used to attach a
+second window box and take two away, and now attaches none and takes one away,
+and no chip in the row is rebuilt at all.
+
+The Header layout card holds an Action items row: the three controls at the
+right-hand end of the public header, as draggable chips. They are Search, the
+light and dark switch, and the account corner, and the order they sit in is the
+order a visitor reads them in. Unticking a chip leaves that control out. The
+account corner has no tick, because it is how somebody signs in.
+
+Search used to be a chip in the Public menu, beside the page links. It is an
+action item now, so it draws at the right of the header with the other
+controls rather than among the links. A menu saved with the old Search entry
+simply stops listing it, and the entry goes for good the next time that menu is
+saved. On a phone the panel still opens with a Search entry at the top, which
+opens the full search page rather than showing a second box. Search also
+disappears from the header when the Search page is switched off, and on the
+search page itself, where a second box would be a duplicate.
+
+The same Public menu card can add a direct link or a named dropdown group.
+Opening a group edits its name and ordered links in one window. Group-link
+changes stay in that window until Save changes, so Cancel can discard them.
+Trying to create a group without a name marks the Name field and shows its
+message beside the field instead of raising a page-level toast.
+Each child link has the same label, address checks, drag handle, and delete
+control as the flat menu. Groups are one level deep and the menu has no
+menu-specific link limit. Existing flat menus need no conversion.
+
+A direct link is edited the same way. The window holds a draft, so Cancel,
+Escape and a click outside leave the saved menu exactly as it was, and a window
+with edits in it asks before throwing them away. Adding a link writes nothing
+into the menu until Done, so a window opened and abandoned leaves no chip
+behind.
+
+Done is the only way a link reaches the menu, and it checks the link against the
+same rule the save applies. A link with no label marks the Label field and says
+"Label is required." beside it. A link with no address, or an address the public
+site would refuse such as `javascript:x`, marks the Address field and says what
+to type instead. Either way the window stays open. The save used to drop such a
+link without a word, so the chip stayed, the header said Saved, and the link was
+gone after a reload.
+
+Done then waits for the save. It shows a spinner and refuses a second click
+while the save is running, and it closes only once the save has landed. A save
+refused for something else, a bad colour on Admin → Styling → Public or an empty
+workspace name, puts the menu back as it was and leaves the window open with the
+link still in it; the header says what to fix.
+
+The menu, footer links, and footer copyright are app-wide when workspace
+domains are off. Saving them from any workspace changes the same public site.
+When workspace domains are on, each workspace keeps its own menu and footer.
+The move to app-wide single-site links keeps the most recently saved non-empty
+workspace menu and footer, so existing public links are not lost. Existing
+menus start with the new Search item where the old fixed search bar appeared.
+
+An app may supply the public styling a fresh install starts with through its app
+options. The app names only the fields it wants to change. A value saved in
+Public Styling replaces the matching app default, while untouched fields keep
+the app's choice and omitted app fields keep Custom Shell's built-in look. The
+option is code, not another settings record, so changing the app default
+requires a deploy. The settings record keeps only values that differ from the
+app default. Saving another setting does not freeze the inherited public look,
+and a later app default still reaches every value the admin left alone.
+
+Brand colour accepts a 6-digit hex value. The shell uses it for public buttons,
+links, and focus rings. The shell also builds a distinct hover colour, a soft
+selection tint, readable button text, and a brand colour that stays visible in
+dark mode. Each automatic value appears in Public Styling with its computed
+colour. Editing an automatic value makes it manual, and Back to automatic makes
+it follow the main brand colour again. A manual value survives later changes to
+the main brand colour. Clearing the main field restores the app's normal public
+colour without deleting those manual choices.
+
+Public Styling checks normal-size text at a contrast ratio of 4.5 to 1. The
+current page text and background pass in both modes by default. A brand link or
+button label that falls below the same line gets a plain warning beside the
+setting for the mode that fails. Contrast warnings update while the admin types
+and never block saving a valid colour.
+
+Public SEO holds a title template and description template for written pages.
+The templates use `{{page_title}}` for the page name and `{{site_title}}` for
+the current site name. Empty template fields keep the former written-page title
+and description. A page's own SEO fields take priority when the per-page editor
+supplies them. The home page's own title and description moved to the front page
+editor on 4 October 2026, so a page's words are set where the page is built.
+
+The same tab holds the description and share image used when another public
+page has no value of its own. The server checks that a new image belongs to the
+current admin and changes its URL version when the image changes.
+
+Public Social chooses the small or large X presentation and saves an optional X
+account without `@`. Small is the default so older installs keep their previous
+card style.
+
+The 404 and maintenance pages' own wording is not in Settings. Both are listed
+under System pages on Admin's Pages section, and clicking either one opens a window
+with its heading, its message and a preview. It moved there on 4 October 2026,
+because a page's words belong where the page is listed.
+
+The front page itself is not in Settings. Its blocks are built at Pages > Home,
+on a screen of three panels: the kinds of block on the left, this page's blocks
+in the middle, the selected block's fields on the right. That screen also holds
+the front page's own title and description for search engines, and the space
+between one block and the next.
+
+Three docs cover it: [Building the front page](../content/building-the-front-page.md)
+for the screen, [Alignment and parts of a front page row](../content/front-page-row-alignment-and-parts.md)
+for a block's width and its parts, and
+[Hiding a row, and choosing its screens](../content/showing-and-hiding-public-things.md)
+for keeping a block off the page. The front page's content was edited in
+Settings until 4 October 2026, so older notes and screenshots show it here.
+
+The Page frame card controls the widest public content width, the canvas
+colour, the space above and below main content, and the divider lines under the
+header and above the footer. These choices are app-wide. Their defaults keep
+the former 1152px width, muted canvas, 40px spacing, both divider lines, and
+content centred. Content alignment can move every public page's main content
+to the left, centre, or right.
+
+**Main spacing skips the front page.** Tyler's call on 3 October 2026. The
+front page is built from rows that reach the window's edges, and the top one is
+usually a hero, so a gap above it is a white strip between the menu and the
+page's own first block. The front page starts directly under the menu whatever
+the slider says, and every other public page gets the number. This is the page
+at `/`, whatever is drawn there, so an app that replaces the front page through
+`landing.page` gets the same treatment.
+
+Canvas colour, and every other colour on the Public Styling tab, uses the same
+three-mode picker as the Platform Styling tab. Theme default keeps the colour
+the theme already draws, and it adapts to light and dark on its own. Muted
+tints the theme's own muted colour by a strength from 0 to 100. Custom colour
+takes a 6-digit hex value and stays the same colour in light and dark. A canvas
+colour saved before this picker existed reads as a custom colour, so the site
+looks the same as it did.
+
+The Public footer card holds four things: the footer's alignment, the footer
+links, the social accounts and the copyright line.
+
+**Alignment** offers Follow the site, Left and Centred, and moves the whole
+footer together: the logo, the description, the social buttons, the links and
+the copyright line. Follow the site is the default and is what every site saved
+before this choice existed reads as, so nothing moved. Follow the site means
+Styling > Page frame > Content alignment, including a site that set that to
+right. The
+two named choices are the ones a footer wants, which is why right is not
+offered as one of them. The choice is saved with the public styling, so a site
+with its own look sets its own footer.
+
+An account is a platform and the full address of its page. The platform is a fixed list, X, LinkedIn, Facebook, Instagram,
+Threads, YouTube, TikTok, GitHub, Medium and Substack, because each one is
+drawn with its own mark and a name nobody typed could not be drawn at all. A
+footer shows up to eight, dragging changes the order the public footer draws
+them in, and an address has to start with `http://` or `https://` or it is not
+saved.
+
+The saved key for an account never changes when its name does. X is still
+stored as `twitter`, which is why renaming it in the list would empty the
+footer of every site that saved one.
+
+Public Styling is five cards, plus Presets above them: Brand, Page frame,
+Spacing & borders, Header & footer and Modal. Settings that belong to the same
+subject sit in one card under their own headings rather than in a card each,
+which is what Tyler asked for on 26 Sep 2026. Brand holds the brand colour,
+Fonts and Buttons. Page frame holds the width, canvas, header and footer rules
+and Background pattern. Spacing & borders holds content spacing, card borders,
+corner rounding and Divider lines. Modal holds the window and the cards inside
+it.
+
+The spacing, border, divider, header and modal settings match the Platform
+Styling tab's and work the same way:
+
+- **Spacing & borders.** Content spacing is the space at the sides of public
+  content and between its blocks, from 0 to 48 pixels. The space above and
+  below stays with Main spacing on the Page frame card. Setting content spacing
+  to 0 is flat mode: public cards and tables lose their borders, their rounded
+  corners and the gaps between them, and the card border control switches off
+  because nothing would draw it. Card border sets that border's thickness from
+  0 to 3 pixels, with its own colour.
+  Corner rounding and Divider lines sit in the same card, Divider lines under
+  their own heading: the thin lines inside public cards and tables, the rule
+  under the header and the rule above the footer.
+- **Header & footer.** The background of the public header bar and the footer.
+  A chosen colour is drawn solid, the way the signed-in sidebar and sticky bar
+  are, instead of the slightly see-through bar the theme default draws.
+- **Modal.** Backdrop dimming, inner spacing, background, border width and
+  border colour for windows that open over a public page, with the same set for
+  the cards inside one under its own heading. Nothing on the public site opens one yet. The settings exist so
+  the first public window arrives already wearing the site's look.
+
+Every one of those cards has a live preview that draws the values as they are
+edited, not the signed-in app's own.
+
+The Presets card at the top of the tab applies a whole named look in one
+click, and saves the current one to come back to. It has its own doc:
+[Public theme presets](public-theme-presets.md).
+
+Public and platform styling never reach each other. Public values are written
+onto the public frame and onto the document root only while a public page is on
+screen, and they are removed when it leaves, so an admin who visits a public
+page and returns to the app finds the app's own colours.
+
+The Background pattern heading on the Page frame card can leave the canvas
+plain or draw dots or a grid
+over it. Small, medium, and large sizes control the spacing. Pattern opacity
+starts at 8% and cannot exceed 20%, which keeps the texture behind the content
+instead of competing with it. None and 0% draw no pattern at all.
+
+The Buttons heading on the Brand card changes public buttons without changing
+controls inside the
+signed-in app. Solid is the default primary style. Outline gives primary
+buttons a brand-coloured border and transparent fill. Labels can stay as
+written or display in capitals. Destructive, ghost, and deliberately secondary
+button styles keep their own treatment.
+
+The Fonts heading on the Brand card holds two font choices. Font is the face the whole
+public site reads in. Heading font is the face every heading on the public
+frontend uses, from the hero down to a card title, a written page's subheadings
+and the sign-in screen. Its default, Same as the body, leaves headings on the
+Font choice, and the other choices are Libre Baskerville, Inter, Serif and
+Mono. The signed-in app follows neither setting and stays on Inter.
+
+Libre Baskerville and Inter are served from this app's own `public/fonts`
+folder, so choosing one sends no request to Google and downloads nothing until
+a site asks for it. A site on Libre Baskerville asks for the file in the page
+head, the same as a site on Inter, so its headings are not drawn twice while
+the file arrives.
+
+The same heading accepts one app-wide WOFF2 font up to 1 MB. Uploading a
+font selects it for the public site and adds its filename to the Font menu. The
+built-in font choice stays saved underneath it. Selecting a built-in font keeps
+the upload available for later, while removing the upload deletes its stored
+file and returns the public site to that built-in choice. The signed-in app
+continues to use Inter.
+
+Colour mode in the same card can follow the visitor's device or pin every
+public page to light or dark. Follow device is the default and shows a public
+mode menu whose Light, Dark, or System choice is remembered in that browser.
+A pinned mode wins over that saved visitor choice and hides the public menu.
+The signed-in app keeps its own saved mode either way.
+
+Coded public pages use the layout in their page declaration. Marketing pages
+such as the front page, pricing, and search start at the top, use the shared
+page width, and use their wider presentation. Sign-in pages and written pages
+keep the card layout. The public content alignment applies to both layouts.
+
+Migration `0075_custom_shell_public_brand_color.sql` copies CMS's old
+`accentColor` into `publicTheme.brandColor` only when the new field does not
+exist. An explicit new colour or an explicit clear always wins. The old key
+stays in place for the previous CMS release during a rolling deploy. The next
+CMS shell merge owns deleting its private editor, frame styling, and old reads.
+Before the compatibility read goes, back up CMS workspace settings, deploy the
+shared shell to every CMS process, and run a final backfill for any old process
+that saved `accentColor` after migration `0075`. Confirm that no workspace has a
+valid `accentColor` without a `publicTheme.brandColor`, then remove the private
+CMS field and its remaining directory and share-image consumers. Migration
+`0075` leaves `accentColor` untouched, so the previous CMS release remains the
+rollback until the final cutover is complete.
+
+The shell turns those values into its runtime configuration and CSS variables.
+UI code still uses shared components so a saved theme affects one system rather
+than a set of one-off screens.
+
+The gutter setting is one shared value for page blocks, card groups, resizable
+handles, and the panel gaps in the automation and newsletter editors. Code that
+renders outside the usual page container reads the same fallback from the
+shared layout value, so the default cannot drift between editors and pages.
+
+Divider lines write the shared `--border` colour. Card frames, table lines,
+editor panels, sign-in cards, and resize handles all read that value through a
+plain border class. Selected outlines and the fixed white email preview keep
+their own colours because they are controls or message content, not app
+dividers.

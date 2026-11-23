@@ -1,0 +1,108 @@
+'use client'
+
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { BlockContainer } from '@/components/frontend/layout/block-container'
+import Link from '@/components/app-link'
+
+interface FaqItem {
+    id: string
+    question: string
+    answer: string
+}
+
+interface FaqBlockProps {
+    content?: {
+        title?: string
+        subtitle?: string
+        headerAlign?: 'left' | 'center'
+        faqItems?: FaqItem[]
+        visibility?: Record<string, boolean>
+    }
+    siteWidth?: 'full' | 'custom'
+    customWidth?: number
+}
+
+const FaqBlock = ({ content, siteWidth = 'custom', customWidth }: FaqBlockProps) => {
+    const defaultFaqItems = [
+        {
+            id: 'item-1',
+            question: 'How long does shipping take?',
+            answer: 'Standard shipping takes 3-5 business days, depending on your location. Express shipping options are available at checkout for 1-2 business day delivery.',
+        },
+        {
+            id: 'item-2',
+            question: 'What payment methods do you accept?',
+            answer: 'We accept all major credit cards (Visa, Mastercard, American Express), PayPal, Apple Pay, and Google Pay. For enterprise customers, we also offer invoicing options.',
+        },
+        {
+            id: 'item-3',
+            question: 'Can I change or cancel my order?',
+            answer: 'You can modify or cancel your order within 1 hour of placing it. After this window, please contact our customer support team who will assist you with any changes.',
+        },
+        {
+            id: 'item-4',
+            question: 'Do you ship internationally?',
+            answer: "Yes, we ship to over 50 countries worldwide. International shipping typically takes 7-14 business days. Additional customs fees may apply depending on your country's import regulations.",
+        },
+        {
+            id: 'item-5',
+            question: 'What is your return policy?',
+            answer: 'We offer a 30-day return policy for most items. Products must be in original condition with tags attached. Some specialty items may have different return terms, which will be noted on the product page.',
+        },
+    ]
+
+    // Use content items if available and not empty, otherwise use defaults
+    const faqItems = (content?.faqItems && content.faqItems.length > 0)
+        ? content.faqItems
+        : defaultFaqItems
+
+    return (
+        <BlockContainer
+            header={{
+                title: content?.visibility?.title !== false ? (content?.title ?? '') : '',
+                subtitle: content?.visibility?.subtitle !== false ? (content?.subtitle ?? '') : '',
+                align: content?.headerAlign ?? "center"
+            }}
+            siteWidth={siteWidth}
+            customWidth={customWidth}
+        >
+            <div className="mt-12">
+                {!faqItems || faqItems.length === 0 ? (
+                    <div className="text-center py-8">
+                        <p className="text-muted-foreground">No FAQ items found</p>
+                    </div>
+                ) : (
+                    <Accordion
+                        type="single"
+                        collapsible
+                        className="bg-card ring-foreground/5 rounded-lg w-full border border-transparent px-8 py-3 shadow ring-1">
+                        {faqItems.map((item, index) => (
+                            <AccordionItem
+                                key={item.id || `faq-${index}`}
+                                value={item.id || `faq-${index}`}
+                                className="border-dotted">
+                                <AccordionTrigger className="cursor-pointer text-base hover:no-underline">
+                                    {item.question}
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                    <p className="text-base">{item.answer}</p>
+                                </AccordionContent>
+                            </AccordionItem>
+                        ))}
+                    </Accordion>
+                )}
+
+                <p className="text-muted-foreground mt-6">
+                    Can&apos;t find what you&apos;re looking for? Contact our{' '}
+                    <Link
+                        href="#"
+                        className="text-primary font-medium hover:underline">
+                        customer support team
+                    </Link>
+                </p>
+            </div>
+        </BlockContainer>
+    )
+}
+
+export { FaqBlock };

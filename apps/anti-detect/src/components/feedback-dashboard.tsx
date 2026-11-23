@@ -292,7 +292,7 @@ export function FeedbackDashboard({
 
       <DashboardTable
         title="Feedback"
-        icon={<MessageSquarePlusIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<MessageSquarePlusIcon className="text-muted-foreground" />}
         count={filteredFeedback.length}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
@@ -324,7 +324,6 @@ export function FeedbackDashboard({
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by type"
-                labels={["All Types", ...Object.values(feedbackTypeLabels)]}
               >
                 <SelectValue placeholder="Type" />
               </DashboardToolbarSelectTrigger>
@@ -399,8 +398,8 @@ export function FeedbackDashboard({
               </TableRow>
             </TableHeader>
         }
-        isEmpty={loading || paginatedFeedback.length === 0}
-        emptyText={loading ? "Loading feedback..." : "No feedback found matching your filters."}
+        isEmpty={!loading && paginatedFeedback.length === 0}
+        emptyText="No feedback found matching your filters."
         emptyColSpan={8}
         footer={{
           type: "pagination",

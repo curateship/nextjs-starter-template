@@ -1,6 +1,7 @@
 import { ChevronsDownIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { BOTTOM_PANEL_HEADER } from "@/components/ui/resizable"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { AutomationPanelToggles } from "./automation-panel-toggles"
@@ -31,7 +32,7 @@ export function AutomationActivityLog({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex min-h-10 shrink-0 items-center gap-2 border-b p-4">
+      <div className={BOTTOM_PANEL_HEADER}>
         <h2 className="text-xs font-semibold tracking-wide uppercase">
           Activity log
         </h2>
@@ -66,7 +67,8 @@ export function AutomationActivityLog({
         >
           {entries.length === 0 ? (
             <p className="text-muted-foreground">
-              Canvas changes and saves will appear here.
+              Canvas changes will appear here. Saving is automatic, so it isn&rsquo;t
+              logged.
             </p>
           ) : (
             entries.map((entry) => (

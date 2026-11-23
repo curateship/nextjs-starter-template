@@ -7,9 +7,11 @@ import {
   ChevronLeft,
   Clock3,
   Headphones,
+  History,
   LayoutDashboard,
   Menu,
   Palette,
+  Pause,
   Play,
   Settings,
   Sparkles,
@@ -19,11 +21,32 @@ import {
   X,
 } from "lucide-react"
 
+import { loadBackgroundPreferenceValue, saveBackgroundPreferenceValue } from "@/lib/api/background"
 import { logout } from "@/lib/api/auth"
+import { loadTimerPresets } from "@/lib/api/timer-presets"
 import {
-  PomoderBackgroundContext,
-  type PomoderBackground,
-} from "@/components/pomoder/pomoder-background"
+  curatedBackgrounds,
+  DEFAULT_BACKGROUND,
+  parseBackgroundReference,
+  serializeBackgroundReference,
+  type BackgroundReference,
+} from "@/lib/background-catalog"
+import { PomoderBackgroundContext } from "@/components/pomoder/pomoder-background"
+import { ProfileAvatar } from "@/components/pomoder/profile-avatar"
+import {
+  HeaderSoundPlayer,
+  SoundPlayerProvider,
+  useSoundPlayer,
+} from "@/components/pomoder/sound-player"
+import { ThemeToggle } from "@/components/pomoder/theme-toggle"
+import { curatedSounds, sameSoundReference } from "@/lib/sound-catalog"
+import {
+  builtinTimerPresets,
+  loadGuestTimerPresets,
+  matchTimerPreset,
+  presetSummary,
+  type CustomTimerPreset,
+} from "@/lib/timer-presets"
 
 export type PomoderPage =
   | "dashboard"
@@ -32,6 +55,7 @@ export type PomoderPage =
   | "themes"
   | "sounds"
   | "leaderboard"
+  | "history"
   | "pricing"
   | "settings"
 
@@ -42,8 +66,84 @@ const links = [
   { page: "themes", label: "Theme", to: "/themes", icon: Palette },
   { page: "sounds", label: "Sounds", to: "/sounds", icon: Headphones },
   { page: "leaderboard", label: "Leaderboard", to: "/leaderboard", icon: BarChart3 },
+  { page: "history", label: "History", to: "/history", icon: History },
   { page: "tasks", label: "Tasks", to: "/tasks", icon: CheckSquare2 },
 ] as const
+
+const GUEST_BACKGROUND_KEY = "pomoder:background:v1"
+
+// The active background follows the same rules as the ambient sound: signed-in
+// users sync it through user_preferences so it applies on any device, while
+// guests keep their choice in localStorage. A saved upload that has since been
+// deleted or failed resolves to the default scene on load, and the hero falls
+// back to the default at runtime if the media ever fails to play.
+function useBackgroundSelection(authenticated: boolean) {
+  const [background, setBackground] = React.useState<BackgroundReference>(DEFAULT_BACKGROUND)
+  const [hydrated, setHydrated] = React.useState(false)
+  const lastSavedRef = React.useRef("")
+
+  React.useEffect(() => {
+    let cancelled = false
+    if (authenticated) {
+      void loadBackgroundPreferenceValue()
+        .then((reference) => {
+          if (cancelled) return
+          const resolved = reference ?? DEFAULT_BACKGROUND
+          lastSavedRef.current = serializeBackgroundReference(resolved) ?? ""
+          setBackground(resolved)
+          setHydrated(true)
+        })
+        .catch(() => {
+          if (cancelled) return
+          // A failed load must not let the default auto-save over a stored
+          // choice; only a real user change may write after this.
+          lastSavedRef.current = serializeBackgroundReference(DEFAULT_BACKGROUND) ?? ""
+          setHydrated(true)
+        })
+      return () => { cancelled = true }
+    }
+    const timer = window.setTimeout(() => {
+      const stored = parseBackgroundReference(window.localStorage.getItem(GUEST_BACKGROUND_KEY))
+      // Guests never own uploads, so only a curated scene is honored locally.
+      const resolved = stored?.type === "scene" ? stored : DEFAULT_BACKGROUND
+      lastSavedRef.current = serializeBackgroundReference(resolved) ?? ""
+      setBackground(resolved)
+      setHydrated(true)
+    }, 0)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [authenticated])
+
+  React.useEffect(() => {
+    if (!hydrated) return
+    const snapshot = serializeBackgroundReference(background) ?? ""
+    if (snapshot === lastSavedRef.current) return
+    if (!authenticated) {
+      lastSavedRef.current = snapshot
+      window.localStorage.setItem(GUEST_BACKGROUND_KEY, snapshot)
+      return
+    }
+    const timer = window.setTimeout(() => {
+      lastSavedRef.current = snapshot
+      void saveBackgroundPreferenceValue(snapshot || null)
+        .then((reference) => {
+          // Reconcile if the server rejected a background that vanished between
+          // selecting and saving (e.g. the upload was deleted).
+          if (!reference) return
+          const resolved = serializeBackgroundReference(reference) ?? ""
+          if (resolved !== lastSavedRef.current) {
+            lastSavedRef.current = resolved
+            setBackground(reference)
+          }
+        })
+        .catch(() => undefined)
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [authenticated, hydrated, background])
+
+  const chooseBackground = React.useCallback((reference: BackgroundReference) => setBackground(reference), [])
+  const fallBackToDefault = React.useCallback(() => setBackground(DEFAULT_BACKGROUND), [])
+  return { background, chooseBackground, fallBackToDefault }
+}
 
 export function PomoderShell({
   page,
@@ -58,12 +158,9 @@ export function PomoderShell({
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [collapsed, setCollapsed] = React.useState(false)
   const [quickMenu, setQuickMenu] = React.useState<"timer" | "leaderboard" | "theme" | null>(null)
-  const [background, setBackground] =
-    React.useState<PomoderBackground>("lofi")
   const { user } = useRouteContext({ from: "__root__" })
   const navigate = useNavigate()
-
-  const chooseBackground = (id: PomoderBackground) => setBackground(id)
+  const { background, chooseBackground, fallBackToDefault } = useBackgroundSelection(Boolean(user))
 
   const authActions = user ? (
     <>
@@ -78,6 +175,9 @@ export function PomoderShell({
   )
 
   return (
+    <SoundPlayerProvider authenticated={Boolean(user)}>
+    {/* The product surface follows the active theme; its custom tokens and the
+        shadcn primitives inside it are both defined per-theme in styles.css. */}
     <div className={`pomoder-app ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className={`pomoder-sidebar ${menuOpen ? "is-open" : ""}`}>
         <Link to="/" className="pomoder-brand" aria-label="Pomoder dashboard">
@@ -107,18 +207,23 @@ export function PomoderShell({
         <header className="pomoder-header dashboard-header">
           <button className="menu-button" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Menu aria-hidden="true" /></button>
           <Link to="/" className="workspace-brand">pomoder<span>.</span></Link>
-          <QuickControls background={background} chooseBackground={chooseBackground} open={quickMenu} setOpen={setQuickMenu} />
-          <div className="header-actions">{authActions}</div>
+          <QuickControls background={background} chooseBackground={chooseBackground} open={quickMenu} setOpen={setQuickMenu} authenticated={Boolean(user)} />
+          <HeaderSoundPlayer />
+          <div className="header-actions">
+            <ThemeToggle />
+            {authActions}
+          </div>
         </header>
         <main className="pomoder-content dashboard-content">
           <h1 className="visually-hidden">{title}</h1>
-          <SharedHero background={background} />
+          <SharedHero background={background} onMediaError={fallBackToDefault} />
           <PomoderBackgroundContext.Provider value={{ background, chooseBackground }}>
             {children}
           </PomoderBackgroundContext.Provider>
         </main>
       </div>
     </div>
+    </SoundPlayerProvider>
   )
 }
 
@@ -127,16 +232,21 @@ function QuickControls({
   chooseBackground,
   open,
   setOpen,
+  authenticated,
 }: {
-  background: PomoderBackground
-  chooseBackground: (id: PomoderBackground) => void
+  background: BackgroundReference
+  chooseBackground: (reference: BackgroundReference) => void
   open: "timer" | "leaderboard" | "theme" | null
   setOpen: React.Dispatch<React.SetStateAction<"timer" | "leaderboard" | "theme" | null>>
+  authenticated: boolean
 }) {
   const navRef = React.useRef<HTMLElement>(null)
   const [durations, setDurations] = React.useState({ focus: 25, short: 5, long: 15 })
   const [autoStart, setAutoStart] = React.useState(false)
-  const [sound, setSound] = React.useState("lofi")
+  const [customPresets, setCustomPresets] = React.useState<CustomTimerPreset[]>([])
+  // null = no page hosting the timer answered; presets need a live timer.
+  const [timerStopped, setTimerStopped] = React.useState<boolean | null>(null)
+  const hostAnsweredRef = React.useRef(false)
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
     try {
@@ -152,12 +262,43 @@ function QuickControls({
     window.addEventListener("pointerdown", close)
     return () => window.removeEventListener("pointerdown", close)
   }, [setOpen])
+  // usePomodoro broadcasts its state and answers requests synchronously, so
+  // the quick controls mirror the live timer instead of stale storage.
+  React.useEffect(() => {
+    const onTimerState = (event: Event) => {
+      const detail = (event as CustomEvent<{ stopped: boolean; durations: { focus: number; short: number; long: number }; autoStart: boolean }>).detail
+      hostAnsweredRef.current = true
+      setTimerStopped(detail.stopped)
+      setDurations(detail.durations)
+      setAutoStart(detail.autoStart)
+    }
+    window.addEventListener("pomoder:timer-state", onTimerState)
+    return () => window.removeEventListener("pomoder:timer-state", onTimerState)
+  }, [])
+  const probeTimerHost = React.useCallback(() => {
+    hostAnsweredRef.current = false
+    window.dispatchEvent(new CustomEvent("pomoder:timer-state-request"))
+    if (!hostAnsweredRef.current) setTimerStopped(null)
+  }, [])
+  React.useEffect(() => {
+    if (open !== "timer") return
+    probeTimerHost()
+    if (!authenticated) { setCustomPresets(loadGuestTimerPresets()); return }
+    let cancelled = false
+    void loadTimerPresets().then((rows) => { if (!cancelled) setCustomPresets(rows) }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [open, authenticated, probeTimerHost])
   const toggle = (menu: typeof open) => setOpen((current) => current === menu ? null : menu)
-  const publishTimer = (nextDurations: typeof durations, nextAutoStart: boolean) => {
+  const publishTimer = (nextDurations: typeof durations, nextAutoStart: boolean, preset = false) => {
     setDurations(nextDurations); setAutoStart(nextAutoStart)
-    window.dispatchEvent(new CustomEvent("pomoder:preferences", { detail: { durations: nextDurations, autoStart: nextAutoStart } }))
+    window.dispatchEvent(new CustomEvent("pomoder:preferences", { detail: { durations: nextDurations, autoStart: nextAutoStart, preset } }))
   }
   const changeDuration = (key: keyof typeof durations, delta: number) => publishTimer({ ...durations, [key]: Math.min(90, Math.max(1, durations[key] + delta)) }, autoStart)
+  const matchedPreset = matchTimerPreset({ focusMinutes: durations.focus, shortBreakMinutes: durations.short, longBreakMinutes: durations.long, autoStart }, customPresets)
+  const canApplyPreset = timerStopped === true
+  const presetNote = timerStopped === null
+    ? "Open the dashboard, tasks, or settings page to apply a preset."
+    : timerStopped ? "" : "Reset or finish the timer to switch presets."
   return (
     <nav ref={navRef} className="quick-nav" aria-label="Quick controls">
       <div className="quick-control">
@@ -166,24 +307,36 @@ function QuickControls({
           <h2>Timer settings</h2>
           {([['focus', 'Focus'], ['short', 'Short break'], ['long', 'Long break']] as const).map(([key, label]) => <div className="duration-row" key={key}><span>{label}</span><button onClick={() => changeDuration(key, -1)}>−</button><b>{durations[key]} min</b><button onClick={() => changeDuration(key, 1)}>+</button></div>)}
           <div className="quick-toggle-row"><span>Auto-start next</span><button className={autoStart ? "on" : ""} onClick={() => publishTimer(durations, !autoStart)} aria-pressed={autoStart}><i /></button></div>
+          <h3 className="quick-preset-heading">Presets</h3>
+          <div className="quick-presets">
+            {[...builtinTimerPresets, ...customPresets].map((preset) => {
+              const selected = matchedPreset?.id === preset.id
+              return (
+                <button key={preset.id} className={selected ? "selected" : ""} disabled={!canApplyPreset} aria-pressed={selected} onClick={() => publishTimer({ focus: preset.focusMinutes, short: preset.shortBreakMinutes, long: preset.longBreakMinutes }, preset.autoStart, true)}>
+                  <span><strong>{preset.name}</strong><small>{presetSummary(preset)}</small></span>
+                  {selected ? <Check className="selected-check" aria-hidden="true" /> : null}
+                </button>
+              )
+            })}
+          </div>
+          {presetNote ? <p className="quick-preset-note">{presetNote}</p> : null}
+          {!matchedPreset ? <p className="quick-preset-note">Current values are custom.</p> : null}
         </div> : null}
       </div>
       <div className="quick-control">
         <button onClick={() => toggle("leaderboard")} aria-expanded={open === "leaderboard"}><BarChart3 aria-hidden="true" />Leaderboard</button>
         {open === "leaderboard" ? <div className="quick-popover leaderboard-popover"><div className="popover-heading"><h2>Leaderboard</h2><span>this week</span></div>{[
-          ["Maya K.", "maya", 24], ["Devon", "devon", 21], ["Tomas", "tomas", 19], ["Ana Ribeiro", "ana", 16], ["You", "you", 12],
-        ].map(([name, avatar, count], index) => <div className="quick-leader" key={String(name)}><span>{index + 1}</span><img src={`/pomoder/avatars-${avatar}.png`} alt="" /><strong>{name}</strong><b>{count} 🍅</b></div>)}</div> : null}
+          ["Maya Kern", 24], ["Devon Hale", 21], ["Tomas Reyes", 19], ["Ana Ribeiro", 16], ["You", 12],
+        ].map(([name, count], index) => <div className="quick-leader" key={String(name)}><span>{index + 1}</span><ProfileAvatar name={String(name)} /><strong>{name}</strong><b>{count} 🍅</b></div>)}</div> : null}
       </div>
       <div className="quick-control">
         <button onClick={() => toggle("theme")} aria-expanded={open === "theme"}><Palette aria-hidden="true" />Theme</button>
         {open === "theme" ? <div className="quick-popover theme-popover">
           <h2>Theme</h2><h3>Sound</h3>
-          <div className="quick-sounds">{[
-            ["lofi", "Lofi beats", "Mellow hip-hop loops"], ["rain", "Rain", "Steady rain on a window"], ["cafe", "Café ambience", "Low chatter and cups"], ["none", "Silence", "No sound at all"],
-          ].map(([id, label, description]) => <button className={sound === id ? "selected" : ""} key={id} onClick={() => setSound(id)}>{id === "none" ? <i /> : <span className="sound-play"><Play aria-hidden="true" /></span>}<span><strong>{label}</strong><small>{description}</small></span>{sound === id ? <Check className="selected-check" aria-hidden="true" /> : null}</button>)}</div>
+          <QuickSoundList />
           <QuickActions to="/sounds" />
           <h3 className="background-heading">Background</h3>
-          <div className="quick-backgrounds">{[["lofi", "Lofi girl", "lofi_girl"], ["ambient", "Ambient glow", "ambient"], ["plain", "Plain dark", "plain"]].map(([id, label, image]) => <button className={background === id ? "selected" : ""} key={id} onClick={() => chooseBackground(id)}><span><img src={`/pomoder/thumbs-${image}.png`} alt="" />{background === id ? <i><Check aria-hidden="true" /></i> : null}</span><strong>{label}</strong></button>)}</div>
+          <div className="quick-backgrounds">{curatedBackgrounds.slice(0, 3).map((scene) => { const selected = background.type === "scene" && background.key === scene.key; return <button className={selected ? "selected" : ""} key={scene.key} onClick={() => chooseBackground({ type: "scene", key: scene.key })}><span><img src={`/pomoder/thumbs-${scene.thumb}.png`} alt="" />{selected ? <i><Check aria-hidden="true" /></i> : null}</span><strong>{scene.label}</strong></button> })}</div>
           <QuickActions to="/themes" />
         </div> : null}
       </div>
@@ -191,16 +344,52 @@ function QuickControls({
   )
 }
 
+function QuickSoundList() {
+  const player = useSoundPlayer()
+  return (
+    <div className="quick-sounds">
+      {curatedSounds.filter((sound) => !sound.locked).map((sound) => {
+        const reference = { type: "curated", key: sound.key } as const
+        const selected = sameSoundReference(player.state.selected, reference)
+        const playing = selected && player.state.status === "playing"
+        return (
+          <button className={selected ? "selected" : ""} key={sound.key} onClick={() => player.selectSound(reference, sound.label)} aria-pressed={selected}>
+            <span className="sound-play">{playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}</span>
+            <span><strong>{sound.label}</strong><small>{sound.hint}</small></span>
+            {selected ? <Check className="selected-check" aria-hidden="true" /> : null}
+          </button>
+        )
+      })}
+      <button className={player.state.selected ? "" : "selected"} onClick={() => player.clearSound()} aria-pressed={!player.state.selected}>
+        <i />
+        <span><strong>Silence</strong><small>No sound at all</small></span>
+        {player.state.selected ? null : <Check className="selected-check" aria-hidden="true" />}
+      </button>
+    </div>
+  )
+}
+
 function QuickActions({ to }: { to: "/sounds" | "/themes" }) {
   return <div className="quick-actions"><Link to={to}><Upload aria-hidden="true" />Upload</Link><Link to={to}><Sparkles aria-hidden="true" />AI Generate</Link></div>
 }
 
-function SharedHero({ background }: { background: PomoderBackground }) {
+function SharedHero({ background, onMediaError }: { background: BackgroundReference; onMediaError: () => void }) {
+  // The ambient backdrop always renders behind, so it shows as a graceful
+  // placeholder while a video or uploaded image is still loading.
   return (
-    <section className="dashboard-hero" aria-label="Lofi focus scene">
+    <section className="dashboard-hero" aria-label="Focus background">
       <div className="ambient-backdrop" aria-hidden="true"><i /><i /><i /></div>
-      {background === "lofi" ? <video src="/pomoder/uploads-265816_small.mp4" poster="/pomoder/thumbs-lofi_girl.png" autoPlay muted loop playsInline /> : null}
-      {background !== "lofi" ? <img className="selected-hero-background" src={`/pomoder/thumbs-${background}.png`} alt="" /> : null}
+      {background.type === "scene" ? (
+        background.key === "lofi" ? (
+          <video src="/pomoder/uploads-265816_small.mp4" poster="/pomoder/thumbs-lofi_girl.png" autoPlay muted loop playsInline />
+        ) : (
+          <img className="selected-hero-background" src={`/pomoder/thumbs-${background.key}.png`} alt="" />
+        )
+      ) : background.mediaKind === "video" ? (
+        <video key={background.mediaId} src={`/api/media/${background.mediaId}/file`} autoPlay muted loop playsInline onError={onMediaError} />
+      ) : (
+        <img key={background.mediaId} className="selected-hero-background" src={`/api/media/${background.mediaId}/file`} alt="" onError={onMediaError} />
+      )}
       <div className="hero-shade" />
     </section>
   )

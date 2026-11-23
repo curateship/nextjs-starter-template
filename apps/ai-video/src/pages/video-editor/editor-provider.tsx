@@ -5,6 +5,7 @@ import {
   type ProjectTimeline,
 } from "@/lib/api/video-projects"
 import { saveTemplateTimeline } from "@/lib/api/video-templates"
+import { PROJECT_CONFLICT_MESSAGE } from "@/lib/timeline-schema"
 import {
   createEditorStore,
   createInitialEditorState,
@@ -27,6 +28,9 @@ export type EditorDocument = {
   source_viral_video_id?: string | null
   thumbnail_url?: string | null
   timeline_error?: string | null
+  // Projects only: the concurrency token loaded with the timeline. Templates
+  // have no version and are not conflict-guarded.
+  version?: number
   timeline: ProjectTimeline
 }
 
@@ -58,13 +62,46 @@ export function EditorProvider({
     store,
     (snapshot) => snapshot.state.aspect
   )
+  // The project version this editor's saves are based on. Advances with every
+  // accepted save; a rejected one means someone else wrote first.
+  const versionRef = React.useRef(document.version ?? 1)
+  // Tail of the save queue. Saves run one at a time so a second one always
+  // sends the version the previous one just produced — two in flight together
+  // would make the editor conflict with itself.
+  const saveQueueRef = React.useRef<Promise<unknown>>(Promise.resolve())
   // Route a timeline snapshot to the right persistence fn for this document.
+  // Project saves carry the loaded version and are rejected when stale — that
+  // rejection raises the conflict banner and stops autosave until reload.
   const saveTimeline = React.useCallback(
-    (snapshot: ProjectTimeline) =>
-      kind === "template"
-        ? saveTemplateTimeline(document.id, snapshot).then(() => undefined)
-        : saveProjectTimeline(document.id, snapshot).then(() => undefined),
-    [kind, document.id]
+    (snapshot: ProjectTimeline) => {
+      const run = saveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (kind === "template") {
+            await saveTemplateTimeline(document.id, snapshot)
+            return
+          }
+          try {
+            const saved = await saveProjectTimeline(
+              document.id,
+              snapshot,
+              versionRef.current
+            )
+            versionRef.current = saved.version
+          } catch (error) {
+            if (
+              error instanceof Error &&
+              error.message === PROJECT_CONFLICT_MESSAGE
+            ) {
+              store.setHasConflict()
+            }
+            throw error
+          }
+        })
+      saveQueueRef.current = run
+      return run
+    },
+    [kind, document.id, store]
   )
   // One playback clock per editor mount; lives outside React so per-frame
   // ticks don't re-render the tree.
@@ -77,6 +114,12 @@ export function EditorProvider({
   const durationMs = useEditorStoreSelector(
     store,
     (snapshot) => snapshot.durationMs
+  )
+  // Once the project has changed elsewhere every further save would be
+  // rejected too, so autosave stops and edits just stay in memory.
+  const hasConflict = useEditorStoreSelector(
+    store,
+    (snapshot) => snapshot.hasConflict
   )
 
   // Keep the clock clamped to the current timeline length.
@@ -102,6 +145,9 @@ export function EditorProvider({
     }
     pendingRef.current = snapshot
 
+    // Keep the edit in memory, but don't retry a save the server will reject.
+    if (hasConflict) return
+
     const timer = setTimeout(() => {
       pendingRef.current = null
       store.setSaveStatus("saving")
@@ -115,35 +161,54 @@ export function EditorProvider({
     }, AUTOSAVE_DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
-  }, [saveTimeline, tracks, aspect, store])
+  }, [saveTimeline, tracks, aspect, store, hasConflict])
 
   // Fire-and-forget flush for edits still inside the debounce window when
   // the editor unmounts (e.g. navigating back to the dashboard).
   React.useEffect(() => {
     return () => {
       const snapshot = pendingRef.current
-      if (snapshot) {
+      // Read the flag from the store, not a dep, so this cleanup only ever
+      // runs on a real unmount.
+      if (snapshot && !store.getSnapshot().hasConflict) {
         void saveTimeline(snapshot).catch(() => undefined)
       }
     }
-  }, [saveTimeline])
+  }, [saveTimeline, store])
+
+  // Persists a snapshot through the same versioned save path as autosave.
+  const saveSnapshot = React.useCallback(
+    async (snapshot: ProjectTimeline) => {
+      store.setSaveStatus("saving")
+      try {
+        await saveTimeline(snapshot)
+        store.setSaveStatus("saved")
+      } catch (error) {
+        store.setSaveStatus("error")
+        throw error
+      }
+    },
+    [saveTimeline, store]
+  )
 
   // Immediately persists a snapshot still waiting out the autosave debounce
   // (used by export so it renders the timeline as currently seen).
   const flushSave = React.useCallback(async () => {
+    // The stored timeline is no longer the one on screen, so callers that
+    // depend on a flush (export) must fail rather than act on stale data.
+    if (store.getSnapshot().hasConflict) {
+      throw new Error(PROJECT_CONFLICT_MESSAGE)
+    }
     const snapshot = pendingRef.current
     if (!snapshot) return
     pendingRef.current = null
-    store.setSaveStatus("saving")
     try {
-      await saveTimeline(snapshot)
-      store.setSaveStatus("saved")
+      await saveSnapshot(snapshot)
     } catch (error) {
-      store.setSaveStatus("error")
       pendingRef.current ??= snapshot
       throw error
     }
-  }, [saveTimeline, store])
+  }, [saveSnapshot, store])
 
   const value = React.useMemo(
     () => ({
@@ -156,8 +221,9 @@ export function EditorProvider({
       setDocumentName: store.setDocumentName,
       setDocumentThumbnailUrl: store.setDocumentThumbnailUrl,
       flushSave,
+      saveSnapshot,
     }),
-    [store, clock, kind, mode, document.id, flushSave]
+    [store, clock, kind, mode, document.id, flushSave, saveSnapshot]
   )
 
   return (

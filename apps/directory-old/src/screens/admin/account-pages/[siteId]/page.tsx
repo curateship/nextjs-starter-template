@@ -1,0 +1,105 @@
+"use client"
+
+import { use } from "react"
+import dynamic from "@/lib/dynamic"
+import FileText from "lucide-react/dist/esm/icons/file-text.js"
+import Home from "lucide-react/dist/esm/icons/house.js"
+
+import { ContentListPage } from "@/components/admin/layout/content/ContentListPage"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { Badge } from "@/components/ui/badge"
+import {
+  deleteAccountPageAction,
+  deleteAccountPagesAction,
+  duplicateAccountPageAction,
+  getAccountPagesAction,
+  type AccountPage,
+} from "@/lib/actions/account-pages/account-pages-actions"
+import { getAccountPageDisplayPath, getAccountPagePreviewPath } from "@/lib/utils/account-page-path"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
+
+const CreateAccountPageModal = dynamic(
+  () =>
+    import("@/components/admin/account-page-builder/layout/CreateAccountPageModal").then((m) => ({
+      default: m.CreateAccountPageModal,
+    })),
+  { ssr: false }
+)
+
+const AccountPageSettingsModal = dynamic(
+  () =>
+    import("@/components/admin/account-page-builder/layout/AccountPageSettingsModal").then((m) => ({
+      default: m.AccountPageSettingsModal,
+    })),
+  { ssr: false }
+)
+
+async function getPages(siteId: string, options?: { page?: number; pageSize?: number }) {
+  const { data, total, error } = await getAccountPagesAction({ data: { siteId: siteId, options: options } })
+  return { data, categories: {}, total, error }
+}
+
+export default function AccountPagesPage({ params }: { params: Promise<{ siteId: string }> }) {
+  const { siteId } = use(params)
+  const { currentSite, sites } = useSiteSwitcher()
+  const site = sites.find((item) => item.id === siteId) || currentSite
+
+  return (
+    <ContentListPage<AccountPage>
+      breadcrumbs={[{ label: "Pages", href: `/admin/sites/${siteId}/pages` }, { label: "Account Pages" }]}
+      builderPath="/admin/account-pages/builder"
+      canDeleteItem={(page) => !page.is_default}
+      deleteBlockedLabel="The default page cannot be deleted"
+      canSelectItem={(page) => !page.is_default}
+      columnCount={5}
+      createButtonLabel="Create Account Page"
+      destructiveAction="delete-account-page"
+      deleteItem={((a0) => deleteAccountPageAction({ data: { pageId: a0 } }))}
+      deleteItems={((a0) => deleteAccountPagesAction({ data: { pageIds: a0 } }))}
+      duplicateItem={((a0, a1) => duplicateAccountPageAction({ data: { pageId: a0, newTitle: a1 } }))}
+      duplicateTitle={(page) => `${page.title || "Page"} Copy`}
+      emptyButtonLabel="Create Your First Page"
+      emptyTitle={(pages, filterStatus) =>
+        pages.length === 0 || filterStatus === "all" ? "No pages found" : `No ${filterStatus} pages found`
+      }
+      getBuilderHref={(page) => `/admin/account-pages/builder/${siteId}?page=${page.slug}`}
+      getDisplayPath={(page) => getAccountPageDisplayPath(page.slug)}
+      getItems={getPages}
+      getPreviewHref={(page, previewSite) => {
+        const previewPath = getAccountPagePreviewPath(page.slug)
+        return previewSite && previewPath ? `${getSiteUrl(previewSite)}${previewPath}` : "#"
+      }}
+      getRowIcon={(page) =>
+        page.is_default ? <Home className="h-6 w-6 text-blue-600" /> : <FileText className="h-6 w-6 text-muted-foreground" />
+      }
+      icon={FileText}
+      itemLabel="Page"
+      itemLabelPlural="Pages"
+      listLabel="Account Pages"
+      pathPrefix=""
+      previewSite={site}
+      renderCreateModal={({ onCancel, onSuccess }) => (
+        <CreateAccountPageModal siteId={siteId} onSuccess={(page) => onSuccess(page)} onCancel={onCancel} />
+      )}
+      renderSettingsModal={({ item, onOpenChange, onSuccess, open }) => (
+        <AccountPageSettingsModal open={open} onOpenChange={onOpenChange} page={item} site={site} onSuccess={onSuccess} />
+      )}
+      renderStatusBadge={(page) =>
+        page.is_default ? (
+          <Badge variant="default" className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
+            Default Page
+          </Badge>
+        ) : page.is_published ? (
+          <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">
+            Published
+          </Badge>
+        ) : (
+          <Badge variant="secondary">Draft</Badge>
+        )
+      }
+      searchPlaceholder="Search account pages"
+      showCategoryColumn={false}
+      siteId={siteId}
+    />
+  )
+}

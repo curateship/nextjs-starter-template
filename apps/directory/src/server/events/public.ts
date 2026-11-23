@@ -1,0 +1,1559 @@
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lte,
+  ne,
+  not,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm"
+
+import {
+  LISTING_PAGE_STATUSES,
+  readListingStatus,
+} from "@/lib/directory/listing-status"
+import {
+  cleanCustomValues,
+  customSectionsForDisplay,
+  type CustomSectionView,
+} from "@/lib/directory/custom-fields"
+import { listingShareImageVersion } from "@/lib/directory/listing-share-image"
+import {
+  DIRECTORY_SUGGESTION_EVENT_LIMIT,
+  DIRECTORY_SUGGESTION_MIN_LENGTH,
+  formatDirectoryNearPoint,
+  type DirectoryNearPoint,
+} from "@/lib/directory/public-search"
+import { EVENTS_PAGE_SIZE, MAX_EVENTS_ON_A_DAY } from "@/lib/events/events-page"
+import { eventShareImageKicker } from "@/lib/events/event-share-image"
+import { toClock, wallClockAt, type EventWhen } from "@/lib/events/event-time"
+import {
+  readScheduleStatus,
+  type RescheduledFrom,
+  type ScheduleStatus,
+} from "@/lib/events/schedule-status"
+import {
+  searchSnippet,
+  siteSearchPattern,
+  type SiteSearchResult,
+} from "@/lib/pages/site-search"
+import {
+  cleanPostBody,
+  postBodyText,
+  postListingIds,
+  type PostBody,
+} from "@/lib/posts/post-body"
+import type { SitemapChunkFile, SitemapEntry } from "@/server/app-options"
+import { readPageVisibility } from "@/server/content/pages"
+import { listCustomSections } from "@/server/directory/custom-sections"
+import { db, type CustomShellDb } from "@/server/db"
+import {
+  publicListingCardsByIds,
+  type PublicCategoryLink,
+  type PublicListingCard,
+  type PublicSite,
+  type VisitorSite,
+} from "@/server/directory/public"
+import { distanceKmFrom } from "@/server/directory/distance"
+import { eventIsFeatured } from "@/server/directory/featured"
+import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
+import {
+  categories,
+  categoryRelationships,
+  directoryListings,
+} from "@/server/directory/schema"
+import { siteTimeZone } from "@/server/directory/settings"
+import {
+  numberedSitemapChunk,
+  numberedSitemapFiles,
+  type NumberedSitemapSource,
+} from "@/server/directory/sitemap"
+import { toEvent } from "@/server/events/events"
+import {
+  listingOfEvent,
+  livePlaceAddress,
+  livePlaceLatitude,
+  livePlaceLongitude,
+  livePlaceName,
+} from "@/server/events/place"
+import {
+  eventSignUps,
+  siteEvents,
+  EVENT_CONTENT_TYPE,
+} from "@/server/events/schema"
+
+/**
+ * What a visitor may read of a site's events. Every read takes the site from
+ * the visited address and selects published events only, so a draft is
+ * missing rather than hidden.
+ *
+ * A private event is published but unlisted. Its own page opens from its
+ * link, and every list here leaves it out, because every list filters through
+ * `listedEventsOnSite`. The old Directory app let each list check for itself,
+ * and all but one forgot. `public.test.ts` fails when a new export here is not
+ * proven to drop private events.
+ *
+ * The event page and the Events page leave the on/off switch to their
+ * endpoint, because a members-only switch depends on who is asking and those
+ * answers are cached for everyone. Whether an event is over is worked out by
+ * the endpoint too, after the cache, so a cached answer never says an event is
+ * still on.
+ *
+ * Search, the suggestions, the sitemap and the feed are read by anyone, so they
+ * check `eventsArePublic` themselves and show nothing unless the Events page is
+ * open to everyone.
+ */
+
+/** An event as a row in the Events page's list or a chip in its month. */
+export type PublicEventCard = EventWhen & {
+  id: string
+  title: string
+  slug: string
+  summary: string
+  coverImage: string
+  placeName: string
+  /**
+   * How far the place is from the visitor's chosen point, in kilometres. Only
+   * on the upcoming list while it is narrowed to a distance.
+   */
+  distanceKm?: number
+  /**
+   * Featured by an admin or by the listing's owner. Only on the Events page's
+   * reads, because a featured event is marked there and nowhere else.
+   */
+  featured?: boolean
+  /** Whether the card offers an RSVP button. */
+  takesSignUps: boolean
+  /**
+   * How many people have said they are going: confirmed sign-ups only, a
+   * cancelled one being a record rather than a seat. Zero for an event that
+   * takes no sign-ups, and up to two minutes behind, which is the public
+   * cache's window.
+   */
+  going: number
+  /**
+   * Every seat is taken, a seat held for somebody on the waiting list
+   * included, so the card says "Full" instead of offering RSVP. Up to two
+   * minutes behind, like `going`.
+   */
+  full: boolean
+  /**
+   * Cancelled or postponed shows as a label on the card and in the month,
+   * where RSVP would be (task events/27). The event stays listed.
+   */
+  scheduleStatus: ScheduleStatus
+  /**
+   * The category the card names, the event's primary one if it has one and
+   * otherwise the first by name. Null when the event is in none.
+   */
+  category: PublicCategoryLink | null
+}
+
+const eventCardColumns = {
+  id: siteEvents.id,
+  title: siteEvents.title,
+  slug: siteEvents.slug,
+  summary: siteEvents.summary,
+  coverImage: siteEvents.coverImage,
+  placeName: livePlaceName,
+  startDate: siteEvents.startDate,
+  startTime: siteEvents.startTime,
+  endDate: siteEvents.endDate,
+  endTime: siteEvents.endTime,
+  takesSignUps: siteEvents.takesSignUps,
+  seats: siteEvents.seats,
+  scheduleStatus: siteEvents.scheduleStatus,
+}
+
+function toEventCard(row: {
+  id: string
+  title: string
+  slug: string
+  summary: string
+  coverImage: string
+  placeName: string
+  startDate: string
+  startTime: string
+  endDate: string | null
+  endTime: string | null
+  takesSignUps: boolean
+  seats: number | null
+  scheduleStatus: string
+  distanceKm?: number | null
+  featured?: boolean
+}): PublicEventCard & { seats: number | null } {
+  const { distanceKm, featured, ...event } = row
+  return {
+    ...event,
+    scheduleStatus: readScheduleStatus(row.scheduleStatus),
+    startTime: toClock(row.startTime),
+    endTime: row.endTime ? toClock(row.endTime) : null,
+    // Filled in by `withCategoriesAndGoing`, which every list of cards runs
+    // before handing them out.
+    going: 0,
+    full: false,
+    category: null,
+    ...(distanceKm == null ? {} : { distanceKm }),
+    ...(featured === undefined ? {} : { featured }),
+  }
+}
+
+/** A card as it leaves the server: the seat count is only read for `full`. */
+function withoutSeats(
+  card: PublicEventCard & { seats: number | null }
+): PublicEventCard {
+  const { seats, ...rest } = card
+  void seats
+  return rest
+}
+
+/**
+ * The category name and the number going, added to a whole page of cards in
+ * two queries rather than two per card. `signUpBoxFor` counts one event at a
+ * time, which is right for an event's own page and wrong for a list of twelve.
+ */
+async function withCategoriesAndGoing(
+  siteId: string,
+  cards: (PublicEventCard & { seats: number | null })[],
+  database: CustomShellDb
+): Promise<PublicEventCard[]> {
+  if (cards.length === 0) return []
+  const ids = cards.map((card) => card.id)
+  const signUpIds = cards
+    .filter((card) => card.takesSignUps)
+    .map((card) => card.id)
+
+  const [categoryRows, goingRows] = await Promise.all([
+    database
+      .select({
+        contentId: categoryRelationships.contentId,
+        name: categories.name,
+        slug: categories.slug,
+      })
+      .from(categoryRelationships)
+      .innerJoin(
+        categories,
+        eq(categories.id, categoryRelationships.categoryId)
+      )
+      .where(
+        and(
+          eq(categoryRelationships.workspaceId, siteId),
+          eq(categoryRelationships.contentType, EVENT_CONTENT_TYPE),
+          inArray(categoryRelationships.contentId, ids)
+        )
+      )
+      // Primary first, so the first row for an event is the one it is shown
+      // under and the rest are its other categories.
+      .orderBy(desc(categoryRelationships.isPrimary), asc(categories.name)),
+    signUpIds.length === 0
+      ? []
+      : database
+          .select({
+            eventId: eventSignUps.eventId,
+            going: sql<number>`count(*) filter (where ${eventSignUps.status} = 'confirmed')::int`,
+            held: sql<number>`count(*)::int`,
+          })
+          .from(eventSignUps)
+          .where(
+            and(
+              inArray(eventSignUps.eventId, signUpIds),
+              inArray(eventSignUps.status, ["confirmed", "offered"])
+            )
+          )
+          .groupBy(eventSignUps.eventId),
+  ])
+
+  const category = new Map<string, PublicCategoryLink>()
+  for (const row of categoryRows) {
+    if (!category.has(row.contentId)) {
+      category.set(row.contentId, { name: row.name, slug: row.slug })
+    }
+  }
+  const counts = new Map(goingRows.map((row) => [row.eventId, row]))
+
+  return cards.map(({ seats, ...card }) => {
+    const count = counts.get(card.id)
+    return {
+      ...card,
+      category: category.get(card.id) ?? null,
+      going: count?.going ?? 0,
+      full:
+        card.takesSignUps && seats !== null && (count?.held ?? 0) >= seats,
+    }
+  })
+}
+
+/** Soonest first, with the id breaking ties so pages never overlap. */
+const soonestFirst = [
+  asc(siteEvents.startDate),
+  asc(siteEvents.startTime),
+  asc(siteEvents.id),
+]
+
+/** The Past list's order: the one that ended last first. */
+const newestFirst = [
+  desc(siteEvents.startDate),
+  desc(siteEvents.startTime),
+  desc(siteEvents.id),
+]
+
+export type PublicEvent = EventWhen & {
+  id: string
+  title: string
+  slug: string
+  summary: string
+  coverImage: string
+  body: PostBody
+  placeName: string
+  placeAddress: string
+  categories: PublicCategoryLink[]
+  /** Left out of every list, and its page asks search engines to skip it. */
+  isPrivate: boolean
+  /**
+   * The listing the place links to, when the place is a published listing and
+   * the directory is open to everyone. Otherwise the place is plain text.
+   */
+  placeListingSlug: string | null
+  /**
+   * Where the place is on a map: the listing's own pin when the place is a
+   * listing, or the typed address as looked up. Null draws no map.
+   */
+  position: { latitude: number; longitude: number } | null
+  /** Where tickets are sold, drawn as "Get tickets". Empty for none. */
+  ticketsUrl: string
+  /**
+   * The repeat this date belongs to: its main event's id, or its own when it
+   * is the main event or does not repeat. Read for "Also on".
+   */
+  seriesKey: string
+  /** The listing the place is, published or not, for "Also at". */
+  listingId: string | null
+  /**
+   * The site's own event fields this event filled in, blank ones left out,
+   * drawn as boxes on the page (task events/07). Empty draws none.
+   */
+  customSections: CustomSectionView[]
+  /** Cancelled and postponed draw a banner and close sign-ups (task events/27). */
+  scheduleStatus: ScheduleStatus
+  /** Where it was before its new date, for the "Rescheduled from" note. */
+  rescheduledFrom: RescheduledFrom | null
+}
+
+export type PublicEventPage = {
+  site: PublicSite
+  event: PublicEvent
+  /** The zone the event's clock times are in, like 'America/Toronto'. */
+  timeZone: string
+  /** Published listings the body's cards point at, as on a post. */
+  listingCards: PublicListingCard[]
+  /** Names the drawn share card, so an edit gives it a new address. */
+  shareImageVersion: string
+}
+
+/**
+ * Published, on this site. What a visitor with an event's link may open,
+ * private events included. Only a read of one event by its address uses this.
+ */
+function publishedEventsOnSite(siteId: string) {
+  return and(
+    eq(siteEvents.workspaceId, siteId),
+    eq(siteEvents.status, "published")
+  )
+}
+
+/**
+ * Whether an event's page opens at this address, through the same filter the
+ * page itself uses. Asked when an old address is followed, so a forward never
+ * lands on a draft.
+ */
+export async function eventPageExists(
+  siteId: string,
+  slug: string,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const [row] = await database
+    .select({ id: siteEvents.id })
+    .from(siteEvents)
+    .where(and(publishedEventsOnSite(siteId), eq(siteEvents.slug, slug)))
+    .limit(1)
+  return Boolean(row)
+}
+
+/**
+ * Published, on this site, and not private: what a visitor may find without
+ * the link. Every list of events goes through this one filter.
+ */
+function listedEventsOnSite(siteId: string) {
+  return and(publishedEventsOnSite(siteId), eq(siteEvents.visibility, "public"))
+}
+
+/**
+ * Whether events may appear in places anyone can read without signing in:
+ * search, the search box's suggestions, the sitemap, the feed and the share
+ * card. Only when the Events page is open to everyone, the same rule posts
+ * follow.
+ */
+export async function eventsArePublic(
+  siteId: string,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  return (await readPageVisibility(siteId, "/events", database)) === "everyone"
+}
+
+/**
+ * Whether this visitor may read the site's events, and why: "everyone" when
+ * the Events page is open to all, "members" when it is kept for members and
+ * they are signed in, and null otherwise. `isSignedIn` is only asked in the
+ * members case.
+ */
+export async function eventsAccessFor(
+  siteId: string,
+  isSignedIn: () => Promise<boolean>,
+  database: CustomShellDb = db
+): Promise<"everyone" | "members" | null> {
+  const visibility = await readPageVisibility(siteId, "/events", database)
+  if (visibility === "everyone") return "everyone"
+  if (visibility === "members" && (await isSignedIn())) return "members"
+  return null
+}
+
+/** The site's wall clock now, "2026-09-26T18:05". */
+async function siteNow(siteId: string, database: CustomShellDb, at: Date) {
+  return wallClockAt(await siteTimeZone(siteId, database), at)
+}
+
+async function readPublicEventUncached(
+  site: VisitorSite,
+  slug: string,
+  database: CustomShellDb
+): Promise<PublicEventPage | null> {
+  const [found] = await database
+    .select({
+      row: siteEvents,
+      placeName: livePlaceName,
+      placeAddress: livePlaceAddress,
+      listingSlug: directoryListings.slug,
+      listingStatus: directoryListings.status,
+      latitude: livePlaceLatitude,
+      longitude: livePlaceLongitude,
+    })
+    .from(siteEvents)
+    .leftJoin(directoryListings, listingOfEvent)
+    .where(and(publishedEventsOnSite(site.id), eq(siteEvents.slug, slug)))
+    .limit(1)
+  if (!found) return null
+  const { row } = found
+
+  const event = toEvent(row)
+  const [categoryRows, timeZone, directoryVisibility, customSections] = await Promise.all([
+    database
+      .select({ name: categories.name, slug: categories.slug })
+      .from(categoryRelationships)
+      .innerJoin(
+        categories,
+        eq(categories.id, categoryRelationships.categoryId)
+      )
+      .where(
+        and(
+          eq(categoryRelationships.workspaceId, site.id),
+          eq(categoryRelationships.contentType, EVENT_CONTENT_TYPE),
+          eq(categoryRelationships.contentId, row.id)
+        )
+      )
+      .orderBy(asc(categories.name)),
+    siteTimeZone(site.id, database),
+    readPageVisibility(site.id, "/directory", database),
+    listCustomSections(site.id, database, "event"),
+  ])
+
+  // A card links to the listing's page, so while the directory is not open to
+  // everyone the cards are left out rather than pointing at a closed door.
+  const listingCards =
+    directoryVisibility === "everyone"
+      ? await publicListingCardsByIds(
+          site.id,
+          postListingIds(event.body),
+          database
+        )
+      : []
+
+  return {
+    site: { name: site.name, url: site.url },
+    event: {
+      id: event.id,
+      title: event.title,
+      slug: event.slug,
+      summary: event.summary,
+      coverImage: event.coverImage,
+      body: event.body,
+      startDate: event.startDate,
+      startTime: event.startTime,
+      endDate: event.endDate,
+      endTime: event.endTime,
+      placeName: found.placeName,
+      placeAddress: found.placeAddress,
+      categories: categoryRows,
+      isPrivate: event.visibility === "private",
+      // A draft listing, or a directory kept from visitors, is never linked.
+      // A closed one is: its page says it has closed.
+      placeListingSlug:
+        found.listingStatus !== null &&
+        LISTING_PAGE_STATUSES.includes(readListingStatus(found.listingStatus)) &&
+        directoryVisibility === "everyone"
+          ? found.listingSlug
+          : null,
+      position:
+        found.latitude !== null && found.longitude !== null
+          ? { latitude: found.latitude, longitude: found.longitude }
+          : null,
+      ticketsUrl: event.ticketsUrl,
+      seriesKey: event.seriesId ?? event.id,
+      listingId: event.listingId,
+      // Cleaned against the site's event fields on the way out too, so a
+      // field deleted since, or a row edited in the database, shows nothing.
+      customSections: customSectionsForDisplay(
+        customSections,
+        cleanCustomValues(customSections, row.customValues)
+      ),
+      scheduleStatus: event.scheduleStatus,
+      rescheduledFrom: event.rescheduledFrom,
+    },
+    timeZone,
+    listingCards,
+    shareImageVersion: listingShareImageVersion({
+      title: event.title,
+      kicker: eventShareImageKicker(event),
+      siteName: site.name,
+      accentColor: site.accentColor ?? "",
+      updatedAt: event.updatedAt,
+    }),
+  }
+}
+
+/** One published event by its address, private ones included, or null. */
+export function readPublicEvent(
+  site: VisitorSite,
+  slug: string,
+  database: CustomShellDb = db
+): Promise<PublicEventPage | null> {
+  return cachedPublicDirectoryRead(
+    site.id,
+    "event",
+    {
+      site: { name: site.name, url: site.url },
+      accentColor: site.accentColor ?? "",
+      slug,
+    },
+    () => readPublicEventUncached(site, slug, database)
+  )
+}
+
+/** An event's last day: its end day, or its start day when it has none. */
+const lastDayOfEvent = sql`coalesce(${siteEvents.endDate}, ${siteEvents.startDate})`
+
+/**
+ * Whether this row goes to the top of the Events page's list: the event is
+ * featured, and it is the next date of its repeating event that is not over,
+ * so a weekly trivia night puts one Tuesday on top, not eight. An event that
+ * does not repeat is its own next date.
+ */
+function pinnedToTop(nowDay: string, nowTime: string) {
+  return sql<boolean>`(${eventIsFeatured} and not exists (
+    select 1 from events nx
+    where coalesce(nx.series_id, nx.id) = coalesce(${siteEvents.seriesId}, ${siteEvents.id})
+      and nx.id <> ${siteEvents.id}
+      and nx.status = 'published'
+      and nx.visibility = 'public'
+      and (nx.start_date, nx.start_time, nx.id) < (${siteEvents.startDate}, ${siteEvents.startTime}, ${siteEvents.id})
+      and (
+        coalesce(nx.end_date, nx.start_date) > ${nowDay}::date
+        or (
+          coalesce(nx.end_date, nx.start_date) = ${nowDay}::date
+          and (nx.end_time is null or nx.end_time > ${nowTime}::time)
+        )
+      )
+  ))`
+}
+
+/** Filed under one category on this site, not under one of its children. */
+function inCategory(
+  siteId: string,
+  categoryId: string | typeof categories.id,
+  database: CustomShellDb
+) {
+  return exists(
+    database
+      .select({ one: sql`1` })
+      .from(categoryRelationships)
+      .where(
+        and(
+          eq(categoryRelationships.workspaceId, siteId),
+          eq(categoryRelationships.contentType, EVENT_CONTENT_TYPE),
+          eq(categoryRelationships.contentId, siteEvents.id),
+          eq(categoryRelationships.categoryId, categoryId)
+        )
+      )
+  )
+}
+
+/**
+ * Not over yet by the site's clock: the last day is after today, or it is
+ * today and the end time, if there is one, has not come. The same rule as
+ * `eventHasEnded`, written for the database.
+ */
+function notOverAt(nowDay: string, nowTime: string) {
+  return or(
+    sql`${lastDayOfEvent} > ${nowDay}::date`,
+    and(
+      sql`${lastDayOfEvent} = ${nowDay}::date`,
+      or(
+        isNull(siteEvents.endTime),
+        sql`${siteEvents.endTime} > ${nowTime}::time`
+      )
+    )
+  )
+}
+
+export type UpcomingEvents = {
+  site: PublicSite
+  events: PublicEventCard[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+/**
+ * One page of the events that are not over yet, soonest first. `now` is the
+ * site's wall clock, "2026-09-26T18:05", so an answer is cached for a minute
+ * at most. `only` narrows it to the events held at one listing, for a
+ * listing's "What's on here" and the Events page's "At The Rex", or to the
+ * events filed under one category, for a category page, a home page row and
+ * the Events page's category filter. A category means its own events, not its
+ * children's, the same as listings. `from` and `to` keep the events with any
+ * day inside those days, both included, for the Events page's date filters.
+ * `near` and `radius` keep the events whose place is on the map within that
+ * many kilometres, for the Events page's distance filter. An event with no
+ * position, like one with no street address, is left out while they are set.
+ * `featured` is for the Events page only: featured events go first, soonest
+ * first among themselves, and each card says whether it is featured. Every
+ * other page lists events soonest first with no mark, because a featured spot
+ * is sold for the Events page and nowhere else.
+ */
+export function readUpcomingEvents(
+  site: VisitorSite,
+  page: number,
+  now: string,
+  database: CustomShellDb = db,
+  only: {
+    placeId?: string
+    categoryId?: string
+    from?: string
+    to?: string
+    near?: DirectoryNearPoint
+    radius?: number
+    featured?: boolean
+    q?: string
+    /**
+     * Events that are over, newest first, for the Events page's Past list.
+     * The dates and the distance are the upcoming list's own, so they are
+     * left out with it.
+     */
+    past?: boolean
+  } = {}
+): Promise<UpcomingEvents> {
+  const [nowDay = "", nowTime = ""] = now.split("T")
+  const past = only.past ?? false
+  const placeId = only.placeId ?? null
+  const categoryId = only.categoryId ?? null
+  const from = only.from ?? null
+  const to = only.to ?? null
+  const near = only.near && only.radius ? only.near : null
+  const radius = near ? only.radius! : null
+  const featured = only.featured ?? false
+  const query = only.q?.trim() || null
+  return cachedPublicDirectoryRead(
+    site.id,
+    "upcoming-events",
+    {
+      site: { name: site.name, url: site.url },
+      page,
+      now,
+      placeId,
+      categoryId,
+      from,
+      to,
+      near: near ? formatDirectoryNearPoint(near) : null,
+      radius,
+      featured,
+      q: query,
+      past,
+    },
+    async () => {
+      const distanceKm = near
+        ? distanceKmFrom(near, livePlaceLatitude, livePlaceLongitude).mapWith(
+            Number
+          )
+        : null
+      const where = and(
+        eventsNarrowedBy(
+          site.id,
+          nowDay,
+          nowTime,
+          { placeId, categoryId, distanceKm, radius, query, past },
+          database
+        ),
+        to ? lte(siteEvents.startDate, to) : undefined,
+        from ? gte(lastDayOfEvent, from) : undefined
+      )
+      const [rows, [countRow]] = await Promise.all([
+        database
+          .select({
+            ...eventCardColumns,
+            ...(distanceKm ? { distanceKm } : {}),
+            ...(featured ? { featured: eventIsFeatured } : {}),
+          })
+          .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
+          .where(where)
+          .orderBy(
+            ...(past
+              ? newestFirst
+              : [
+                  ...(featured ? [desc(pinnedToTop(nowDay, nowTime))] : []),
+                  ...soonestFirst,
+                ])
+          )
+          .limit(EVENTS_PAGE_SIZE)
+          .offset((page - 1) * EVENTS_PAGE_SIZE),
+        // Joined like the rows, because a listing's pin is the event's.
+        database
+          .select({ total: sql<number>`count(*)::int` })
+          .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
+          .where(where),
+      ])
+      return {
+        site: { name: site.name, url: site.url },
+        events: await withCategoriesAndGoing(
+          site.id,
+          rows.map(toEventCard),
+          database
+        ),
+        total: countRow?.total ?? 0,
+        page,
+        pageSize: EVENTS_PAGE_SIZE,
+      }
+    }
+  )
+}
+
+/** One upcoming event as a pin on the Events page's map. */
+export type EventMapPin = EventWhen & {
+  id: string
+  title: string
+  slug: string
+  placeName: string
+  latitude: number
+  longitude: number
+}
+
+/** The most pins one map draws; the rest are said out loud. */
+const MAX_EVENT_PINS = 200
+
+/**
+ * The upcoming list's events as pins, for the Events page's map (task
+ * events/37, Part 11): the same filters as the list, soonest first, up to
+ * 200. `total` is how many of them have a place on the map, and `unplaced`
+ * how many match but have none, so the page can say they are missing.
+ */
+export function readEventPins(
+  site: VisitorSite,
+  now: string,
+  database: CustomShellDb = db,
+  only: {
+    placeId?: string
+    categoryId?: string
+    from?: string
+    to?: string
+    near?: DirectoryNearPoint
+    radius?: number
+    q?: string
+  } = {}
+): Promise<{ pins: EventMapPin[]; total: number; unplaced: number }> {
+  const [nowDay = "", nowTime = ""] = now.split("T")
+  const placeId = only.placeId ?? null
+  const categoryId = only.categoryId ?? null
+  const from = only.from ?? null
+  const to = only.to ?? null
+  const near = only.near && only.radius ? only.near : null
+  const radius = near ? only.radius! : null
+  const query = only.q?.trim() || null
+  return cachedPublicDirectoryRead(
+    site.id,
+    "event-pins",
+    {
+      now,
+      placeId,
+      categoryId,
+      from,
+      to,
+      near: near ? formatDirectoryNearPoint(near) : null,
+      radius,
+      q: query,
+    },
+    async () => {
+      const distanceKm = near
+        ? distanceKmFrom(near, livePlaceLatitude, livePlaceLongitude).mapWith(
+            Number
+          )
+        : null
+      const where = and(
+        eventsNarrowedBy(
+          site.id,
+          nowDay,
+          nowTime,
+          { placeId, categoryId, distanceKm, radius, query },
+          database
+        ),
+        to ? lte(siteEvents.startDate, to) : undefined,
+        from ? gte(lastDayOfEvent, from) : undefined
+      )
+      const placed = sql`${livePlaceLatitude} is not null`
+      const [rows, [countRow]] = await Promise.all([
+        database
+          .select({
+            id: siteEvents.id,
+            title: siteEvents.title,
+            slug: siteEvents.slug,
+            placeName: livePlaceName,
+            startDate: siteEvents.startDate,
+            startTime: siteEvents.startTime,
+            endDate: siteEvents.endDate,
+            endTime: siteEvents.endTime,
+            latitude: livePlaceLatitude,
+            longitude: livePlaceLongitude,
+          })
+          .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
+          .where(and(where, placed))
+          .orderBy(...soonestFirst)
+          .limit(MAX_EVENT_PINS),
+        database
+          .select({
+            total: sql<number>`count(*) filter (where ${placed})::int`,
+            unplaced: sql<number>`count(*) filter (where not (${placed}))::int`,
+          })
+          .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
+          .where(where),
+      ])
+      return {
+        pins: rows.flatMap((row) =>
+          row.latitude === null || row.longitude === null
+            ? []
+            : [
+                {
+                  ...row,
+                  latitude: Number(row.latitude),
+                  longitude: Number(row.longitude),
+                  startTime: toClock(row.startTime),
+                  endTime: row.endTime ? toClock(row.endTime) : null,
+                },
+              ]
+        ),
+        total: countRow?.total ?? 0,
+        unplaced: countRow?.unplaced ?? 0,
+      }
+    }
+  )
+}
+
+/** A short row under an event's page: "Also on" or "Also at". */
+export type EventNeighbour = EventWhen & {
+  id: string
+  title: string
+  slug: string
+}
+
+/** How many rows "Also on" and "Also at" each show. */
+const EVENT_NEIGHBOURS = { dates: 5, atPlace: 3 }
+
+/**
+ * The rows under an event's page (task events/37, Parts 5 and 9): the next
+ * dates of the same repeat, and the next events at the same listing, leaving
+ * out the event itself and its own dates. Only listed events that are not
+ * over yet, soonest first. `now` is the site's wall clock, so an answer is
+ * cached for a minute at most, the same as the Events page's list.
+ */
+export function readEventNeighbours(
+  site: VisitorSite,
+  event: { id: string; seriesKey: string; listingId: string | null },
+  now: string,
+  database: CustomShellDb = db
+): Promise<{ dates: EventNeighbour[]; atPlace: EventNeighbour[] }> {
+  const [nowDay = "", nowTime = ""] = now.split("T")
+  return cachedPublicDirectoryRead(
+    site.id,
+    "event-neighbours",
+    { now, ...event },
+    async () => {
+      const columns = {
+        id: siteEvents.id,
+        title: siteEvents.title,
+        slug: siteEvents.slug,
+        startDate: siteEvents.startDate,
+        startTime: siteEvents.startTime,
+        endDate: siteEvents.endDate,
+        endTime: siteEvents.endTime,
+      }
+      const sameSeries = sql`coalesce(${siteEvents.seriesId}, ${siteEvents.id}) = ${event.seriesKey}`
+      const listed = and(
+        listedEventsOnSite(site.id),
+        notOverAt(nowDay, nowTime),
+        ne(siteEvents.id, event.id)
+      )
+      const [dates, atPlace] = await Promise.all([
+        database
+          .select(columns)
+          .from(siteEvents)
+          .where(and(listed, sameSeries))
+          .orderBy(...soonestFirst)
+          .limit(EVENT_NEIGHBOURS.dates),
+        event.listingId
+          ? database
+              .select(columns)
+              .from(siteEvents)
+              .where(
+                and(
+                  listed,
+                  eq(siteEvents.listingId, event.listingId),
+                  not(sameSeries)
+                )
+              )
+              .orderBy(...soonestFirst)
+              .limit(EVENT_NEIGHBOURS.atPlace)
+          : [],
+      ])
+      const asRow = (row: (typeof dates)[number]): EventNeighbour => ({
+        ...row,
+        startTime: toClock(row.startTime),
+        endTime: row.endTime ? toClock(row.endTime) : null,
+      })
+      return { dates: dates.map(asRow), atPlace: atPlace.map(asRow) }
+    }
+  )
+}
+
+/**
+ * The typed words against an event: its title, the line under it, and the
+ * name of the place it is at. The body is left out on purpose, because the
+ * Events page is a list of cards and a match a visitor cannot see on the card
+ * reads as a wrong result.
+ */
+function matchesEventText(query: string) {
+  const pattern = siteSearchPattern(query)
+  return or(
+    ilike(siteEvents.title, pattern),
+    ilike(siteEvents.summary, pattern),
+    ilike(livePlaceName, pattern)
+  )
+}
+
+/**
+ * Everything the Events page narrows by except the dates: the site, events
+ * that are not over, one listing, one category, a distance and the typed
+ * words. The list and the numbers on the date chips both build on this one
+ * filter, so a new way of narrowing can never reach one and miss the other
+ * and leave a chip promising events the list will not show.
+ *
+ * The query has to left-join `directoryListings` on `listingOfEvent`.
+ */
+function eventsNarrowedBy(
+  siteId: string,
+  nowDay: string,
+  nowTime: string,
+  only: {
+    placeId: string | null
+    categoryId: string | null
+    /** The measured distance, already null when there is no point. */
+    distanceKm: SQL<number> | null
+    radius: number | null
+    query: string | null
+    /** Events that are over instead, for the Past list (task events/37). */
+    past?: boolean
+  },
+  database: CustomShellDb
+) {
+  return and(
+    listedEventsOnSite(siteId),
+    only.past ? not(notOverAt(nowDay, nowTime)!) : notOverAt(nowDay, nowTime),
+    only.placeId ? eq(siteEvents.listingId, only.placeId) : undefined,
+    only.categoryId ? inCategory(siteId, only.categoryId, database) : undefined,
+    // No position measures as null, and null is never within the radius.
+    only.distanceKm ? sql`${only.distanceKm} <= ${only.radius}` : undefined,
+    only.query ? matchesEventText(only.query) : undefined
+  )
+}
+
+/** A stretch of days a date chip covers, both included. */
+export type EventDayWindow = { from?: string; to?: string }
+
+/**
+ * How many events each date chip would show, in the chips' own order.
+ * `anyTime` is every event that is not over, with the dates left out.
+ */
+export type EventWindowCounts = {
+  anyTime: number
+  windows: number[]
+  /**
+   * Events that are over, with the place, category and typed words, for the
+   * Past chip. The distance belongs to the upcoming list, so it is left out.
+   */
+  past: number
+}
+
+/**
+ * The number beside each date chip on the Events page: how many events that
+ * chip would show if it were pressed, with every other filter left as it is.
+ * `windows` comes back in the order the windows were asked for.
+ *
+ * Counted in one query rather than one query per chip, because four chips over
+ * a list of twelve cards is not worth four round trips.
+ */
+export function readEventDateCounts(
+  site: VisitorSite,
+  now: string,
+  windows: EventDayWindow[],
+  database: CustomShellDb = db,
+  only: {
+    placeId?: string
+    categoryId?: string
+    near?: DirectoryNearPoint
+    radius?: number
+    q?: string
+  } = {}
+): Promise<EventWindowCounts> {
+  const [nowDay = "", nowTime = ""] = now.split("T")
+  const placeId = only.placeId ?? null
+  const categoryId = only.categoryId ?? null
+  const near = only.near && only.radius ? only.near : null
+  const radius = near ? only.radius! : null
+  const query = only.q?.trim() || null
+  return cachedPublicDirectoryRead(
+    site.id,
+    "event-date-counts",
+    {
+      now,
+      windows,
+      placeId,
+      categoryId,
+      near: near ? formatDirectoryNearPoint(near) : null,
+      radius,
+      q: query,
+    },
+    async () => {
+      const distanceKm = near
+        ? distanceKmFrom(near, livePlaceLatitude, livePlaceLongitude).mapWith(
+            Number
+          )
+        : null
+      const where = eventsNarrowedBy(
+        site.id,
+        nowDay,
+        nowTime,
+        { placeId, categoryId, distanceKm, radius, query },
+        database
+      )
+      const counted = Object.fromEntries(
+        windows.map((window, index) => [
+          `w${index}`,
+          sql<number>`count(*) filter (where ${and(
+            window.to ? lte(siteEvents.startDate, window.to) : sql`true`,
+            window.from ? gte(lastDayOfEvent, window.from) : sql`true`
+          )})::int`,
+        ])
+      )
+      const [[row], [pastRow]] = await Promise.all([
+        database
+          .select({ total: sql<number>`count(*)::int`, ...counted })
+          .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
+          .where(where),
+        database
+          .select({ total: sql<number>`count(*)::int` })
+          .from(siteEvents)
+          .leftJoin(directoryListings, listingOfEvent)
+          .where(
+            eventsNarrowedBy(
+              site.id,
+              nowDay,
+              nowTime,
+              {
+                placeId,
+                categoryId,
+                distanceKm: null,
+                radius: null,
+                query,
+                past: true,
+              },
+              database
+            )
+          ),
+      ])
+      const read = (key: string) => Number(row?.[key as "total"] ?? 0)
+      return {
+        anyTime: read("total"),
+        windows: windows.map((_, index) => read(`w${index}`)),
+        past: pastRow?.total ?? 0,
+      }
+    }
+  )
+}
+
+/**
+ * A published listing on this site by its address, for the Events page's
+ * `?place=` filter. A draft listing is never named here, so its address
+ * cannot be found out through the filter.
+ */
+export async function findEventPlace(
+  siteId: string,
+  slug: string,
+  database: CustomShellDb = db
+): Promise<{ id: string; title: string; slug: string } | null> {
+  const [row] = await database
+    .select({
+      id: directoryListings.id,
+      title: directoryListings.title,
+      slug: directoryListings.slug,
+    })
+    .from(directoryListings)
+    .where(
+      and(
+        eq(directoryListings.workspaceId, siteId),
+        eq(directoryListings.slug, slug),
+        eq(directoryListings.status, "published")
+      )
+    )
+    .limit(1)
+  return row ?? null
+}
+
+/**
+ * A published event on this site by its id, for the Report a problem form.
+ * Private events are found too: anybody with the link can open one, so anybody
+ * who opened one can say it is wrong. A draft is not found, so its id cannot
+ * be confirmed by reporting it.
+ */
+export async function findReportableEvent(
+  siteId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<{ id: string; title: string } | null> {
+  const [row] = await database
+    .select({ id: siteEvents.id, title: siteEvents.title })
+    .from(siteEvents)
+    .where(and(publishedEventsOnSite(siteId), eq(siteEvents.id, id)))
+    .limit(1)
+  return row ?? null
+}
+
+export type EventCategory = { id: string; name: string; slug: string }
+
+/**
+ * The categories the Events page offers as filters: every category on this
+ * site with at least one listed event filed under it, over or not, because
+ * the month shows past events too. A category holding only drafts or private
+ * events is left out, so a filter never gives either away. In the order the
+ * admin set for categories.
+ */
+export function readEventCategories(
+  siteId: string,
+  database: CustomShellDb = db
+): Promise<EventCategory[]> {
+  return cachedPublicDirectoryRead(siteId, "event-categories", {}, () =>
+    database
+      .select({
+        id: categories.id,
+        name: categories.name,
+        slug: categories.slug,
+      })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.workspaceId, siteId),
+          exists(
+            database
+              .select({ one: sql`1` })
+              .from(siteEvents)
+              .where(
+                and(
+                  listedEventsOnSite(siteId),
+                  inCategory(siteId, categories.id, database)
+                )
+              )
+          )
+        )
+      )
+      .orderBy(asc(categories.displayOrder), asc(categories.name))
+  )
+}
+
+/** More upcoming events than a site plans, in a file a calendar app still reads. */
+const CALENDAR_FEED_LIMIT = 500
+
+type CalendarFeed = {
+  timeZone: string
+  events: (EventWhen & {
+    id: string
+    title: string
+    slug: string
+    summary: string
+    placeName: string
+    placeAddress: string
+    cancelled: boolean
+  })[]
+}
+
+/**
+ * The events for the site's calendar subscription: published and not over
+ * yet by the site's clock, soonest first. Null unless the Events page is open
+ * to everyone, because a calendar app asking for the feed is never signed in.
+ */
+export async function readCalendarFeed(
+  siteId: string,
+  at: Date,
+  database: CustomShellDb = db
+): Promise<CalendarFeed | null> {
+  if (!(await eventsArePublic(siteId, database))) return null
+  const timeZone = await siteTimeZone(siteId, database)
+  const [nowDay = "", nowTime = ""] = wallClockAt(timeZone, at).split("T")
+  const rows = await database
+    .select({
+      id: siteEvents.id,
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      summary: siteEvents.summary,
+      placeName: livePlaceName,
+      placeAddress: livePlaceAddress,
+      startDate: siteEvents.startDate,
+      startTime: siteEvents.startTime,
+      endDate: siteEvents.endDate,
+      endTime: siteEvents.endTime,
+      scheduleStatus: siteEvents.scheduleStatus,
+    })
+    .from(siteEvents)
+    .leftJoin(directoryListings, listingOfEvent)
+    .where(and(listedEventsOnSite(siteId), notOverAt(nowDay, nowTime)))
+    .orderBy(...soonestFirst)
+    .limit(CALENDAR_FEED_LIMIT)
+  return {
+    timeZone,
+    events: rows.map(({ scheduleStatus, ...row }) => ({
+      ...row,
+      cancelled: scheduleStatus === "cancelled",
+      startTime: toClock(row.startTime),
+      endTime: row.endTime ? toClock(row.endTime) : null,
+    })),
+  }
+}
+
+/**
+ * Every published event on any day between two days, both included, soonest
+ * first: one day's list when the two are the same, or a month grid's weeks.
+ * An event over several days is in the answer when any one of its days falls
+ * in the window, so a festival that started last month still shows this
+ * month. Events that are over are included; the page marks them. `only`
+ * narrows it to one category's own events, for the Events page's filter.
+ * Only the Events page reads this, so each card says whether it is featured.
+ */
+export function readEventsBetween(
+  site: VisitorSite,
+  from: string,
+  to: string,
+  database: CustomShellDb = db,
+  only: { categoryId?: string } = {}
+): Promise<PublicEventCard[]> {
+  const categoryId = only.categoryId ?? null
+  return cachedPublicDirectoryRead(
+    site.id,
+    "events-between",
+    { from, to, categoryId },
+    async () => {
+      const rows = await database
+        .select({ ...eventCardColumns, featured: eventIsFeatured })
+        .from(siteEvents)
+        .leftJoin(directoryListings, listingOfEvent)
+        .where(
+          and(
+            listedEventsOnSite(site.id),
+            lte(siteEvents.startDate, to),
+            gte(lastDayOfEvent, from),
+            categoryId ? inCategory(site.id, categoryId, database) : undefined
+          )
+        )
+        .orderBy(...soonestFirst)
+        // A month is six weeks at most; a day's list is never paged.
+        .limit(from === to ? MAX_EVENTS_ON_A_DAY : 42 * MAX_EVENTS_ON_A_DAY)
+      const cards = rows.map(toEventCard)
+      // One day is drawn as cards and needs both; a month is drawn as chips in
+      // day cells, which show a title and nothing else. A month can hold 4,200
+      // events, so looking up a category and a head count for every one of them
+      // would be two large queries for two fields nothing draws.
+      return from === to
+        ? withCategoriesAndGoing(site.id, cards, database)
+        : cards.map(withoutSeats)
+    }
+  )
+}
+
+/**
+ * Published events for the shell's whole-site search. Past events are found
+ * too, because their pages still open.
+ */
+export async function eventSearchResults(
+  siteId: string,
+  rawQuery: string,
+  limit: number,
+  database: CustomShellDb = db
+): Promise<SiteSearchResult[]> {
+  const query = rawQuery.trim()
+  if (!query || limit < 1) return []
+  if (!(await eventsArePublic(siteId, database))) return []
+
+  const pattern = siteSearchPattern(query)
+  // Only the text of written blocks: a listing card holds nothing but an id.
+  const bodyText = sql<string>`jsonb_path_query_array(${siteEvents.body}, '$.**.text')::text`
+  const rows = await database
+    .select({
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      summary: siteEvents.summary,
+      body: siteEvents.body,
+    })
+    .from(siteEvents)
+    .leftJoin(directoryListings, listingOfEvent)
+    .where(
+      and(
+        listedEventsOnSite(siteId),
+        or(
+          ilike(siteEvents.title, pattern),
+          ilike(siteEvents.summary, pattern),
+          ilike(livePlaceName, pattern),
+          ilike(bodyText, pattern)
+        )
+      )
+    )
+    .orderBy(
+      desc(ilike(siteEvents.title, pattern)),
+      asc(siteEvents.title),
+      asc(siteEvents.id)
+    )
+    .limit(limit)
+
+  return rows.map((row) => ({
+    type: "Event",
+    title: row.title,
+    snippet: searchSnippet(
+      row.summary.trim() || postBodyText(cleanPostBody(row.body)),
+      query
+    ),
+    path: `/events/${row.slug}`,
+  }))
+}
+
+type EventSuggestion = { title: string; slug: string; startDate: string }
+
+/**
+ * The events the directory's search box offers as somebody types: ones not
+ * over yet by the site's clock, soonest first, matched on title and summary.
+ * A past event is left out, because somebody typing is after what is on.
+ */
+export async function readEventSuggestions(
+  siteId: string,
+  rawQuery: string,
+  at: Date,
+  database: CustomShellDb = db
+): Promise<EventSuggestion[]> {
+  const query = rawQuery.trim()
+  if (query.length < DIRECTORY_SUGGESTION_MIN_LENGTH) return []
+  if (!(await eventsArePublic(siteId, database))) return []
+
+  const [nowDay = "", nowTime = ""] = (
+    await siteNow(siteId, database, at)
+  ).split("T")
+  const pattern = siteSearchPattern(query)
+  return database
+    .select({
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      startDate: siteEvents.startDate,
+    })
+    .from(siteEvents)
+    .where(
+      and(
+        listedEventsOnSite(siteId),
+        notOverAt(nowDay, nowTime),
+        or(ilike(siteEvents.title, pattern), ilike(siteEvents.summary, pattern))
+      )
+    )
+    .orderBy(...soonestFirst)
+    .limit(DIRECTORY_SUGGESTION_EVENT_LIMIT)
+}
+
+/** How long a past event stays in the sitemap after its last day. */
+const PAST_EVENT_SITEMAP_DAYS = 30
+
+/**
+ * The events in the sitemap: every published public event until 30 days after
+ * its last day by the site's calendar, and none at all while the Events page
+ * is not open to everyone. The page still opens after the 30 days; it is only
+ * no longer offered to search engines.
+ *
+ * Each date of a repeating event is its own event with its own page, so each
+ * is its own address here. A weekly event is about twelve addresses at a time:
+ * the eight dates made ahead and the last month's.
+ *
+ * Numbered oldest first, so a new event lands in the last file and moves
+ * nothing. An event passing its 30 days moves every later one down a place,
+ * which is harmless: each address is in exactly one file at a time, and a
+ * file's date is the newest change among the events in it, so a moved address
+ * is one the search engine has already read.
+ */
+async function eventSitemapSource(
+  siteId: string,
+  database: CustomShellDb,
+  at: Date
+): Promise<{ source: NumberedSitemapSource; today: string; open: boolean }> {
+  const open = await eventsArePublic(siteId, database)
+  const today = (await siteNow(siteId, database, at)).slice(0, 10)
+  const source: NumberedSitemapSource = {
+    table: siteEvents,
+    where: open
+      ? and(
+          listedEventsOnSite(siteId),
+          gte(
+            lastDayOfEvent,
+            sql`${today}::date - ${PAST_EVENT_SITEMAP_DAYS}::int`
+          )
+        )
+      : sql`false`,
+    order: [siteEvents.createdAt, siteEvents.id],
+    slug: siteEvents.slug,
+    updatedAt: siteEvents.updatedAt,
+    folder: "/event-sitemaps",
+    pagePath: (slug) => `/events/${slug}`,
+  }
+  return { source, today, open }
+}
+
+/**
+ * The numbered files this site's events come in, for the sitemap index. None
+ * when there are no events to list. Held by the public-page cache, which
+ * saving an event clears; the day is part of the key, so an event passing its
+ * 30 days leaves at midnight rather than up to two minutes after.
+ */
+export async function eventSitemapFiles(
+  siteId: string,
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<readonly SitemapChunkFile[]> {
+  const { source, today, open } = await eventSitemapSource(siteId, database, at)
+  return cachedPublicDirectoryRead(
+    siteId,
+    "event-sitemap-files",
+    { today, open },
+    () => numberedSitemapFiles(source, database)
+  )
+}
+
+/**
+ * One numbered file's event addresses, or `null` when that file does not
+ * exist. File zero always exists, and is empty on a site with none to list.
+ */
+export async function eventSitemapFile(
+  siteId: string,
+  chunk: number,
+  database: CustomShellDb = db,
+  at: Date = new Date()
+): Promise<readonly SitemapEntry[] | null> {
+  const { source, today, open } = await eventSitemapSource(siteId, database, at)
+  return cachedPublicDirectoryRead(
+    siteId,
+    "event-sitemap-file",
+    { chunk, today, open },
+    () => numberedSitemapChunk(source, chunk, database)
+  )
+}
+
+type EventFeedRow = {
+  id: string
+  title: string
+  slug: string
+  summary: string
+  body: PostBody
+  publishedAt: Date
+  category: string | null
+}
+
+/**
+ * The most recently published events with their first category, for the
+ * feed. Ordered by the day each was published, not the day it happens.
+ */
+export async function newestEventsForFeed(
+  siteId: string,
+  limit: number,
+  database: CustomShellDb = db
+): Promise<EventFeedRow[]> {
+  if (!(await eventsArePublic(siteId, database))) return []
+  const rows = await database
+    .select({
+      id: siteEvents.id,
+      title: siteEvents.title,
+      slug: siteEvents.slug,
+      summary: siteEvents.summary,
+      body: siteEvents.body,
+      publishedAt: siteEvents.publishedAt,
+    })
+    .from(siteEvents)
+    .where(listedEventsOnSite(siteId))
+    .orderBy(desc(siteEvents.publishedAt), asc(siteEvents.id))
+    .limit(limit)
+  if (rows.length === 0) return []
+
+  const categoryRows = await database
+    .select({ eventId: categoryRelationships.contentId, name: categories.name })
+    .from(categoryRelationships)
+    .innerJoin(categories, eq(categories.id, categoryRelationships.categoryId))
+    .where(
+      and(
+        eq(categoryRelationships.workspaceId, siteId),
+        eq(categoryRelationships.contentType, EVENT_CONTENT_TYPE),
+        inArray(
+          categoryRelationships.contentId,
+          rows.map((row) => row.id)
+        )
+      )
+    )
+    .orderBy(asc(categories.name))
+  const categoryFor = new Map<string, string>()
+  for (const row of categoryRows) {
+    if (!categoryFor.has(row.eventId)) categoryFor.set(row.eventId, row.name)
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    body: cleanPostBody(row.body),
+    // The database refuses a published event with no date, so the fallback
+    // is never reached; it only satisfies the column's nullable type.
+    publishedAt: row.publishedAt ?? new Date(0),
+    category: categoryFor.get(row.id) ?? null,
+  }))
+}

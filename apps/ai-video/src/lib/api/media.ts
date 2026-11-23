@@ -8,6 +8,10 @@ import {
 } from "@/lib/ai-video"
 import { db } from "@/server/db"
 import {
+  collectionIdsByMedia,
+  requireOwnedCollection,
+} from "@/server/media-collections"
+import {
   cleanAltText,
   cleanOriginalName,
   getMediaFileType,
@@ -44,6 +48,9 @@ const listMediaSchema = z
   .object({
     page: z.number().int().optional(),
     pageSize: z.number().int().optional(),
+    // A collection id filters to its members; null filters to media in no
+    // collection at all (the "Uncollected" option).
+    collectionId: z.string().min(1).max(36).nullable().optional(),
     fileTypes: z
       .array(z.enum(["image", "video", "audio"]))
       .min(1)
@@ -129,10 +136,16 @@ const listMediaFn = createServerFn({ method: "GET" })
       data?.projectId === null
         ? null
         : await requireOwnedProjectId(user.id, data?.projectId)
+    // Prove ownership before the id reaches the query, so a borrowed
+    // collection id cannot expose another account's media.
+    if (data?.collectionId) {
+      await requireOwnedCollection(user.id, data.collectionId)
+    }
     return listOwnedMedia({
       userId: user.id,
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 20,
+      collectionId: data?.collectionId,
       fileTypes: data?.fileTypes,
       mimeType: data?.mimeType,
       projectId,
@@ -258,7 +271,8 @@ const updateMediaFn = createServerFn({ method: "POST" })
       )
 
     const row = await getOwnedMedia(user.id, data.mediaId)
-    return serializeMedia(row)
+    const collections = await collectionIdsByMedia([row.id])
+    return serializeMedia(row, collections.get(row.id) ?? [])
   })
 
 const deleteMediaFn = createServerFn({ method: "POST" })
@@ -326,6 +340,7 @@ const bulkDeleteMediaFn = createServerFn({ method: "POST" })
 export function listMedia({
   page = 1,
   pageSize = 20,
+  collectionId,
   fileTypes,
   mimeType,
   projectId,
@@ -337,6 +352,7 @@ export function listMedia({
 }: {
   page?: number
   pageSize?: number
+  collectionId?: string | null
   fileTypes?: MediaFileType[]
   mimeType?: "image/svg+xml"
   projectId?: string | null
@@ -350,6 +366,7 @@ export function listMedia({
     data: {
       page,
       pageSize,
+      collectionId,
       fileTypes,
       mimeType,
       projectId,

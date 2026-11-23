@@ -1,0 +1,273 @@
+import { lookup } from "node:dns/promises"
+import type { Agent } from "node:http"
+import { request as httpsRequest } from "node:https"
+import { isIP, type LookupFunction } from "node:net"
+
+import { HttpsProxyAgent } from "https-proxy-agent"
+import { SocksProxyAgent } from "socks-proxy-agent"
+
+import type { ProxyProtocol, ProxyTestResult } from "@/lib/social/options"
+
+/**
+ * Proving a proxy works before the browser is asked to live behind it.
+ *
+ * Two apps already had a version of this and each had something the other
+ * lacked. Anti-detect probes ipinfo.io, which hands back an IANA timezone;
+ * that timezone is what keeps the browser's clock agreeing with its exit IP,
+ * and a US exit on a Moscow clock is an instant tell. Core has the check that
+ * the host is not something inside the network. This has both.
+ */
+
+/**
+ * ipinfo echoes the exit IP's country, city, network AND an IANA timezone. The
+ * timezone is the reason for choosing it over any other echo service.
+ */
+const PROBE_URL = "https://ipinfo.io/json"
+
+/** A proxy slower than this is not usable for browsing anyway. */
+const TIMEOUT_MS = 12_000
+
+export type ProxyTestInput = {
+  protocol: ProxyProtocol
+  host: string
+  port: number
+  username?: string | null
+  /** Already decrypted by the caller. Never logged. */
+  password?: string | null
+}
+
+/**
+ * Refuses a proxy address that points back inside the network.
+ *
+ * Without this, a proxy row is a way to make the server fetch its own
+ * neighbours: a host resolving to 169.254.169.254 reaches a cloud metadata
+ * service, and 127.0.0.1 reaches whatever else is on this machine. The check
+ * resolves the name first, because a public-looking name can answer with a
+ * private address.
+ */
+export async function assertPublicProxyHost(host: string): Promise<void> {
+  if (!(await publicAddresses(host))) {
+    throw new Error("A proxy host has to resolve to a public address.")
+  }
+}
+
+/**
+ * Every address a host resolves to, or null when any of them is inside the
+ * network, or it resolves to none. The one rule for anything the server is
+ * about to reach on somebody else's say-so: a proxy, or the page a Reddit post
+ * links to (`src/server/social/link-page.ts`). A DNS failure throws.
+ *
+ * The caller connects to one of these addresses rather than looking the name
+ * up again, so a name cannot answer public here and private a moment later.
+ */
+export async function publicAddresses(host: string): Promise<string[] | null> {
+  // An IPv6 address in a URL comes wrapped in brackets.
+  const bare = host.replace(/^\[(.*)\]$/, "$1")
+  const addresses = isIP(bare)
+    ? [bare]
+    : (await lookup(bare, { all: true })).map(({ address }) => address)
+  if (!addresses.length || addresses.some(isBlockedIp)) return null
+  return addresses
+}
+
+/**
+ * Whether an address another app gave Promo to call back (Video, Viral) is
+ * on the public internet. Without this, whoever holds that app's key could
+ * point Promo at a server inside its own network, and Promo would fetch from
+ * it and send its key along. Checked when the address is kept and again
+ * before every call.
+ *
+ * On the live server only: away from it, two apps on one computer talk over
+ * localhost on purpose. The name is looked up again when the call connects,
+ * so a name that changes its answer in that moment is not refused; the
+ * address a call is sent to is still one the key holder had to set first.
+ */
+export async function isPublicCallbackUrl(url: string): Promise<boolean> {
+  if (process.env.NODE_ENV !== "production") return true
+  try {
+    return (await publicAddresses(new URL(url).hostname)) !== null
+  } catch {
+    return false
+  }
+}
+
+function isBlockedIp(address: string) {
+  const mapped = address.toLowerCase().match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
+  if (mapped) return isBlockedIpv4(mapped[1])
+  return isIP(address) === 4 ? isBlockedIpv4(address) : isBlockedIpv6(address)
+}
+
+function isBlockedIpv4(address: string) {
+  const parts = address.split(".").map((part) => Number.parseInt(part, 10))
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) return true
+
+  const [a, b] = parts
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  )
+}
+
+/**
+ * Only the public internet's own range, 2000::/3, is let through, rather than
+ * listing the private ranges one by one. Listing them missed the ways an IPv6
+ * address can carry an IPv4 one: a URL parser writes ::ffff:127.0.0.1 as
+ * ::ffff:7f00:1, which the dotted check above never sees, and that reached
+ * this machine. Inside 2000::/3, 6to4 (2002::/16) and Teredo (2001::/32) also
+ * carry an IPv4 address, and 2001:db8::/32 is for documentation only.
+ */
+function isBlockedIpv6(address: string) {
+  const groups = address.split("%")[0].toLowerCase().split(":")
+  const first = Number.parseInt(groups[0] || "0", 16)
+  const second = Number.parseInt(groups[1] || "0", 16)
+
+  return (
+    !(first >= 0x2000 && first <= 0x3fff) ||
+    first === 0x2002 ||
+    (first === 0x2001 && (second === 0 || second === 0xdb8))
+  )
+}
+
+/**
+ * The agent for this kind of proxy. Credentials are URL-encoded so a password
+ * with an @ or a colon in it survives being put in an address.
+ *
+ * The connection to the proxy goes to `address`, the one already checked,
+ * whatever the name answers now, so a name cannot answer public for the
+ * check and private for the connection. The name stays in the address, so an
+ * https proxy's certificate is still checked against it.
+ */
+function buildAgent(input: ProxyTestInput, address: string): Agent {
+  const auth = input.username
+    ? `${encodeURIComponent(input.username)}:${encodeURIComponent(input.password ?? "")}@`
+    : ""
+  const url = `${input.protocol}://${auth}${input.host}:${input.port}`
+  const family = isIP(address) === 6 ? 6 : 4
+  const lookup: LookupFunction = (_host, options, callback) => {
+    if (options.all) callback(null, [{ address, family }])
+    else callback(null, address, family)
+  }
+  return input.protocol === "socks5"
+    ? (new SocksProxyAgent(url, { socketOptions: { lookup } }) as unknown as Agent)
+    : (new HttpsProxyAgent(url, { lookup }) as unknown as Agent)
+}
+
+function getThroughAgent(
+  url: string,
+  /** Undefined asks directly, from this computer's own address. */
+  agent: Agent | undefined,
+  timeoutMs: number
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest(url, { agent, timeout: timeoutMs }, (res) => {
+      let data = ""
+      res.setEncoding("utf8")
+      res.on("data", (chunk) => {
+        data += chunk
+      })
+      res.on("end", () => {
+        clearTimeout(deadline)
+        resolve({ status: res.statusCode ?? 0, body: data })
+      })
+    })
+    // One deadline for the whole test, connecting included, and it settles
+    // the answer itself. Node's own `timeout` only counts silence on a socket
+    // that already exists, and a request still connecting through the proxy
+    // agent does not report being destroyed, so a proxy that drops the
+    // connection attempt kept a test, and the ticker pass waiting on it,
+    // hanging past a minute. Measured on 5 Oct 2026 against 8.8.4.4:8080,
+    // which answers nothing.
+    const deadline = setTimeout(() => {
+      const error = new Error("The proxy did not answer in time.")
+      reject(error)
+      req.destroy(error)
+    }, timeoutMs)
+    req.on("timeout", () => req.destroy(new Error("The proxy did not answer in time.")))
+    req.on("error", (error) => {
+      clearTimeout(deadline)
+      reject(error)
+    })
+    req.end()
+  })
+}
+
+/** ipinfo's `org` reads "AS15169 Google LLC"; the ASN prefix is noise here. */
+function cleanIsp(org: unknown): string | undefined {
+  if (typeof org !== "string" || !org) return undefined
+  return org.replace(/^AS\d+\s*/, "").trim() || undefined
+}
+
+/**
+ * Routes one probe through the proxy and reports what the far end saw.
+ *
+ * Never throws. A proxy that is down is an answer, not an error, and the
+ * screen shows it next to the row: a failed test that threw would take the
+ * whole save with it.
+ */
+export async function testProxyConnection(
+  input: ProxyTestInput
+): Promise<ProxyTestResult> {
+  const startedAt = Date.now()
+  try {
+    const addresses = await publicAddresses(input.host)
+    if (!addresses) throw new Error("A proxy host has to resolve to a public address.")
+    const { status, body } = await getThroughAgent(
+      PROBE_URL,
+      buildAgent(input, addresses[0]),
+      TIMEOUT_MS
+    )
+    const latencyMs = Date.now() - startedAt
+
+    if (status < 200 || status >= 300) {
+      return { ok: false, error: `The probe came back as HTTP ${status}.`, latencyMs }
+    }
+
+    const geo = JSON.parse(body) as Record<string, unknown>
+    return {
+      ok: true,
+      ip: typeof geo.ip === "string" ? geo.ip : undefined,
+      country: typeof geo.country === "string" ? geo.country : undefined,
+      city: typeof geo.city === "string" ? geo.city : undefined,
+      isp: cleanIsp(geo.org),
+      timezone: typeof geo.timezone === "string" ? geo.timezone : undefined,
+      latencyMs,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "The proxy test failed.",
+      latencyMs: Date.now() - startedAt,
+    }
+  }
+}
+
+/**
+ * What the echo service sees when this computer asks it directly, with no
+ * proxy: this computer's own outside address. "Check what a site sees" on a
+ * profile with no proxy compares against this. Null when it did not answer.
+ */
+export async function thisComputersAddress(): Promise<{
+  ip: string
+  country: string
+  timezone: string
+} | null> {
+  try {
+    const { status, body } = await getThroughAgent(PROBE_URL, undefined, TIMEOUT_MS)
+    if (status < 200 || status >= 300) return null
+    const echo = JSON.parse(body) as Record<string, unknown>
+    return {
+      ip: typeof echo.ip === "string" ? echo.ip : "",
+      country: typeof echo.country === "string" ? echo.country : "",
+      timezone: typeof echo.timezone === "string" ? echo.timezone : "",
+    }
+  } catch {
+    return null
+  }
+}

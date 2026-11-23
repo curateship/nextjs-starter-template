@@ -9,72 +9,54 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as VerifyEmailRouteImport } from './routes/verify-email'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as PomoderRouteImport } from './routes/_pomoder'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
-import { Route as PomoderIndexRouteImport } from './routes/_pomoder/index'
-import { Route as ApiMetricsRouteImport } from './routes/api/metrics'
-import { Route as PomoderThemesRouteImport } from './routes/_pomoder/themes'
-import { Route as PomoderTasksRouteImport } from './routes/_pomoder/tasks'
-import { Route as PomoderSoundsRouteImport } from './routes/_pomoder/sounds'
-import { Route as PomoderSettingsRouteImport } from './routes/_pomoder/settings'
-import { Route as PomoderRoomsRouteImport } from './routes/_pomoder/rooms'
-import { Route as PomoderPricingRouteImport } from './routes/_pomoder/pricing'
-import { Route as PomoderLeaderboardRouteImport } from './routes/_pomoder/leaderboard'
+import { Route as PomoderRouteImport } from './routes/_pomoder'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
-import { Route as ApiMediaIndexRouteImport } from './routes/api/media/index'
+import { Route as PomoderIndexRouteImport } from './routes/_pomoder/index'
+import { Route as PomoderHistoryRouteImport } from './routes/_pomoder/history'
+import { Route as PomoderLeaderboardRouteImport } from './routes/_pomoder/leaderboard'
+import { Route as PomoderPricingRouteImport } from './routes/_pomoder/pricing'
+import { Route as PomoderRoomsRouteImport } from './routes/_pomoder/rooms'
+import { Route as PomoderSettingsRouteImport } from './routes/_pomoder/settings'
+import { Route as PomoderSoundsRouteImport } from './routes/_pomoder/sounds'
+import { Route as PomoderTasksRouteImport } from './routes/_pomoder/tasks'
+import { Route as PomoderThemesRouteImport } from './routes/_pomoder/themes'
+import { Route as ApiMetricsRouteImport } from './routes/api/metrics'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
-import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
-import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
-import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
-import { Route as PomoderBillingSuccessRouteImport } from './routes/_pomoder/billing/success'
-import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
-import { Route as AuthenticatedAdminPomoderRouteImport } from './routes/_authenticated/admin/pomoder'
-import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
-import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
-import { Route as AuthenticatedAdminPomoderIndexRouteImport } from './routes/_authenticated/admin/pomoder/index'
-import { Route as ApiRoomsSlugEventsRouteImport } from './routes/api/rooms/$slug/events'
-import { Route as ApiMediaMediaIdFileRouteImport } from './routes/api/media/$mediaId/file'
-import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
-import { Route as AuthenticatedAdminPomoderSectionRouteImport } from './routes/_authenticated/admin/pomoder/$section'
+import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
+import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
+import { Route as AuthenticatedAdminPomoderRouteImport } from './routes/_authenticated/admin/pomoder'
+import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
+import { Route as PomoderBillingSuccessRouteImport } from './routes/_pomoder/billing/success'
+import { Route as PomoderRoomsSlugRouteImport } from './routes/_pomoder/rooms_.$slug'
+import { Route as ApiAvatarIndexRouteImport } from './routes/api/avatar/index'
+import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
+import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
+import { Route as ApiMediaIndexRouteImport } from './routes/api/media/index'
+import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
+import { Route as AuthenticatedAdminPomoderIndexRouteImport } from './routes/_authenticated/admin/pomoder/index'
+import { Route as AuthenticatedAdminPomoderSectionRouteImport } from './routes/_authenticated/admin/pomoder/$section'
+import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as ApiAvatarsMediaIdFileRouteImport } from './routes/api/avatars/$mediaId/file'
+import { Route as ApiMediaMediaIdFileRouteImport } from './routes/api/media/$mediaId/file'
+import { Route as ApiRoomsSlugEventsRouteImport } from './routes/api/rooms/$slug/events'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
-const VerifyEmailRoute = VerifyEmailRouteImport.update({
-  id: '/verify-email',
-  path: '/verify-email',
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const PomoderRoute = PomoderRouteImport.update({
+  id: '/_pomoder',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -82,52 +64,49 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PomoderRoute = PomoderRouteImport.update({
-  id: '/_pomoder',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
+  id: '/workspaces',
+  path: '/workspaces',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const PomoderIndexRoute = PomoderIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => PomoderRoute,
 } as any)
-const ApiMetricsRoute = ApiMetricsRouteImport.update({
-  id: '/api/metrics',
-  path: '/api/metrics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PomoderThemesRoute = PomoderThemesRouteImport.update({
-  id: '/themes',
-  path: '/themes',
-  getParentRoute: () => PomoderRoute,
-} as any)
-const PomoderTasksRoute = PomoderTasksRouteImport.update({
-  id: '/tasks',
-  path: '/tasks',
-  getParentRoute: () => PomoderRoute,
-} as any)
-const PomoderSoundsRoute = PomoderSoundsRouteImport.update({
-  id: '/sounds',
-  path: '/sounds',
-  getParentRoute: () => PomoderRoute,
-} as any)
-const PomoderSettingsRoute = PomoderSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => PomoderRoute,
-} as any)
-const PomoderRoomsRoute = PomoderRoomsRouteImport.update({
-  id: '/rooms',
-  path: '/rooms',
-  getParentRoute: () => PomoderRoute,
-} as any)
-const PomoderPricingRoute = PomoderPricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
+const PomoderHistoryRoute = PomoderHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => PomoderRoute,
 } as any)
 const PomoderLeaderboardRoute = PomoderLeaderboardRouteImport.update({
@@ -135,62 +114,44 @@ const PomoderLeaderboardRoute = PomoderLeaderboardRouteImport.update({
   path: '/leaderboard',
   getParentRoute: () => PomoderRoute,
 } as any)
-const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
-  id: '/workspaces',
-  path: '/workspaces',
-  getParentRoute: () => AuthenticatedRoute,
+const PomoderPricingRoute = PomoderPricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => PomoderRoute,
 } as any)
-const ApiMediaIndexRoute = ApiMediaIndexRouteImport.update({
-  id: '/api/media/',
-  path: '/api/media/',
+const PomoderRoomsRoute = PomoderRoomsRouteImport.update({
+  id: '/rooms',
+  path: '/rooms',
+  getParentRoute: () => PomoderRoute,
+} as any)
+const PomoderSettingsRoute = PomoderSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => PomoderRoute,
+} as any)
+const PomoderSoundsRoute = PomoderSoundsRouteImport.update({
+  id: '/sounds',
+  path: '/sounds',
+  getParentRoute: () => PomoderRoute,
+} as any)
+const PomoderTasksRoute = PomoderTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => PomoderRoute,
+} as any)
+const PomoderThemesRoute = PomoderThemesRouteImport.update({
+  id: '/themes',
+  path: '/themes',
+  getParentRoute: () => PomoderRoute,
+} as any)
+const ApiMetricsRoute = ApiMetricsRouteImport.update({
+  id: '/api/metrics',
+  path: '/api/metrics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
-  id: '/api/webhooks/stripe',
-  path: '/api/webhooks/stripe',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHealthReadyRoute = ApiHealthReadyRouteImport.update({
-  id: '/api/health/ready',
-  path: '/api/health/ready',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
-  id: '/api/health/live',
-  path: '/api/health/live',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PomoderBillingSuccessRoute = PomoderBillingSuccessRouteImport.update({
-  id: '/billing/success',
-  path: '/billing/success',
-  getParentRoute: () => PomoderRoute,
-} as any)
-const AuthenticatedAdminSettingsRoute =
-  AuthenticatedAdminSettingsRouteImport.update({
-    id: '/admin/settings',
-    path: '/admin/settings',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminPomoderRoute =
-  AuthenticatedAdminPomoderRouteImport.update({
-    id: '/admin/pomoder',
-    path: '/admin/pomoder',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminNotificationsRoute =
-  AuthenticatedAdminNotificationsRouteImport.update({
-    id: '/admin/notifications',
-    path: '/admin/notifications',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
-  id: '/admin/media',
-  path: '/admin/media',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAdminFeedbackRoute =
@@ -199,27 +160,75 @@ const AuthenticatedAdminFeedbackRoute =
     path: '/admin/feedback',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
+  id: '/admin/media',
+  path: '/admin/media',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminNotificationsRoute =
+  AuthenticatedAdminNotificationsRouteImport.update({
+    id: '/admin/notifications',
+    path: '/admin/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminPomoderRoute =
+  AuthenticatedAdminPomoderRouteImport.update({
+    id: '/admin/pomoder',
+    path: '/admin/pomoder',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminSettingsRoute =
+  AuthenticatedAdminSettingsRouteImport.update({
+    id: '/admin/settings',
+    path: '/admin/settings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const PomoderBillingSuccessRoute = PomoderBillingSuccessRouteImport.update({
+  id: '/billing/success',
+  path: '/billing/success',
+  getParentRoute: () => PomoderRoute,
+} as any)
+const PomoderRoomsSlugRoute = PomoderRoomsSlugRouteImport.update({
+  id: '/rooms_/$slug',
+  path: '/rooms/$slug',
+  getParentRoute: () => PomoderRoute,
+} as any)
+const ApiAvatarIndexRoute = ApiAvatarIndexRouteImport.update({
+  id: '/api/avatar/',
+  path: '/api/avatar/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
+  id: '/api/health/live',
+  path: '/api/health/live',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthReadyRoute = ApiHealthReadyRouteImport.update({
+  id: '/api/health/ready',
+  path: '/api/health/ready',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMediaIndexRoute = ApiMediaIndexRouteImport.update({
+  id: '/api/media/',
+  path: '/api/media/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebhooksStripeRoute = ApiWebhooksStripeRouteImport.update({
+  id: '/api/webhooks/stripe',
+  path: '/api/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminFeedbackCommentsRoute =
+  AuthenticatedAdminFeedbackCommentsRouteImport.update({
+    id: '/comments',
+    path: '/comments',
+    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
+  } as any)
 const AuthenticatedAdminPomoderIndexRoute =
   AuthenticatedAdminPomoderIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedAdminPomoderRoute,
-  } as any)
-const ApiRoomsSlugEventsRoute = ApiRoomsSlugEventsRouteImport.update({
-  id: '/api/rooms/$slug/events',
-  path: '/api/rooms/$slug/events',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiMediaMediaIdFileRoute = ApiMediaMediaIdFileRouteImport.update({
-  id: '/api/media/$mediaId/file',
-  path: '/api/media/$mediaId/file',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedAdminSettingsTabRoute =
-  AuthenticatedAdminSettingsTabRouteImport.update({
-    id: '/$tab',
-    path: '/$tab',
-    getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
 const AuthenticatedAdminPomoderSectionRoute =
   AuthenticatedAdminPomoderSectionRouteImport.update({
@@ -227,12 +236,27 @@ const AuthenticatedAdminPomoderSectionRoute =
     path: '/$section',
     getParentRoute: () => AuthenticatedAdminPomoderRoute,
   } as any)
-const AuthenticatedAdminFeedbackCommentsRoute =
-  AuthenticatedAdminFeedbackCommentsRouteImport.update({
-    id: '/comments',
-    path: '/comments',
-    getParentRoute: () => AuthenticatedAdminFeedbackRoute,
+const AuthenticatedAdminSettingsTabRoute =
+  AuthenticatedAdminSettingsTabRouteImport.update({
+    id: '/$tab',
+    path: '/$tab',
+    getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
+const ApiAvatarsMediaIdFileRoute = ApiAvatarsMediaIdFileRouteImport.update({
+  id: '/api/avatars/$mediaId/file',
+  path: '/api/avatars/$mediaId/file',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMediaMediaIdFileRoute = ApiMediaMediaIdFileRouteImport.update({
+  id: '/api/media/$mediaId/file',
+  path: '/api/media/$mediaId/file',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRoomsSlugEventsRoute = ApiRoomsSlugEventsRouteImport.update({
+  id: '/api/rooms/$slug/events',
+  path: '/api/rooms/$slug/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
@@ -249,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/history': typeof PomoderHistoryRoute
   '/leaderboard': typeof PomoderLeaderboardRoute
   '/pricing': typeof PomoderPricingRoute
   '/rooms': typeof PomoderRoomsRoute
@@ -263,14 +288,17 @@ export interface FileRoutesByFullPath {
   '/admin/pomoder': typeof AuthenticatedAdminPomoderRouteWithChildren
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/billing/success': typeof PomoderBillingSuccessRoute
+  '/rooms/$slug': typeof PomoderRoomsSlugRoute
   '/api/health/live': typeof ApiHealthLiveRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/avatar/': typeof ApiAvatarIndexRoute
   '/api/media/': typeof ApiMediaIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/pomoder/$section': typeof AuthenticatedAdminPomoderSectionRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/api/avatars/$mediaId/file': typeof ApiAvatarsMediaIdFileRoute
   '/api/media/$mediaId/file': typeof ApiMediaMediaIdFileRoute
   '/api/rooms/$slug/events': typeof ApiRoomsSlugEventsRoute
   '/admin/pomoder/': typeof AuthenticatedAdminPomoderIndexRoute
@@ -286,6 +314,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/history': typeof PomoderHistoryRoute
   '/leaderboard': typeof PomoderLeaderboardRoute
   '/pricing': typeof PomoderPricingRoute
   '/rooms': typeof PomoderRoomsRoute
@@ -299,14 +328,17 @@ export interface FileRoutesByTo {
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/billing/success': typeof PomoderBillingSuccessRoute
+  '/rooms/$slug': typeof PomoderRoomsSlugRoute
   '/api/health/live': typeof ApiHealthLiveRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/api/avatar': typeof ApiAvatarIndexRoute
   '/api/media': typeof ApiMediaIndexRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/pomoder/$section': typeof AuthenticatedAdminPomoderSectionRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/api/avatars/$mediaId/file': typeof ApiAvatarsMediaIdFileRoute
   '/api/media/$mediaId/file': typeof ApiMediaMediaIdFileRoute
   '/api/rooms/$slug/events': typeof ApiRoomsSlugEventsRoute
   '/admin/pomoder': typeof AuthenticatedAdminPomoderIndexRoute
@@ -324,6 +356,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/_pomoder/history': typeof PomoderHistoryRoute
   '/_pomoder/leaderboard': typeof PomoderLeaderboardRoute
   '/_pomoder/pricing': typeof PomoderPricingRoute
   '/_pomoder/rooms': typeof PomoderRoomsRoute
@@ -339,14 +372,17 @@ export interface FileRoutesById {
   '/_authenticated/admin/pomoder': typeof AuthenticatedAdminPomoderRouteWithChildren
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_pomoder/billing/success': typeof PomoderBillingSuccessRoute
+  '/_pomoder/rooms_/$slug': typeof PomoderRoomsSlugRoute
   '/api/health/live': typeof ApiHealthLiveRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/avatar/': typeof ApiAvatarIndexRoute
   '/api/media/': typeof ApiMediaIndexRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/pomoder/$section': typeof AuthenticatedAdminPomoderSectionRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/api/avatars/$mediaId/file': typeof ApiAvatarsMediaIdFileRoute
   '/api/media/$mediaId/file': typeof ApiMediaMediaIdFileRoute
   '/api/rooms/$slug/events': typeof ApiRoomsSlugEventsRoute
   '/_authenticated/admin/pomoder/': typeof AuthenticatedAdminPomoderIndexRoute
@@ -364,6 +400,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/verify-email'
     | '/workspaces'
+    | '/history'
     | '/leaderboard'
     | '/pricing'
     | '/rooms'
@@ -378,14 +415,17 @@ export interface FileRouteTypes {
     | '/admin/pomoder'
     | '/admin/settings'
     | '/billing/success'
+    | '/rooms/$slug'
     | '/api/health/live'
     | '/api/health/ready'
     | '/api/webhooks/stripe'
     | '/admin/'
+    | '/api/avatar/'
     | '/api/media/'
     | '/admin/feedback/comments'
     | '/admin/pomoder/$section'
     | '/admin/settings/$tab'
+    | '/api/avatars/$mediaId/file'
     | '/api/media/$mediaId/file'
     | '/api/rooms/$slug/events'
     | '/admin/pomoder/'
@@ -401,6 +441,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/verify-email'
     | '/workspaces'
+    | '/history'
     | '/leaderboard'
     | '/pricing'
     | '/rooms'
@@ -414,14 +455,17 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/billing/success'
+    | '/rooms/$slug'
     | '/api/health/live'
     | '/api/health/ready'
     | '/api/webhooks/stripe'
     | '/admin'
+    | '/api/avatar'
     | '/api/media'
     | '/admin/feedback/comments'
     | '/admin/pomoder/$section'
     | '/admin/settings/$tab'
+    | '/api/avatars/$mediaId/file'
     | '/api/media/$mediaId/file'
     | '/api/rooms/$slug/events'
     | '/admin/pomoder'
@@ -438,6 +482,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/verify-email'
     | '/_authenticated/workspaces'
+    | '/_pomoder/history'
     | '/_pomoder/leaderboard'
     | '/_pomoder/pricing'
     | '/_pomoder/rooms'
@@ -453,14 +498,17 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pomoder'
     | '/_authenticated/admin/settings'
     | '/_pomoder/billing/success'
+    | '/_pomoder/rooms_/$slug'
     | '/api/health/live'
     | '/api/health/ready'
     | '/api/webhooks/stripe'
     | '/_authenticated/admin/'
+    | '/api/avatar/'
     | '/api/media/'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/pomoder/$section'
     | '/_authenticated/admin/settings/$tab'
+    | '/api/avatars/$mediaId/file'
     | '/api/media/$mediaId/file'
     | '/api/rooms/$slug/events'
     | '/_authenticated/admin/pomoder/'
@@ -481,7 +529,9 @@ export interface RootRouteChildren {
   ApiHealthLiveRoute: typeof ApiHealthLiveRoute
   ApiHealthReadyRoute: typeof ApiHealthReadyRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
+  ApiAvatarIndexRoute: typeof ApiAvatarIndexRoute
   ApiMediaIndexRoute: typeof ApiMediaIndexRoute
+  ApiAvatarsMediaIdFileRoute: typeof ApiAvatarsMediaIdFileRoute
   ApiMediaMediaIdFileRoute: typeof ApiMediaMediaIdFileRoute
   ApiRoomsSlugEventsRoute: typeof ApiRoomsSlugEventsRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
@@ -489,53 +539,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/verify-email': {
-      id: '/verify-email'
-      path: '/verify-email'
-      fullPath: '/verify-email'
-      preLoaderRoute: typeof VerifyEmailRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_pomoder': {
@@ -545,12 +553,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PomoderRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteImport
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/workspaces': {
+      id: '/_authenticated/workspaces'
+      path: '/workspaces'
+      fullPath: '/workspaces'
+      preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_pomoder/': {
       id: '/_pomoder/'
@@ -559,53 +616,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PomoderIndexRouteImport
       parentRoute: typeof PomoderRoute
     }
-    '/api/metrics': {
-      id: '/api/metrics'
-      path: '/api/metrics'
-      fullPath: '/api/metrics'
-      preLoaderRoute: typeof ApiMetricsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_pomoder/themes': {
-      id: '/_pomoder/themes'
-      path: '/themes'
-      fullPath: '/themes'
-      preLoaderRoute: typeof PomoderThemesRouteImport
-      parentRoute: typeof PomoderRoute
-    }
-    '/_pomoder/tasks': {
-      id: '/_pomoder/tasks'
-      path: '/tasks'
-      fullPath: '/tasks'
-      preLoaderRoute: typeof PomoderTasksRouteImport
-      parentRoute: typeof PomoderRoute
-    }
-    '/_pomoder/sounds': {
-      id: '/_pomoder/sounds'
-      path: '/sounds'
-      fullPath: '/sounds'
-      preLoaderRoute: typeof PomoderSoundsRouteImport
-      parentRoute: typeof PomoderRoute
-    }
-    '/_pomoder/settings': {
-      id: '/_pomoder/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof PomoderSettingsRouteImport
-      parentRoute: typeof PomoderRoute
-    }
-    '/_pomoder/rooms': {
-      id: '/_pomoder/rooms'
-      path: '/rooms'
-      fullPath: '/rooms'
-      preLoaderRoute: typeof PomoderRoomsRouteImport
-      parentRoute: typeof PomoderRoute
-    }
-    '/_pomoder/pricing': {
-      id: '/_pomoder/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PomoderPricingRouteImport
+    '/_pomoder/history': {
+      id: '/_pomoder/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof PomoderHistoryRouteImport
       parentRoute: typeof PomoderRoute
     }
     '/_pomoder/leaderboard': {
@@ -615,18 +630,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PomoderLeaderboardRouteImport
       parentRoute: typeof PomoderRoute
     }
-    '/_authenticated/workspaces': {
-      id: '/_authenticated/workspaces'
-      path: '/workspaces'
-      fullPath: '/workspaces'
-      preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/_pomoder/pricing': {
+      id: '/_pomoder/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PomoderPricingRouteImport
+      parentRoute: typeof PomoderRoute
     }
-    '/api/media/': {
-      id: '/api/media/'
-      path: '/api/media'
-      fullPath: '/api/media/'
-      preLoaderRoute: typeof ApiMediaIndexRouteImport
+    '/_pomoder/rooms': {
+      id: '/_pomoder/rooms'
+      path: '/rooms'
+      fullPath: '/rooms'
+      preLoaderRoute: typeof PomoderRoomsRouteImport
+      parentRoute: typeof PomoderRoute
+    }
+    '/_pomoder/settings': {
+      id: '/_pomoder/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof PomoderSettingsRouteImport
+      parentRoute: typeof PomoderRoute
+    }
+    '/_pomoder/sounds': {
+      id: '/_pomoder/sounds'
+      path: '/sounds'
+      fullPath: '/sounds'
+      preLoaderRoute: typeof PomoderSoundsRouteImport
+      parentRoute: typeof PomoderRoute
+    }
+    '/_pomoder/tasks': {
+      id: '/_pomoder/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof PomoderTasksRouteImport
+      parentRoute: typeof PomoderRoute
+    }
+    '/_pomoder/themes': {
+      id: '/_pomoder/themes'
+      path: '/themes'
+      fullPath: '/themes'
+      preLoaderRoute: typeof PomoderThemesRouteImport
+      parentRoute: typeof PomoderRoute
+    }
+    '/api/metrics': {
+      id: '/api/metrics'
+      path: '/api/metrics'
+      fullPath: '/api/metrics'
+      preLoaderRoute: typeof ApiMetricsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -636,53 +686,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/api/webhooks/stripe': {
-      id: '/api/webhooks/stripe'
-      path: '/api/webhooks/stripe'
-      fullPath: '/api/webhooks/stripe'
-      preLoaderRoute: typeof ApiWebhooksStripeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/health/ready': {
-      id: '/api/health/ready'
-      path: '/api/health/ready'
-      fullPath: '/api/health/ready'
-      preLoaderRoute: typeof ApiHealthReadyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/health/live': {
-      id: '/api/health/live'
-      path: '/api/health/live'
-      fullPath: '/api/health/live'
-      preLoaderRoute: typeof ApiHealthLiveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_pomoder/billing/success': {
-      id: '/_pomoder/billing/success'
-      path: '/billing/success'
-      fullPath: '/billing/success'
-      preLoaderRoute: typeof PomoderBillingSuccessRouteImport
-      parentRoute: typeof PomoderRoute
-    }
-    '/_authenticated/admin/settings': {
-      id: '/_authenticated/admin/settings'
-      path: '/admin/settings'
-      fullPath: '/admin/settings'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/pomoder': {
-      id: '/_authenticated/admin/pomoder'
-      path: '/admin/pomoder'
-      fullPath: '/admin/pomoder'
-      preLoaderRoute: typeof AuthenticatedAdminPomoderRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/admin/notifications': {
-      id: '/_authenticated/admin/notifications'
-      path: '/admin/notifications'
-      fullPath: '/admin/notifications'
-      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
+    '/_authenticated/admin/feedback': {
+      id: '/_authenticated/admin/feedback'
+      path: '/admin/feedback'
+      fullPath: '/admin/feedback'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/media': {
@@ -692,12 +700,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/feedback': {
-      id: '/_authenticated/admin/feedback'
-      path: '/admin/feedback'
-      fullPath: '/admin/feedback'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+    '/_authenticated/admin/notifications': {
+      id: '/_authenticated/admin/notifications'
+      path: '/admin/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AuthenticatedAdminNotificationsRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/pomoder': {
+      id: '/_authenticated/admin/pomoder'
+      path: '/admin/pomoder'
+      fullPath: '/admin/pomoder'
+      preLoaderRoute: typeof AuthenticatedAdminPomoderRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/settings': {
+      id: '/_authenticated/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_pomoder/billing/success': {
+      id: '/_pomoder/billing/success'
+      path: '/billing/success'
+      fullPath: '/billing/success'
+      preLoaderRoute: typeof PomoderBillingSuccessRouteImport
+      parentRoute: typeof PomoderRoute
+    }
+    '/_pomoder/rooms_/$slug': {
+      id: '/_pomoder/rooms_/$slug'
+      path: '/rooms/$slug'
+      fullPath: '/rooms/$slug'
+      preLoaderRoute: typeof PomoderRoomsSlugRouteImport
+      parentRoute: typeof PomoderRoute
+    }
+    '/api/avatar/': {
+      id: '/api/avatar/'
+      path: '/api/avatar'
+      fullPath: '/api/avatar/'
+      preLoaderRoute: typeof ApiAvatarIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/live': {
+      id: '/api/health/live'
+      path: '/api/health/live'
+      fullPath: '/api/health/live'
+      preLoaderRoute: typeof ApiHealthLiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/ready': {
+      id: '/api/health/ready'
+      path: '/api/health/ready'
+      fullPath: '/api/health/ready'
+      preLoaderRoute: typeof ApiHealthReadyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/media/': {
+      id: '/api/media/'
+      path: '/api/media'
+      fullPath: '/api/media/'
+      preLoaderRoute: typeof ApiMediaIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/stripe': {
+      id: '/api/webhooks/stripe'
+      path: '/api/webhooks/stripe'
+      fullPath: '/api/webhooks/stripe'
+      preLoaderRoute: typeof ApiWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/feedback/comments': {
+      id: '/_authenticated/admin/feedback/comments'
+      path: '/comments'
+      fullPath: '/admin/feedback/comments'
+      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
+      parentRoute: typeof AuthenticatedAdminFeedbackRoute
     }
     '/_authenticated/admin/pomoder/': {
       id: '/_authenticated/admin/pomoder/'
@@ -706,11 +784,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPomoderIndexRouteImport
       parentRoute: typeof AuthenticatedAdminPomoderRoute
     }
-    '/api/rooms/$slug/events': {
-      id: '/api/rooms/$slug/events'
-      path: '/api/rooms/$slug/events'
-      fullPath: '/api/rooms/$slug/events'
-      preLoaderRoute: typeof ApiRoomsSlugEventsRouteImport
+    '/_authenticated/admin/pomoder/$section': {
+      id: '/_authenticated/admin/pomoder/$section'
+      path: '/$section'
+      fullPath: '/admin/pomoder/$section'
+      preLoaderRoute: typeof AuthenticatedAdminPomoderSectionRouteImport
+      parentRoute: typeof AuthenticatedAdminPomoderRoute
+    }
+    '/_authenticated/admin/settings/$tab': {
+      id: '/_authenticated/admin/settings/$tab'
+      path: '/$tab'
+      fullPath: '/admin/settings/$tab'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
+      parentRoute: typeof AuthenticatedAdminSettingsRoute
+    }
+    '/api/avatars/$mediaId/file': {
+      id: '/api/avatars/$mediaId/file'
+      path: '/api/avatars/$mediaId/file'
+      fullPath: '/api/avatars/$mediaId/file'
+      preLoaderRoute: typeof ApiAvatarsMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/media/$mediaId/file': {
@@ -720,26 +812,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin/settings/$tab': {
-      id: '/_authenticated/admin/settings/$tab'
-      path: '/$tab'
-      fullPath: '/admin/settings/$tab'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
-      parentRoute: typeof AuthenticatedAdminSettingsRoute
-    }
-    '/_authenticated/admin/pomoder/$section': {
-      id: '/_authenticated/admin/pomoder/$section'
-      path: '/$section'
-      fullPath: '/admin/pomoder/$section'
-      preLoaderRoute: typeof AuthenticatedAdminPomoderSectionRouteImport
-      parentRoute: typeof AuthenticatedAdminPomoderRoute
-    }
-    '/_authenticated/admin/feedback/comments': {
-      id: '/_authenticated/admin/feedback/comments'
-      path: '/comments'
-      fullPath: '/admin/feedback/comments'
-      preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
-      parentRoute: typeof AuthenticatedAdminFeedbackRoute
+    '/api/rooms/$slug/events': {
+      id: '/api/rooms/$slug/events'
+      path: '/api/rooms/$slug/events'
+      fullPath: '/api/rooms/$slug/events'
+      preLoaderRoute: typeof ApiRoomsSlugEventsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
@@ -822,6 +900,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 )
 
 interface PomoderRouteChildren {
+  PomoderHistoryRoute: typeof PomoderHistoryRoute
   PomoderLeaderboardRoute: typeof PomoderLeaderboardRoute
   PomoderPricingRoute: typeof PomoderPricingRoute
   PomoderRoomsRoute: typeof PomoderRoomsRoute
@@ -831,9 +910,11 @@ interface PomoderRouteChildren {
   PomoderThemesRoute: typeof PomoderThemesRoute
   PomoderIndexRoute: typeof PomoderIndexRoute
   PomoderBillingSuccessRoute: typeof PomoderBillingSuccessRoute
+  PomoderRoomsSlugRoute: typeof PomoderRoomsSlugRoute
 }
 
 const PomoderRouteChildren: PomoderRouteChildren = {
+  PomoderHistoryRoute: PomoderHistoryRoute,
   PomoderLeaderboardRoute: PomoderLeaderboardRoute,
   PomoderPricingRoute: PomoderPricingRoute,
   PomoderRoomsRoute: PomoderRoomsRoute,
@@ -843,6 +924,7 @@ const PomoderRouteChildren: PomoderRouteChildren = {
   PomoderThemesRoute: PomoderThemesRoute,
   PomoderIndexRoute: PomoderIndexRoute,
   PomoderBillingSuccessRoute: PomoderBillingSuccessRoute,
+  PomoderRoomsSlugRoute: PomoderRoomsSlugRoute,
 }
 
 const PomoderRouteWithChildren =
@@ -862,7 +944,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthLiveRoute: ApiHealthLiveRoute,
   ApiHealthReadyRoute: ApiHealthReadyRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
+  ApiAvatarIndexRoute: ApiAvatarIndexRoute,
   ApiMediaIndexRoute: ApiMediaIndexRoute,
+  ApiAvatarsMediaIdFileRoute: ApiAvatarsMediaIdFileRoute,
   ApiMediaMediaIdFileRoute: ApiMediaMediaIdFileRoute,
   ApiRoomsSlugEventsRoute: ApiRoomsSlugEventsRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,

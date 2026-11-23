@@ -1,0 +1,111 @@
+import type { AppOptions } from "@/lib/app-options"
+import { defineSettingsTab } from "@/lib/settings-tab"
+import { FLOW_NODE_DESCRIPTORS } from "@/lib/video/flow/node-kinds"
+
+/**
+ * What this app changes about the shell.
+ *
+ * Open `src/lib/app-options.ts` for the full list of what can go in here and
+ * what each one does. Anything not offered there is a compile error, on
+ * purpose: the shell always knows every way an app can deviate from it.
+ *
+ * This file belongs to the app, not the shell. **In custom-shell itself it
+ * stays empty forever.** The moment the shell puts a value here, every app ever
+ * copied from it conflicts on this file on every future merge — which is the
+ * exact problem the file exists to avoid.
+ *
+ * The type is written as an annotation rather than `satisfies` so that an empty
+ * object still reads as the full shape. Both catch a misspelled option.
+ */
+export const appOptions: AppOptions = {
+  media: {
+    /**
+     * Tyler, 31 Oct 2026: "Don't have upload limit. File can be as big as
+     * 100gig or more", for Video only. The bucket's own 5TB is the one wall.
+     * `workspace/docs/big-files.md` says what that took.
+     */
+    videoMaxBytes: "bucket",
+  },
+  automations: {
+    /**
+     * Flow's nodes (workspace/docs/flow.md). Declared here only so the
+     * shell's canvas, which Flow draws on, knows their names, icons and
+     * ports. None has a palette entry, so none is offered on an automation,
+     * and none has an executor: Flow runs them itself.
+     */
+    nodes: FLOW_NODE_DESCRIPTORS,
+  },
+  workspaces: {
+    /**
+     * Video is one site and always will be. The shell defaults to this, and
+     * saying it here anyway is worth the line: this file is where somebody
+     * reads what this app is, and a default can change under you.
+     */
+    whoMayHave: "off",
+  },
+  settings: {
+    tabs: [
+      /** The YouTube channel retention curves are read from (`workspace/docs/retention-curve.md`). */
+      defineSettingsTab({
+        id: "youtube",
+        label: "YouTube",
+        panel: () => import("@/components/video-retention/youtube-settings"),
+      }),
+      /** The Pexels API key the carousel's photo search uses. */
+      defineSettingsTab({
+        id: "pexels",
+        label: "Pexels",
+        panel: () => import("@/components/video-editor/pexels-settings"),
+      }),
+      /** The Sync Labs key that makes a clip's lips match a new voice. */
+      defineSettingsTab({
+        id: "lip-sync",
+        label: "Lip sync",
+        panel: () => import("@/components/video-editor/sync-settings"),
+      }),
+      /**
+       * The Wan and Seedance keys for AI shots, which company new shots start
+       * on, and what a Wan or Seedance shot starts with. Kept off the shell's
+       * AI key list on purpose: those two companies are Video's alone.
+       */
+      defineSettingsTab({
+        id: "ai-video",
+        label: "AI video",
+        panel: () => import("@/components/video-editor/ai-video-settings"),
+      }),
+      /**
+       * The look every caption window starts from (presets, font, outline,
+       * words at a time, platform) and the platforms' safe boxes.
+       */
+      defineSettingsTab({
+        id: "captions",
+        label: "Captions",
+        panel: () => import("@/components/video-editor/caption-settings"),
+      }),
+      /** The words the Voice window's script check flags. */
+      defineSettingsTab({
+        id: "scripts",
+        label: "Scripts",
+        panel: () => import("@/components/video-editor/script-settings"),
+      }),
+      /** How many ads a video gets for its length, and the too-many limit (`workspace/docs/ads.md`). */
+      defineSettingsTab({
+        id: "ads",
+        label: "Ads",
+        panel: () => import("@/components/video-editor/ad-settings"),
+      }),
+      /** Promo's address and key, for Send to Promo (`workspace/docs/send-to-promo.md`). */
+      defineSettingsTab({
+        id: "promo",
+        label: "Promo",
+        panel: () => import("@/components/video-promo/promo-settings"),
+      }),
+      /** The key Viral sends drafts with, for Send to Video (`workspace/docs/viral-connection.md`). */
+      defineSettingsTab({
+        id: "viral",
+        label: "Viral",
+        panel: () => import("@/components/viral-link/viral-link-settings"),
+      }),
+    ],
+  },
+}

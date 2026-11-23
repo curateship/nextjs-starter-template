@@ -6,8 +6,8 @@ import {
   CheckCheckIcon,
   ClapperboardIcon,
   GaugeIcon,
-  Loader2Icon,
   MessageSquareIcon,
+  ShieldCheckIcon,
   ThumbsUpIcon,
 } from "lucide-react"
 import { useNavigate } from "@tanstack/react-router"
@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   getNotificationErrorMessage,
   listNotificationPage,
@@ -33,7 +32,13 @@ import { cn } from "@/lib/utils"
 
 type NotificationFilter = "all" | "unread"
 const NOTIFICATION_PAGE_SIZE = 20
+// Instant delivery comes from the SSE stream (see the EventSource effect); this
+// slow background poll is only a safety net that catches anything missed during
+// a stream reconnect.
 const NOTIFICATION_REFRESH_MS = 60_000
+// Coalesce a burst of stream nudges (e.g. one sync adding several creators)
+// into a single refetch.
+const STREAM_REFRESH_DEBOUNCE_MS = 300
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -60,28 +65,46 @@ function getCreatorHandle(item: NotificationItem) {
     : getCreatorName(item)
 }
 
+function getAutomationName(item: NotificationItem) {
+  return item.automation_name || "An automation"
+}
+
 function NotificationAvatar({ item }: { item: NotificationItem }) {
   const isVote = item.type === "feedback_vote"
   const isUsage = item.type === "api_usage_alert"
+  const isApproval = item.type === "automation_approval"
 
   return (
     <Avatar size="lg">
       <AvatarFallback
         className={
-          isUsage
-            ? "bg-amber-100 text-amber-800"
+          isUsage || isApproval
+            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
             : isVote
-              ? "bg-green-100 text-green-800"
-              : "bg-blue-100 text-blue-800"
+              ? "bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300"
+              : "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300"
         }
       >
-        {isUsage ? "!" : getInitial(item.actor_name)}
+        {isUsage ? "!" : isApproval ? "?" : getInitial(item.actor_name)}
       </AvatarFallback>
     </Avatar>
   )
 }
 
 function NotificationMessage({ item }: { item: NotificationItem }) {
+  if (item.type === "automation_approval") {
+    return item.automation_approval_state === "timed_out" ? (
+      <>
+        <strong>{getAutomationName(item)}</strong> was rejected — nobody
+        approved in time
+      </>
+    ) : (
+      <>
+        <strong>{getAutomationName(item)}</strong> is waiting for your approval
+      </>
+    )
+  }
+
   if (item.type === "api_usage_alert") {
     return item.api_usage_level === "blocked" ? (
       <>
@@ -120,6 +143,10 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
 }
 
 function NotificationIcon({ item }: { item: NotificationItem }) {
+  if (item.type === "automation_approval") {
+    return <ShieldCheckIcon className="h-3.5 w-3.5" />
+  }
+
   if (item.type === "api_usage_alert") {
     return <GaugeIcon className="h-3.5 w-3.5" />
   }
@@ -136,6 +163,14 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
 }
 
 function NotificationPreview({ item }: { item: NotificationItem }) {
+  if (item.type === "automation_approval") {
+    return item.automation_approval_state === "timed_out" ? (
+      <>Approval timed out</>
+    ) : (
+      <>Open the runs panel to approve or reject</>
+    )
+  }
+
   if (item.type === "api_usage_alert") {
     return (
       <>
@@ -150,29 +185,6 @@ function NotificationPreview({ item }: { item: NotificationItem }) {
   }
 
   return <>{getFeedbackPreview(item.feedback_message ?? "Deleted feedback")}</>
-}
-
-function NotificationTraySkeleton() {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div
-          key={index}
-          className="grid grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2"
-        >
-          <div className="pt-5">
-            <Skeleton className="size-2 rounded-full" />
-          </div>
-          <Skeleton className="size-10 rounded-full" />
-          <div className="min-w-0 space-y-2">
-            <Skeleton className="h-4 w-3/5" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-2/5" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 function NotificationTabs({
@@ -229,6 +241,8 @@ export function NotificationCenter({
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const scrollAreaRootRef = React.useRef<HTMLDivElement>(null)
+  const backgroundFetchRef = React.useRef(false)
+  const pendingRefetchRef = React.useRef(false)
 
   const visibleNotifications =
     filter === "unread"
@@ -236,28 +250,52 @@ export function NotificationCenter({
       : notifications
 
   const loadNotificationRows = React.useCallback(async (cursor?: string) => {
+    // Load-more (append the next page). Independent of the background refresh.
     if (cursor) {
       setLoadingMore(true)
-    } else {
-      setLoading(true)
+      setError(null)
+      try {
+        const data = await listNotificationPage({
+          cursor,
+          limit: NOTIFICATION_PAGE_SIZE,
+        })
+        setNotifications((current) => [...current, ...data.notifications])
+        setUnreadCount(data.unread_count)
+        setNextCursor(data.next_cursor)
+      } catch (loadError) {
+        setError(getNotificationErrorMessage(loadError))
+      } finally {
+        setLoadingMore(false)
+      }
+      return
     }
-    setError(null)
 
+    // Background refresh: a stream nudge, the poll and a reconnect resync can
+    // all fire at once. Collapse them into one in-flight fetch; if another
+    // trigger fires mid-fetch, loop once more so a late notification is never
+    // missed (instead of waiting for the next poll).
+    if (backgroundFetchRef.current) {
+      pendingRefetchRef.current = true
+      return
+    }
+    backgroundFetchRef.current = true
+    setLoading(true)
+    setError(null)
     try {
-      const data = await listNotificationPage({
-        cursor,
-        limit: NOTIFICATION_PAGE_SIZE,
-      })
-      setNotifications((current) =>
-        cursor ? [...current, ...data.notifications] : data.notifications
-      )
-      setUnreadCount(data.unread_count)
-      setNextCursor(data.next_cursor)
+      do {
+        pendingRefetchRef.current = false
+        const data = await listNotificationPage({
+          limit: NOTIFICATION_PAGE_SIZE,
+        })
+        setNotifications(data.notifications)
+        setUnreadCount(data.unread_count)
+        setNextCursor(data.next_cursor)
+      } while (pendingRefetchRef.current)
     } catch (loadError) {
       setError(getNotificationErrorMessage(loadError))
     } finally {
       setLoading(false)
-      setLoadingMore(false)
+      backgroundFetchRef.current = false
     }
   }, [])
 
@@ -274,6 +312,26 @@ export function NotificationCenter({
     )
     return () => window.clearInterval(interval)
   }, [loadNotificationRows, open])
+
+  // Instant delivery: the server pushes a nudge over SSE the moment a
+  // notification is created for this user, and we refetch. EventSource
+  // reconnects on its own if the connection drops.
+  React.useEffect(() => {
+    const source = new EventSource("/api/v1/notifications/stream")
+    let debounce: number | null = null
+    const refresh = () => {
+      if (debounce) window.clearTimeout(debounce)
+      debounce = window.setTimeout(
+        () => void loadNotificationRows(),
+        STREAM_REFRESH_DEBOUNCE_MS
+      )
+    }
+    source.onmessage = refresh
+    return () => {
+      if (debounce) window.clearTimeout(debounce)
+      source.close()
+    }
+  }, [loadNotificationRows])
 
   React.useEffect(() => {
     if (!open) return
@@ -345,6 +403,14 @@ export function NotificationCenter({
     }
 
     setOpen(false)
+    if (item.type === "automation_approval" && item.automation_id) {
+      void navigate({
+        to: "/admin/automations/$automationId",
+        params: { automationId: item.automation_id },
+      })
+      return
+    }
+
     if (item.type === "creator_watch" && item.creator_id) {
       void navigate({
         to: "/admin/creators/$creatorId",
@@ -402,9 +468,10 @@ export function NotificationCenter({
         <div ref={scrollAreaRootRef}>
           <ScrollArea className="h-[28rem]">
             <div className="px-4 py-4">
-              {loading ? (
-                <NotificationTraySkeleton />
-              ) : visibleNotifications.length > 0 ? (
+              {/* Keep showing existing rows while a background refresh runs, so
+                  a stream nudge doesn't blank and re-flash the same list as if
+                  it were new. Only the first load (no data yet) shows nothing. */}
+              {visibleNotifications.length > 0 ? (
                 <div className="space-y-3">
                   {visibleNotifications.map((item) => (
                     <button
@@ -436,19 +503,13 @@ export function NotificationCenter({
                     </button>
                   ))}
                 </div>
-              ) : (
+              ) : loading ? null : (
                 <div className="py-10 text-center text-sm text-muted-foreground">
                   No notifications
                 </div>
               )}
               {error ? (
                 <p className="mt-4 text-sm text-destructive">{error}</p>
-              ) : null}
-              {loadingMore ? (
-                <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                  <Loader2Icon className="h-4 w-4 animate-spin" />
-                  Loading more
-                </div>
               ) : null}
             </div>
           </ScrollArea>

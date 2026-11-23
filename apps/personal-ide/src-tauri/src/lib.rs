@@ -30,9 +30,18 @@ const TERMINAL_AGENT_IDLE_TIMEOUT: Duration = Duration::from_millis(2500);
 const TERMINAL_OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(16);
 const WORKSPACE_DIR: &str = "workspace";
 const SHARED_SKILLS_DIR: &str = ".agents/skills";
-const CUSTOM_SHELL_APP_DIR: &str = "custom-shell";
+// The shell's folder under apps/. It was "custom-shell" until 17 Oct 2026, and
+// older worktrees and branches still have it under that name, so both are
+// looked for, the new name first.
+const CUSTOM_SHELL_APP_DIRS: [&str; 2] = ["shell", "custom-shell"];
+const LOCAL_APPS_FILE: &str = "local-apps.json";
 const DATABASE_SETUP_SCRIPT: &str = "scripts/setup-database.mjs";
+const SCAFFOLD_DATABASE_EXPORT_SCRIPT: &str = "scripts/export-scaffold-database.mjs";
+const SCAFFOLD_DATABASE_FILE: &str = ".scaffold-database.json";
+const SCAFFOLD_STYLING_EXPORT_SCRIPT: &str = "scripts/export-scaffold-styling.mjs";
+const SCAFFOLD_STYLING_FILE: &str = "src/lib/layout/scaffold-styling.ts";
 const DEFAULT_TASK_TEMPLATE: &str = "---\nstatus: active\n---\n\n";
+const DEFAULT_START_TASK_PROMPT: &str = "Work on task \"{{title}}\" from {{path}}.{{skill}} Update the task status frontmatter as progress changes.";
 const NEW_APP_NAME_ALLOWED_MESSAGE: &str =
     "Use lowercase letters, numbers, hyphens, or underscores for the app name.";
 static ANSI_ESCAPE_PATTERN: LazyLock<Regex> =
@@ -67,12 +76,15 @@ struct AppState {
 struct EditorSettings {
     #[serde(default = "default_task_template")]
     default_task_template: String,
+    #[serde(default = "default_start_task_prompt")]
+    start_task_prompt: String,
 }
 
 impl Default for EditorSettings {
     fn default() -> Self {
         Self {
             default_task_template: default_task_template(),
+            start_task_prompt: default_start_task_prompt(),
         }
     }
 }
@@ -180,6 +192,7 @@ struct WorkspaceInfo {
     hidden: bool,
     is_standalone: bool,
     is_tauri: bool,
+    port: Option<u16>,
 }
 
 #[derive(Serialize)]
@@ -358,12 +371,16 @@ async fn create_workspace(
 #[tauri::command]
 async fn create_app_from_custom_shell(
     app_name: String,
+    app_port: u16,
     app: AppHandle,
     state: State<'_, WorkspaceState>,
 ) -> Result<Option<WorkspaceList>, String> {
     let app_name = validate_new_app_name(&app_name)?;
-    let scaffold_root = custom_shell_scaffold_dir()?;
-    let (git_root, app_relative_path) = new_app_repo_target(&scaffold_root, &app_name)?;
+    // Seed the repo lookup from any shell copy the IDE can find, but scaffold the
+    // new app from the primary checkout's shell so it always gets the latest.
+    let seed = custom_shell_scaffold_dir()?;
+    let (git_root, app_relative_path) = new_app_repo_target(&seed, &app_name)?;
+    let scaffold_root = primary_custom_shell_dir(&git_root)?;
     add_workspace_for_new_app(
         &app,
         &state,
@@ -371,6 +388,7 @@ async fn create_app_from_custom_shell(
         app_relative_path,
         &scaffold_root,
         &app_name,
+        app_port,
     )
     .map(Some)
 }
@@ -494,11 +512,13 @@ fn add_workspace_for_new_app(
     app_relative_path: String,
     scaffold_root: &Path,
     app_name: &str,
+    app_port: u16,
 ) -> Result<WorkspaceList, String> {
     if app_relative_path.is_empty() {
         return Err("New app path must be inside the selected repo".to_string());
     }
     let database_port = generated_database_port(app_name, &used_generated_database_ports(state)?)?;
+    let scaffold_styling = read_custom_shell_styling(scaffold_root)?;
 
     add_workspace_with(
         app,
@@ -506,19 +526,193 @@ fn add_workspace_for_new_app(
         git_root,
         app_relative_path,
         app_name.to_string(),
-        |app_root| {
+        move |app_root| {
             copy_scaffold_dir(scaffold_root, app_root)?;
-            rewrite_scaffold_metadata(app_root, app_name, database_port)?;
+            write_scaffold_styling(app_root, &scaffold_styling)?;
+            export_custom_shell_database(scaffold_root, app_root)?;
+            copy_custom_shell_env(scaffold_root, app_root)?;
+            // Use the port the registry actually assigned (it may differ from
+            // the requested one if that collided) so scaffold metadata matches.
+            let assigned_port = register_local_app_port(app_root, app_name, app_port)?;
+            rewrite_scaffold_metadata(app_root, app_name, assigned_port, database_port)?;
             commit_generated_app_scaffold(app_root, app_name)
         },
     )
 }
 
-fn commit_generated_app_scaffold(app_root: &Path, app_name: &str) -> Result<(), String> {
-    let message = format!("Create {app_name} app");
-    run_git(app_root, &["add", "-A", "."])?;
-    run_git(app_root, &["commit", "-m", &message])?;
+fn export_custom_shell_database(scaffold_root: &Path, app_root: &Path) -> Result<(), String> {
+    let script = scaffold_root.join(SCAFFOLD_DATABASE_EXPORT_SCRIPT);
+    if !script.is_file() {
+        return Err("Custom Shell database exporter was not found.".to_string());
+    }
+
+    let output = Command::new("node")
+        .arg(&script)
+        .arg(app_root.join(SCAFFOLD_DATABASE_FILE))
+        .current_dir(scaffold_root)
+        .env("PATH", default_command_path())
+        .env_remove("CUSTOM_SHELL_DATABASE_URL")
+        .env_remove("CUSTOM_SHELL_POSTGRES_PORT")
+        .output()
+        .map_err(|error| format!("Could not copy the Custom Shell database: {error}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Could not copy the Custom Shell database: {}",
+            command_error("database export", &output)
+        ));
+    }
+
     Ok(())
+}
+
+fn copy_custom_shell_env(scaffold_root: &Path, app_root: &Path) -> Result<(), String> {
+    const APP_SPECIFIC_KEYS: [&str; 3] = [
+        "CUSTOM_SHELL_APP_ORIGINS",
+        "CUSTOM_SHELL_POSTGRES_PORT",
+        "CUSTOM_SHELL_DATABASE_URL",
+    ];
+    let mut copied = String::from("# Copied from Custom Shell by Personal IDE.\n");
+
+    // The generated app's loader keeps the first value it sees, so local
+    // overrides are written before the base file.
+    for name in [".env.local", ".env"] {
+        let path = scaffold_root.join(name);
+        if !path.is_file() {
+            continue;
+        }
+        let contents = fs::read_to_string(path).map_err(|error| error.to_string())?;
+        for line in contents.lines() {
+            let trimmed = line.trim();
+            let key = trimmed
+                .split_once('=')
+                .map(|(key, _)| key.trim())
+                .unwrap_or("");
+            if APP_SPECIFIC_KEYS
+                .iter()
+                .any(|app_specific_key| key == *app_specific_key)
+            {
+                continue;
+            }
+            copied.push_str(line);
+            copied.push('\n');
+        }
+    }
+
+    fs::write(app_root.join(".env.local"), copied).map_err(|error| error.to_string())
+}
+
+fn read_custom_shell_styling(scaffold_root: &Path) -> Result<serde_json::Value, String> {
+    let script = scaffold_root.join(SCAFFOLD_STYLING_EXPORT_SCRIPT);
+    if !script.is_file() {
+        return Err("Custom Shell styling exporter was not found.".to_string());
+    }
+
+    let output = Command::new("node")
+        .arg(&script)
+        .current_dir(scaffold_root)
+        .env("PATH", default_command_path())
+        .env_remove("CUSTOM_SHELL_DATABASE_URL")
+        .env_remove("CUSTOM_SHELL_POSTGRES_PORT")
+        .output()
+        .map_err(|error| format!("Could not read current Custom Shell styling: {error}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Could not read current Custom Shell styling: {}",
+            command_error("styling export", &output)
+        ));
+    }
+
+    let styling = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+        .map_err(|error| format!("Custom Shell returned invalid styling: {error}"))?;
+    if !styling.is_object() {
+        return Err("Custom Shell returned invalid styling.".to_string());
+    }
+
+    Ok(styling)
+}
+
+fn write_scaffold_styling(app_root: &Path, styling: &serde_json::Value) -> Result<(), String> {
+    if !styling.is_object() {
+        return Err("Custom Shell returned invalid styling.".to_string());
+    }
+
+    let styling = serde_json::to_string_pretty(styling).map_err(|error| error.to_string())?;
+    let contents = format!(
+        "import type {{ ShellStyling }} from \"@/lib/custom-shell\"\n\nexport const scaffoldStyling: ShellStyling | null = {styling}\n"
+    );
+    fs::write(app_root.join(SCAFFOLD_STYLING_FILE), contents).map_err(|error| error.to_string())
+}
+
+fn commit_generated_app_scaffold(app_root: &Path, app_name: &str) -> Result<(), String> {
+    let worktree_root = git_root_for(app_root)?;
+    let app_root = fs::canonicalize(app_root).map_err(|error| error.to_string())?;
+    let app_relative_path = relative_path(&worktree_root, &app_root)?;
+    let message = format!("Create {app_name} app");
+    run_git(
+        &worktree_root,
+        &["add", "-A", "--", &app_relative_path, LOCAL_APPS_FILE],
+    )?;
+    run_git(&worktree_root, &["commit", "-m", &message])?;
+    Ok(())
+}
+
+// An app's port is read from the worktree it actually runs from, every time the
+// workspace list is built. It used to come from a copy of `local-apps.json`
+// bundled into this app when it was compiled, so a port assigned after the last
+// build was invisible: the app fell through to an invented number that looked
+// official in the address bar and moved whenever the workspaces were reordered.
+// No port at all is the honest answer here — inventing one is what caused that.
+fn local_app_port(worktree_root: &Path, app_name: &str) -> Option<u16> {
+    let contents = fs::read_to_string(worktree_root.join(LOCAL_APPS_FILE)).ok()?;
+    let ports = serde_json::from_str::<serde_json::Value>(&contents).ok()?;
+    u16::try_from(ports.as_object()?.get(app_name)?.as_u64()?).ok()
+}
+
+fn register_local_app_port(app_root: &Path, app_name: &str, app_port: u16) -> Result<u16, String> {
+    let worktree_root = git_root_for(app_root)?;
+    let path = worktree_root.join(LOCAL_APPS_FILE);
+    let contents = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let ports = serde_json::from_str::<serde_json::Value>(&contents)
+        .map_err(|error| format!("Invalid {LOCAL_APPS_FILE}: {error}"))?;
+    let Some(ports) = ports.as_object() else {
+        return Err(format!("{LOCAL_APPS_FILE} must contain a JSON object."));
+    };
+
+    // Idempotent: if this app already has a registered port, keep it.
+    if let Some(existing_port) = ports.get(app_name).and_then(|value| value.as_u64()) {
+        return Ok(existing_port as u16);
+    }
+
+    // The requested port is computed from a bundled (build-time) copy of this
+    // file, which can be stale and disagree with the live file we validate
+    // against here. Rather than failing when it collides — which used to leave
+    // the new app with no registered port at all — fall back to the next free
+    // port so registration always succeeds with a unique value.
+    let used: std::collections::BTreeSet<u64> = ports
+        .values()
+        .filter_map(|value| value.as_u64())
+        .collect();
+
+    let mut port = u64::from(app_port);
+    if port < 1024 || used.contains(&port) {
+        port = used.iter().copied().max().unwrap_or(1023).max(1023) + 1;
+        while used.contains(&port) {
+            port += 1;
+        }
+    }
+
+    let closing_brace = contents
+        .rfind('}')
+        .ok_or_else(|| format!("{LOCAL_APPS_FILE} is missing its closing brace."))?;
+    let before_closing = contents[..closing_brace].trim_end();
+    let suffix = &contents[closing_brace + 1..];
+    let separator = if ports.is_empty() { "" } else { "," };
+    let key = serde_json::to_string(app_name).map_err(|error| error.to_string())?;
+    let updated = format!("{before_closing}{separator}\n  {key}: {port}\n}}{suffix}");
+    fs::write(path, updated).map_err(|error| error.to_string())?;
+    Ok(port as u16)
 }
 
 #[tauri::command]
@@ -1806,13 +2000,21 @@ fn workspace_list(state: &State<'_, WorkspaceState>) -> Result<WorkspaceList, St
         workspaces: app_state
             .workspaces
             .iter()
-            .map(|workspace| WorkspaceInfo {
-                id: workspace.id.clone(),
-                name: workspace.name.clone(),
-                app_name: workspace.app_name.clone(),
-                hidden: workspace.hidden,
-                is_standalone: workspace.app_relative_path.is_empty(),
-                is_tauri: workspace.app_root.join("src-tauri").is_dir(),
+            .map(|workspace| {
+                let is_tauri = workspace.app_root.join("src-tauri").is_dir();
+                WorkspaceInfo {
+                    id: workspace.id.clone(),
+                    name: workspace.name.clone(),
+                    app_name: workspace.app_name.clone(),
+                    hidden: workspace.hidden,
+                    is_standalone: workspace.app_relative_path.is_empty(),
+                    is_tauri,
+                    port: if is_tauri {
+                        None
+                    } else {
+                        local_app_port(&workspace.worktree_root, &workspace.app_name)
+                    },
+                }
             })
             .collect(),
     })
@@ -1962,18 +2164,32 @@ fn find_custom_shell_scaffold_dir(
 ) -> Result<PathBuf, String> {
     for root in [current_root, manifest_root] {
         for ancestor in root.ancestors() {
-            for candidate in [
-                ancestor.join(CUSTOM_SHELL_APP_DIR),
-                ancestor.join("apps").join(CUSTOM_SHELL_APP_DIR),
-            ] {
-                if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
-                    return fs::canonicalize(candidate).map_err(|error| error.to_string());
+            for dir in CUSTOM_SHELL_APP_DIRS {
+                for candidate in [ancestor.join(dir), ancestor.join("apps").join(dir)] {
+                    if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
+                        return fs::canonicalize(candidate).map_err(|error| error.to_string());
+                    }
                 }
             }
         }
     }
 
     Err("Custom Shell scaffold was not found next to Personal IDE.".to_string())
+}
+
+// The shell a new app is copied from. Always the primary checkout's copy (which
+// sits on develop), never whatever worktree the IDE happens to be pointed at.
+// Older workspaces drift far behind develop, so scaffolding from the active
+// worktree produced apps missing most of the shell.
+fn primary_custom_shell_dir(git_root: &Path) -> Result<PathBuf, String> {
+    for dir in CUSTOM_SHELL_APP_DIRS {
+        let candidate = git_root.join("apps").join(dir);
+        if candidate.join("package.json").is_file() && candidate.join("src").is_dir() {
+            return fs::canonicalize(candidate).map_err(|error| error.to_string());
+        }
+    }
+
+    Err("Custom Shell was not found in the primary checkout.".to_string())
 }
 
 fn copy_scaffold_dir(source: &Path, target: &Path) -> Result<(), String> {
@@ -2022,17 +2238,17 @@ fn should_skip_scaffold_entry(name: &str) -> bool {
 fn rewrite_scaffold_metadata(
     app_root: &Path,
     app_name: &str,
+    app_port: u16,
     database_port: u16,
 ) -> Result<(), String> {
     rewrite_package_metadata(app_root, app_name)?;
-    fs::write(app_root.join("vite.config.ts"), generated_vite_config())
-        .map_err(|error| error.to_string())?;
+    // vite.config.ts, AGENTS.md and the session cookie are copied untouched:
+    // the shell derives its dev port and cookie name from the app's
+    // package.json name, so renaming the package (above) is enough.
     fs::write(app_root.join("README.md"), generated_readme(app_name))
         .map_err(|error| error.to_string())?;
-    fs::write(app_root.join("AGENTS.md"), generated_agents_md(app_name))
-        .map_err(|error| error.to_string())?;
     ensure_generated_gitignore(app_root)?;
-    write_generated_env(app_root, app_name, database_port)?;
+    write_generated_env(app_root, app_name, app_port, database_port)?;
     rewrite_root_title(app_root, app_name)?;
     rewrite_login_branding(app_root, app_name)?;
     Ok(())
@@ -2071,14 +2287,25 @@ fn rewrite_package_metadata(app_root: &Path, app_name: &str) -> Result<(), Strin
     fs::write(path, format!("{}\n", contents)).map_err(|error| error.to_string())
 }
 
-fn write_generated_env(app_root: &Path, app_name: &str, database_port: u16) -> Result<(), String> {
-    fs::write(
-        app_root.join(".env.local"),
-        format!(
-            "# Generated by Personal IDE.\nCUSTOM_SHELL_APP_ORIGINS=\"http://127.0.0.1:3000,http://localhost:3000\"\nCUSTOM_SHELL_POSTGRES_PORT=\"{database_port}\"\nCUSTOM_SHELL_DATABASE_URL=\"postgresql://postgres:localdev@localhost:{database_port}/{app_name}\"\n"
-        ),
-    )
-    .map_err(|error| error.to_string())
+fn write_generated_env(
+    app_root: &Path,
+    app_name: &str,
+    app_port: u16,
+    database_port: u16,
+) -> Result<(), String> {
+    let path = app_root.join(".env.local");
+    let mut contents = if path.is_file() {
+        fs::read_to_string(&path).map_err(|error| error.to_string())?
+    } else {
+        String::new()
+    };
+    if !contents.is_empty() && !contents.ends_with('\n') {
+        contents.push('\n');
+    }
+    contents.push_str(&format!(
+        "# Generated for this app by Personal IDE.\nCUSTOM_SHELL_APP_ORIGINS=\"http://127.0.0.1:{app_port},http://localhost:{app_port}\"\nCUSTOM_SHELL_POSTGRES_PORT=\"{database_port}\"\nCUSTOM_SHELL_DATABASE_URL=\"postgresql://postgres:localdev@localhost:{database_port}/{app_name}\"\n"
+    ));
+    fs::write(path, contents).map_err(|error| error.to_string())
 }
 
 fn used_generated_database_ports(
@@ -2151,44 +2378,10 @@ fn generated_database_port(app_name: &str, used_ports: &HashSet<u16>) -> Result<
     Err("No generated database ports are available.".to_string())
 }
 
-fn generated_vite_config() -> &'static str {
-    r#"import path from "path"
-import tailwindcss from "@tailwindcss/vite"
-import { tanstackStart } from "@tanstack/react-start/plugin/vite"
-import react from "@vitejs/plugin-react"
-import { nitro } from "nitro/vite"
-import { defineConfig } from "vite"
-import tsconfigPaths from "vite-tsconfig-paths"
-
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [tanstackStart(), nitro(), react(), tailwindcss(), tsconfigPaths()],
-  resolve: {
-    alias: [
-      {
-        find: "@",
-        replacement: path.resolve(__dirname, "./src"),
-      },
-    ],
-  },
-  server: {
-    port: 3000,
-  },
-})
-"#
-}
-
 fn generated_readme(app_name: &str) -> String {
     let title = title_from_slug(app_name);
     format!(
-        "# {title}\n\nGenerated from the Custom Shell scaffold.\n\n## Development\n\n```bash\nnpm install\nnpm run dev\n```\n\nThe local app runs at `http://localhost:3000` by default.\n"
-    )
-}
-
-fn generated_agents_md(app_name: &str) -> String {
-    let title = title_from_slug(app_name);
-    format!(
-        "# AGENTS.md\n\nGuidance for agents working in {title}.\n\n## App Context\n\nThis app was generated from the Custom Shell scaffold. Use local code and docs as the source of truth.\n\n## Working Rules\n\n- Keep changes small and direct.\n- Do not commit secrets.\n- Run the narrowest relevant checks before summarizing work.\n"
+        "# {title}\n\nGenerated from the Custom Shell scaffold.\n\n## Development\n\n```bash\nnpm install\nnpm run dev\n```\n\nThe local app port is defined in `../../local-apps.json`.\n"
     )
 }
 
@@ -2200,7 +2393,7 @@ fn ensure_generated_gitignore(app_root: &Path) -> Result<(), String> {
         String::new()
     };
 
-    for entry in [".env", ".env.*", "!.env.example"] {
+    for entry in [".env", ".env.*", "!.env.example", SCAFFOLD_DATABASE_FILE] {
         if !contents.lines().any(|line| line.trim() == entry) {
             if !contents.ends_with('\n') && !contents.is_empty() {
                 contents.push('\n');
@@ -2563,6 +2756,10 @@ fn default_task_template() -> String {
     DEFAULT_TASK_TEMPLATE.to_string()
 }
 
+fn default_start_task_prompt() -> String {
+    DEFAULT_START_TASK_PROMPT.to_string()
+}
+
 fn render_task_template(template: &str, title: &str) -> String {
     let mut contents = template.replace("{{title}}", title);
     if !contents.is_empty() && !contents.ends_with('\n') {
@@ -2579,6 +2776,13 @@ fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
         ));
     }
 
+    if settings.start_task_prompt.len() > MAX_TASK_TEMPLATE_SIZE {
+        return Err(format!(
+            "Start task prompt must be {} KB or smaller",
+            MAX_TASK_TEMPLATE_SIZE / 1024
+        ));
+    }
+
     Ok(())
 }
 
@@ -2586,14 +2790,17 @@ fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
 mod tests {
     use super::{
         clean_repo_path, cleanup_created_worktree, commit_count, commit_generated_app_scaffold,
-        delete_workspace_branch, ensure_workspace_branch_can_be_deleted,
+        copy_custom_shell_env, delete_workspace_branch, ensure_workspace_branch_can_be_deleted,
         find_custom_shell_scaffold_dir, generate_commit_message, generated_database_port,
         generated_database_port_from_env, git_branch_exists, git_status_lines, has_origin_remote,
-        new_app_repo_target, normalize_task_status, parse_diff_hunk, parse_skill_tags, path_arg,
-        primary_worktree_for, read_git_repo_text_file, render_task_template,
-        reorder_workspace_records, rewrite_scaffold_metadata, run_git, should_skip_scaffold_entry,
-        sync_workspace_branch, validate_editor_settings, validate_new_app_name, DiffHunk,
-        EditorSettings, GitFile, WorkspaceRecord, DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
+        local_app_port, new_app_repo_target, normalize_task_status, parse_diff_hunk,
+        parse_skill_tags, path_arg,
+        primary_worktree_for, read_git_repo_text_file, register_local_app_port,
+        render_task_template, reorder_workspace_records, rewrite_scaffold_metadata, run_git,
+        should_skip_scaffold_entry, sync_workspace_branch, validate_editor_settings,
+        validate_new_app_name, write_generated_env, write_scaffold_styling, DiffHunk,
+        EditorSettings, GitFile, WorkspaceRecord, DEFAULT_START_TASK_PROMPT, DEFAULT_TASK_TEMPLATE,
+        MAX_TASK_TEMPLATE_SIZE,
     };
     use std::{
         collections::HashSet,
@@ -2767,6 +2974,14 @@ mod tests {
     }
 
     #[test]
+    fn editor_settings_default_uses_start_task_prompt() {
+        assert_eq!(
+            EditorSettings::default().start_task_prompt,
+            DEFAULT_START_TASK_PROMPT
+        );
+    }
+
+    #[test]
     fn render_task_template_replaces_title_placeholder() {
         let template = "# {{title}}\n\nNotes";
 
@@ -2805,6 +3020,17 @@ mod tests {
     fn validate_editor_settings_rejects_oversized_task_template() {
         let settings = EditorSettings {
             default_task_template: "x".repeat(MAX_TASK_TEMPLATE_SIZE + 1),
+            ..EditorSettings::default()
+        };
+
+        assert!(validate_editor_settings(&settings).is_err());
+    }
+
+    #[test]
+    fn validate_editor_settings_rejects_oversized_start_task_prompt() {
+        let settings = EditorSettings {
+            start_task_prompt: "x".repeat(MAX_TASK_TEMPLATE_SIZE + 1),
+            ..EditorSettings::default()
         };
 
         assert!(validate_editor_settings(&settings).is_err());
@@ -2840,7 +3066,7 @@ mod tests {
             .as_nanos();
         let root = std::env::temp_dir().join(format!("personal-ide-scaffold-test-{unique}"));
         let manifest_root = root.join("apps/personal-ide/src-tauri");
-        let scaffold_root = root.join("apps/custom-shell");
+        let scaffold_root = root.join("apps/shell");
         let outside_root = std::env::temp_dir().join(format!("personal-ide-outside-test-{unique}"));
 
         fs::create_dir_all(&manifest_root).expect("create manifest dir");
@@ -2865,6 +3091,7 @@ mod tests {
             .as_nanos();
         let root = std::env::temp_dir().join(format!("personal-ide-db-scaffold-test-{unique}"));
         fs::create_dir_all(root.join("src/routes")).expect("create app routes");
+        fs::create_dir_all(root.join("src/server")).expect("create app server");
         fs::write(
             root.join("package.json"),
             r#"{"name":"custom-shell","scripts":{"dev":"vite dev"}}"#,
@@ -2880,7 +3107,10 @@ mod tests {
             r#"<h1>Sign in to Custom Shell</h1><p>Use your Custom Shell account.</p>"#,
         )
         .expect("write login route");
-        rewrite_scaffold_metadata(&root, "app-name", 54_123).expect("rewrite scaffold metadata");
+        fs::write(root.join("vite.config.ts"), "import { DEV_APP_PORT } from \"./app-port\"\n")
+            .expect("write vite config");
+        rewrite_scaffold_metadata(&root, "app-name", 3_012, 54_123)
+            .expect("rewrite scaffold metadata");
 
         let package = fs::read_to_string(root.join("package.json")).expect("read package");
         let package: serde_json::Value = serde_json::from_str(&package).expect("parse package");
@@ -2892,17 +3122,97 @@ mod tests {
 
         let env = fs::read_to_string(root.join(".env.local")).expect("read env");
         assert!(env.contains("CUSTOM_SHELL_APP_ORIGINS"));
-        assert!(env.contains("http://127.0.0.1:3000,http://localhost:3000"));
+        assert!(env.contains("http://127.0.0.1:3012,http://localhost:3012"));
         assert!(env.contains("CUSTOM_SHELL_DATABASE_URL"));
         assert!(env.contains("CUSTOM_SHELL_POSTGRES_PORT=\"54123\""));
         assert!(!env.contains("custom_shell_"));
+
+        // The shell's own vite.config.ts must survive scaffolding untouched —
+        // it reads the port from local-apps.json by the app's package name.
+        let vite = fs::read_to_string(root.join("vite.config.ts")).expect("read Vite config");
+        assert_eq!(vite, "import { DEV_APP_PORT } from \"./app-port\"\n");
+
+        let readme = fs::read_to_string(root.join("README.md")).expect("read README");
+        assert!(readme.contains("../../local-apps.json"));
+        assert!(!readme.contains("localhost:3000"));
 
         let login = fs::read_to_string(root.join("src/routes/login.tsx")).expect("read login");
         assert!(login.contains("Sign in to App Name"));
         assert!(login.contains("Use your App Name account."));
         assert!(!login.contains("Custom Shell account"));
 
+        let gitignore = fs::read_to_string(root.join(".gitignore")).expect("read gitignore");
+        assert!(gitignore.contains(".scaffold-database.json"));
+
         fs::remove_dir_all(root).expect("remove temp scaffold metadata test");
+    }
+
+    #[test]
+    fn generated_app_copies_env_with_its_own_runtime_values() {
+        let source = temp_path("scaffold-env-source");
+        let app_root = temp_path("scaffold-env-target");
+        fs::create_dir_all(&source).expect("create env source");
+        fs::create_dir_all(&app_root).expect("create env target");
+        fs::write(
+            source.join(".env"),
+            "CUSTOM_SHELL_R2_BUCKET=custom-shell\nCUSTOM_SHELL_DATABASE_URL=old\n",
+        )
+        .expect("write source env");
+        fs::write(
+            source.join(".env.local"),
+            "CUSTOM_SHELL_EMAIL_FROM=hello@example.com\nCUSTOM_SHELL_POSTGRES_PORT = 54320\n",
+        )
+        .expect("write source local env");
+
+        copy_custom_shell_env(&source, &app_root).expect("copy env");
+        write_generated_env(&app_root, "new-app", 3_012, 54_123).expect("write app env");
+
+        let env = fs::read_to_string(app_root.join(".env.local")).expect("read generated env");
+        assert!(env.contains("CUSTOM_SHELL_R2_BUCKET=custom-shell"));
+        assert!(env.contains("CUSTOM_SHELL_EMAIL_FROM=hello@example.com"));
+        assert!(!env.contains("CUSTOM_SHELL_DATABASE_URL=old"));
+        assert!(env.contains(
+            "CUSTOM_SHELL_DATABASE_URL=\"postgresql://postgres:localdev@localhost:54123/new-app\""
+        ));
+        assert!(env.contains("CUSTOM_SHELL_POSTGRES_PORT=\"54123\""));
+
+        fs::remove_dir_all(source).expect("remove env source");
+        fs::remove_dir_all(app_root).expect("remove env target");
+    }
+
+    #[test]
+    fn generated_app_captures_custom_shell_styling() {
+        let root = temp_path("scaffold-styling");
+        fs::create_dir_all(root.join("src/lib/layout")).expect("create scaffold layout folder");
+        let styling = serde_json::json!({
+            "gutter": 10,
+            "cardBorderWidth": 1,
+            "cardBorderColor": { "mode": "muted", "strength": 7, "color": "#f2f2fd" },
+            "dividerColor": { "mode": "muted", "strength": 7, "color": "#d4d4d8" },
+            "content": { "mode": "muted", "strength": 95, "color": "#f4f4f5" },
+            "chrome": { "mode": "muted", "strength": 27, "color": "#ffffff" },
+            "modal": {
+                "background": { "mode": "muted", "strength": 44, "color": "#ffffff" },
+                "borderWidth": 1,
+                "borderColor": { "mode": "default", "strength": 28, "color": "#d4d4d8" },
+                "padding": 20,
+                "overlayOpacity": 29,
+                "cardBackground": { "mode": "muted", "strength": 0, "color": "#ffffff" },
+                "cardBorderWidth": 1,
+                "cardBorderColor": { "mode": "muted", "strength": 6, "color": "#d4d4d8" }
+            }
+        });
+
+        write_scaffold_styling(&root, &styling).expect("write scaffold styling");
+
+        let generated = fs::read_to_string(root.join("src/lib/layout/scaffold-styling.ts"))
+            .expect("read styling");
+        assert!(generated.contains("export const scaffoldStyling: ShellStyling | null"));
+        assert!(generated.contains("\"gutter\": 10"));
+        assert!(generated.contains("\"overlayOpacity\": 29"));
+        assert!(generated.contains("\"color\": \"#f2f2fd\""));
+
+        fs::remove_dir_all(root).expect("remove scaffold styling test");
     }
 
     #[test]
@@ -3162,13 +3472,15 @@ mod tests {
     }
 
     #[test]
-    fn generated_app_commit_is_scoped_to_app_folder() {
+    fn generated_app_commit_includes_app_and_port_registry() {
         let root = temp_path("generated-app-commit");
         init_test_repo(&root);
         let app_root = root.join("apps/app-name");
         fs::create_dir_all(app_root.join("src")).expect("create app");
         fs::write(app_root.join("package.json"), "{}\n").expect("write package");
         fs::write(app_root.join("src/main.ts"), "export {}\n").expect("write source");
+        fs::write(root.join("local-apps.json"), "{\"app-name\":3012}\n")
+            .expect("write port registry");
         fs::write(root.join("outside.txt"), "outside\n").expect("write outside file");
 
         commit_generated_app_scaffold(&app_root, "app-name").expect("commit generated app");
@@ -3181,8 +3493,66 @@ mod tests {
                 .trim(),
             "Create app-name app"
         );
+        assert_eq!(
+            run_git(&root, &["show", "HEAD:local-apps.json"]).expect("committed port registry"),
+            "{\"app-name\":3012}\n"
+        );
 
         fs::remove_dir_all(root).expect("remove temp generated app commit repo");
+    }
+
+    #[test]
+    fn app_port_is_read_from_the_worktree_and_never_invented() {
+        let root = temp_path("local-app-port");
+        fs::create_dir_all(&root).expect("create temp port registry repo");
+        fs::write(
+            root.join("local-apps.json"),
+            "{\n  \"hub\": 3000,\n  \"trade\": 3014\n}\n",
+        )
+        .expect("write port registry");
+
+        assert_eq!(local_app_port(&root, "trade"), Some(3_014));
+
+        // An app the file has never heard of has no port. Handing it a number
+        // here is what let a made-up port look official in the address bar.
+        assert_eq!(local_app_port(&root, "video"), None);
+        assert_eq!(local_app_port(&root.join("missing"), "trade"), None);
+
+        fs::remove_dir_all(&root).expect("remove temp port registry repo");
+    }
+
+    #[test]
+    fn generated_app_port_is_registered_without_reformatting_existing_entries() {
+        let root = temp_path("generated-app-port");
+        init_test_repo(&root);
+        let app_root = root.join("apps/app-name");
+        fs::create_dir_all(&app_root).expect("create app");
+        fs::write(
+            root.join("local-apps.json"),
+            "{\n  \"hub\": 3000,\n  \"custom-shell\": 3002\n}\n",
+        )
+        .expect("write port registry");
+
+        let app_port =
+            register_local_app_port(&app_root, "app-name", 3_012).expect("register app port");
+        assert_eq!(app_port, 3_012);
+
+        assert_eq!(
+            fs::read_to_string(root.join("local-apps.json")).expect("read port registry"),
+            "{\n  \"hub\": 3000,\n  \"custom-shell\": 3002,\n  \"app-name\": 3012\n}\n"
+        );
+
+        // A requested port that collides is reassigned to the next free port
+        // instead of failing, so the app always gets a unique registered entry.
+        let reassigned =
+            register_local_app_port(&app_root, "other-app", 3_012).expect("reassign colliding port");
+        assert_eq!(reassigned, 3_013);
+        assert_eq!(
+            fs::read_to_string(root.join("local-apps.json")).expect("read port registry"),
+            "{\n  \"hub\": 3000,\n  \"custom-shell\": 3002,\n  \"app-name\": 3012,\n  \"other-app\": 3013\n}\n"
+        );
+
+        fs::remove_dir_all(root).expect("remove temp repo");
     }
 
     #[test]
@@ -4109,8 +4479,12 @@ fn stop_workspace_compose_services(workspace: &WorkspaceRecord) -> Result<(), St
         return Ok(());
     };
 
+    // An app opened from the Dock only has /usr/bin:/bin on its PATH, and Docker
+    // lives in /usr/local/bin, so without this the call fails with "No such file
+    // or directory (os error 2)" and the workspace cannot be deleted.
     let output = Command::new("docker")
         .args(&args)
+        .env("PATH", default_command_path())
         .current_dir(&workspace.app_root)
         .output()
         .map_err(|error| error.to_string())?;
@@ -4159,15 +4533,32 @@ fn sync_workspace_branch(workspace: &WorkspaceRecord) -> Result<(), String> {
         return Err("Commit or discard changes before syncing".to_string());
     }
 
-    push_workspace_branch(workspace)?;
+    // Refresh develop from the server first, so we sync against the real latest
+    // instead of a stale local copy. Without this fetch the sync could publish
+    // onto — and pull down — an out-of-date develop.
     run_git(&workspace.git_root, &["checkout", "develop"])?;
-    run_git(&workspace.git_root, &["pull", "origin", "develop"])?;
-    run_git(
-        &workspace.git_root,
-        &["merge", "--no-ff", "--no-edit", &workspace.branch],
-    )?;
+    run_git(&workspace.git_root, &["pull", "--ff-only", "origin", "develop"])?;
+
+    // Pull develop DOWN into this workspace's branch. A real merge (fast-forward
+    // when possible, a merge commit when the branch has its own history) so an
+    // older branch still receives develop's updates. The previous --ff-only step
+    // silently did nothing on any branch that had diverged, which is why
+    // workspaces drifted hundreds of commits behind. On a clash, undo the
+    // half-finished merge and stop cleanly rather than leaving the workspace in a
+    // conflicted state.
+    if run_git(&workspace.worktree_root, &["merge", "--no-edit", "develop"]).is_err() {
+        let _ = run_git(&workspace.worktree_root, &["merge", "--abort"]);
+        return Err(
+            "develop has changes that clash with this workspace. Open the changes, resolve them, then sync again."
+                .to_string(),
+        );
+    }
+
+    // Publish this branch UP into develop. After the merge above develop is an
+    // ancestor of the branch, so this fast-forwards develop with no extra commit.
+    push_workspace_branch(workspace)?;
+    run_git(&workspace.git_root, &["merge", "--ff-only", &workspace.branch])?;
     run_git(&workspace.git_root, &["push", "origin", "develop"])?;
-    run_git(&workspace.worktree_root, &["merge", "--ff-only", "develop"])?;
     push_workspace_branch(workspace)
 }
 

@@ -1,0 +1,36 @@
+import type { AppOptions } from "@/lib/app-options"
+import { defineSettingsTab } from "@/lib/settings-tab"
+
+/**
+ * What this app changes about the shell.
+ *
+ * Open `src/lib/app-options.ts` for the full list of what can go in here and
+ * what each one does. Anything not offered there is a compile error, on
+ * purpose: the shell always knows every way an app can deviate from it.
+ *
+ * This file belongs to the app, not the shell. **In custom-shell itself it
+ * stays empty forever.** The moment the shell puts a value here, every app ever
+ * copied from it conflicts on this file on every future merge — which is the
+ * exact problem the file exists to avoid.
+ *
+ * The type is written as an annotation rather than `satisfies` so that an empty
+ * object still reads as the full shape. Both catch a misspelled option.
+ */
+export const appOptions: AppOptions = {
+  settings: {
+    tabs: [
+      // Each person's own list of activity types (task part 19).
+      defineSettingsTab({
+        id: "activity-types",
+        label: "Activity types",
+        panel: () => import("@/components/travel/activity-types-settings"),
+      }),
+      // Google lookups today and this month, and who used the most (Travel features 4, part 4).
+      defineSettingsTab({
+        id: "google-use",
+        label: "Google use",
+        panel: () => import("@/components/travel/google-use-settings"),
+      }),
+    ],
+  },
+}

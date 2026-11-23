@@ -26,6 +26,7 @@ out/
 # production
 build/
 dist/
+.output/
 .cursor/
 
 # misc
@@ -72,3 +73,4 @@ tasks/
 
 # playwright CLI logs
 .playwright-cli/
+storage-state.json

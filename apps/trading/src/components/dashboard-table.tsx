@@ -16,7 +16,6 @@ import {
   DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -130,11 +129,11 @@ export function DashboardTable(props: DashboardTableProps) {
   } = props
 
   return (
-    <TableSurface aria-busy={loading}>
+    <TableSurface>
       <DashboardToolbar>
         <DashboardToolbarTitle>
           {icon ? (
-            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8 [&_svg]:size-4">
               {icon}
             </span>
           ) : null}
@@ -162,20 +161,14 @@ export function DashboardTable(props: DashboardTableProps) {
       </DashboardToolbar>
 
       {"content" in props ? (
-        props.content
+        <div>{props.content}</div>
       ) : (
         <ScrollArea className="w-full">
           <Table>
             {props.header}
             <TableBody>
               {loading ? (
-                Array.from({ length: 6 }).map((_, index) => (
-                  <TableRow key={index}>
-                    <TableCell colSpan={props.emptyColSpan} className="py-3">
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
+                null
               ) : props.isEmpty ? (
                 <TableRow>
                   <TableCell
@@ -243,18 +236,17 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
     )
   }
 
-  const pageSize = footer.count || defaultPageSizeOptions[0]
+  // A summary footer counts rows; it has no pages. Rendering the pagination
+  // control here showed a dead "Rows per page" select set to the row count.
+  // Call sites pass the plural ("workspaces"), so drop the "s" for a single row.
+  const plural = footer.label ?? "items"
+  const label =
+    footer.count === 1 && plural.endsWith("s") ? plural.slice(0, -1) : plural
 
   return (
-    <DashboardTablePaginationFooter
-      pageSize={pageSize}
-      pageSizeOptions={[pageSize]}
-      rangeText={`${footer.count ? `1-${footer.count}` : "0"} of ${footer.count}`}
-      firstDisabled
-      previousDisabled
-      nextDisabled
-      lastDisabled
-    />
+    <div className="flex items-center bg-muted/50 p-4 text-sm text-muted-foreground">
+      {footer.count} {label}
+    </div>
   )
 }
 

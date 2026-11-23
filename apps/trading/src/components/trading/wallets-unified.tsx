@@ -17,6 +17,13 @@ import {
 } from "@/components/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -59,7 +66,8 @@ import {
   getOnboardingErrorMessage,
   verifyAgentApproval,
 } from "@/lib/api/agent-onboarding"
-import { shortAddress } from "@/components/scanner/format"
+import { liquidationDistanceClass } from "@/lib/trading/liquidation-risk"
+import { pct, shortAddress, usd } from "@/lib/format"
 import { ConnectWalletFlow } from "@/components/trading/connect-wallet-flow"
 import { NewWalletDialog } from "@/components/trading/new-wallet-dialog"
 import { RecoveryDialog } from "@/components/trading/recovery-dialog"
@@ -226,9 +234,13 @@ export function WalletsUnified({
         </div>
       ) : null}
 
+      <MarginHealthCard wallets={wallets} />
+
       <DashboardTable
         title="Wallets"
-        icon={<WalletIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={
+          <WalletIcon className="text-muted-foreground" />
+        }
         count={rows.length}
         status={verifyStatus}
         controls={
@@ -270,11 +282,21 @@ export function WalletsUnified({
         header={
           <TableHeader>
             <TableRow>
-              <TableHead column="main">{sortableHead("label", "Wallet")}</TableHead>
-              <TableHead column="meta">{sortableHead("type", "Type")}</TableHead>
-              <TableHead column="meta">{sortableHead("network", "Network")}</TableHead>
-              <TableHead column="meta">{sortableHead("balance", "Balance")}</TableHead>
-              <TableHead column="meta">{sortableHead("status", "Status")}</TableHead>
+              <TableHead column="main">
+                {sortableHead("label", "Wallet")}
+              </TableHead>
+              <TableHead column="meta">
+                {sortableHead("type", "Type")}
+              </TableHead>
+              <TableHead column="meta">
+                {sortableHead("network", "Network")}
+              </TableHead>
+              <TableHead column="meta">
+                {sortableHead("balance", "Balance")}
+              </TableHead>
+              <TableHead column="meta">
+                {sortableHead("status", "Status")}
+              </TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -304,7 +326,10 @@ export function WalletsUnified({
                 setEditing(row.wallet)
               }}
               onDelete={() =>
-                setPendingAction({ kind: "delete-exchange", wallet: row.wallet })
+                setPendingAction({
+                  kind: "delete-exchange",
+                  wallet: row.wallet,
+                })
               }
               onApprove={() => {
                 setError(null)
@@ -440,6 +465,80 @@ export function WalletsUnified({
   )
 }
 
+/**
+ * Live margin health for every exchange wallet: margin in use, withdrawable,
+ * and the wallet's riskiest position's distance to forced liquidation. Flat
+ * wallets and failed lookups show an em-dash rather than a fake zero.
+ */
+function MarginHealthCard({ wallets }: { wallets: WalletItem[] }) {
+  if (wallets.length === 0) return null
+  const money = (value: number | null | undefined) =>
+    typeof value === "number" ? usd(value) : "—"
+  return (
+    <Card className="mb-[var(--shell-gutter,0.75rem)]">
+      <CardHeader>
+        <CardTitle>Margin health</CardTitle>
+        <CardDescription>
+          Live from the exchange: how much margin each wallet is using and how
+          far its riskiest position sits from forced liquidation.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="divide-y divide-foreground/5">
+        {wallets.map((wallet) => {
+          const marginPct =
+            typeof wallet.margin_used === "number" &&
+            typeof wallet.equity === "number" &&
+            wallet.equity > 0
+              ? (wallet.margin_used / wallet.equity) * 100
+              : null
+          const worst = wallet.worst_liq_distance_pct ?? null
+          return (
+            <div
+              key={wallet.id}
+              className="grid grid-cols-2 gap-2 py-2 first:pt-0 last:pb-0 sm:grid-cols-4"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">
+                  {wallet.label}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {wallet.network}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Margin used</div>
+                <div className="font-mono text-sm">
+                  {marginPct === null
+                    ? "—"
+                    : `${pct(marginPct, 1)} (${money(wallet.margin_used)})`}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  Withdrawable
+                </div>
+                <div className="font-mono text-sm">
+                  {money(wallet.withdrawable)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">
+                  Closest to liquidation
+                </div>
+                <div
+                  className={`font-mono text-sm ${liquidationDistanceClass(worst) ?? ""}`}
+                >
+                  {worst === null ? "—" : `${pct(worst, 1)} away`}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
+}
+
 function ExchangeWalletRow({
   wallet,
   verifying,
@@ -456,8 +555,7 @@ function ExchangeWalletRow({
   onApprove: () => void
 }) {
   const expiry = expiryState(wallet)
-  const needsApproval =
-    wallet.status === "pending" || expiry.kind === "expired"
+  const needsApproval = wallet.status === "pending" || expiry.kind === "expired"
 
   return (
     <TableRow>
@@ -466,7 +564,7 @@ function ExchangeWalletRow({
           {wallet.status === "active" ? (
             <button
               type="button"
-              className="block max-w-full truncate text-left font-medium underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="block max-w-full truncate text-left font-medium underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               onClick={onEdit}
               aria-label={`Edit ${wallet.label}`}
             >
@@ -684,31 +782,38 @@ function EditWalletDialog({
             Rename the wallet or disable it to block new orders.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="wallet-edit-label">Label</Label>
-            <Input
-              id="wallet-edit-label"
-              value={form.label}
-              disabled={busy}
-              onChange={(event) =>
-                onFormChange({ ...form, label: event.target.value })
-              }
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="wallet-edit-active"
-              checked={form.isActive}
-              disabled={busy}
-              onCheckedChange={(checked) =>
-                onFormChange({ ...form, isActive: checked === true })
-              }
-            />
-            <Label htmlFor="wallet-edit-active">
-              Active (allowed to place orders)
-            </Label>
-          </div>
+        <DialogBody>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Wallet details</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="wallet-edit-label">Label</Label>
+                <Input
+                  id="wallet-edit-label"
+                  value={form.label}
+                  disabled={busy}
+                  onChange={(event) =>
+                    onFormChange({ ...form, label: event.target.value })
+                  }
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="wallet-edit-active"
+                  checked={form.isActive}
+                  disabled={busy}
+                  onCheckedChange={(checked) =>
+                    onFormChange({ ...form, isActive: checked === true })
+                  }
+                />
+                <Label htmlFor="wallet-edit-active">
+                  Active (allowed to place orders)
+                </Label>
+              </div>
+            </CardContent>
+          </Card>
           {error ? <ErrorMessage>{error}</ErrorMessage> : null}
         </DialogBody>
         <DialogFooter variant="plain">
@@ -750,7 +855,10 @@ function compareRows(a: WalletRow, b: WalletRow, column: SortColumn): number {
     case "label":
       return a.wallet.label.localeCompare(b.wallet.label)
     case "type":
-      return a.kind.localeCompare(b.kind) || a.wallet.label.localeCompare(b.wallet.label)
+      return (
+        a.kind.localeCompare(b.kind) ||
+        a.wallet.label.localeCompare(b.wallet.label)
+      )
     case "network":
       return networkKey(a).localeCompare(networkKey(b))
     case "balance":
@@ -781,14 +889,12 @@ function statusRank(row: WalletRow): number {
 
 function expiryState(
   wallet: WalletItem
-):
-  | { kind: "none" }
-  | { kind: "expiring"; days: number }
-  | { kind: "expired" } {
+): { kind: "none" } | { kind: "expiring"; days: number } | { kind: "expired" } {
   if (!wallet.approval_valid_until || wallet.status !== "active") {
     return { kind: "none" }
   }
-  const remainingMs = new Date(wallet.approval_valid_until).getTime() - Date.now()
+  const remainingMs =
+    new Date(wallet.approval_valid_until).getTime() - Date.now()
   if (remainingMs <= 0) return { kind: "expired" }
   const days = Math.ceil(remainingMs / (24 * 60 * 60 * 1000))
   if (days <= EXPIRY_WARNING_DAYS) return { kind: "expiring", days }

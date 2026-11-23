@@ -60,7 +60,7 @@ function DashboardToolbarSearch({
         inputMode="search"
         autoComplete="off"
         className={cn(
-          "h-8 w-full pr-8 pl-9 text-sm sm:h-9 sm:w-[180px] sm:pl-10 lg:w-[240px]",
+          "h-8 w-full pr-8 pl-9 text-sm sm:w-[180px] sm:pl-10 lg:w-[240px]",
           inputClassName
         )}
         {...props}
@@ -89,12 +89,10 @@ function DashboardToolbarSearch({
 function DashboardToolbarSelectTrigger({
   className,
   ...props
-}: React.ComponentProps<typeof SelectTrigger> & {
-  labels?: readonly string[]
-}) {
+}: React.ComponentProps<typeof SelectTrigger>) {
   return (
     <SelectTrigger
-      className={cn("h-8 w-fit text-xs sm:h-9 sm:text-sm", className)}
+      className={cn("h-8 w-fit text-sm", className)}
       {...props}
     />
   )
@@ -107,7 +105,7 @@ function DashboardSelectedActionButton({
   return (
     <Button
       size="sm"
-      className={cn("h-8 w-fit gap-2 sm:h-9", className)}
+      className={cn("h-8 w-fit gap-2", className)}
       {...props}
     />
   )

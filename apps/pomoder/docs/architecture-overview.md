@@ -16,7 +16,13 @@ PostgreSQL is authoritative for accounts, subscriptions, tasks, completed focus 
 - Previous-day active tasks are archived and cloned once.
 - A user has at most one active room membership.
 - Room phases use server timestamps; joins are locked during focus.
+- Only the host advances a room through the canonical phase sequence; every timed phase schedules exactly one sequence-guarded worker job, so stale jobs no-op.
+- Every fourth completed focus period earns the long break; a host who leaves or starts hosting elsewhere closes their room and ends all memberships.
+- Room SSE snapshots carry display names, roles, and chat only — never account fields; unlisted rooms resolve by direct slug but never appear in public listings.
+- Moderation is role-scoped per mutation: members report others' messages (deduplicated and rate limited), the host soft-deletes messages and removes or bans members (never themselves), and a ban ends the membership in the same transaction and blocks rejoining. Deleted chat tombstones withhold the body from members but keep it for admin review; report review state changes are admin-only and audited.
 - Leaderboard inclusion requires opt-in and a public display name.
+- Focus history reports are owner-scoped, limited to preset local-date ranges resolved in the user's timezone (at most one year), and count completed focus-mode sessions only; 12-month and yearly ranges require the Pro entitlement.
+- Timer presets: built-ins ship in code with stable identifiers and are never inserted per account; custom presets are owner-scoped with a transactional ten-per-user limit (owner-row lock) and per-user unique names; applying a preset writes through the canonical preference mutation and never changes a running or paused timer.
 - Entitlements are calculated server-side from synchronized Stripe state.
 - AI credits are reserved transactionally and refunded on permanent failure.
 - Private R2 objects are streamed only after owner/catalog authorization.
@@ -28,6 +34,8 @@ PostgreSQL is authoritative for accounts, subscriptions, tasks, completed focus 
 - `GET /api/rooms/:slug/events` — authenticated SSE snapshot stream.
 - `POST /api/media` — authenticated Pro multipart upload.
 - `GET /api/media/:id/file` — authenticated private range delivery.
+- `POST /api/avatar` / `DELETE /api/avatar` — authenticated profile-picture upload and removal, free on every plan.
+- `GET /api/avatars/:id/file` — public profile-picture delivery, restricted to ids that are somebody's current avatar.
 - `POST /api/webhooks/stripe` — signature-verified raw Stripe webhook.
 - `GET /api/health/live` — process liveness.
 - `GET /api/health/ready` — database and worker readiness.

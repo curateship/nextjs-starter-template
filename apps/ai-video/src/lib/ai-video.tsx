@@ -4,12 +4,17 @@ import {
   type IconName as DynamicLucideIconName,
 } from "lucide-react/dynamic"
 
-import { DEFAULT_TEXT_FONT_ID, type TextFontId } from "@/lib/text-fonts"
+import {
+  DEFAULT_TEXT_FONT_ID,
+  TEXT_FONT_IDS,
+  type TextFontId,
+} from "@/lib/text-fonts"
 import {
   API_USAGE_DEFAULT_COST_PER_CREDIT_USD,
   API_USAGE_DEFAULT_MONTHLY_CREDITS,
 } from "@/lib/api-usage-constants"
 import { DEFAULT_DUCK_DB } from "@/lib/audio-ducking"
+import { DEFAULT_NORMALIZE_LOUDNESS } from "@/lib/audio-loudness"
 import { DEFAULT_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import {
   AppWindowIcon,
@@ -356,22 +361,301 @@ export type ShellConfig = {
   // Per-workspace "duck under voice" amount in dB (negative; 0 = off). Applied
   // by the export renderer. See lib/audio-ducking.ts.
   duckingDb: number
+  // Level every export to the standard loudness target. Applied by the export
+  // renderer; the export modal toggles it. See lib/audio-loudness.ts.
+  normalizeLoudness: boolean
   favicon: string
-  // Route the app opens to when a signed-in user lands on the app root.
-  // Defaults to "/" (the home dashboard). See routes/_authenticated/index.tsx.
-  defaultRoute: string
+  // Route "/" and "/admin" forward to. Empty opens the Home dashboard.
+  // See lib/home-route.ts and routes/_authenticated/index.tsx.
+  adminRoute: string
   brandKit: BrandKitConfig
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  /** Per-workspace visual styling: spacing, card border, backgrounds. */
+  styling: ShellStyling
 }
-
-// The app root. Also the default landing route when none is configured.
-export const DEFAULT_ADMIN_ROUTE = "/"
 
 export const DASHBOARD_ROWS_PER_PAGE_OPTIONS = [10, 20, 25, 50] as const
 export const DEFAULT_DASHBOARD_ROWS_PER_PAGE = 10
 export const DEFAULT_MEDIA_UPLOAD_MAX_MB = 500
 export const MEDIA_UPLOAD_MAX_MB_LIMIT = 500
+
+// ---------------------------------------------------------------------------
+// Styling (Settings → Styling tab). Applied at runtime via inline CSS vars on
+// the shell wrapper (chrome background) and DashboardContent (gutter, card
+// border, content background); mirrors the --sidebar-width pattern.
+// ---------------------------------------------------------------------------
+
+export type ShellBackgroundMode = "default" | "muted" | "custom"
+
+export type ShellBackground = {
+  /** default = keep the theme's own token; muted = theme muted at a strength; custom = a fixed color. */
+  mode: ShellBackgroundMode
+  /** 0–100, applied when mode === "muted". */
+  strength: number
+  /** CSS color, applied when mode === "custom". */
+  color: string
+}
+
+export type ShellStyling = {
+  /** Outer padding + gap between cards, in px (0–48). 0 = flat mode. */
+  gutter: number
+  /** Card border width in px (0 = off). */
+  cardBorderWidth: number
+  /** Card + table border color. */
+  cardBorderColor: ShellBackground
+  /** Divider lines: the rules inside cards and tables, and the sidebar edge. */
+  dividerColor: ShellBackground
+  /** Main content area background. */
+  content: ShellBackground
+  /** Sidebar + sticky header background. */
+  chrome: ShellBackground
+  /** Dialog / modal styling. */
+  modal: ShellModalStyling
+}
+
+export type ShellModalStyling = {
+  /** Modal surface background. */
+  background: ShellBackground
+  /** Modal border width in px (0 = off). */
+  borderWidth: number
+  /** Modal border color. */
+  borderColor: ShellBackground
+  /** Inner padding in px. */
+  padding: number
+  /** Backdrop dimming behind the modal, 0–100. */
+  overlayOpacity: number
+  /** Background of cards inside the modal. */
+  cardBackground: ShellBackground
+  /** Border width of cards inside the modal, in px (0 = off). */
+  cardBorderWidth: number
+  /** Border color of cards inside the modal. */
+  cardBorderColor: ShellBackground
+}
+
+export const MIN_CONTENT_GUTTER = 0
+export const MAX_CONTENT_GUTTER = 48
+export const DEFAULT_CONTENT_GUTTER = 24
+export const MAX_CARD_BORDER_WIDTH = 3
+export const DEFAULT_CARD_BORDER_WIDTH = 1
+export const MAX_MODAL_PADDING = 48
+export const DEFAULT_MODAL_PADDING = 24
+export const DEFAULT_MODAL_OVERLAY_OPACITY = 10
+// Default content background reproduces today's `bg-muted/60`.
+export const DEFAULT_CONTENT_BACKGROUND_STRENGTH = 60
+export const SHELL_BACKGROUND_MODES: readonly ShellBackgroundMode[] = [
+  "default",
+  "muted",
+  "custom",
+] as const
+
+function clampInt(value: unknown, min: number, max: number, fallback: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(min, Math.round(value)))
+}
+
+export function clampGutter(value: unknown): number {
+  return clampInt(
+    value,
+    MIN_CONTENT_GUTTER,
+    MAX_CONTENT_GUTTER,
+    DEFAULT_CONTENT_GUTTER
+  )
+}
+
+export function clampCardBorderWidth(value: unknown): number {
+  return clampInt(value, 0, MAX_CARD_BORDER_WIDTH, DEFAULT_CARD_BORDER_WIDTH)
+}
+
+export function clampStrength(value: unknown): number {
+  return clampInt(value, 0, 100, DEFAULT_CONTENT_BACKGROUND_STRENGTH)
+}
+
+export function clampModalPadding(value: unknown): number {
+  return clampInt(value, 0, MAX_MODAL_PADDING, DEFAULT_MODAL_PADDING)
+}
+
+export function clampOverlayOpacity(value: unknown): number {
+  return clampInt(value, 0, 100, DEFAULT_MODAL_OVERLAY_OPACITY)
+}
+
+export function createDefaultModalStyling(): ShellModalStyling {
+  return {
+    background: { mode: "default", strength: 100, color: "#ffffff" },
+    borderWidth: DEFAULT_CARD_BORDER_WIDTH,
+    borderColor: { mode: "default", strength: 40, color: "#d4d4d8" },
+    padding: DEFAULT_MODAL_PADDING,
+    overlayOpacity: DEFAULT_MODAL_OVERLAY_OPACITY,
+    cardBackground: { mode: "default", strength: 100, color: "#ffffff" },
+    cardBorderWidth: DEFAULT_CARD_BORDER_WIDTH,
+    cardBorderColor: { mode: "default", strength: 40, color: "#d4d4d8" },
+  }
+}
+
+export function createDefaultStyling(): ShellStyling {
+  return {
+    gutter: DEFAULT_CONTENT_GUTTER,
+    cardBorderWidth: DEFAULT_CARD_BORDER_WIDTH,
+    cardBorderColor: { mode: "default", strength: 40, color: "#d4d4d8" },
+    dividerColor: { mode: "muted", strength: 10, color: "#d4d4d8" },
+    content: {
+      mode: "muted",
+      strength: DEFAULT_CONTENT_BACKGROUND_STRENGTH,
+      color: "#f4f4f5",
+    },
+    chrome: { mode: "default", strength: 100, color: "#ffffff" },
+    modal: createDefaultModalStyling(),
+  }
+}
+
+function normalizeBackground(
+  value: unknown,
+  fallback: ShellBackground
+): ShellBackground {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ...fallback }
+  }
+  const bg = value as Partial<ShellBackground>
+  return {
+    mode: SHELL_BACKGROUND_MODES.includes(bg.mode as ShellBackgroundMode)
+      ? (bg.mode as ShellBackgroundMode)
+      : fallback.mode,
+    strength: clampStrength(bg.strength ?? fallback.strength),
+    color:
+      typeof bg.color === "string" && bg.color.trim() ? bg.color : fallback.color,
+  }
+}
+
+export function normalizeStyling(value: unknown): ShellStyling {
+  const fallback = createDefaultStyling()
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback
+  }
+  const styling = value as Partial<ShellStyling>
+  return {
+    gutter: clampGutter(styling.gutter ?? fallback.gutter),
+    cardBorderWidth: clampCardBorderWidth(
+      styling.cardBorderWidth ?? fallback.cardBorderWidth
+    ),
+    cardBorderColor: normalizeBackground(
+      styling.cardBorderColor,
+      fallback.cardBorderColor
+    ),
+    dividerColor: normalizeBackground(
+      styling.dividerColor,
+      fallback.dividerColor
+    ),
+    content: normalizeBackground(styling.content, fallback.content),
+    chrome: normalizeBackground(styling.chrome, fallback.chrome),
+    modal: normalizeModalStyling(styling.modal),
+  }
+}
+
+export function normalizeModalStyling(value: unknown): ShellModalStyling {
+  const fallback = createDefaultModalStyling()
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback
+  }
+  const modal = value as Partial<ShellModalStyling>
+  return {
+    background: normalizeBackground(modal.background, fallback.background),
+    borderWidth: clampCardBorderWidth(modal.borderWidth ?? fallback.borderWidth),
+    borderColor: normalizeBackground(modal.borderColor, fallback.borderColor),
+    padding: clampModalPadding(modal.padding ?? fallback.padding),
+    overlayOpacity: clampOverlayOpacity(
+      modal.overlayOpacity ?? fallback.overlayOpacity
+    ),
+    cardBackground: normalizeBackground(
+      modal.cardBackground,
+      fallback.cardBackground
+    ),
+    cardBorderWidth: clampCardBorderWidth(
+      modal.cardBorderWidth ?? fallback.cardBorderWidth
+    ),
+    cardBorderColor: normalizeBackground(
+      modal.cardBorderColor,
+      fallback.cardBorderColor
+    ),
+  }
+}
+
+type ResolveBackgroundOptions = {
+  /** CSS custom property to blend for the "muted" mode (default --muted). */
+  base?: string
+  /**
+   * When true, "muted" blends toward the opaque background instead of
+   * transparent — used for chrome so the sidebar and header render the same
+   * solid color regardless of what sits behind them.
+   */
+  opaque?: boolean
+}
+
+/**
+ * Resolve a background/color to a CSS color string, or undefined when the
+ * theme's own token should be left in place (mode === "default").
+ */
+export function resolveBackground(
+  bg: ShellBackground,
+  options: ResolveBackgroundOptions = {}
+): string | undefined {
+  const { base = "--muted", opaque = false } = options
+  if (bg.mode === "custom") return bg.color
+  if (bg.mode === "muted") {
+    const mixWith = opaque ? "var(--background)" : "transparent"
+    return `color-mix(in oklab, var(${base}) ${clampStrength(bg.strength)}%, ${mixWith})`
+  }
+  return undefined
+}
+
+/**
+ * CSS custom properties for modal styling. Applied to the document root (via an
+ * effect in ShellLayout) so they reach the dialog, which portals to document.body
+ * outside the shell subtree. Consumed by the modal rules in theme.css. Values in
+ * "default" mode are omitted so the theme's own tokens show through.
+ */
+export function getModalStyleVars(
+  modal: ShellModalStyling
+): Record<string, string> {
+  const vars: Record<string, string> = {
+    "--shell-modal-overlay-opacity": `${clampOverlayOpacity(modal.overlayOpacity)}%`,
+    "--shell-modal-padding": `${clampModalPadding(modal.padding)}px`,
+    "--shell-modal-border-width": String(clampCardBorderWidth(modal.borderWidth)),
+    "--shell-modal-card-border-width": String(
+      clampCardBorderWidth(modal.cardBorderWidth)
+    ),
+  }
+  const background = resolveBackground(modal.background, {
+    base: "--muted",
+    opaque: true,
+  })
+  if (background) vars["--shell-modal-bg"] = background
+  const borderColor = resolveBackground(modal.borderColor, {
+    base: "--muted-foreground",
+  })
+  if (borderColor) vars["--shell-modal-border-color"] = borderColor
+  const cardBackground = resolveBackground(modal.cardBackground, {
+    base: "--muted",
+    opaque: true,
+  })
+  if (cardBackground) vars["--shell-modal-card-bg"] = cardBackground
+  const cardBorderColor = resolveBackground(modal.cardBorderColor, {
+    base: "--muted-foreground",
+  })
+  if (cardBorderColor) vars["--shell-modal-card-border-color"] = cardBorderColor
+  return vars
+}
+
+/** The full set of modal CSS variable names, used to clear stale values. */
+export const MODAL_STYLE_VAR_NAMES = [
+  "--shell-modal-overlay-opacity",
+  "--shell-modal-padding",
+  "--shell-modal-border-width",
+  "--shell-modal-border-color",
+  "--shell-modal-bg",
+  "--shell-modal-card-border-width",
+  "--shell-modal-card-border-color",
+  "--shell-modal-card-bg",
+] as const
 
 const DEFAULT_BRAND_KIT_COLORS: BrandKitColor[] = [
   { name: "Primary", value: "#111827" },
@@ -415,6 +699,150 @@ export function createDefaultBrandKitConfig(): BrandKitConfig {
   }
 }
 
+const BRAND_KIT_HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
+function normalizeHexColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && BRAND_KIT_HEX_COLOR.test(value)
+    ? value
+    : fallback
+}
+
+function normalizeFontId(value: unknown, fallback: TextFontId): TextFontId {
+  return TEXT_FONT_IDS.includes(value as TextFontId)
+    ? (value as TextFontId)
+    : fallback
+}
+
+function normalizeText(value: unknown, maxLength: number, fallback: string) {
+  return typeof value === "string" ? value.slice(0, maxLength) : fallback
+}
+
+/**
+ * Fill a saved brand kit field by field, same as {@link normalizeStyling}.
+ *
+ * A row saved before a brand-kit field existed keeps everything it does have;
+ * only the missing field falls back. Bounds match `brandKitConfigSchema`, so
+ * the result still passes the strict check the save path applies to form input.
+ */
+export function normalizeBrandKit(value: unknown): BrandKitConfig {
+  const fallback = createDefaultBrandKitConfig()
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return fallback
+  }
+  const brandKit = value as Partial<BrandKitConfig>
+  const colors = Array.isArray(brandKit.colors)
+    ? brandKit.colors
+        .filter(
+          (color): color is BrandKitColor =>
+            !!color &&
+            typeof color === "object" &&
+            typeof (color as BrandKitColor).name === "string" &&
+            (color as BrandKitColor).name.trim().length > 0 &&
+            BRAND_KIT_HEX_COLOR.test(String((color as BrandKitColor).value))
+        )
+        .slice(0, 20)
+        .map((color) => ({ name: color.name.slice(0, 40), value: color.value }))
+    : fallback.colors
+
+  return {
+    colors,
+    fonts: {
+      heading: normalizeFontId(brandKit.fonts?.heading, fallback.fonts.heading),
+      body: normalizeFontId(brandKit.fonts?.body, fallback.fonts.body),
+      caption: normalizeFontId(brandKit.fonts?.caption, fallback.fonts.caption),
+    },
+    captionStyle: {
+      fontId: normalizeFontId(
+        brandKit.captionStyle?.fontId,
+        fallback.captionStyle.fontId
+      ),
+      fontSize: clampInt(
+        brandKit.captionStyle?.fontSize,
+        8,
+        240,
+        fallback.captionStyle.fontSize
+      ),
+      color: normalizeHexColor(
+        brandKit.captionStyle?.color,
+        fallback.captionStyle.color
+      ),
+      highlightColor:
+        brandKit.captionStyle?.highlightColor === null
+          ? null
+          : normalizeHexColor(
+              brandKit.captionStyle?.highlightColor,
+              fallback.captionStyle.highlightColor ?? "#000000"
+            ),
+    },
+    logo: {
+      mediaId:
+        typeof brandKit.logo?.mediaId === "string" && brandKit.logo.mediaId
+          ? brandKit.logo.mediaId.slice(0, 36)
+          : null,
+      previewUrl: normalizeText(
+        brandKit.logo?.previewUrl,
+        2048,
+        fallback.logo.previewUrl
+      ),
+    },
+    watermark: {
+      enabled:
+        typeof brandKit.watermark?.enabled === "boolean"
+          ? brandKit.watermark.enabled
+          : fallback.watermark.enabled,
+      position: BRAND_KIT_WATERMARK_POSITIONS.includes(
+        brandKit.watermark?.position as BrandKitWatermarkPosition
+      )
+        ? (brandKit.watermark?.position as BrandKitWatermarkPosition)
+        : fallback.watermark.position,
+      widthPercent: clampInt(
+        brandKit.watermark?.widthPercent,
+        1,
+        100,
+        fallback.watermark.widthPercent
+      ),
+      opacity: clampInt(
+        brandKit.watermark?.opacity,
+        0,
+        100,
+        fallback.watermark.opacity
+      ),
+    },
+    endCard: {
+      enabled:
+        typeof brandKit.endCard?.enabled === "boolean"
+          ? brandKit.endCard.enabled
+          : fallback.endCard.enabled,
+      durationSeconds: clampInt(
+        brandKit.endCard?.durationSeconds,
+        2,
+        5,
+        fallback.endCard.durationSeconds
+      ),
+      backgroundColor: normalizeHexColor(
+        brandKit.endCard?.backgroundColor,
+        fallback.endCard.backgroundColor
+      ),
+      ctaText: normalizeText(
+        brandKit.endCard?.ctaText,
+        180,
+        fallback.endCard.ctaText
+      ),
+    },
+    ctaPhrases: Array.isArray(brandKit.ctaPhrases)
+      ? brandKit.ctaPhrases
+          .filter((phrase): phrase is string => typeof phrase === "string")
+          .slice(0, 20)
+          .map((phrase) => phrase.slice(0, 180))
+      : fallback.ctaPhrases,
+    exportNamingPattern:
+      typeof brandKit.exportNamingPattern === "string" &&
+      brandKit.exportNamingPattern.trim()
+        ? brandKit.exportNamingPattern.slice(0, 120)
+        : fallback.exportNamingPattern,
+  }
+}
+
 export function createDefaultTopRightNavigation(): ShellTopRightNavigationItem[] {
   return TOP_RIGHT_NAVIGATION_ITEM_IDS.map((id) => ({
     id,
@@ -433,11 +861,13 @@ export function createDefaultShellConfig(): ShellConfig {
     mediaUploadMaxMb: DEFAULT_MEDIA_UPLOAD_MAX_MB,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     duckingDb: DEFAULT_DUCK_DB,
+    normalizeLoudness: DEFAULT_NORMALIZE_LOUDNESS,
     favicon: "",
-    defaultRoute: DEFAULT_ADMIN_ROUTE,
+    adminRoute: "",
     brandKit: createDefaultBrandKitConfig(),
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
+    styling: createDefaultStyling(),
   }
 }
 

@@ -33,20 +33,24 @@ export const trendlineIndicator: IndicatorModule<TrendlineIndicatorParams> = {
     {
       key: "swingLookback",
       label: "Swing lookback",
+      info: "How many candles back to find the swing points the trendline is drawn through.",
     },
     {
       key: "confirmationBars",
       label: "Confirmation bars",
+      info: "How many candles a break must hold before it counts as real.",
     },
     {
       key: "breakBuffer",
       label: "Break buffer %",
       step: 0.1,
+      info: "How far past the line price must move to count as a genuine break, in percent.",
     },
     {
       key: "requireCounterSlope",
       label: "Require trend flip",
       kind: "boolean",
+      info: "Only fire when the broken trendline was sloping against the new direction.",
     },
   ],
   warmupBars: (params) => Math.max(100, params.swingLookback * 3),

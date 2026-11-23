@@ -1,0 +1,1 @@
+export const DASHBOARD_CARD_HEADER_HEIGHT_PX = 57

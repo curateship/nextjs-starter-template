@@ -4,7 +4,7 @@ import { safeWorkerError, type WorkerKind } from "@/lib/workers"
 import { db } from "@/server/db"
 import { tradingWorkerHeartbeats } from "@/server/schema"
 
-const HEARTBEAT_INTERVAL_MS = 10_000
+export const HEARTBEAT_INTERVAL_MS = 10_000
 const HEARTBEAT_RETENTION_MS = 7 * 24 * 60 * 60_000
 
 export class WorkerHeartbeat {
@@ -51,6 +51,9 @@ export class WorkerHeartbeat {
           meta: {
             ...meta,
             workerKind: this.kind,
+            // Watchdogs in other workers scale their staleness threshold off
+            // this cadence.
+            heartbeatIntervalMs: HEARTBEAT_INTERVAL_MS,
             latestError: safeWorkerError(meta.latestError),
           },
         })

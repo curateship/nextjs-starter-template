@@ -10,6 +10,7 @@ const { WorkerHeartbeat } = await import("./heartbeat")
 const { acquireLeadership } = await import("./leadership")
 const { WorkerRuntimeController } = await import("./runtime-control")
 const { ScannerSupervisor } = await import("./scanner")
+const { WorkerWatchdog } = await import("./watchdog")
 
 const workerId = randomUUID()
 let role: "leader" | "standby" = "standby"
@@ -17,11 +18,12 @@ const runtime = new WorkerRuntimeController(
   "whale-scanner",
   () => new ScannerSupervisor()
 )
+const watchdog = new WorkerWatchdog("whale-scanner")
 const heartbeat = new WorkerHeartbeat(
   workerId,
   "whale-scanner",
   "whale-scanner-1",
-  () => ({ role, ...runtime.meta() })
+  () => ({ role, ...runtime.meta(), ...watchdog.meta() })
 )
 
 console.log(`whale scanner worker ${workerId} starting`)
@@ -30,6 +32,7 @@ const leadershipConnection = await acquireLeadership("whale-scanner")
 role = "leader"
 console.log("whale scanner worker: leader lock acquired")
 await runtime.start()
+watchdog.start()
 console.log("whale scanner worker ready")
 
 let shuttingDown = false
@@ -38,6 +41,7 @@ async function shutdown(signal: string) {
   shuttingDown = true
   console.log(`whale scanner worker received ${signal}, shutting down`)
   heartbeat.stop()
+  watchdog.stop()
   try {
     await runtime.stop()
   } catch (error) {

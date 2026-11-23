@@ -1,0 +1,422 @@
+import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
+import { ListChecksIcon } from "lucide-react"
+
+import { WidgetHeadingActions, WidgetMenuOptions } from "@/components/shared/widgets/widget-card"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { CountedFilterMenu, CountedFilterPopover } from "@/components/trade/counted-filter-popover"
+import { MarketIcon } from "@/components/trade/market-icon"
+import { TradeBadge } from "@/components/trade/trade-badge"
+import {
+  TradeTableContent,
+  type ColumnSpec,
+} from "@/components/trade/trade-table"
+import { Badge } from "@/components/ui/badge"
+import { TableCell, TableRow, TableSurface } from "@/components/ui/table"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { marketChartHref } from "@/lib/protocols/contracts"
+import type {
+  TradingOverview,
+  TradingOverviewActiveTrade,
+} from "@/lib/trade/dashboard/overview"
+import { orderKindLabel } from "@/lib/trade/dashboard/order-kind"
+import { summarizeActiveTrades } from "@/lib/trade/dashboard/active-trades"
+import { PnlAmount } from "@/components/trade/pnl-amount"
+import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { moneyTone } from "@/lib/trade/money-tone"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
+import { cn } from "@/lib/utils"
+
+export type ActiveTradeColumn = "market" | "type" | "order" | "value" | "profit"
+
+const ACTIVE_TRADE_COLUMNS = [
+  { key: "market", label: "Ticker" },
+  { key: "type", label: "Type" },
+  { key: "order", label: "Order" },
+  { key: "value", label: "Value" },
+  { key: "profit", label: "P/L" },
+] as const satisfies readonly ColumnSpec<ActiveTradeColumn>[]
+
+function defaultDirection(column: ActiveTradeColumn) {
+  return column === "value" || column === "profit"
+    ? ("desc" as const)
+    : ("asc" as const)
+}
+
+export function ActiveTradesWidget({
+  overview,
+  className,
+  onTradeOpen,
+  headerAction,
+  bare = false,
+}: {
+  overview: Pick<TradingOverview, "activeTrades" | "activeTradesUnavailable">
+  className: string
+  onTradeOpen?: () => void
+  headerAction?: React.ReactNode
+  /**
+   * Drawn inside the Trade dashboard's widget card, which holds the title,
+   * the count and the ⋮: no frame of its own, and no title row.
+   */
+  bare?: boolean
+}) {
+  const [protocols, setProtocols] = React.useState<string[] | null>(null)
+  const [walletIds, setWalletIds] = React.useState<string[] | null>(null)
+  const filtered = React.useMemo(
+    () =>
+      overview.activeTrades.filter(
+        (trade) =>
+          (!protocols || protocols.includes(trade.protocol)) &&
+          (!walletIds || walletIds.includes(trade.walletId))
+      ),
+    [overview.activeTrades, protocols, walletIds]
+  )
+  const emptyWords =
+    protocols || walletIds
+      ? "No active trades match these filters."
+      : overview.activeTradesUnavailable.length
+        ? "No active trades found in the wallets that answered."
+        : "No active trades across your wallets."
+
+  const filters = {
+    trades: overview.activeTrades,
+    protocols,
+    walletIds,
+    onProtocolsChange: setProtocols,
+    onWalletsChange: setWalletIds,
+    onClear: () => {
+      setProtocols(null)
+      setWalletIds(null)
+    },
+  }
+  const actions = (
+    <div className="flex items-center gap-2">
+      {headerAction}
+      <ActiveTradeFilters {...filters} />
+    </div>
+  )
+  const Frame = bare ? "div" : TableSurface
+  return (
+    <Frame className={cn("flex h-full min-h-0 flex-col", className)}>
+      {bare ? (
+        // The title and count are on the widget card's heading, and the
+        // filter is in its ⋮ (Tyler, 10 Nov 2026: "replace it with filter").
+        <>
+          {headerAction ? <WidgetHeadingActions>{headerAction}</WidgetHeadingActions> : null}
+          <WidgetMenuOptions>
+            <ActiveTradeFilters {...filters} inMenu />
+          </WidgetMenuOptions>
+        </>
+      ) : (
+        <DashboardCardTitleHeader
+          className="border-b-0"
+          icon={<ListChecksIcon />}
+          title={
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate">Active Trades</span>
+              <Badge variant="secondary">
+                {filtered.length.toLocaleString()}
+              </Badge>
+            </span>
+          }
+          action={actions}
+        />
+      )}
+      <ActiveTradesTable
+        trades={filtered}
+        emptyWords={emptyWords}
+        onTradeOpen={onTradeOpen}
+      />
+    </Frame>
+  )
+}
+
+const NONE_HIDDEN: readonly ActiveTradeColumn[] = []
+
+export function ActiveTradesTable({
+  trades: unsorted,
+  emptyWords,
+  onTradeOpen,
+  hidden = NONE_HIDDEN,
+}: {
+  trades: readonly TradingOverviewActiveTrade[]
+  emptyWords: string
+  onTradeOpen?: () => void
+  /**
+   * Columns left out, from the header button's ⋮. The rows and the Total row
+   * drop the same ones, so a total never sits under the wrong heading.
+   */
+  hidden?: readonly ActiveTradeColumn[]
+}) {
+  const columns = React.useMemo(
+    () => ACTIVE_TRADE_COLUMNS.filter((column) => !hidden.includes(column.key)),
+    [hidden]
+  )
+  const shows = (column: ActiveTradeColumn) => !hidden.includes(column)
+  const navigate = useNavigate()
+  const sorted = useTableSort<ActiveTradeColumn>(
+    "profit",
+    "desc",
+    defaultDirection
+  )
+  const { toggleSort } = sorted
+  // A hidden column cannot stay the sort, or the rows would be in an order
+  // nothing on screen explains. They go to A to Z by ticker, which always shows.
+  const kept = shows(sorted.sort)
+  const sort = kept ? sorted.sort : "market"
+  const direction = kept ? sorted.direction : "asc"
+  const trades = React.useMemo(() => {
+    const valueOf = (trade: TradingOverviewActiveTrade): string | number => {
+      switch (sort) {
+        case "market":
+          return trade.market
+        case "type":
+          return trade.side
+        case "order":
+          return orderKindLabel(trade.orderKind)
+        case "value":
+          return trade.value ?? Number.NEGATIVE_INFINITY
+        case "profit":
+          return trade.profit ?? Number.NEGATIVE_INFINITY
+      }
+    }
+    return [...unsorted].sort((left, right) => {
+      if (
+        (sort === "profit" || sort === "value") &&
+        (left[sort] === null) !== (right[sort] === null)
+      ) {
+        return left[sort] === null ? 1 : -1
+      }
+      const a = valueOf(left)
+      const b = valueOf(right)
+      const compared =
+        typeof a === "number" && typeof b === "number"
+          ? a - b
+          : String(a).localeCompare(String(b))
+      return direction === "asc" ? compared : -compared
+    })
+  }, [direction, sort, unsorted])
+  const summary = React.useMemo(() => summarizeActiveTrades(trades), [trades])
+
+  return (
+    <TradeTableContent
+      columns={columns}
+      rows={trades}
+      loading={false}
+      failed={false}
+      loadingLabel="Reading active trades"
+      failedWords="Active trades could not be loaded."
+      emptyWords={emptyWords}
+      stateClassName="flex min-h-24 items-center justify-center text-sm"
+      onRetry={() => undefined}
+      sort={sort}
+      direction={direction}
+      onSort={toggleSort}
+      renderRow={(trade) => (
+        <ActiveTradeRow
+          key={trade.id}
+          trade={trade}
+          shows={shows}
+          onOpen={() => {
+            onTradeOpen?.()
+            const href = marketChartHref(trade.marketKey)
+            if (href) void navigate({ href })
+          }}
+        />
+      )}
+      footer={
+        trades.length ? <ActiveTradesFooter summary={summary} shows={shows} /> : null
+      }
+    />
+  )
+}
+
+function ActiveTradesFooter({
+  summary,
+  shows,
+}: {
+  summary: ReturnType<typeof summarizeActiveTrades>
+  shows: (column: ActiveTradeColumn) => boolean
+}) {
+  return (
+    <tfoot className="sticky bottom-0 z-10">
+      <TableRow className={stickyPanelSectionBarClassName}>
+        <TableCell
+          column="meta"
+          className="py-2.5 text-xs font-medium text-muted-foreground"
+        >
+          Total
+        </TableCell>
+        {shows("type") ? <TableCell column="meta" aria-hidden /> : null}
+        {shows("order") ? <TableCell column="meta" aria-hidden /> : null}
+        {shows("value") ? (
+          <TableCell
+            column="meta"
+            className="py-2.5 text-left font-mono text-xs font-semibold tabular-nums"
+          >
+            <SummaryMoney value={summary.totalValue} />
+          </TableCell>
+        ) : null}
+        {shows("profit") ? (
+          <TableCell column="meta" className="py-2.5 text-left text-xs">
+            <SummaryProfit value={summary.totalProfit} />
+          </TableCell>
+        ) : null}
+      </TableRow>
+    </tfoot>
+  )
+}
+
+function SummaryMoney({ value }: { value: number | null }) {
+  return value === null ? (
+    <span className="text-muted-foreground">—</span>
+  ) : (
+    <span>{formatUsd(value)}</span>
+  )
+}
+
+function SummaryProfit({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-muted-foreground">—</span>
+  return (
+    <PnlAmount className={cn("font-medium tabular-nums", moneyTone(value))}>
+      {formatSignedUsd(value)}
+    </PnlAmount>
+  )
+}
+
+function ActiveTradeRow({
+  trade,
+  shows,
+  onOpen,
+}: {
+  trade: TradingOverviewActiveTrade
+  shows: (column: ActiveTradeColumn) => boolean
+  onOpen: () => void
+}) {
+  const chartHref = marketChartHref(trade.marketKey)
+  return (
+    <TableRow rowAction={chartHref ? onOpen : undefined} className="border-b">
+      <TableCell column="meta" className="py-2.5">
+        <span className="flex items-center gap-2 whitespace-nowrap">
+          <MarketIcon symbol={trade.market} iconUrl={null} />
+          {chartHref ? (
+            <button
+              type="button"
+              onClick={onOpen}
+              className={cn("rounded-sm text-xs font-medium hover:underline", focusRing)}
+            >
+              {trade.market}
+            </button>
+          ) : (
+            <span className="text-xs font-medium">{trade.market}</span>
+          )}
+          {trade.accountType === "Real" ? null : (
+            <AccountTypeBadge type={trade.accountType} />
+          )}
+        </span>
+      </TableCell>
+      {shows("type") ? (
+        <TableCell column="meta" className="py-2.5">
+          <TradeBadge tone={trade.side === "long" ? "made" : "lost"}>
+            {trade.side === "long" ? "Long" : "Short"}
+          </TradeBadge>
+        </TableCell>
+      ) : null}
+      {shows("order") ? (
+        <TableCell column="meta" className="py-2.5 text-xs text-muted-foreground">
+          {orderKindLabel(trade.orderKind)}
+        </TableCell>
+      ) : null}
+      {shows("value") ? (
+        <TableCell
+          column="meta"
+          className="py-2.5 text-left font-mono text-xs tabular-nums"
+        >
+          {trade.value === null ? (
+            <span className="text-muted-foreground">—</span>
+          ) : (
+            formatUsd(trade.value)
+          )}
+        </TableCell>
+      ) : null}
+      {shows("profit") ? (
+        <TableCell column="meta" className="py-2.5 text-left text-xs">
+          {trade.profit === null || trade.profitShare === null ? (
+            <span className="text-muted-foreground">—</span>
+          ) : (
+            <>
+              <PnlAmount
+                className={cn(
+                  "font-medium tabular-nums",
+                  moneyTone(trade.profit)
+                )}
+              >
+                {formatSignedUsd(trade.profit)}
+              </PnlAmount>{" "}
+              <PnlAmount
+                className={cn("text-xs tabular-nums", moneyTone(trade.profit))}
+              >
+                {formatChange(trade.profitShare)}
+              </PnlAmount>
+            </>
+          )}
+        </TableCell>
+      ) : null}
+    </TableRow>
+  )
+}
+
+function AccountTypeBadge({
+  type,
+}: {
+  type: Exclude<TradingOverviewActiveTrade["accountType"], "Real">
+}) {
+  return (
+    <TradeBadge tone={type === "Testnet" ? "testnet" : "neutral"}>
+      {type}
+    </TradeBadge>
+  )
+}
+
+function ActiveTradeFilters({
+  trades,
+  protocols,
+  walletIds,
+  onProtocolsChange,
+  onWalletsChange,
+  onClear,
+  inMenu = false,
+}: {
+  trades: TradingOverviewActiveTrade[]
+  protocols: readonly string[] | null
+  walletIds: readonly string[] | null
+  onProtocolsChange: (protocols: string[] | null) => void
+  onWalletsChange: (walletIds: string[] | null) => void
+  onClear: () => void
+  /** Drawn inside the widget's ⋮ rather than as its own Filter button. */
+  inMenu?: boolean
+}) {
+  const Filter = inMenu ? CountedFilterMenu : CountedFilterPopover
+  return (
+    <Filter
+      items={trades}
+      groups={[
+        {
+          label: "Exchange",
+          value: protocols,
+          valueOf: (trade) => trade.protocol,
+          onChange: onProtocolsChange,
+        },
+        {
+          label: "Wallet",
+          value: walletIds,
+          valueOf: (trade) => trade.walletId,
+          labelOf: (trade) => trade.walletLabel,
+          onChange: onWalletsChange,
+        },
+      ]}
+      onClear={onClear}
+    />
+  )
+}

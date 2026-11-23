@@ -212,7 +212,7 @@ export default function DirectorySavedPage() {
 
           <AdminTableShell
             title="Saved Folders"
-            icon={<Bookmark className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Bookmark className="text-muted-foreground" />}
             count={total}
             selectedCount={selection.selectedCount}
             onClearSelection={selection.clearSelection}

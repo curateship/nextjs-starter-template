@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { CardGroup } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertTriangle, LayoutGrid, Palette } from "lucide-react"
@@ -115,7 +116,7 @@ export default function PlatformSettingsPage() {
           </Alert>
         )}
 
-        <div className="space-y-6">
+        <CardGroup className="grid">
           {/* Font Settings */}
           <AdminCard>
             {loading ? (
@@ -245,7 +246,7 @@ export default function PlatformSettingsPage() {
               </div>
             )}
           </AdminCard>
-        </div>
+        </CardGroup>
       </div>
     </AdminLayout>
     </>

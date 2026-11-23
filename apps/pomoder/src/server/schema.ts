@@ -40,12 +40,18 @@ export const users = pgTable(
     passwordHash: text("password_hash").notNull(),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     guestImportedAt: timestamp("guest_imported_at", { withTimezone: true }),
+    // Points at the user's profile picture in media_assets. The foreign key
+    // (on delete set null) lives in migration 0015 rather than here because
+    // users and media_assets reference each other, and Drizzle cannot express
+    // that cycle in one module. Deleting the asset — including from the admin
+    // media tools — therefore clears the pointer and the initials come back.
     avatarMediaId: uuid("avatar_media_id"),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("users_email_lower_unique").on(sql`lower(${table.email})`),
     check("users_role_check", sql`${table.role} in ('user', 'admin')`),
+    index("users_avatar_media_idx").on(table.avatarMediaId),
   ]
 )
 
@@ -120,13 +126,18 @@ export const userPreferences = pgTable(
     longBreakMinutes: integer("long_break_minutes").notNull().default(15),
     dailyGoalSessions: integer("daily_goal_sessions").notNull().default(4),
     autoStart: boolean("auto_start").notNull().default(false),
-    selectedBackgroundId: uuid("selected_background_id"),
-    selectedSoundId: uuid("selected_sound_id"),
+    selectedBackground: varchar("selected_background", { length: 60 }),
+    selectedSound: varchar("selected_sound", { length: 60 }),
+    soundVolume: integer("sound_volume").notNull().default(70),
+    soundMuted: boolean("sound_muted").notNull().default(false),
+    completionAlerts: boolean("completion_alerts").notNull().default(false),
+    theme: varchar("theme", { length: 10 }),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
+    check("preferences_theme_check", sql`${table.theme} in ('dark', 'light')`),
     check(
       "preferences_focus_check",
       sql`${table.focusMinutes} between 1 and 90`
@@ -143,6 +154,54 @@ export const userPreferences = pgTable(
       "preferences_daily_goal_check",
       sql`${table.dailyGoalSessions} between 1 and 20`
     ),
+    check(
+      "preferences_sound_volume_check",
+      sql`${table.soundVolume} between 0 and 100`
+    ),
+    check(
+      "preferences_selected_sound_check",
+      sql`${table.selectedSound} is null or ${table.selectedSound} ~ '^(curated:[a-z0-9_-]{1,40}|media:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'`
+    ),
+    check(
+      "preferences_selected_background_check",
+      sql`${table.selectedBackground} is null or ${table.selectedBackground} ~ '^(scene:[a-z0-9_-]{1,40}|media:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'`
+    ),
+  ]
+)
+
+export const userTimerPresets = pgTable(
+  "user_timer_presets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    focusMinutes: integer("focus_minutes").notNull(),
+    shortBreakMinutes: integer("short_break_minutes").notNull(),
+    longBreakMinutes: integer("long_break_minutes").notNull(),
+    autoStart: boolean("auto_start").notNull().default(false),
+    ...timestamps,
+  },
+  (table) => [
+    unique("user_timer_presets_user_name_unique").on(table.userId, table.name),
+    check(
+      "user_timer_presets_name_check",
+      sql`length(trim(${table.name})) between 1 and 60`
+    ),
+    check(
+      "user_timer_presets_focus_check",
+      sql`${table.focusMinutes} between 1 and 90`
+    ),
+    check(
+      "user_timer_presets_short_check",
+      sql`${table.shortBreakMinutes} between 1 and 90`
+    ),
+    check(
+      "user_timer_presets_long_check",
+      sql`${table.longBreakMinutes} between 1 and 90`
+    ),
+    index("user_timer_presets_user_idx").on(table.userId, table.createdAt),
   ]
 )
 
@@ -157,6 +216,9 @@ export const tasks = pgTable(
     status: varchar("status", { length: 20 }).notNull().default("active"),
     plannedDate: date("planned_date", { mode: "string" }).notNull(),
     pomodoroCount: integer("pomodoro_count").notNull().default(0),
+    priority: varchar("priority", { length: 10 }).notNull().default("normal"),
+    estimatedPomodoros: integer("estimated_pomodoros"),
+    sortOrder: integer("sort_order").notNull().default(0),
     carriedToTaskId: uuid("carried_to_task_id"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     ...timestamps,
@@ -166,6 +228,15 @@ export const tasks = pgTable(
       "tasks_status_check",
       sql`${table.status} in ('active', 'completed', 'carried', 'abandoned')`
     ),
+    check(
+      "tasks_priority_check",
+      sql`${table.priority} in ('low', 'normal', 'high')`
+    ),
+    check(
+      "tasks_estimated_pomodoros_check",
+      sql`${table.estimatedPomodoros} is null or ${table.estimatedPomodoros} between 1 and 20`
+    ),
+    check("tasks_sort_order_check", sql`${table.sortOrder} >= 0`),
     index("tasks_user_date_idx").on(table.userId, table.plannedDate),
   ]
 )
@@ -190,6 +261,7 @@ export const rooms = pgTable(
     shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
     longBreakMinutes: integer("long_break_minutes").notNull().default(15),
     autoStart: boolean("auto_start").notNull().default(false),
+    cycleFocusCount: integer("cycle_focus_count").notNull().default(0),
     closedAt: timestamp("closed_at", { withTimezone: true }),
     ...timestamps,
   },
@@ -197,6 +269,10 @@ export const rooms = pgTable(
     check(
       "rooms_visibility_check",
       sql`${table.visibility} in ('public', 'unlisted')`
+    ),
+    check(
+      "rooms_cycle_focus_count_check",
+      sql`${table.cycleFocusCount} between 0 and 4`
     ),
     check(
       "rooms_phase_check",
@@ -328,6 +404,32 @@ export const roomMessages = pgTable(
   ]
 )
 
+export const roomMessageReactions = pgTable(
+  "room_message_reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => roomMessages.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    emoji: varchar("emoji", { length: 16 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // One reaction per person per emoji per message; toggling flips this row.
+    uniqueIndex("room_message_reactions_message_user_emoji_unique").on(
+      table.messageId,
+      table.userId,
+      table.emoji
+    ),
+    index("room_message_reactions_message_idx").on(table.messageId),
+  ]
+)
+
 export const roomBans = pgTable(
   "room_bans",
   {
@@ -350,22 +452,42 @@ export const roomBans = pgTable(
   ]
 )
 
-export const roomReports = pgTable("room_reports", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  roomId: uuid("room_id")
-    .notNull()
-    .references(() => rooms.id, { onDelete: "cascade" }),
-  reporterUserId: varchar("reporter_user_id", { length: 36 })
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  messageId: uuid("message_id").references(() => roomMessages.id, {
-    onDelete: "set null",
-  }),
-  reason: varchar("reason", { length: 300 }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-})
+export const roomReports = pgTable(
+  "room_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    reporterUserId: varchar("reporter_user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    messageId: uuid("message_id").references(() => roomMessages.id, {
+      onDelete: "set null",
+    }),
+    reason: varchar("reason", { length: 300 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    reviewedByUserId: varchar("reviewed_by_user_id", { length: 36 }).references(
+      () => users.id,
+      { onDelete: "set null" }
+    ),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "room_reports_status_check",
+      sql`${table.status} in ('pending', 'resolved', 'dismissed')`
+    ),
+    uniqueIndex("room_reports_reporter_message_unique").on(
+      table.reporterUserId,
+      table.messageId
+    ),
+    index("room_reports_status_created_idx").on(table.status, table.createdAt),
+  ]
+)
 
 export const mediaAssets = pgTable(
   "media_assets",

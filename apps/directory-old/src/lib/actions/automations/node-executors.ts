@@ -1,0 +1,137 @@
+import type {
+  AgentAutomationNode,
+  ApprovalAutomationNode,
+  AutomationNode,
+  AutomationTriggerType,
+  EventAutomationNode,
+  FeedAutomationNode,
+  ImageAutomationNode,
+  ListingAutomationNode,
+  NewsletterAutomationNode,
+  PostAutomationNode,
+  RouterAutomationNode,
+  ScraperAutomationNode,
+} from '@/features/automations/domain/types'
+import { runAgentNode } from './nodes/agent'
+import { runEventNode } from './nodes/event'
+import { runFeedNode } from './nodes/feed'
+import { runImageNode } from './nodes/image'
+import { runListingNode } from './nodes/listing'
+import { runNewsletterNode } from './nodes/newsletter'
+import { runPostNode } from './nodes/post'
+import { runRouterNode } from './nodes/router'
+import { runScraperNode } from './nodes/scraper'
+import { articleFrom, documentsFrom, type RuntimeOutput } from './runtime'
+
+export interface NodeExecutionContext {
+  siteId: string
+  automationId: string
+  triggerType: AutomationTriggerType
+}
+
+/**
+ * Every node kind except Approval. Approval is a control node: pausing a run is
+ * not something a node can express by returning a value, so the graph runner in
+ * execution.ts handles it directly instead of dispatching to an executor.
+ */
+export type ExecutableAutomationNode = Exclude<AutomationNode, ApprovalAutomationNode>
+
+export interface NodeExecutor {
+  // Whether temporary (retryable) errors from this node are retried.
+  retry: boolean
+  run(ctx: NodeExecutionContext, payloads: RuntimeOutput[], node: ExecutableAutomationNode): Promise<RuntimeOutput>
+}
+
+// One executor per executable node kind. Adding a node kind means adding one entry
+// here; the graph runner in execution.ts dispatches through getNodeExecutor.
+const NODE_EXECUTORS: Record<ExecutableAutomationNode['kind'], NodeExecutor> = {
+  time: {
+    retry: false,
+    run: async () => ({ type: 'signal' }),
+  },
+  scraper: {
+    retry: true,
+    run: async (ctx, _payloads, node) => {
+      const result = await runScraperNode(ctx.automationId, node as ScraperAutomationNode)
+      return {
+        type: 'documents',
+        documents: result.documents,
+        fetchedCount: result.fetchedCount,
+        unchangedCount: result.unchangedCount,
+      }
+    },
+  },
+  feed: {
+    retry: true,
+    run: async (ctx, _payloads, node) => {
+      const result = await runFeedNode(ctx.automationId, node as FeedAutomationNode)
+      return {
+        type: 'documents',
+        documents: result.documents,
+        fetchedCount: result.fetchedCount,
+        unchangedCount: result.unchangedCount,
+      }
+    },
+  },
+  router: {
+    retry: true,
+    run: async (ctx, payloads, node) => {
+      const result = await runRouterNode(ctx.siteId, node as RouterAutomationNode, documentsFrom(payloads))
+      return { type: 'routes', groups: result.groups }
+    },
+  },
+  agent: {
+    retry: true,
+    run: async (ctx, payloads, node) => {
+      const result = await runAgentNode(ctx.siteId, node as AgentAutomationNode, documentsFrom(payloads))
+      return { type: 'article', article: result.article }
+    },
+  },
+  image: {
+    retry: false,
+    run: async (ctx, payloads, node) => {
+      const article = articleFrom(payloads)
+      if (!article) throw new Error('AI Image did not receive an article')
+      const result = await runImageNode(ctx.siteId, node as ImageAutomationNode, article)
+      return { type: 'article', article: result.article, imageError: result.imageError }
+    },
+  },
+  post: {
+    retry: false,
+    run: async (ctx, payloads, node) => {
+      const article = articleFrom(payloads)
+      if (!article) throw new Error('Post did not receive an article')
+      const post = await runPostNode(ctx.siteId, node as PostAutomationNode, article)
+      return { type: 'post', post }
+    },
+  },
+  listing: {
+    retry: true,
+    run: async (ctx, payloads, node) => {
+      const listing = await runListingNode(ctx.siteId, node as ListingAutomationNode, documentsFrom(payloads), {
+        automationId: ctx.automationId,
+      })
+      return { type: 'listing', listing }
+    },
+  },
+  event: {
+    retry: true,
+    run: async (ctx, payloads, node) => {
+      const event = await runEventNode(ctx.siteId, node as EventAutomationNode, documentsFrom(payloads))
+      return { type: 'event', event }
+    },
+  },
+  newsletter: {
+    retry: false,
+    run: async (ctx, payloads, node) => {
+      const article = articleFrom(payloads)
+      if (!article) throw new Error('Newsletter did not receive an article')
+      const newsletter = await runNewsletterNode(ctx.siteId, node as NewsletterAutomationNode, article)
+      return { type: 'newsletter', newsletter }
+    },
+  },
+}
+
+export function getNodeExecutor(kind: ExecutableAutomationNode['kind']): NodeExecutor {
+  return NODE_EXECUTORS[kind]
+}

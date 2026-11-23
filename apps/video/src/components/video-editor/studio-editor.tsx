@@ -1,0 +1,724 @@
+import * as React from "react"
+import { Link } from "@tanstack/react-router"
+import type { PanelImperativeHandle } from "react-resizable-panels"
+import {
+  ArrowLeftIcon,
+  Check,
+  FilmIcon,
+  CaptionsIcon,
+  HistoryIcon,
+  ClapperboardIcon,
+  ImageIcon,
+  CopyIcon,
+  LayoutTemplateIcon,
+  ListVideoIcon,
+  Loader2Icon,
+  LockIcon,
+  AudioLines,
+  MegaphoneIcon,
+  Share2,
+  SparklesIcon,
+  Shapes,
+  Upload,
+} from "lucide-react"
+
+import { renameProjectVideo } from "@/lib/api/video/project-videos"
+import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  PanelReopenTab,
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  WorkspacePanel,
+} from "@/components/ui/resizable"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DASHBOARD_CARD_HEADER_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
+import { showErrorToast, useErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
+import { railPickedEdge, useRailPickedEdge } from "@/lib/video/rail"
+import {
+  ASPECT_RATIOS,
+  type AspectRatio,
+} from "@/lib/video/timeline-schema"
+import {
+  useBlankSpaceDoubleClick,
+  usePanelToggle,
+} from "@/lib/layout/panel-collapse"
+import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import { useWideScreen } from "@/lib/layout/wide-screen"
+import {
+  timelineDurationMs,
+  useEditorLock,
+  useEditorVideoName,
+  useEditorRuntime,
+  useEditorSaveStatus,
+  useEditorSelector,
+} from "@/components/video-editor/editor-store"
+import {
+  StudioContextPanel,
+  type StudioPanel,
+} from "@/components/video-editor/studio-panels"
+import type { SoundsTab } from "@/lib/video/sounds-tabs"
+import { ExportDialog } from "@/components/video-editor/export-dialog"
+import { useProjectExports } from "@/components/video-editor/use-project-exports"
+import { StudioInspector } from "@/components/video-editor/studio-inspector"
+import { StudioStage } from "@/components/video-editor/studio-stage"
+import { StudioTimeline } from "@/components/video-editor/studio-timeline"
+import { useClipClipboard } from "@/components/video-editor/use-clip-clipboard"
+import { useDropMarker } from "@/components/video-editor/use-drop-marker"
+import { useProjectSettings } from "@/components/video-editor/project-settings-context"
+import { OpenElsewhereDialog } from "@/components/video-editor/open-elsewhere-dialog"
+import { BriefsProvider } from "@/components/video-editor/brief-to-video"
+import { TemplateHeaderMenu } from "@/components/video-templates/template-header-menu"
+import { MovingStillsProvider } from "@/components/video-editor/moving-stills"
+import { RemakeClipsProvider } from "@/components/video-editor/remake-clips"
+import { useProjectGuest } from "@/components/video-editor/project-guest"
+import { ThumbnailBoard } from "@/components/video-thumbnails/thumbnail-board"
+import { ThumbnailPreviewButton } from "@/components/video-thumbnails/thumbnail-preview-button"
+import { ThumbnailInspector } from "@/components/video-thumbnails/thumbnail-inspector"
+import { ThumbnailsProvider } from "@/components/video-thumbnails/thumbnail-provider"
+import "@/components/video-editor/studio.css"
+import "@/components/video-editor/text-fonts.css"
+
+/**
+ * The timeline folds down to its own header and its 2px of edge, not to
+ * nothing, so its title never disappears. Kept here since the shell's
+ * resizable panels stopped exporting it (9 Nov 2026), as Trade does.
+ */
+const BOTTOM_COLLAPSED_HEIGHT = `${DASHBOARD_CARD_HEADER_HEIGHT_PX + 2}px`
+
+/**
+ * The editor: the panel you are working from on the left, the picture in the
+ * middle, the inspector on the right and the timeline along the bottom.
+ *
+ * It is the app's standard resizable workspace — the same panels, handles,
+ * gaps and collapse behaviour as the automation editor — so dragging a divider,
+ * shutting a panel by double-clicking its empty space, and coming back to the
+ * sizes you left all work the way they do everywhere else. Only what is inside
+ * each panel is particular to editing video.
+ */
+
+/**
+ * Where this browser last left the dividers. The shell keeps its own keys in
+ * `panelLayoutKey`; that file belongs to the shell, so this app names its own
+ * here rather than editing it.
+ */
+const LAYOUT_KEY = {
+  horizontal: "video-editor-horizontal-2",
+  vertical: "video-editor-vertical",
+}
+
+/**
+ * The panels on the rail, in the order they appear on it. Videos is first and
+ * is the one a project opens on (Tyler, 1 Nov 2026).
+ */
+const RAIL: { id: StudioPanel; label: string; Icon: typeof FilmIcon }[] = [
+  { id: "videos", label: "Videos", Icon: ListVideoIcon },
+  { id: "media", label: "Media", Icon: FilmIcon },
+  // Music, Sounds and Voices, as tabs in one panel's header (Tyler, 4 Nov
+  // 2026: "Combine music, voices and sound into one Rail tab").
+  { id: "sounds", label: "Sounds", Icon: AudioLines },
+  // Tools for putting ads into the video (Tyler, 4 Nov 2026,
+  // workspace/docs/ads.md). Not for a guest sent from Project.
+  { id: "ads", label: "Ads", Icon: MegaphoneIcon },
+  // Words, shapes, stickers and the social stickers. Called Text until
+  // 4 Nov 2026 (Tyler: "rename text panel to Graphics"), then Elements on
+  // 5 Nov 2026 (Tyler: 'Rename grahpics to "Elements"'); its id stays "text"
+  // because saved editor views name it.
+  { id: "text", label: "Elements", Icon: Shapes },
+  { id: "transcript", label: "Transcript", Icon: CaptionsIcon },
+  { id: "ai", label: "AI tools", Icon: SparklesIcon },
+  // A video's template and script, and Brief to video, which moved here from
+  // AI tools (Tyler, 5 Nov 2026, workspace/docs/templates.md).
+  { id: "templates", label: "Templates", Icon: LayoutTemplateIcon },
+  { id: "ai-clip", label: "AI clip", Icon: ClapperboardIcon },
+  // Designing the video's thumbnail with AI, after AI clip (Tyler, 3 Nov 2026).
+  { id: "thumbnail", label: "Thumbnail", Icon: ImageIcon },
+]
+
+/**
+ * The panels pinned to the foot of the rail: the video this project copies,
+ * what has been exported from it (Tyler, 17 Oct 2026), and its earlier
+ * versions.
+ */
+const RAIL_FOOT: typeof RAIL = [
+  { id: "copy", label: "Copy", Icon: CopyIcon },
+  { id: "exports", label: "Exports", Icon: Upload },
+  { id: "history", label: "History", Icon: HistoryIcon },
+]
+
+/**
+ * The panels a guest sent from Project sees: their project's videos, media
+ * and text, the Thumbnail section with its AI (Tyler, 3 Nov 2026), and the
+ * open video's exports and history. The rest use AI, the owner's library or
+ * things outside the project (`workspace/docs/project-guests.md`).
+ */
+const GUEST_PANELS = new Set<StudioPanel>(["videos", "media", "text", "thumbnail", "exports", "history"])
+
+function railFor(guest: boolean) {
+  const keep = (item: (typeof RAIL)[number]) => !guest || GUEST_PANELS.has(item.id)
+  return { rail: RAIL.filter(keep), foot: RAIL_FOOT.filter(keep) }
+}
+
+export function StudioEditor({
+  timelineError,
+  reportSaveStatus,
+  initialPanel = "videos",
+}: {
+  timelineError?: string | null
+  /** Where "Saving…" and "Saved" are shown: the app header, or the guest page's own. */
+  reportSaveStatus: (status: SaveStatus | null) => void
+  /** The rail panel to open on. Make this a template opens on Copy, a video made from a template on Templates. */
+  initialPanel?: StudioPanel
+}) {
+  const { store, dispatch, clock } = useEditorRuntime()
+  const guest = useProjectGuest() !== null
+  const saveStatus = useEditorSaveStatus()
+  const desktop = useWideScreen()
+  // Every video opens on the Videos tab, so switching videos from it keeps it
+  // showing and a project always lands there.
+  // A guest only opens on a panel a guest has; an address naming another,
+  // such as ?panel=templates, opens on Videos.
+  const [panel, setPanel] = React.useState<StudioPanel>(
+    guest && !GUEST_PANELS.has(initialPanel) ? "videos" : initialPanel
+  )
+  const designing = panel === "thumbnail"
+  // Which of Voices, Music and Sounds the Sounds panel is on. Held here, so
+  // the tab is kept while another panel is open. Voices is first.
+  const [soundsTab, setSoundsTab] = React.useState<SoundsTab>("voiceovers")
+
+  // A timeline the editor cannot read is said once and left in the shared
+  // error toast. A save refused by another window is said by EditorProvider,
+  // which is where the copy of this window's work is kept.
+  useErrorToast(timelineError)
+
+  const horizontalLayout = useRememberedPanelLayout(LAYOUT_KEY.horizontal)
+  const verticalLayout = useRememberedPanelLayout(LAYOUT_KEY.vertical)
+
+  const panelRef = React.useRef<PanelImperativeHandle>(null)
+  const inspectorRef = React.useRef<PanelImperativeHandle>(null)
+  const timelineRef = React.useRef<PanelImperativeHandle>(null)
+  const [panelCollapsed, setPanelCollapsed] = React.useState(false)
+  const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false)
+
+  const togglePanel = usePanelToggle(panelRef)
+  const toggleInspector = usePanelToggle(inspectorRef)
+  const toggleTimeline = usePanelToggle(timelineRef)
+
+  // Double-clicking the empty part of a panel shuts it, and double-clicking
+  // what is left of it opens it again.
+  const panelDoubleClick = useBlankSpaceDoubleClick(togglePanel)
+  const inspectorDoubleClick = useBlankSpaceDoubleClick(toggleInspector)
+  const timelineDoubleClick = useBlankSpaceDoubleClick(toggleTimeline)
+
+  // Saving is reported in the sticky app header, alongside every other
+  // auto-save in the app. A failure says nothing there — it has already been
+  // said in an error toast, and a header that reads "Saved" after a save that
+  // did not land would be worse than silence. Clearing it on the way out
+  // matters too: otherwise "Saved" is still sitting there on the next page.
+  React.useEffect(() => {
+    reportSaveStatus(
+      saveStatus === "saving" ? "saving" : saveStatus === "saved" ? "saved" : "idle"
+    )
+  }, [reportSaveStatus, saveStatus])
+  React.useEffect(() => () => reportSaveStatus(null), [reportSaveStatus])
+
+  const { copy, paste } = useClipClipboard()
+  const dropMarker = useDropMarker()
+
+  // Space plays and pauses, Delete removes every selected clip, Escape lets go
+  // of them, Cmd+C and Cmd+V copy and paste clips. Typing anywhere is left alone, and
+  // so is copying words highlighted on the page. So is anything pressed inside
+  // an open window: the History preview has a player of its own, and a Delete
+  // there once removed a clip from the project behind it.
+  React.useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable ||
+          target.closest('[role="dialog"], [role="alertdialog"]'))
+      ) {
+        return
+      }
+      if (event.code === "Space") {
+        event.preventDefault()
+        clock.toggle()
+      } else if (event.key === "Delete" || event.key === "Backspace") {
+        // While a thumbnail is designed, these keys belong to the board's
+        // layers (thumbnail-board.tsx), never to a clip on the timeline.
+        if (designing) return
+        const { selectedClipIds } = store.getSnapshot().state
+        if (selectedClipIds.length > 0) {
+          event.preventDefault()
+          dispatch({ type: "DELETE_CLIPS", clipIds: selectedClipIds })
+        }
+      } else if (
+        event.key.toLowerCase() === "m" &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
+        // M drops a pin on the ruler at the playhead (timeline-markers.md).
+        if (designing) return
+        event.preventDefault()
+        dropMarker()
+      } else if (event.key === "Escape") {
+        dispatch({ type: "SELECT_CLIP", clipId: null })
+        dispatch({ type: "SET_CUT_MODE", on: false })
+      } else if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey
+      ) {
+        const key = event.key.toLowerCase()
+        if (key === "c" && !window.getSelection()?.toString()) {
+          event.preventDefault()
+          copy()
+        } else if (key === "v") {
+          event.preventDefault()
+          void paste()
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [clock, copy, designing, dispatch, dropMarker, paste, store])
+
+  const contextPanel = (
+    <div data-screen-label="Panel" className="flex h-full min-h-0">
+      <ToolRail panel={panel} onSelect={setPanel} guest={guest} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <StudioContextPanel
+          panel={panel}
+          soundsTab={soundsTab}
+          onSoundsTabChange={setSoundsTab}
+        />
+      </div>
+    </div>
+  )
+
+  const stage = (
+    <WorkspacePanel className="flex flex-col">
+      <StageHeader designing={designing} />
+      <div
+        className={cn(
+          "relative flex min-h-0 flex-1 flex-col",
+          desktop && !panelCollapsed && "studio-flat-stage-left",
+          desktop && !inspectorCollapsed && "studio-flat-stage-right"
+        )}
+      >
+        {/* While a thumbnail is designed the board sits on top and the
+            preview shrinks to a strip under it, with its play bar, so a frame
+            can be found by playing or dragging the playhead (Tyler, 3 Nov
+            2026). The empty slot keeps the preview in the same place in the
+            page either way, so it is never rebuilt and keeps playing. */}
+        {designing ? <ThumbnailBoard /> : null}
+        <div className={cn("flex min-h-0 flex-col", designing ? "h-56 shrink-0 border-t" : "flex-1")}>
+          {designing ? (
+            <p className="px-4 pt-2 text-xs text-muted-foreground">
+              Play or drag the playhead to find a frame, then press This frame on the left.
+            </p>
+          ) : null}
+          <StudioStage />
+        </div>
+        {panelCollapsed ? (
+          <PanelReopenTab
+            side="left"
+            label="Show the media panel"
+            onClick={togglePanel}
+          />
+        ) : null}
+        {inspectorCollapsed ? (
+          <PanelReopenTab
+            side="right"
+            label="Show the inspector"
+            onClick={toggleInspector}
+          />
+        ) : null}
+      </div>
+    </WorkspacePanel>
+  )
+
+  const workspace = desktop ? (
+    <ResizablePanelGroup
+      groupRef={horizontalLayout.groupRef}
+      orientation="horizontal"
+      className="min-h-0 flex-1"
+      onLayoutChanged={horizontalLayout.onLayoutChanged}
+    >
+      <ResizablePanel
+        id="panel"
+        panelRef={panelRef}
+        collapsible
+        collapsedSize="0%"
+        defaultSize="16%"
+        minSize="16%"
+        maxSize="34%"
+        onResize={(size) => setPanelCollapsed(size.asPercentage < 0.5)}
+      >
+        <WorkspacePanel
+          collapsed={panelCollapsed}
+          onDoubleClick={panelDoubleClick}
+        >
+          {contextPanel}
+        </WorkspacePanel>
+      </ResizablePanel>
+      <ResizableHandle gap collapsed={panelCollapsed} />
+      <ResizablePanel id="stage" defaultSize="66%" minSize="30%">
+        {stage}
+      </ResizablePanel>
+      <ResizableHandle gap collapsed={inspectorCollapsed} />
+      <ResizablePanel
+        id="inspector"
+        panelRef={inspectorRef}
+        collapsible
+        collapsedSize="0%"
+        defaultSize="18%"
+        minSize="18%"
+        maxSize="42%"
+        onResize={(size) => setInspectorCollapsed(size.asPercentage < 0.5)}
+      >
+        <WorkspacePanel
+          collapsed={inspectorCollapsed}
+          onDoubleClick={inspectorDoubleClick}
+        >
+          {designing ? <ThumbnailInspector /> : <StudioInspector />}
+        </WorkspacePanel>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  ) : (
+    // Too narrow to sit three abreast: the picture takes the room, and the
+    // panel and inspector are reachable through the timeline below it.
+    stage
+  )
+
+  return (
+    <ThumbnailsProvider active={designing}>
+    <MovingStillsProvider>
+      <RemakeClipsProvider>
+        <BriefsProvider>
+          <div
+            className="studio-root flex min-h-0 flex-1 flex-col"
+            style={{ gap: "var(--shell-gutter, 0.75rem)" }}
+          >
+            <OpenElsewhereDialog />
+            <ResizablePanelGroup
+              groupRef={verticalLayout.groupRef}
+              orientation="vertical"
+              className="min-h-0 flex-1"
+              onLayoutChanged={verticalLayout.onLayoutChanged}
+            >
+              <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">
+                <div className="flex h-full min-h-0">{workspace}</div>
+              </ResizablePanel>
+              {/* Keeps its gap even while the panel is shut — the collapsed toolbar
+                  row is still on screen, and this handle is what drags it open. */}
+              <ResizableHandle gap />
+              <ResizablePanel
+                id="timeline"
+                panelRef={timelineRef}
+                defaultSize="32%"
+                minSize="15%"
+                collapsible
+                collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+              >
+                <WorkspacePanel onDoubleClick={timelineDoubleClick}>
+                  <StudioTimeline />
+                </WorkspacePanel>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          </div>
+        </BriefsProvider>
+      </RemakeClipsProvider>
+    </MovingStillsProvider>
+    </ThumbnailsProvider>
+  )
+}
+
+function RailButton({
+  id,
+  label,
+  Icon,
+  on,
+  onSelect,
+}: (typeof RAIL)[number] & {
+  on: boolean
+  onSelect: (panel: StudioPanel) => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => onSelect(id)}
+      className={cn(
+        "relative flex w-full flex-col items-center gap-1 py-1.5 transition-colors",
+        on ? cn("text-foreground", railPickedEdge) : "text-muted-foreground hover:text-foreground"
+      )}
+    >
+      <Icon className="size-5" />
+      {/* 10px on purpose: the rail is 64px wide and "Transcript" needs it. */}
+      <span className="text-[0.625rem] font-medium">{label}</span>
+    </button>
+  )
+}
+
+/** The strip of panel buttons down the left edge of the first panel. */
+function ToolRail({
+  panel,
+  onSelect,
+  guest,
+}: {
+  panel: StudioPanel
+  onSelect: (panel: StudioPanel) => void
+  guest: boolean
+}) {
+  const { rail, foot } = railFor(guest)
+  const { trackRef, trackProps, pillProps } = useRailPickedEdge()
+  return (
+    <nav
+      data-screen-label="Tool rail"
+      aria-label="Editor panels"
+      className="w-16 shrink-0 border-r"
+    >
+      {/* Scrolls when the window is too short for every button, and keeps
+          Copy and Exports at the foot when it is not. */}
+      <ScrollArea
+        className="h-full"
+        viewportClassName="[&>div]:flex! [&>div]:min-h-full [&>div]:flex-col [&>div]:py-2"
+      >
+        <div
+          ref={trackRef}
+          {...trackProps}
+          className="relative flex w-full flex-1 flex-col items-center gap-1"
+        >
+          <span {...pillProps} />
+          {rail.map((item) => (
+            <RailButton
+              key={item.id}
+              {...item}
+              on={panel === item.id}
+              onSelect={onSelect}
+            />
+          ))}
+          <div className="mt-auto flex w-full flex-col items-center gap-1 border-t pt-2">
+            {foot.map((item) => (
+              <RailButton
+                key={item.id}
+                {...item}
+                on={panel === item.id}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+        </div>
+      </ScrollArea>
+    </nav>
+  )
+}
+
+/** The picture's header: what this video is called, and a way back. */
+function StageHeader({ designing }: { designing: boolean }) {
+  const guest = useProjectGuest()
+  const videoName = useEditorVideoName()
+  const { setVideoName, videoId } = useEditorRuntime()
+  const [editing, setEditing] = React.useState(false)
+  const [draft, setDraft] = React.useState(videoName)
+  const [shared, setShared] = React.useState(false)
+  const [exportOpen, setExportOpen] = React.useState(false)
+  // The Export window offers to leave out the intro and outro only when the
+  // project has one (intro-and-outro.md).
+  const { project } = useProjectSettings()
+  const hasIntroOutro = !!(project.intro_media_id || project.outro_media_id)
+  const projectAspect = useEditorSelector((state) => state.aspect)
+  const projectMs = useEditorSelector((state) =>
+    timelineDurationMs(state.tracks)
+  )
+  const {
+    jobs,
+    setJobs,
+    running: rendering,
+  } = useProjectExports(videoId)
+
+  async function commitRename() {
+    setEditing(false)
+    const next = draft.trim()
+    if (!next || next === videoName) {
+      setDraft(videoName)
+      return
+    }
+    setVideoName(next)
+    try {
+      await renameProjectVideo(videoId, next)
+    } catch (error) {
+      showErrorToast(
+        error instanceof Error && error.message
+          ? error.message
+          : "The new name could not be saved."
+      )
+    }
+  }
+
+  function shareLink() {
+    void navigator.clipboard
+      ?.writeText(window.location.href)
+      .then(() => {
+        setShared(true)
+        setTimeout(() => setShared(false), 1600)
+      })
+      .catch(() => undefined)
+  }
+
+  return (
+    <DashboardCardHeader className="grid grid-cols-[1fr_auto_1fr]">
+      {/* A guest sent from Project has no project list to go back to, and
+          can't rename the video or share the editor's address. */}
+      {guest ? (
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h1 className="font-heading min-w-0 truncate text-[0.99rem] leading-snug font-medium">
+            {videoName}
+          </h1>
+          <LockedMarker />
+        </div>
+      ) : (
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Button asChild variant="ghost" size="icon">
+          <Link
+            to="/admin/video-editor"
+            search={{
+              q: undefined,
+              sort: undefined,
+              direction: undefined,
+              page: undefined,
+            }}
+            aria-label="Back to video projects"
+            title="Back to video projects"
+          >
+            <ArrowLeftIcon />
+          </Link>
+        </Button>
+        {editing ? (
+          <Input
+            autoFocus
+            value={draft}
+            aria-label="Video name"
+            className="h-8 max-w-72"
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => void commitRename()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void commitRename()
+              if (event.key === "Escape") {
+                setDraft(videoName)
+                setEditing(false)
+              }
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="font-heading min-w-0 truncate text-left text-[0.99rem] leading-snug font-medium hover:underline"
+            aria-label={`Rename ${videoName}`}
+            onClick={() => {
+              setDraft(videoName)
+              setEditing(true)
+            }}
+          >
+            {videoName}
+          </button>
+        )}
+        <LockedMarker />
+      </div>
+      )}
+
+      <AspectSwitch />
+
+      <div className="flex items-center justify-end gap-2">
+        {guest ? null : (
+          <>
+            {designing ? <ThumbnailPreviewButton /> : null}
+            <Button type="button" variant="outline" onClick={shareLink}>
+              {shared ? <Check /> : <Share2 />}
+              {shared ? "Copied" : "Share"}
+            </Button>
+            {/* The video's template, between Share and Export (templates.md). */}
+            <TemplateHeaderMenu />
+          </>
+        )}
+        <Button type="button" onClick={() => setExportOpen(true)}>
+          {rendering ? <Loader2Icon className="animate-spin" /> : <Upload />}
+          {rendering ? "Exporting" : "Export"}
+        </Button>
+      </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        videoId={videoId}
+        videoName={videoName}
+        projectAspect={projectAspect}
+        projectMs={projectMs}
+        jobs={jobs}
+        onJobsChange={setJobs}
+        hasIntroOutro={hasIntroOutro}
+      />
+    </DashboardCardHeader>
+  )
+}
+
+/**
+ * Says this window is not saving, and offers the reload that gets it editing
+ * again. After a clash the reload brings in the other window's version; the
+ * work from this one is already in its kept copy.
+ *
+ * An icon rather than words because the header's left third is often under
+ * 200px wide, and a label there squeezes the project name out of sight.
+ */
+function LockedMarker() {
+  const lock = useEditorLock()
+  if (!lock) return null
+  const label =
+    lock === "read-only"
+      ? "Read-only. Reload to edit"
+      : "Stopped saving. Reload to edit"
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      aria-label={label}
+      title={label}
+      onClick={() => window.location.reload()}
+    >
+      <LockIcon />
+    </Button>
+  )
+}
+
+/** What shape the finished video is, kept where you are looking at it. */
+function AspectSwitch() {
+  const aspect = useEditorSelector((state) => state.aspect)
+  const { dispatch } = useEditorRuntime()
+
+  return (
+    <Tabs
+      value={aspect}
+      onValueChange={(next) =>
+        dispatch({ type: "SET_ASPECT", aspect: next as AspectRatio })
+      }
+    >
+      <TabsList aria-label="Shape">
+        {ASPECT_RATIOS.map((option) => (
+          <TabsTrigger key={option} value={option}>
+            {option}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+  )
+}

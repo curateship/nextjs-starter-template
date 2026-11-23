@@ -8,6 +8,8 @@ import {
   aiVideoViralVideos,
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
+import { shouldDeliverNotification } from "@/server/notification-preferences"
+import { publishNotificationCreated } from "@/server/notification-events"
 import { applyCreatorProfileMetrics } from "@/server/creators"
 import {
   listRecentUploads,
@@ -65,8 +67,9 @@ export async function syncCreatorWatchForCurrentUser(): Promise<WatchSyncResult>
 }
 
 // Stable identity for dedupe: platform URLs for the same reel can differ by
-// query params / trailing slash, so compare host+path only.
-function normalizeReelUrl(url: string) {
+// query params / trailing slash, so compare host+path only. Shared with the
+// automation Find New Videos node, which does the same diff per creator.
+export function normalizeReelUrl(url: string) {
   try {
     const parsed = new URL(url)
     const host = parsed.hostname.toLowerCase().replace(/^www\./, "")
@@ -132,21 +135,48 @@ export async function syncWatchedCreators(
         .slice(0, MAX_INGESTS_PER_CREATOR)
 
       let addedForCreator = 0
+      const ingestedVideoIds: string[] = []
       for (const upload of fresh) {
-        await ingestViralVideoForUser(
+        const ingested = await ingestViralVideoForUser(
           creator.userId,
           upload.sourceUrl,
           upload.download
         )
+        ingestedVideoIds.push(ingested.id)
         existing.add(normalizeReelUrl(upload.sourceUrl))
         added += 1
         addedForCreator += 1
       }
 
       if (addedForCreator > 0) {
-        await db
-          .insert(aiVideoNotifications)
-          .values({
+        // Fan out to automations with a Creator Posts trigger. Dynamic import
+        // + catch: the watcher must never fail because of automations.
+        void import("@/server/automation-engine")
+          .then((module) =>
+            module.enqueueCreatorPostedRuns(
+              creator.userId,
+              creator.id,
+              ingestedVideoIds
+            )
+          )
+          .catch((error) =>
+            console.error(
+              "Creator watch automation trigger failed",
+              creator.username,
+              error
+            )
+          )
+      }
+
+      if (
+        addedForCreator > 0 &&
+        (await shouldDeliverNotification({
+          recipientUserId: creator.userId,
+          type: "creator_watch",
+        }))
+      ) {
+        try {
+          await db.insert(aiVideoNotifications).values({
             id: uuid(),
             recipientUserId: creator.userId,
             actorUserId: creator.userId,
@@ -156,13 +186,15 @@ export async function syncWatchedCreators(
             creatorNewVideoCount: addedForCreator,
             createdAt: now(),
           })
-          .catch((error) =>
-            console.error(
-              "Creator watch notification failed",
-              creator.username,
-              error
-            )
+          await publishNotificationCreated(creator.userId)
+        } catch (error) {
+          // Non-fatal: the sync itself already succeeded.
+          console.error(
+            "Creator watch notification failed",
+            creator.username,
+            error
           )
+        }
       }
     } catch (error) {
       // Non-fatal: log and move on to the next creator.

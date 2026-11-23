@@ -1,0 +1,274 @@
+# The Bots dashboard: Recipes, Backtests and Bots
+
+Bots is one dashboard at `/bots`, in the Admin 3 panel design
+(`.agents/skills/Design/admin-3-panel-design/SKILL.md`). It takes the place of
+six screens: the Recipes table and each recipe's canvas, the Backtests table
+and each backtest's page, and the Live runs table and each bot's page. Tyler
+asked for it on 9 Nov 2026: "do you think it make sense to combine the
+automation, backtest and bot dashboard into one 3 panel dashboard like in
+shell?". The task is `workspace/tasks/Platform/bots-dashboard.md`.
+
+A recipe is the plan. A backtest is that recipe run with pretend money, and a
+bot is the same recipe run on a real or practice wallet.
+
+```
+             Left: page              Middle                                Right
+Overview     Dashboards block        widget cards (no right panel)         none
+Recipes      Dashboards block        recipes table (a line opens canvas)   Last result, Parameters, Open canvas
+Backtests    Dashboards block        backtests table (a line opens chart)  Result card, Open canvas, Open chart
+Bots         Dashboards block        bots table (a line opens it)          none
+Open recipe  Dashboards block        step list | ← name, status,           the step picked; with none,
+                                     Backtest, ⋮; canvas                   Last result and Parameters
+Open backtest Dashboards block       [Chart|Graph], chart                  Result, Trades and Skipped
+                                                                           cards, Stop
+Open bot     Dashboards block        [Chart|Graph], chart                  Result card, Trades card
+                                                                           [Traded | Coins], Pause/Stop
+                                     a coin pressed in Trades opens its trades in a popover over the chart
+```
+
+## Tyler's rules (9 Nov 2026)
+
+- Its own dashboard named Bots, at `/bots` ("Own dashboard, Bots"). One Bots
+  link in the left menu replaces the Recipes, Backtests and Live runs links.
+  The old addresses are gone, not forwarded, as `/protocols` went.
+- Admins only ("Admins only"). A member who opens `/bots` is sent to `/home`.
+  A backtest and a bot both start from a recipe, and only an admin can make
+  one.
+- An opened line fills the middle ("1"): a backtest's or bot's chart. Its
+  trades sat in a panel under the chart until 10 Nov 2026, when Tyler asked
+  for them in a popover instead (see "Tyler's rules (10 Nov 2026)").
+- The left panel is always the page ("if we combine all the sidebars,
+  there's like 3 sidebar on the left"). Nothing opened ever swaps it. The
+  recipe's step list (10 Nov) is a panel of its own after the page, never in
+  its place.
+- An Overview row comes first ("Overview first"), with widget cards in the
+  shell's rows.
+- Running bots is on both Overviews, the Trade dashboard's and this one
+  ("Both dashboards"). A row opens that bot here.
+- **A press on a recipe's line opens its canvas, and its cog shows it on the
+  right** (Tyler, 14 Nov 2026: "clicking on the table item should always
+  lead to another dashboard (if there is one) and the cog icon should always
+  open up the right panel"; the rule for every table is in the repo's
+  `docs/shell/three-column-dashboards.md`). The right panel shows its Last
+  result and Parameters cards with Open canvas in the footer. Until 14 Nov
+  the line picked it and the cog opened the canvas (Tyler, 11 Nov 2026: "clicking on the item should open the right
+  panel showing the last result card and the parameters card. In the footer
+  add a button to go to canvas. ANd in the middle panel, link the cog to the
+  canvas editor"). Until then a line opened its canvas at once (9 Nov:
+  "clicking on the recipe should just go to the canvas"). Pressing a step in
+  Parameters opens the canvas on that step, and Back from the canvas returns
+  to the table with the recipe still picked. An open recipe's right panel
+  is the picked step, or with none picked its Last result and Parameters
+  cards (Tyler, 11 Nov 2026, replacing his 9 Nov "just dont show the right
+  panel until a node is clicked on").
+- Backtests and Bots open the same way ("we dont need the right panel for
+  backtest dashboard. it should go straight to the result chart. same with
+  bots dashboard"): a line opens its chart, and the tables have no right
+  panel.
+- Result on an open recipe (Results until 10 Nov) is greyed out with a
+  tooltip while there is no backtest yet ("Just remove the toast altogether and gray out the result tab
+  if no result is ready with a tooltip").
+- Search and Mass select are in the middle header's ⋮, as on the CRM ("Inside
+  the ⋮, like CRM"), not buttons of their own.
+
+## Tyler's rules (10 Nov 2026)
+
+- **The recipe's steps go back on the left, as Automations draws them** ("In
+  recipes, I want to put that back into the left panel, look at how
+  automation dashboard does it and copy its design pattern"). An open recipe
+  is page | step list | canvas | picked step; the + Add step button by the
+  zoom bar is gone. `../recipes/dashboard.md` has the details.
+- **A run's right panel is cards, not tabs** ("remove the tabs and put them
+  into collapsible cards instead, first card is the figures card (rename to
+  Result) second card is "Trades" that shows all the tickers and a tab in that
+  second card is "Skipped" showing all the skipped markets"). A bot gets the
+  same two cards; its Trades tabs are Traded and Coins.
+- **A coin's trades open in a popover you can pin and drag, and the bottom
+  panel goes** ("Clicking the market in the card open up a popup showing
+  trades within that market and with the ability to pin the popover and able
+  to drag it around and remove the bottom panel"), on a backtest and a bot
+  alike ("Backtest and bot").
+- **No success toasts** ("Remove all success toast", then "All of trade and
+  shell too"). `no-success-toasts.md` has the rule.
+
+## The left panel
+
+- **The page:** one per admin (`trade_bots_pages`), started fresh, written on
+  like every page in the design, with the shell's basic "/" blocks. Trade's
+  trading blocks need an exchange, which this dashboard has none of, so they
+  are not offered.
+- **The Dashboards block:** fixed at the top of a new page, never in the "/"
+  list, moved with its ⋮. Its rows are Overview, Recipes, Backtests and Bots.
+  Overview counts its widgets, Recipes every recipe, Backtests every run not
+  archived, and Bots the bots still switched on (running, waiting, paused or
+  stopping). The counts are read again after each section switch and after a
+  change.
+- **The Dashboards block's own ⋮:** Recipes, Backtests and Bots, each with an
+  eye that hides or shows its row, and each dragging into a new order by its
+  grip or name (Tyler, 11 Nov 2026: "add this same feature for all apps that
+  has dashboards block"). Overview stays first and is never hidden. The
+  section showing keeps its row until another is picked. Each admin's own,
+  saved at once in `trade_prefs.hidden_bots_sections` and
+  `trade_prefs.bots_section_order` (migration 0250), cleaned by
+  `readBotsSections` in `src/lib/bots/bots-search.ts`.
+- **Its ⋮:** General (Cover photo, Lock the notes) and Widgets (the Overview's
+  two rows).
+
+## The middle
+
+- **One header:** the section's icon and name, the "N selected" menu while
+  lines are ticked, Filter (Backtests: Show archived), New recipe (Recipes
+  only; Backtests and Bots have none, because those only come from a run),
+  then the ⋮ with Search and Mass select. The tables have no right panel, so
+  there is no button to reopen one.
+- **The tables:** the shell's CRM table. Names are grey, dark when pointed at
+  or open, with the sliding bar before the open line. Columns drop out as the
+  middle narrows. A right-click on a line offers Mass select, Duplicate
+  (recipes) and Delete.
+- **What each table keeps:** pinned backtests stay on top; bots still switched
+  on stay above finished ones, and only finished bots can be ticked or
+  deleted. While a backtest runs the table reads again every two seconds, and
+  while a bot runs every five.
+- **Delete and select-all say why rather than greying out.** Delete on a bot
+  still switched on, and the Mass select box with no stopped bot to tick, stay
+  pressable and say why in an error toast ("Stop this bot first. A bot still
+  switched on holds its wallet, so it is never deleted."). Backtests' box says
+  there are none to tick.
+- **The live re-reads:** they pause while the browser tab is hidden, and a
+  failed one shows "Couldn't refresh" with Try again under the header, so old
+  figures never sit there looking current.
+- **A duplicated recipe** lands under the one it came from and is picked.
+- **An opened line:** the line's own header becomes the middle's one header,
+  with the back arrow first. Back returns to the table with the same line
+  picked, and so does pressing the section's own row in the Dashboards block
+  ("if im in the canvas, clicking the sidebar link here doesnt work").
+
+## The right panel
+
+- **Every right panel's header starts the same way:** the Recipe, Backtest
+  and Bot panels and a recipe's step have their icon at the header's own
+  padding, 10px to the title, in the dashboard heading's type, over the
+  panel's blue cover, with no grey line under the title (Tyler, 11 Nov 2026:
+  "all the nodes header still need to inherate the background too", "the
+  overview right panel header and the nodes header alignment is not the
+  same", "Copy the node header left padding"). `RightPanelHeading` in
+  `bots-record.tsx` draws it for all four.
+- **The Backtests table has one:** a line's cog shows its Result card on
+  the right (a press on the line opens its chart at once, 14 Nov 2026), with
+  **Open chart** in the footer, which opens its chart and
+  graph in the middle (Tyler, 10 Nov 2026: "clicking on the table item should
+  open up the right panel to show the results and in the footer have a button
+  to click on to show the chart and graph"). Back from the chart returns to
+  the table with that line still picked.
+- **A press on a Backtests line opens that run's chart, and its cog shows
+  its Result on the right** (Tyler, 14 Nov 2026, the same rule, then picked
+  "Swap both": the chart icon that opened the chart, 11 Nov 2026, became
+  the cog). The line ends in the cog, the recipe's icon, which opens the
+  recipe it ran on its canvas, and the bin.
+- **The Recipes and Bots tables have none** (Tyler, 9 Nov 2026: "we dont need
+  the right panel for backtest dashboard. it should go straight to the result
+  chart. same with bots dashboard"). A line opens its record in the middle in
+  one click.
+- **An opened backtest:** the header says Backtest, then the button that
+  folds or opens every card, the backtest's ⋮ (the Name, Pin to top, Archive,
+  Delete in red under a line) and the collapse button. Under it, the Result
+  card, the Trades card and the Skipped card, and Stop in the footer while it
+  runs, which asks first. `../backtests/backtest-screens.md` has the cards
+  and the trades popover.
+- **An opened bot:** the same, headed Bot: Result, then Trades (Traded |
+  Coins); the bot's ⋮ (Delete, which says why while the bot is switched on: a
+  run is a record of money that moved, and one still switched on is stopped,
+  never deleted), and Pause, Stop and Run again in the footer. A coin pressed
+  in Trades opens that coin's finished trades in the same popover as a
+  backtest's. Its ⋮ hides Market, Opened, How it ended, Amount, Made or lost,
+  Return and Running total, kept on the account apart from a backtest's;
+  Closed always shows. The bot's chart already opened at the Trade chart's
+  saved view, and still saves back to it when panned.
+- **The cards** are the shell's `PanelCard`, folded or open per card in this
+  browser; the right panel scrolls as one column.
+- **An opened recipe:** no right panel until a step is pressed on the canvas
+  or in the step list; then that step's settings ("Not added yet" with Add
+  step and Cancel for one pressed in the list). Clicking the empty canvas
+  closes it. A step on the canvas is `?node=` in the address, so a reload
+  keeps it.
+
+## Overview
+
+Two panels, the widgets taking the right panel's room, under the same width
+key as the tables and a canvas with no step picked. The one widget so far
+is Running bots, the same card the Trade Overview has; widgets for backtests
+come later. The layout is each admin's own, in `trade_prefs.bots_widgets`,
+apart from the Trade Overview's, and starts as Running bots across the top
+row. Its figures are read again every fifteen seconds while the tab shows.
+
+## The address
+
+`/bots?view=overview|recipes|backtests|bots&open=<id>&full=1&coin=<market>&node=<step>`,
+read by `src/lib/bots/bots-search.ts`. `open` is the line picked and `full`
+opens it in the middle. Picking a line replaces the address; opening it adds
+to the history, so Back closes it. A bare `/bots` goes back to the place last
+open in this browser; a first visit opens Overview.
+
+## Where the old links went
+
+Migration `0242_trade_bots_dashboard_links.sql` moves what was saved:
+
+- A bot's bell notice opened `/flow-runs/<id>`; it now opens that bot here.
+- In each site's left menu, every link to `/admin/recipes`, `/backtests` or
+  `/flow-runs` comes out. The first top-level one becomes the Bots link,
+  keeping its place, icon and who can see it; whatever was nested under a
+  removed link moves up into its place. A menu whose old links were all
+  nested gets Bots after Trade.
+- The members' and app roles' menus lose the old links with no Bots link put
+  back, since the dashboard is admins only.
+
+Both migrations change the live database the moment they run, and the live
+release keeps serving the old screens until the new code is deployed. So
+`0241` (the page table and the widgets column, additions only) can run early,
+and `0242` must wait for the deploy: run before it, the live menu and notices
+would point at an address the live release does not have.
+
+An open backtest and an open bot share one middle header: the page's reopen
+button while the page is shut, the **Chart** and **Graph** tabs, then the
+Graph's 1W to All and its ⋮ (line switches, From, To, Reset) or the Chart's
+coin at the right.
+No back arrow, name or Canvas button (Tyler, 10 Nov 2026: "remove canvas from
+the tab", "the chart and graph tab needs to be applied to the bots dashboard
+too"); the Dashboards block's row goes back to the table.
+
+## The picked line's footer and the way back (11 Nov 2026)
+
+- A picked backtest's footer holds Open canvas (its recipe's canvas) and Open
+  chart, with no state word before them (Tyler: "remove this label", "Add
+  another button called "Open canvas" here"). The two share the footer's
+  width, side by side with room and one under the other without ("fix
+  aligment").
+- Every table with a right panel, Recipes and Backtests, ends its header with
+  the button that brings a folded right panel back, as an opened record does
+  (Tyler: "the backtest dashboard is missing the right uncollapsible icon").
+  A scan of every three-panel screen on port 3014 (Trade, the five Bots
+  places, the eight Admin sections, the six CRM sections, Automations) found
+  each side panel with its fold button and, folded, a way back.
+
+## How the three tables read (11 Nov 2026)
+
+Redrawn after Tyler's drawings ("redesign the backtest table", "revamp the
+recipes table design", "revamp bots table"):
+
+- **Backtests:** the name a run was given, else its recipe's, with the
+  timeframe as a grey chip ("Large cap DCA" 4h; a saved name ending ", 4h"
+  loses the ending to the chip, and a run named by hand has none). Coins and
+  Made or lost sit right-aligned, the money on a green or red pill; Worst dip
+  is the dollars then a red bar, the deepest dip listed filling it; Ran is the
+  day with the time in grey; Took is the duration alone. Then the chart
+  button, the recipe button and the bin.
+- **Recipes:** the name split at its dashes, the first part the name and the
+  rest grey chips ("DCA" Aster). Status is a dot and word on a grey pill
+  (green running, amber paused or stopping, grey stopped) with the day it
+  stopped or where it runs in grey after it; never run is a faint dot and the
+  words. Steps is the count on a light grey box, then "steps". The summary
+  column is gone.
+- **Bots:** the full name and an amber "Real money" chip with a dot; the
+  wallet in a fixed-width face with its group as a small chip ("HL1" GRID);
+  None and No trades yet in grey, money on a green or red pill once a trade
+  closed; Started as the day with the time in grey.

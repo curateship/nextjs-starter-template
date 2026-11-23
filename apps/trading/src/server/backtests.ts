@@ -1,6 +1,14 @@
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm"
 
-import type { BacktestCosts, BacktestResult } from "@/lib/backtest/types"
+import {
+  PREVIOUS_RUN_NAME_PREFIX,
+  type BacktestCosts,
+  type BacktestResult,
+} from "@/lib/backtest/types"
+import {
+  isManualRunParams,
+  type ManualRunParams,
+} from "@/lib/backtest/manual-types"
 import {
   automationCapabilities,
   LIVE_BOOK_BACKTEST_UNAVAILABLE,
@@ -20,8 +28,8 @@ export type CreateBacktestInput = {
   market: string
   network: TradingNetwork
   interval: string
-  /** The strategy's full config snapshot. */
-  params: AutomationConfig
+  /** The strategy's full config snapshot, or a manual session's params. */
+  params: AutomationConfig | ManualRunParams
   costs: BacktestCosts
   startTime: Date
   endTime: Date
@@ -47,8 +55,12 @@ function backtestConfigValues(input: CreateBacktestInput) {
 }
 
 function backtestResultValues(result: BacktestResult) {
+  // The replay tape gets its own column so run-open payloads stay lean —
+  // the chart fetches it lazily, only when someone actually replays.
+  const { timeline, ...rest } = result
   return {
-    result,
+    result: rest,
+    timeline: timeline ?? null,
     resultStats: {
       ...result.stats,
       firstEntryMs: result.trades[0]?.entryTime ?? null,
@@ -58,6 +70,11 @@ function backtestResultValues(result: BacktestResult) {
 }
 
 function assertBacktestable(input: CreateBacktestInput) {
+  if (isManualRunParams(input.params)) {
+    // Manual sessions run in the browser and save as already-completed rows;
+    // they must never enter the worker queue.
+    throw new Error("Manual sessions cannot be queued as backtests.")
+  }
   if (!automationCapabilities(input.params).supportsHistoricalBacktest) {
     throw new Error(LIVE_BOOK_BACKTEST_UNAVAILABLE)
   }
@@ -90,6 +107,40 @@ export async function createUserBacktest(
   return row
 }
 
+/** Inserts every market in one run group atomically before workers can claim it. */
+export async function createUserBacktestGroup(
+  userId: string,
+  inputs: CreateBacktestInput[],
+  database: CustomShellDb = db
+): Promise<{ groupId: string; rows: TradingBacktest[] }> {
+  if (inputs.length === 0) throw new Error("Pick at least one market.")
+  for (const input of inputs) assertBacktestable(input)
+
+  const ids = inputs.map(() => uuid())
+  const groupId = ids[0]
+  const createdAt = now()
+  const rows = await database
+    .insert(tradingBacktests)
+    .values(
+      inputs.map((input, index) => ({
+        id: ids[index],
+        userId,
+        groupId,
+        ...backtestConfigValues(input),
+        status: "pending" as const,
+        startedAt: null,
+        progress: 0,
+        progressStage: "queued",
+        createdAt,
+      }))
+    )
+    .returning()
+  if (rows.length !== inputs.length) {
+    throw new Error("Backtest group was not created")
+  }
+  return { groupId, rows }
+}
+
 /** Saves a result computed by an explicit offline tool without queueing it. */
 export async function createCompletedUserBacktest(
   userId: string,
@@ -97,7 +148,9 @@ export async function createCompletedUserBacktest(
   result: BacktestResult,
   database: CustomShellDb = db
 ): Promise<TradingBacktest> {
-  assertBacktestable(input)
+  // Manual sessions are precisely this path — the browser engine computed the
+  // result — so only automation params go through the queue-eligibility check.
+  if (!isManualRunParams(input.params)) assertBacktestable(input)
   const id = uuid()
   const timestamp = now()
   const [row] = await database
@@ -191,7 +244,67 @@ export async function claimNextPendingBacktest(
     const [candidate] = await tx
       .select({ id: tradingBacktests.id })
       .from(tradingBacktests)
-      .where(eq(tradingBacktests.status, "pending"))
+      .where(
+        and(
+          eq(tradingBacktests.status, "pending"),
+          // Shared-wallet baskets (DCA, and legacy qfl rows) run off one wallet,
+          // so only the group leader
+          // (id = groupId) is claimable — it then pulls in its siblings. Every
+          // other strategy is one independent run per market, claimed on its own.
+          //
+          // LEADERSHIP PASSES ON. A basket whose leader row has already finished
+          // or failed used to strand every sibling forever: the siblings are not
+          // `id = groupId`, so nothing could ever claim them. That happened for
+          // real on 29 July 2026 — the leader market was HYPE, which Binance does
+          // not list, so its history load failed instantly; the worker then
+          // restarted and `resetOrphanedRunning` put the other 399 markets back
+          // to `pending` with a dead leader above them. 399 rows sat unclaimable.
+          //
+          // So a sibling may lead, but ONLY when the whole basket is still
+          // unstarted apart from a failed leader. Two conditions, both load-bearing:
+          //
+          // 1. The leader must have FAILED, not merely stopped being pending.
+          //    While it is `running` it legitimately owns the basket, and letting
+          //    a sibling in would replay the same basket a second time on a
+          //    second wallet.
+          // 2. No sibling may be `running` OR `done`. `running` is the duplicate
+          //    guard the old leader-only rule gave for free. `done` matters more:
+          //    `runPortfolioGroup` finishes markets one at a time in a loop, so a
+          //    worker killed mid-loop can leave some markets `done` and the rest
+          //    back at `pending`. Promoting there would replay only the leftovers
+          //    on a FRESH FULL wallet, while the finished markets were computed
+          //    sharing that wallet — every leftover's numbers would be inflated
+          //    and saved as if they were real. A shared basket is only meaningful
+          //    replayed as one set.
+          //
+          // A partially finished basket therefore still strands, exactly as it did
+          // before promotion existed. That is deliberate: a visibly stuck run is
+          // recoverable, silently wrong shared-wallet numbers are not. Re-run the
+          // group to get a coherent result.
+          //
+          // Residual risk: two drainers opening this transaction at the same
+          // instant cannot see each other's uncommitted claim, so the guard is not
+          // airtight against true simultaneity. It holds for the sequential drain
+          // this queue does, and the backtest worker takes a leadership lock so
+          // only one drainer runs at a time.
+          sql<boolean>`(
+            ((${tradingBacktests.params} -> 'qfl') is null and (${tradingBacktests.params} -> 'dca') is null)
+            or ${tradingBacktests.id} = ${tradingBacktests.groupId}
+            or (
+              exists (
+                select 1 from ${tradingBacktests} leader
+                where leader.id = ${tradingBacktests.groupId}
+                  and leader.status = 'error'
+              )
+              and not exists (
+                select 1 from ${tradingBacktests} sibling
+                where sibling.group_id = ${tradingBacktests.groupId}
+                  and sibling.status in ('running', 'done')
+              )
+            )
+          )`
+        )
+      )
       .orderBy(asc(tradingBacktests.createdAt))
       .limit(1)
       .for("update", { skipLocked: true })
@@ -210,6 +323,31 @@ export async function claimNextPendingBacktest(
       .returning()
     return row ?? null
   })
+}
+
+/** Claims the still-pending siblings of an already claimed portfolio run. */
+export async function claimPendingBacktestGroup(
+  groupId: string,
+  workerId: string,
+  database: CustomShellDb = db
+): Promise<TradingBacktest[]> {
+  return database
+    .update(tradingBacktests)
+    .set({
+      status: "running",
+      startedAt: now(),
+      attemptCount: sql`${tradingBacktests.attemptCount} + 1`,
+      progress: 5,
+      progressStage: "claimed",
+      claimedBy: workerId,
+    })
+    .where(
+      and(
+        eq(tradingBacktests.groupId, groupId),
+        eq(tradingBacktests.status, "pending")
+      )
+    )
+    .returning()
 }
 
 /**
@@ -470,6 +608,8 @@ export async function listGroupRuns(
       id: tradingBacktests.id,
       market: tradingBacktests.market,
       status: tradingBacktests.status,
+      error: tradingBacktests.error,
+      progress: tradingBacktests.progress,
       netPnlPct: sql<
         string | null
       >`(${tradingBacktests.result} #>> '{stats,netPnlPct}')`,
@@ -500,4 +640,93 @@ export async function getUserBacktest(
     )
     .limit(1)
   return row ?? null
+}
+
+/**
+ * Deletes the automation's replaceable groups — unnamed ("Previous run …")
+ * and unpinned. Called when a new run of the same automation replaces them;
+ * named or pinned groups are keepers and are never touched.
+ */
+export async function deleteReplaceableAutomationRuns(
+  userId: string,
+  automationId: string,
+  database: CustomShellDb = db
+) {
+  await database
+    .delete(tradingBacktests)
+    .where(
+      and(
+        eq(tradingBacktests.userId, userId),
+        eq(tradingBacktests.automationId, automationId),
+        eq(tradingBacktests.pinned, false),
+        sql`${tradingBacktests.name} like ${`${PREVIOUS_RUN_NAME_PREFIX} ·%`}`
+      )
+    )
+}
+
+/** Names a run group — a named group is a keeper the next run won't replace. */
+export async function renameUserBacktestGroup(
+  userId: string,
+  groupId: string,
+  name: string,
+  database: CustomShellDb = db
+) {
+  await database
+    .update(tradingBacktests)
+    .set({ name })
+    .where(
+      and(
+        eq(tradingBacktests.userId, userId),
+        eq(tradingBacktests.groupId, groupId)
+      )
+    )
+}
+
+/** The automation's most recent run group, for editor-mode rehydration. */
+export async function getLatestAutomationBacktestGroup(
+  userId: string,
+  automationId: string,
+  database: CustomShellDb = db
+): Promise<{
+  groupId: string
+  name: string
+  startTime: Date
+  endTime: Date
+} | null> {
+  const [row] = await database
+    .select({
+      groupId: tradingBacktests.groupId,
+      name: tradingBacktests.name,
+      startTime: tradingBacktests.startTime,
+      endTime: tradingBacktests.endTime,
+    })
+    .from(tradingBacktests)
+    .where(
+      and(
+        eq(tradingBacktests.userId, userId),
+        eq(tradingBacktests.automationId, automationId)
+      )
+    )
+    .orderBy(desc(tradingBacktests.createdAt))
+    .limit(1)
+  return row ?? null
+}
+
+/** The replay tape alone — the heavy result blob stays unloaded. */
+export async function getUserBacktestTimeline(
+  userId: string,
+  backtestId: string,
+  database: CustomShellDb = db
+): Promise<unknown | null> {
+  const [row] = await database
+    .select({ timeline: tradingBacktests.timeline })
+    .from(tradingBacktests)
+    .where(
+      and(
+        eq(tradingBacktests.id, backtestId),
+        eq(tradingBacktests.userId, userId)
+      )
+    )
+    .limit(1)
+  return row?.timeline ?? null
 }

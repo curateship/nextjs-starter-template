@@ -1,0 +1,369 @@
+import * as React from "react"
+import { Link } from "@tanstack/react-router"
+import { FlagIcon, Loader2Icon, ShieldOffIcon } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  blockProfile,
+  followProfile,
+  loadIsFollowing,
+  sendCheer,
+  unfollowProfile,
+} from "@/lib/api/pomodoro/following"
+import { reportProfile } from "@/lib/api/pomodoro/profile-reports"
+import { CHEERS, cheerErrorMessage } from "@/lib/pomodoro/cheers"
+import { followErrorMessage } from "@/lib/pomodoro/following"
+import {
+  PROFILE_REPORT_REASONS,
+  PROFILE_REPORT_RATE_LIMITED,
+  type ProfileReportReasonId,
+} from "@/lib/pomodoro/profile-reports"
+import { useProductAuth } from "@/lib/pomodoro/auth-state"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { TextLink } from "@/components/pomodoro/text-link"
+
+/**
+ * The row of actions on somebody else's profile: Follow, a cheer, Report and
+ * Block.
+ *
+ * Report is the only one a signed-out reader can use, because the page is
+ * public and most of its readers have no account. Everything else needs one,
+ * and a signed-out visitor is offered sign-in rather than a dead button.
+ *
+ * None of these ever says whether a block exists. A cheer to somebody who has
+ * blocked you reports success, and a block itself reports success whether or
+ * not the handle was real.
+ */
+export function ProfileActions({
+  handle,
+  name,
+  isOwner,
+  onFollowChange,
+  onBlocked,
+}: {
+  handle: string
+  name: string
+  /** Your own page shows no actions; you cannot follow or block yourself. */
+  isOwner: boolean
+  /** A follow (1) or an unfollow (-1) the server agreed to, for the count. */
+  onFollowChange?: (by: 1 | -1) => void
+  /** The block went through, so the page should stop showing this person. */
+  onBlocked?: () => void
+}) {
+  const { known, authenticated } = useProductAuth()
+  const [following, setFollowing] = React.useState<boolean | null>(null)
+  const [busy, setBusy] = React.useState(false)
+  const [cheering, setCheering] = React.useState(false)
+  const [reportOpen, setReportOpen] = React.useState(false)
+  const [blockOpen, setBlockOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!authenticated || isOwner) return
+    let cancelled = false
+    void loadIsFollowing(handle)
+      .then((result) => {
+        if (!cancelled) setFollowing(result)
+      })
+      // A failed read leaves the button saying Follow, which is the honest
+      // default: pressing it is idempotent, so a wrong guess costs nothing.
+      .catch(() => {
+        if (!cancelled) setFollowing(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [authenticated, handle, isOwner])
+
+  if (isOwner) return null
+
+  const toggleFollow = async () => {
+    setBusy(true)
+    try {
+      const wasFollowing = following
+      const next = wasFollowing
+        ? await unfollowProfile(handle)
+        : await followProfile(handle)
+      setFollowing(next.following)
+      if (next.following !== wasFollowing) {
+        onFollowChange?.(next.following ? 1 : -1)
+      }
+    } catch (cause) {
+      showErrorToast(followErrorMessage(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const cheer = async (cheerId: string) => {
+    if (cheering) return
+    setCheering(true)
+    try {
+      await sendCheer(handle, cheerId)
+    } catch (cause) {
+      showErrorToast(cheerErrorMessage(cause))
+    } finally {
+      setCheering(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {authenticated ? (
+        <>
+          {/* Three states. Until the answer is in, a neutral one: the button
+              used to say Follow for a moment to people who already followed,
+              which invites the wrong press. Following turns into Unfollow on
+              hover and keyboard focus, because that is what pressing it does. */}
+          {following === null ? (
+            <Button variant="outline" disabled aria-label={`Checking whether you follow ${name}`}>
+              <Loader2Icon className="animate-spin" aria-hidden="true" />
+              Checking…
+            </Button>
+          ) : following ? (
+            <Button
+              variant="outline"
+              className="min-w-24"
+              disabled={busy || !known}
+              onClick={() => void toggleFollow()}
+              aria-label={`Unfollow ${name}`}
+            >
+              <span className="group-hover/button:hidden group-focus-visible/button:hidden">
+                Following
+              </span>
+              <span className="hidden group-hover/button:inline group-focus-visible/button:inline">
+                Unfollow
+              </span>
+            </Button>
+          ) : (
+            <Button
+              disabled={busy || !known}
+              onClick={() => void toggleFollow()}
+              aria-label={`Follow ${name}`}
+            >
+              Follow
+            </Button>
+          )}
+          {/* Cheers are only for people you follow, so the picker appears
+              with the follow rather than beside it. It is an action, not a
+              setting: the value is held empty, so it always shows its
+              placeholder and the same cheer can be picked twice in a row. */}
+          {following ? (
+            <Select
+              value=""
+              disabled={cheering}
+              onValueChange={(value) => void cheer(value)}
+            >
+              <SelectTrigger
+                className="w-44"
+                aria-label={`Cheer ${name} on`}
+                aria-busy={cheering}
+              >
+                <SelectValue
+                  placeholder={cheering ? "Sending…" : "Send a cheer"}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {CHEERS.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+        </>
+      ) : known ? (
+        <Button asChild variant="outline">
+          <Link to="/login" search={{ redirect: `/u/${handle}` }}>
+            Log in to follow
+          </Link>
+        </Button>
+      ) : null}
+
+      <Button variant="ghost" onClick={() => setReportOpen(true)}>
+        <FlagIcon aria-hidden="true" />
+        Report
+      </Button>
+      {authenticated ? (
+        <Button variant="ghost" onClick={() => setBlockOpen(true)}>
+          <ShieldOffIcon aria-hidden="true" />
+          Block
+        </Button>
+      ) : null}
+
+      <ReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        handle={handle}
+        name={name}
+      />
+      <BlockDialog
+        open={blockOpen}
+        onOpenChange={setBlockOpen}
+        handle={handle}
+        name={name}
+        onBlocked={() => {
+          setFollowing(false)
+          onBlocked?.()
+        }}
+      />
+    </div>
+  )
+}
+
+function ReportDialog({
+  open,
+  onOpenChange,
+  handle,
+  name,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  handle: string
+  name: string
+}) {
+  const [reason, setReason] = React.useState<ProfileReportReasonId>("picture")
+  const [sending, setSending] = React.useState(false)
+
+  const send = async () => {
+    setSending(true)
+    try {
+      await reportProfile(handle, reason)
+      // The same thanks whatever happened on the server, so nothing here can
+      // tell a reader that a handle exists or that they have reported before.
+      onOpenChange(false)
+    } catch (cause) {
+      const text = cause instanceof Error ? cause.message : ""
+      showErrorToast(
+        text.includes("RATE_LIMITED")
+          ? PROFILE_REPORT_RATE_LIMITED
+          : "That report could not be sent. Try again."
+      )
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Report {name}</DialogTitle>
+        </DialogHeader>
+        <DialogBody className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="profile-report-reason">What is wrong?</Label>
+            <Select
+              value={reason}
+              onValueChange={(value) =>
+                setReason(value as ProfileReportReasonId)
+              }
+            >
+              <SelectTrigger id="profile-report-reason">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PROFILE_REPORT_REASONS.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Someone on our team reads every report. You do not need an account
+            to send one.
+          </p>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button disabled={sending} onClick={() => void send()}>
+            {sending ? "Sending…" : "Send report"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function BlockDialog({
+  open,
+  onOpenChange,
+  handle,
+  name,
+  onBlocked,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  handle: string
+  name: string
+  onBlocked: () => void
+}) {
+  const [busy, setBusy] = React.useState(false)
+
+  const block = async () => {
+    setBusy(true)
+    try {
+      await blockProfile(handle)
+      onBlocked()
+      onOpenChange(false)
+    } catch {
+      showErrorToast("That block could not be saved. Try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Block {name}?</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <p className="text-sm text-muted-foreground">
+            You will not see each other anywhere in the app: not on any board,
+            not in a room, and neither of you can open the other&rsquo;s page.
+            Any follow between you is removed. They are told nothing. You can
+            undo this in{" "}
+            <TextLink to="/settings" search={{ tab: "privacy" }}>
+              Settings
+            </TextLink>
+            .
+          </p>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={busy}
+            onClick={() => void block()}
+          >
+            {busy ? "Blocking…" : `Block ${name}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

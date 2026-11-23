@@ -1,0 +1,338 @@
+import * as React from "react"
+
+import { burstConfetti } from "@/components/project/confetti"
+import { DailyHabits, DailyHeader } from "@/components/project/daily-habits"
+import { RateYourDayButton, StartDayButton, TomorrowAtAGlance } from "@/components/project/daily-journal"
+import { DailySection } from "@/components/project/daily-section"
+import { DailySky } from "@/components/project/daily-sky"
+import { FoldHeading } from "@/components/project/fold-heading"
+import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
+import { loadMyWeather, milestoneShown, type DailyCard as DailyCardData, type DailyWeather } from "@/lib/api/project/daily-card"
+import {
+  DAY_RATING_TOP,
+  greetingOf,
+  isAfterMidnight,
+  partOfDay,
+  skyPhase,
+  weatherWords,
+  type DailySection as DailySectionName,
+  type DayPart,
+} from "@/lib/project/daily-card"
+import { clockIn, fullDayLabel, localNow } from "@/lib/project/days"
+import { collapseStorageKey, useRememberedCollapse } from "@/lib/remembered-choice"
+import { useNow } from "@/lib/project/use-now"
+import { cn } from "@/lib/utils"
+
+/** The clock, part of the day, sky and weather, worked out once for the sky behind the panel and the card in it. */
+export type DailyNow = {
+  nowMs: number
+  local: { day: string; time: string }
+  part: DayPart
+  phase: ReturnType<typeof skyPhase>
+  weather: DailyWeather | null
+}
+
+export function useDailyNow(daily: DailyCardData): DailyNow {
+  const nowMs = useNow(daily.loadedAt)
+  const weather = useWeather(daily.settings.city)
+  const local = localNow(new Date(nowMs), daily.zone)
+  return { nowMs, local, part: partOfDay(local.time, daily.settings.hours), phase: skyPhase(local.time, daily.settings.hours), weather }
+}
+
+/**
+ * The sky lies faintly behind the left panel's header and its top, and fades
+ * into the panel, the way a project's banner does (Tyler, 30 Oct 2026: "I
+ * dont want this daily card in a card but more of a permanent fixture like
+ * how we built project avatar and background"). The panel holding it is
+ * `relative`, and its header goes see-through at the foot.
+ */
+export function DailySkyBanner({ now }: { now: DailyNow }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40 overflow-hidden">
+      <div className="absolute inset-0 opacity-45">
+        <DailySky
+          phase={now.phase}
+          part={now.part}
+          weather={now.weather?.kind ?? null}
+        />
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-card/40 to-card" />
+    </div>
+  )
+}
+
+/**
+ * The Daily card at the top of My dashboard (task "Daily card/01", Tyler,
+ * 29 Oct 2026: "like a personal assistent"). Everyone has one: a greeting
+ * that follows their own hours, today's deep work with Start and the next
+ * meeting. The site admin's adds their routines, streaks, tomorrow at night
+ * and Rate your day, which nobody else sees,
+ * and shows none of it until they press Start day. It sits straight in the
+ * panel, under the sky drawn by DailySkyBanner. How it works is in
+ * `workspace/docs/daily-card.md`.
+ */
+export function DailyCard({
+  daily,
+  now,
+  checkin,
+  onCheckIn,
+  onCheckOut,
+  frame,
+}: {
+  daily: DailyCardData
+  now: DailyNow
+  /** An employee's check-in today; null for the site admin, who has none. */
+  checkin: { checkedIn: boolean; checkedOut: boolean } | null
+  onCheckIn?: () => void
+  onCheckOut?: () => void
+  /**
+   * The site admin's Daily habits block on their page: the block draws the
+   * card's frame and heading, and the card's body, which opens with its own
+   * greeting (`DailyHeader`), goes inside it (Tyler, 12 Nov 2026).
+   */
+  frame?: (body: React.ReactNode) => React.ReactNode
+}) {
+  const { nowMs, local, part, weather } = now
+  const [open, setOpen, noFlashKey] = useRememberedCollapse(collapseStorageKey.settingsCard("project-daily-card"))
+  const cardRef = React.useRef<HTMLElement>(null)
+  const greeting = greetingOf(daily.firstName, part, daily.cardDay, isAfterMidnight(local.time, daily.settings.hours))
+  useMilestone(daily.admin?.milestone ?? null, cardRef)
+  // The day's own parts wait for Start day; an employee's card has no such button.
+  const started = !daily.admin || Boolean(daily.admin.today.upAt)
+
+  // The date, then today's parts: the same in the panel and in the site admin's block.
+  const body = (
+    <>
+      {/* The site admin's block opens with the greeting, the weather in words
+          and a ring of the habits done (Tyler, 12 Nov 2026: "revamp daily card ui",
+          from his drawing). An employee's card, whose greeting is its heading,
+          keeps the date and weather, which fold away with it (6 Nov 2026: "the
+          date should be inside when collapsed"). */}
+      {frame && daily.admin ? (
+        <DailyHeader daily={daily} part={part} afterMidnight={isAfterMidnight(local.time, daily.settings.hours)} weather={weather} />
+      ) : (
+        <p className="pt-0.5 text-sm text-muted-foreground">
+          {fullDayLabel(local.day)}
+          {weather ? ` · ${weather.temperature}°, ${weatherWords(weather.kind)} in ${weather.city.split(",")[0]}` : null}
+        </p>
+      )}
+      {/* minmax(0, 1fr): a long task title truncates instead of widening the panel.
+          15px apart, the same gutter as the panel's cards below and its edges. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3.75 pt-3.75 empty:hidden">
+        {started ? (
+          <>
+            {daily.admin?.lookBack ? <SundayLookBack daily={daily} /> : null}
+            {daily.admin?.monthly ? <MonthlyReview daily={daily} /> : null}
+            {daily.dayOff ? <p className="text-sm">{daily.dayOff}. Nothing here needs you today.</p> : null}
+            {checkin && !checkin.checkedIn && part !== "night" && !daily.dayOff ? (
+              <Button type="button" className="w-full" onClick={onCheckIn}>
+                Check in to plan your day
+              </Button>
+            ) : null}
+            {/* In the site admin's own order, dragged in the pencil window (Tyler, 30 Oct
+                2026: "whats the point of dragging the cards in the modal if its not
+                reflected in the panel?"); an employee's card keeps the card's own. A
+                section hidden with the eye there is left out. */}
+            {daily.settings.sections.filter((name) => !daily.settings.hidden.includes(name)).map((name) => (
+                <DaySection
+                  key={name}
+                  name={name}
+                  daily={daily}
+                  part={part}
+                  nowMs={nowMs}
+                />
+            ))}
+            {checkin?.checkedIn && !checkin.checkedOut && part === "night" && onCheckOut ? (
+              <Button type="button" variant="outline" className="w-full" onClick={onCheckOut}>
+                Check out and plan tomorrow
+              </Button>
+            ) : null}
+          </>
+        ) : null}
+        {/* Look back lives in the panel's header (Tyler, 30 Oct 2026: "remove the look back button"). */}
+        {daily.admin ? !started ? <StartDayButton /> : part === "night" ? <RateYourDayButton daily={daily} /> : null : null}
+      </div>
+    </>
+  )
+
+  // The site admin's block on their page: the block's own heading and fold.
+  if (frame) {
+    return (
+      <section ref={cardRef} aria-label="Daily card" className="grid min-w-0 grid-cols-[minmax(0,1fr)]">
+        {frame(body)}
+      </section>
+    )
+  }
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} asChild>
+      <section ref={cardRef} aria-label="Daily card" className="relative grid min-w-0 grid-cols-[minmax(0,1fr)]">
+        {/* On an employee's page, down in the sky's lower half, where the fade has made it
+            quiet enough to read on. */}
+        <FoldHeading title={greeting} open={open} foldHint="Fold it to the greeting" className="mt-6" />
+        <CollapsibleContent data-collapse-key={noFlashKey}>{body}</CollapsibleContent>
+      </section>
+    </Collapsible>
+  )
+}
+
+
+/** The weather in the person's city, loaded after the card so the page never waits for it. */
+function useWeather(city: string | null) {
+  const [weather, setWeather] = React.useState<{ city: string; value: DailyWeather | null } | null>(null)
+  React.useEffect(() => {
+    if (!city) return
+    let live = true
+    // Quietly: without an answer the sky just follows the clock.
+    loadMyWeather().then(
+      (value) => live && setWeather({ city, value }),
+      () => live && setWeather({ city, value: null })
+    )
+    return () => {
+      live = false
+    }
+  }, [city])
+  return city && weather?.city === city ? weather.value : null
+}
+
+/** A streak milestone's confetti, once: shown, then remembered so it never shows again. */
+function useMilestone(milestone: string | null, cardRef: React.RefObject<HTMLElement | null>) {
+  const shown = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!milestone || shown.current === milestone || !cardRef.current) return
+    shown.current = milestone
+    burstConfetti(cardRef.current)
+    void milestoneShown(milestone).catch(() => undefined)
+  }, [milestone, cardRef])
+}
+
+/**
+ * One of the card's sections, or nothing when it has nothing to show at this
+ * part of the day. On a day off the next meeting stays away; the routine and
+ * tomorrow still show.
+ */
+function DaySection({
+  name,
+  daily,
+  part,
+  nowMs,
+}: {
+  name: DailySectionName
+  daily: DailyCardData
+  part: DayPart
+  nowMs: number
+}) {
+  const work = !daily.dayOff
+  switch (name) {
+    case "meeting":
+      return work ? <NextMeeting daily={daily} nowMs={nowMs} /> : null
+    case "routine":
+      return <DailyHabits daily={daily} />
+    case "tomorrow":
+      return part === "night" ? <TomorrowAtAGlance daily={daily} /> : null
+  }
+}
+
+/** "Standup in 25 minutes", "Standup now", or "Standup at 3:00 PM"; nothing once the day's meetings are over. */
+function NextMeeting({ daily, nowMs }: { daily: DailyCardData; nowMs: number }) {
+  const next = daily.meetings.find((meeting) => Date.parse(meeting.endsAt) > nowMs)
+  if (!next) return null
+  const minutes = Math.ceil((Date.parse(next.startsAt) - nowMs) / 60_000)
+  const when =
+    minutes <= 0 ? "now" : minutes < 60 ? `in ${minutes} ${minutes === 1 ? "minute" : "minutes"}` : `at ${clockIn(next.startsAt, daily.zone)}`
+  return (
+    <DailySection title="Next meeting" foldId="next-meeting">
+      <p className="text-sm">
+        <span className="font-medium">{next.title}</span> {when}
+      </p>
+    </DailySection>
+  )
+}
+
+/**
+ * All of Sunday: the week's ratings as a bar chart, and the wins under it,
+ * above the usual card (Tyler, 15 Nov 2026: "revamp the your week part to
+ * look like this", with a drawing). Each day, Monday to Sunday, is a bar as
+ * tall as its rating with the number above it. A day not rated is a flat grey
+ * stub under a dash, and today, still unrated, a dashed stub under a "?".
+ * Today's name is bold. No average and no "3 of 7 days rated" or Rate today
+ * at the foot (Tyler, 15 Nov 2026: "remove all this and average rating").
+ */
+function SundayLookBack({ daily }: { daily: DailyCardData }) {
+  const days = daily.admin?.lookBack ?? []
+  const wins = days.filter((day) => day.win)
+  const today = daily.cardDay
+  return (
+    <DailySection title="Your week" foldId="your-week">
+      {/* On its own faint grey card, since the Daily habits block takes the
+          section's grey away (Tyler, 15 Nov 2026: "put the chart inside a faint
+          light gray card"). */}
+      <ol className="grid grid-cols-7 gap-1.5 rounded-xl bg-muted/40 p-3 pt-2" aria-label="This week's ratings">
+        {days.map((day) => {
+          const isToday = day.day === today
+          const name = new Date(`${day.day}T12:00:00Z`).toLocaleDateString("en", { weekday: "short", timeZone: "UTC" })
+          return (
+            <li key={day.day} className="grid min-w-0 justify-items-center gap-1.5">
+              {/* The bars stand on one line: 80px is a 10 and 15px a 1, with room for the number above a 10. */}
+              <div className="flex h-26 w-full flex-col items-center justify-end gap-1">
+                <span
+                  className={cn(
+                    "font-mono text-xs tabular-nums",
+                    day.rating ? "font-semibold" : "text-muted-foreground/60"
+                  )}
+                >
+                  {day.rating ?? (isToday ? "?" : "–")}
+                </span>
+                {day.rating ? (
+                  <span
+                    className="w-full rounded-md bg-foreground"
+                    style={{ height: `${8 + (day.rating * 72) / DAY_RATING_TOP}px` }}
+                  />
+                ) : (
+                  <span
+                    className={cn(
+                      "h-2 w-full rounded-full",
+                      isToday ? "border border-dashed border-foreground/60" : "bg-muted"
+                    )}
+                  />
+                )}
+              </div>
+              <span className={cn("text-xs", isToday ? "font-semibold" : "text-muted-foreground")}>{name}</span>
+              <span className="sr-only">{day.rating ? `rated ${day.rating} of ${DAY_RATING_TOP}` : "not rated"}</span>
+            </li>
+          )
+        })}
+      </ol>
+      {wins.length ? (
+        <ul className="grid list-disc gap-1 pl-5 text-sm">
+          {wins.map((day) => (
+            <li key={day.day}>{day.win}</li>
+          ))}
+        </ul>
+      ) : null}
+    </DailySection>
+  )
+}
+
+/** The first of the month: last month's best habit, typical rating and top wins. */
+function MonthlyReview({ daily }: { daily: DailyCardData }) {
+  const review = daily.admin?.monthly
+  if (!review) return null
+  const month = new Date(`${review.month}-15T12:00:00Z`).toLocaleDateString("en", { month: "long", timeZone: "UTC" })
+  return (
+    <DailySection title={`${month} in review`} foldId="month-in-review">
+      <ul className="grid gap-1 text-sm">
+        <li>
+          {review.bestHabit
+            ? `Best habit: ${review.bestHabit.name}, ${review.bestHabit.done} of ${review.bestHabit.of} days.`
+            : "No habits were set last month."}
+        </li>
+        <li>{review.typicalRating ? `A typical day: ${review.typicalRating} out of ${DAY_RATING_TOP}.` : "No days were rated."}</li>
+        {review.wins.map((win) => (
+          <li key={win}>Win: {win}</li>
+        ))}
+      </ul>
+    </DailySection>
+  )
+}

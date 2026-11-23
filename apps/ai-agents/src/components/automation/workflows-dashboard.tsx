@@ -134,7 +134,7 @@ export function WorkflowsDashboard() {
       <DashboardTable
         title="Automation"
         icon={
-          <WorkflowIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <WorkflowIcon className="text-muted-foreground" />
         }
         count={workflows.length}
         controls={
@@ -160,12 +160,8 @@ export function WorkflowsDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || workflows.length === 0}
-        emptyText={
-          loading
-            ? "Loading workflows..."
-            : "No workflows yet. Build one on the canvas to call contacts, hit APIs, and update your CRM automatically."
-        }
+        isEmpty={!loading && workflows.length === 0}
+        emptyText="No workflows yet. Build one on the canvas to call contacts, hit APIs, and update your CRM automatically."
         emptyColSpan={5}
       >
         {workflows.map((workflow) => (

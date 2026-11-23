@@ -1,151 +1,176 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { Kpi, Row } from "@/components/kpi"
+import * as React from "react"
+
+import { Row } from "@/components/kpi"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { BacktestResult } from "@/lib/backtest/types"
-import { cn } from "@/lib/utils"
-
 import {
-  num,
-  pct,
-  price as fmtPrice,
-  profitFactor,
-  signedUsd,
-  usd,
-} from "./backtest-format"
+  loadBacktestGroupSummary,
+  pollBacktestProgress,
+  type BacktestDetail,
+  type BacktestGroupRun,
+} from "@/lib/api/backtests"
+import type {
+  BacktestResult,
+  GroupCombinedCurve,
+  GroupOpenPositions,
+} from "@/lib/backtest/types"
+import { isManualRunParams } from "@/lib/backtest/manual-types"
 
-export type SummaryConfig = {
-  market: string
-  interval: string
-  windowDays: number
-  startingEquity: number
-  /** Configured fee/slippage assumptions, e.g. "taker 4.5bp · slip 2bp". */
-  costsText: string
-  network: string
-  ranAt: string | null
+import { BacktestGroupKpis, BacktestKpis } from "./backtest-kpis"
+import {
+  combineMarketStats,
+  potAtDrawdown,
+  type CombinedBacktestSummary,
+} from "./backtest-combine"
+import { PnlCurveCard } from "./pnl-curve-card"
+import { signedPct, usd } from "@/lib/format"
+
+/** The whole group's numbers, fetched once per loaded group. */
+type GroupSummaryState = {
+  groupId: string
+  combined: CombinedBacktestSummary | null
+  combinedDrawdownPct: number | null
+  potAtMaxDdUsd: number | null
+  curve: GroupCombinedCurve | null
+  openPositions: GroupOpenPositions | null
 }
 
+/**
+ * The saved-run workspace's summary rail. For an automation run it shows the
+ * SAME card as the editor's live backtest panel — `BacktestGroupKpis` over the
+ * whole basket plus the blended P&L curve — so a saved run and a just-finished
+ * run read identically. Manual practice runs (and runs still loading) keep the
+ * single-market KPI grid.
+ */
 export function BacktestSummary({
   result,
-  config,
-  markPrice,
+  run,
+  groupRuns,
 }: {
   result: BacktestResult | null
-  config: SummaryConfig
-  markPrice: number
+  run: BacktestDetail | null
+  groupRuns: BacktestGroupRun[]
 }) {
-  const stats = result?.stats
-  const open = result?.openPosition ?? null
-  const uPnl =
-    open && markPrice > 0 ? (markPrice - open.entryPx) * open.szi : 0
+  const stats = result?.stats ?? null
+  const groupMode = Boolean(run && !isManualRunParams(run.params))
+  const doneIds = React.useMemo(
+    () =>
+      groupRuns
+        .filter((sibling) => sibling.status === "done")
+        .map((sibling) => sibling.id),
+    [groupRuns]
+  )
+  const [group, setGroup] = React.useState<GroupSummaryState | null>(null)
+
+  const groupId = run?.groupId ?? null
+  const startingEquity = run?.startingEquity ?? 0
+  React.useEffect(() => {
+    if (!groupMode || !groupId || doneIds.length === 0) return
+    let cancelled = false
+    void Promise.all([
+      pollBacktestProgress(doneIds),
+      loadBacktestGroupSummary(groupId),
+    ])
+      .then(([items, summary]) => {
+        if (cancelled) return
+        const combined = combineMarketStats(
+          items.map((item) => ({
+            netPnl: item.netPnl,
+            tradeCount: item.tradeCount,
+            winRate: item.winRate,
+          })),
+          { startingEquity }
+        )
+        const metrics = summary.groupMetrics[groupId]
+        const potAtMaxDdUsd = potAtDrawdown(
+          summary.groupCurve?.points ?? [],
+          metrics?.drawdownAt ?? null
+        )
+        setGroup({
+          groupId,
+          combined,
+          combinedDrawdownPct: metrics?.combinedDrawdownPct ?? null,
+          potAtMaxDdUsd,
+          curve: summary.groupCurve,
+          openPositions: summary.groupOpenPositions,
+        })
+      })
+      .catch(() => {
+        // Transient — the rail falls back to the single-market grid.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [groupMode, groupId, doneIds, startingEquity])
+
+  const showGroup = Boolean(
+    groupMode && run && group && group.groupId === run.groupId && group.combined
+  )
 
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col">
-      <div className="px-3 pt-3 pb-1 text-xs font-bold">Backtest Summary</div>
+        <div className="flex min-h-10 shrink-0 items-center justify-between border-b px-3 py-2.5">
+          <h2 className="text-xs font-semibold tracking-wide uppercase">
+            {showGroup
+              ? "Backtest · all markets"
+              : run
+                ? `Backtest · ${run.market}`
+                : "Backtest summary"}
+          </h2>
+          <span className="text-[10px] text-muted-foreground">Read-only</span>
+        </div>
 
-      <div className="grid grid-cols-2 gap-2 p-3 pt-2">
-        <Kpi
-          label="Net P&L"
-          value={stats ? pct(stats.netPnlPct) : "—"}
-          sub={stats ? signedUsd(stats.netPnl) : ""}
-          tone={stats?.netPnl}
-        />
-        <Kpi
-          label="Win Rate"
-          value={stats ? `${(stats.all.winRate * 100).toFixed(0)}%` : "—"}
-          sub={stats ? `${stats.all.wins}W / ${stats.all.losses}L` : ""}
-        />
-        <Kpi
-          label="Profit Factor"
-          value={stats ? profitFactor(stats.all.profitFactor) : "—"}
-          sub={stats ? `${stats.all.trades} trades` : ""}
-        />
-        <Kpi
-          label="Max Drawdown"
-          value={stats ? `-${stats.maxDrawdownPct.toFixed(2)}%` : "—"}
-          sub={stats ? usd(-stats.maxDrawdownUsd) : ""}
-          tone={stats ? -1 : undefined}
-        />
-        <Kpi
-          label="Trades"
-          value={stats ? String(stats.all.trades) : "—"}
-          sub="closed"
-        />
-        <Kpi
-          label="Sharpe"
-          value={stats ? num(stats.all.sharpe) : "—"}
-          sub="per trade"
-        />
-      </div>
-
-      <div className="flex flex-col gap-2 p-3">
-        <span className="text-[11px] font-semibold text-foreground/80">
-          Current Position
-        </span>
-        {open ? (
-          <Card size="sm">
-            <CardContent className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between">
-                <span
-                  className={cn(
-                    "text-xs font-semibold",
-                    open.side === "long" ? "text-emerald-600" : "text-red-500"
-                  )}
-                >
-                  {open.side === "long" ? "Long" : "Short"}
-                </span>
-                <span className="font-mono text-[11px] text-muted-foreground">
-                  {num(Math.abs(open.szi), 4)} {config.market}
-                </span>
-              </div>
-              <Row label="Entry" value={fmtPrice(open.entryPx)} />
-              <Row label="Mark" value={markPrice > 0 ? fmtPrice(markPrice) : "—"} />
-              <Row label="Unreal. P&L" value={`${signedUsd(uPnl)}`} tone={uPnl} />
-            </CardContent>
-          </Card>
+        {showGroup && group?.combined && run ? (
+          <>
+            <BacktestGroupKpis
+              summary={group.combined}
+              marketsTotal={groupRuns.length}
+              combinedDrawdownPct={group.combinedDrawdownPct}
+              potAtMaxDdUsd={group.potAtMaxDdUsd}
+              wallet={run.result?.portfolio ?? null}
+              openPositions={group.openPositions}
+              className="p-3"
+            />
+            <PnlCurveCard
+              points={group.curve?.points ?? []}
+              baseline={group.curve?.startEquity ?? null}
+              emptyMessage="The P&L curve appears once the run's markets finish."
+              className="p-3 pt-0"
+            />
+          </>
         ) : (
-          <div className="rounded-lg border border-dashed p-4 text-center text-[11px] text-muted-foreground">
-            {result ? "Flat — no open position" : "Run a backtest to see results"}
-          </div>
-        )}
-      </div>
+          <>
+            <BacktestKpis stats={stats} className="p-3 pt-2" />
 
-      <div className="flex flex-col gap-2 p-3">
-        <span className="text-[11px] font-semibold text-foreground/80">Properties</span>
-        <Row label="Market" value={config.market} />
-        <Row label="Timeframe" value={config.interval} />
-        <Row label="Window" value={`${config.windowDays}d`} />
-        <Row label="Starting amount" value={usd(config.startingEquity)} />
-        <Row
-          label="Buy & Hold"
-          value={stats ? pct(stats.buyHoldPct) : "—"}
-          tone={stats?.buyHoldPct}
-        />
-        <Row label="Costs" value={config.costsText} />
-        <Row label="Fees paid" value={stats ? usd(stats.fees) : "—"} />
-        <Row label="Network" value={config.network} />
-        {config.ranAt ? <Row label="Ran at" value={config.ranAt} /> : null}
-        {stats?.halt.kind ? (
-          <div className="mt-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-700 dark:text-amber-400">
-            Halted ({stats.halt.kind.replace(/_/g, " ")}): {stats.halt.reason}
-          </div>
-        ) : null}
-        {stats?.warnings?.map((warning) => (
-          <div
-            key={warning}
-            className="mt-1 rounded-md border border-red-500/50 bg-red-500/10 px-2 py-1.5 text-[10px] font-medium text-red-700 dark:text-red-400"
-          >
-            ⚠ {warning}
-          </div>
-        ))}
-        <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
-          Candle-granularity simulation — market fills at bar price, limits fill
-          on high/low cross. Same risk gating as live.
-        </p>
-      </div>
+            <div className="flex flex-col gap-2 p-3 pt-1">
+              <Row
+                label="Buy & Hold"
+                value={stats ? signedPct(stats.buyHoldPct) : "—"}
+                tone={stats?.buyHoldPct}
+              />
+              <Row label="Fees paid" value={stats ? usd(stats.fees) : "—"} />
+              {stats?.halt.kind ? (
+                <div className="mt-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-700 dark:text-amber-400">
+                  Halted ({stats.halt.kind.replace(/_/g, " ")}):{" "}
+                  {stats.halt.reason}
+                </div>
+              ) : null}
+              {stats?.warnings?.map((warning) => (
+                <div
+                  key={warning}
+                  className="mt-1 rounded-md border border-red-500/50 bg-red-500/10 px-2 py-1.5 text-[10px] font-medium text-red-700 dark:text-red-400"
+                >
+                  ⚠ {warning}
+                </div>
+              ))}
+              <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+                Candle-granularity simulation — market fills at bar price,
+                limits fill on high/low cross. Same risk gating as live.
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </ScrollArea>
   )
 }
-
-

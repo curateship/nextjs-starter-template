@@ -1,6 +1,7 @@
 import {
   AUTOMATION_MAX_WINDOW_BARS,
   automationCapabilities,
+  automationHtfInterval,
   type AutomationCondition,
   type AutomationConfig,
   type AutomationRule,
@@ -8,16 +9,23 @@ import {
 } from "@/lib/automations/automation"
 import type { IndicatorCandle } from "@/lib/indicators/contract"
 import { evaluateAutomation } from "@/lib/automations/evaluate"
-import { automationWarmupBars } from "@/lib/strategies/kinds/automation"
+import {
+  automationHtfWindowBars,
+  automationWarmupBars,
+} from "@/lib/strategies/kinds/automation"
 import { onePriceStep } from "@/server/hyperliquid/rounding"
+import { baseLevels, ceilingLevels } from "@/lib/strategies/indicators"
+import { sessionOpenPrice } from "@/lib/trading/sessions"
 
 import type {
   DesiredOrder,
   Strategy,
   StrategyCtx,
 } from "../strategies/contract"
+import { nextTrailState, type TrailState } from "@/lib/strategies/trailing-stop"
 import { exitLevels, tickExit } from "./trade-manager"
 import { closestBookWalls, type BookWall } from "../scanner/book-metrics"
+import { createDcaAutomationStrategy } from "./dca-automation"
 
 const WALL_ENTRY_PURPOSE = "auto:wall-entry"
 const WALL_EXIT_PURPOSE = "auto:wall-forced-exit"
@@ -70,6 +78,16 @@ export type AutomationState = {
   pendingAction: ResolvedAutomationAction | null
   exitRequested: boolean
   lastEvaluatedCandleTime: number | null
+  /** Trailing-stop extreme for the open position; null while flat. */
+  trail?: TrailState | null
+  /**
+   * The price the session opened at, for a stop anchored to a session open.
+   * Read ONCE when the position appears and held until it closes, so the stop
+   * cannot wander onto the next session mid-trade. 0 records "no session was
+   * running when this trade opened", which leaves the configured percent in
+   * charge. Null/absent while flat.
+   */
+  stopLevelPx?: number | null
   wall?: WallRuntime
 }
 
@@ -213,12 +231,20 @@ export function automationTargetOrders(input: {
 export function createAutomationStrategy(
   config: AutomationConfig
 ): Strategy<never, AutomationState> {
+  if (config.dca) {
+    return createDcaAutomationStrategy(config) as unknown as Strategy<
+      never,
+      AutomationState
+    >
+  }
   const capabilities = automationCapabilities(config)
   const routes = wallRoutes(config)
   const window = Math.min(
     automationWarmupBars(config),
     AUTOMATION_MAX_WINDOW_BARS
   )
+  const htfInterval = automationHtfInterval(config)
+  const htfWindow = automationHtfWindowBars(config)
   const initialState = (): AutomationState => ({
     pendingAction: null,
     exitRequested: false,
@@ -233,6 +259,59 @@ export function createAutomationStrategy(
   // the short levels. The trade-manager math itself stays side-agnostic.
   const protectionFor = (szi: number) =>
     (szi > 0 ? config.protection.long : config.protection.short) ?? {}
+  const anchorsToLevel = Boolean(
+    config.protection.long?.stopLossLevel ||
+    config.protection.short?.stopLossLevel
+  )
+  /**
+   * The session's opening price for the open position: looked up the first
+   * time we see the position and kept from then on (0 = the trade opened
+   * outside the session, so its percent stop stands). Returns the stored value
+   * unchanged in every other case, so callers can compare by identity.
+   *
+   * A worker restarted mid-trade has no stored value and reads it again from
+   * the session running NOW: the same answer while the trade is still inside
+   * its own session (the case this is built for), and 0 — the percent stop —
+   * once that session has closed. Deterministic either way, and never a level
+   * borrowed from a session the trade was not opened in.
+   */
+  const stopLevelPxFor = (
+    ctx: StrategyCtx<AutomationState>,
+    pos: { szi: number; entryPx: number }
+  ): number | null => {
+    const stored = ctx.state.stopLevelPx ?? null
+    if (pos.szi === 0) return null
+    const level = protectionFor(pos.szi).stopLossLevel
+    if (!level) return stored
+    if (stored !== null) return stored
+    if (level.kind === "sessionOpen") {
+      const candles = ctx
+        .candles(config.interval, window)
+        .map((candle) => ({ t: candle.t, o: Number(candle.o) }))
+      return sessionOpenPrice(level.session, candles, ctx.now) ?? 0
+    }
+    // The confirmed base in force right now — the same dash the chart paints,
+    // because it comes from the same detection settings the wired-in Base node
+    // carries. A long sits at the base under it; a short sits at the ceiling
+    // above it, which is that side's mirror of the level.
+    const candles = ctx
+      .candles(config.interval, window)
+      .filter((candle) => candle.T <= ctx.now)
+      .map((candle) => ({
+        t: candle.t,
+        o: Number(candle.o),
+        h: Number(candle.h),
+        l: Number(candle.l),
+        c: Number(candle.c),
+        v: Number(candle.v),
+      }))
+    const levels =
+      pos.szi > 0
+        ? baseLevels(candles, level.basePeriods, level.pumpPeriods)
+        : ceilingLevels(candles, level.basePeriods, level.pumpPeriods)
+    const current = levels.raw.at(-1)
+    return current !== undefined && Number.isFinite(current) ? current : 0
+  }
   const emitWallFillEvidence = (
     ctx: StrategyCtx<AutomationState>,
     previous: ActiveWall,
@@ -302,11 +381,13 @@ export function createAutomationStrategy(
   return {
     type: "automation",
     warmup: () => ({
-      candleIntervals: config.rules.some((rule) =>
-        hasCandleCondition(rule.condition)
-      )
-        ? [config.interval]
-        : [],
+      candleIntervals:
+        // A session-anchored stop needs the candles too, even in a graph whose
+        // entries come from the order book rather than a candle rule.
+        config.rules.some((rule) => hasCandleCondition(rule.condition)) ||
+        anchorsToLevel
+          ? [config.interval, ...(htfInterval ? [htfInterval] : [])]
+          : [],
       requiresLiveBook: capabilities.requiresLiveBook,
     }),
     init: initialState,
@@ -500,7 +581,23 @@ export function createAutomationStrategy(
       }))
       const lastTime = candles[candles.length - 1].t
       if (ctx.state.lastEvaluatedCandleTime === lastTime) return
-      const evaluated = evaluateAutomation(candles, config)
+      // The engine always hands the REAL closed higher-timeframe candles to
+      // the evaluator (never the paint-side resample). An empty series just
+      // blocks HTF-gated entries — fail-safe, not fail-open.
+      const htfCandles: IndicatorCandle[] | undefined = htfInterval
+        ? ctx
+            .candles(htfInterval, htfWindow)
+            .filter((candle) => candle.T <= ctx.now)
+            .map((candle) => ({
+              t: candle.t,
+              o: Number(candle.o),
+              h: Number(candle.h),
+              l: Number(candle.l),
+              c: Number(candle.c),
+              v: Number(candle.v),
+            }))
+        : undefined
+      const evaluated = evaluateAutomation(candles, config, htfCandles)
       const actionEvent =
         evaluated.actions.find((action) => action.time === lastTime) ?? null
       const pendingAction: ResolvedAutomationAction | null = actionEvent
@@ -532,7 +629,23 @@ export function createAutomationStrategy(
       }
     },
     onTick: (ctx) => {
-      const wall = ctx.state.wall
+      // Ratchet the trailing-stop extreme FIRST so the exit checks below (and
+      // any exitTriggers read after this tick) see the freshest stop level.
+      // Every later setState in this handler spreads `state`, not ctx.state
+      // (a stale snapshot), so no branch can drop the ratchet.
+      const pos = position(ctx)
+      const prevTrail = ctx.state.trail ?? null
+      const trail = nextTrailState(prevTrail, pos, Number(ctx.mid))
+      // The level-anchored stop's price is read here for the same reason: the
+      // exit checks below and any exitTriggers read after this tick must see it.
+      const prevStopLevelPx = ctx.state.stopLevelPx ?? null
+      const stopLevelPx = stopLevelPxFor(ctx, pos)
+      const state: AutomationState =
+        trail === prevTrail && stopLevelPx === prevStopLevelPx
+          ? ctx.state
+          : { ...ctx.state, trail, stopLevelPx }
+      if (state !== ctx.state) ctx.setState(state)
+      const wall = state.wall
       if (
         wall?.active?.invalidated &&
         !wall.active.ownsPosition &&
@@ -540,7 +653,7 @@ export function createAutomationStrategy(
         ctx.now - wall.active.invalidatedAt >= WALL_POSITION_STALE_MS
       ) {
         ctx.setState({
-          ...ctx.state,
+          ...state,
           wall: {
             ...wall,
             bidCandidate: null,
@@ -565,7 +678,7 @@ export function createAutomationStrategy(
             invalidReason: "stale_feed",
           }
           ctx.setState({
-            ...ctx.state,
+            ...state,
             wall: {
               ...wall,
               bidCandidate: null,
@@ -583,17 +696,11 @@ export function createAutomationStrategy(
           return
         }
       }
-      if (ctx.state.exitRequested) return
-      const pos = position(ctx)
-      const hit = tickExit(
-        protectionFor(pos.szi),
-        pos,
-        ctx.state,
-        Number(ctx.mid)
-      )
+      if (state.exitRequested) return
+      const hit = tickExit(protectionFor(pos.szi), pos, state, Number(ctx.mid))
       if (!hit) return
       ctx.setState({
-        ...ctx.state,
+        ...state,
         pendingAction: null,
         exitRequested: true,
         ...(wall?.active
@@ -628,8 +735,7 @@ export function createAutomationStrategy(
           ),
           remainingSz,
           ownsPosition: true,
-          entryComplete:
-            fill.orderStatus === "filled" || remainingSz <= 0,
+          entryComplete: fill.orderStatus === "filled" || remainingSz <= 0,
         }
         next = { ...next, wall: { ...wall, active } }
         emitWallFillEvidence(ctx, wall.active, active)
@@ -642,6 +748,8 @@ export function createAutomationStrategy(
           ...next,
           pendingAction: null,
           exitRequested: false,
+          trail: null,
+          stopLevelPx: null,
           ...(next.wall
             ? {
                 wall: {

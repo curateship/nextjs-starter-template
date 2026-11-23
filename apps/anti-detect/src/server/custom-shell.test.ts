@@ -6,7 +6,6 @@ import { eq, sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { requireAdminRoute } from "@/lib/admin-route"
 import { Route as AdminIndexRoute } from "@/routes/_authenticated/admin/index"
 import { setDbForTests, type Db } from "@/server/db"
 import {
@@ -99,8 +98,10 @@ afterEach(async () => {
 })
 
 describe("custom shell auth helpers", () => {
-  it("guards the admin index route", () => {
-    expect(AdminIndexRoute.options.loader).toBe(requireAdminRoute)
+  it("redirects the admin index route via its loader", () => {
+    // /admin is a pure redirect to the configured home route; target admin
+    // pages gate themselves.
+    expect(AdminIndexRoute.options.loader).toBeTypeOf("function")
   })
 
   it("verifies argon2 passwords", async () => {

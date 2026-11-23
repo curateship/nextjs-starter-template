@@ -61,6 +61,11 @@ module, and `lib/api` wrapper.
    plus its aspect ratio. The editor is the dnd-kit timeline + a 1080p
    design-space preview. Built-in sound effects are audio clips backed by
    generated WAVs in `public/sound-effects`. Timeline edits autosave on a debounce.
+   Every timeline write goes through `writeProjectTimeline`, a compare-and-swap
+   on the `video_projects.version` column: savers send the version they loaded
+   and a stale write is rejected instead of overwriting. The editor turns that
+   rejection into a conflict banner, stops autosaving, and keeps the unsaved
+   edits on screen until the user reloads.
 8. **Captions** (`captions.ts`) — one click transcribes the project's audible
    media via Gemini into short caption-sized chunks and inserts a new track of
    text clips, undoable as a single action.
@@ -89,6 +94,44 @@ active render per project — render state lives as columns on `video_projects`
 Finished exports are streamed back through the app route (not the public R2
 URL) so a re-export at the same key can't serve stale bytes from the CDN, and
 the download filename comes from the editor via `?filename=`.
+
+**Loudness.** Every export is levelled to -14 LUFS unless "Normalize loudness"
+is turned off (workspace setting, also in Settings → General; the export modal's
+toggle saves it). After the render, two quick ffmpeg passes over the output
+measure the mix and apply the correction as a single fixed gain — video is
+stream-copied, so only the AAC track is re-encoded. Targets and the measurement
+parsing live in `lib/audio-loudness.ts`, which documents why it is two passes
+and why the loudness-range target is wide (a narrow one makes ffmpeg compress
+the ducking away).
+
+## Automation Canvas
+
+A node-based workflow builder (`/admin/automations`) that chains pipeline
+steps into runnable automations: trigger nodes (Manual, Schedule, Creator
+Posts) feed pipeline nodes (Find New Videos → Download & Analyze → Create
+Template → Create Project). The canvas shell is ported from the trading app's
+automation editor (hand-rolled SVG canvas, registry-driven nodes/ports/rules —
+`src/lib/automations/`, `src/components/automations/`); the graph document
+lives as jsonb on `automations` and is snapshotted onto every run.
+
+Runs are durable, modeled on the render queue: `automation_runs` is the queue
+unit (FIFO claim via `FOR UPDATE SKIP LOCKED`, lease token + heartbeat,
+orphan reclaim on tick, `attempts` capped at 2) and `automation_run_steps`
+holds per-node status/output — a reclaimed run resumes after its completed
+steps. Node executors (`src/server/automation-nodes.ts`) wrap the session-free
+pipeline functions (`listRecentUploads`, `ingestViralVideoForUser`,
+`createTemplateFromViralVideo`, `createProjectFromTemplate`); AI usage is
+metered by those functions, so automations spend the same credits as manual
+use. Data flows between steps as merged upstream outputs
+(`videoUrls`/`videoIds`/`templateIds`/`projectIds`).
+
+The scheduler mirrors creator-watch: opt-in via `AI_VIDEO_AUTOMATIONS_ENABLED=1`,
+a 60s timer enqueues automations whose denormalized `next_run_at` elapsed
+(recomputed on save/toggle from the Schedule trigger's interval). The worker
+itself is always-on (registered in `security.ts`), so manual Run works without
+the flag. The creator watcher fires Creator Posts triggers after ingesting new
+reels (`enqueueCreatorPostedRuns`). Concurrency via
+`AI_VIDEO_AUTOMATION_CONCURRENCY` (default 1).
 
 ## Playback Engine
 

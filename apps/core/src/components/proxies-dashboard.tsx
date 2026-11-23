@@ -429,7 +429,7 @@ export function ProxiesDashboard({
 
       <DashboardTable
         title="Proxies"
-        icon={<WifiIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<WifiIcon className="text-muted-foreground" />}
         count={visibleProxies.length}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
@@ -463,7 +463,6 @@ export function ProxiesDashboard({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by status"
-                labels={["All statuses", "Online", "Offline", "Untested"]}
               >
                 <SelectValue placeholder="Status" />
               </DashboardToolbarSelectTrigger>
@@ -482,7 +481,6 @@ export function ProxiesDashboard({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by connection type"
-                labels={["All types", "Unset", "Residential", "Mobile", "Datacenter"]}
               >
                 <SelectValue placeholder="Type" />
               </DashboardToolbarSelectTrigger>
@@ -497,7 +495,6 @@ export function ProxiesDashboard({
             <Select value={countryFilter} onValueChange={setCountryFilter}>
               <DashboardToolbarSelectTrigger
                 aria-label="Filter by country"
-                labels={["All countries", ...countries]}
               >
                 <SelectValue placeholder="Country" />
               </DashboardToolbarSelectTrigger>

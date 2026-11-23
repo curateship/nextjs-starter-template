@@ -10,9 +10,6 @@ import {
 import { HYPERLIQUID_MARKET_NAME_MAX_LENGTH } from "@/lib/hl/market-symbol"
 
 const idSchema = z.object({ id: z.string().uuid() })
-const coinSchema = z.object({
-  coin: z.string().trim().min(1).max(HYPERLIQUID_MARKET_NAME_MAX_LENGTH),
-})
 const updateSchema = z.object({
   id: z.string().uuid(),
   alert: alertRuleInputSchema,
@@ -39,12 +36,11 @@ const loadAlertsPageFn = createServerFn({ method: "GET" }).handler(async () => {
   const user = await requireUser()
   const { getAlertRules } = await import("@/server/alerts")
   const { getActivePerpMarkets } = await import("@/server/hyperliquid/info")
-  const { getMarketScannerWorkerStatus } =
-    await import("@/server/market-scanner-status")
+  const { getAlertWorkerStatus } = await import("@/server/worker-status")
   const [rules, markets, status] = await Promise.all([
     getAlertRules(user.id),
     getActivePerpMarkets("mainnet").catch(() => null),
-    getMarketScannerWorkerStatus(),
+    getAlertWorkerStatus(),
   ])
   return {
     rules,
@@ -53,22 +49,21 @@ const loadAlertsPageFn = createServerFn({ method: "GET" }).handler(async () => {
       : [...new Set(rules.map((rule) => rule.coin))],
     marketsAvailable: markets !== null,
     workerOnline: status.workerOnline,
+    workerActive: status.workerActive,
     checkedAt: Date.now(),
   }
 })
 
-const loadChartAlertsFn = createServerFn({ method: "GET" })
-  .inputValidator(coinSchema)
-  .handler(async ({ data }) => {
+// Every alert rule the user owns. The trade dashboard needs both the price
+// lines for the open market and the list of markets that have any alert, so it
+// polls this once and slices it locally instead of asking per market.
+const loadMyAlertRulesFn = createServerFn({ method: "GET" }).handler(
+  async () => {
     const user = await requireUser()
     const { getAlertRules } = await import("@/server/alerts")
-    return (await getAlertRules(user.id)).filter(
-      (rule) =>
-        rule.coin === data.coin &&
-        rule.kind === "price_level" &&
-        rule.status === "active"
-    )
-  })
+    return getAlertRules(user.id)
+  }
+)
 
 const loadAlertLogFn = createServerFn({ method: "GET" })
   .inputValidator(logFiltersSchema)
@@ -84,7 +79,23 @@ const createAlertFn = createServerFn({ method: "POST" })
     await requireMutation()
     const user = await requireUser()
     await assertAlertMarket(data.coin)
-    const { createAlertRule } = await import("@/server/alerts")
+    await assertTrendlineExists(user.id, data)
+    const { createAlertRule, getAlertRules } = await import("@/server/alerts")
+    if (data.kind === "trendline") {
+      // One rule per line — the chart toggle relies on that.
+      const rules = await getAlertRules(user.id)
+      if (
+        rules.some(
+          (rule) =>
+            rule.kind === "trendline" &&
+            rule.network === data.network &&
+            rule.coin === data.coin &&
+            rule.trendlineId === data.trendlineId
+        )
+      ) {
+        throw new Error("This line already has an alert.")
+      }
+    }
     return createAlertRule(user.id, data)
   })
 
@@ -94,6 +105,7 @@ const updateAlertFn = createServerFn({ method: "POST" })
     await requireMutation()
     const user = await requireUser()
     await assertAlertMarket(data.alert.coin)
+    await assertTrendlineExists(user.id, data.alert)
     const { updateAlertRule } = await import("@/server/alerts")
     return updateAlertRule(user.id, data.id, data.alert)
   })
@@ -165,8 +177,8 @@ export function loadAlertsPage() {
   return loadAlertsPageFn()
 }
 
-export function loadChartAlerts(coin: string) {
-  return loadChartAlertsFn({ data: { coin } })
+export function loadMyAlertRules() {
+  return loadMyAlertRulesFn()
 }
 
 export function loadAlertLog(filters: AlertLogFilters = {}) {
@@ -219,6 +231,26 @@ async function requireUser() {
 async function requireMutation() {
   const { requireAppOrigin } = await import("@/server/origin")
   requireAppOrigin()
+}
+
+async function assertTrendlineExists(userId: string, input: AlertRuleInput) {
+  if (input.kind !== "trendline") return
+  const { loadUserChartDrawings } = await import("@/server/chart-drawings")
+  const drawings = await loadUserChartDrawings(userId, {
+    network: input.network,
+    market: input.coin,
+  })
+  const line = drawings.trendlines.find(
+    (candidate) => candidate.id === input.trendlineId
+  )
+  if (!line) {
+    throw new Error(
+      "That drawn line was not found. If you just drew it, give it a second to save and try again."
+    )
+  }
+  if (line.start.time === line.end.time && line.start.price !== line.end.price) {
+    throw new Error("A vertical line has no single price to alert on.")
+  }
 }
 
 export async function assertAlertMarket(coin: string) {

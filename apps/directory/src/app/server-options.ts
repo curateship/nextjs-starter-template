@@ -1,0 +1,162 @@
+import type { AppServerOptions } from "@/server/app-options"
+import {
+  directorySitemapChunkFiles,
+  directorySitemapEntries,
+} from "@/server/directory/sitemap"
+import { directorySearchResults } from "@/server/directory/public"
+import {
+  readCategoriesRow,
+  readDealsRow,
+  readEventsRow,
+  readGuidesRow,
+  readListingsRow,
+  readPostsRow,
+} from "@/server/directory/front-page-row-readers"
+import { runFeaturedRenewalReminders } from "@/server/directory/featured"
+import { ownerMessageTextSweep } from "@/server/directory/owner-messages"
+import { followMailTick } from "@/server/promotions/follow-mail"
+import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
+import { executeDraftEventsStep } from "@/server/events/ai-drafts"
+import { eventSearchResults, eventSitemapFiles } from "@/server/events/public"
+import { runRepeatTopUps } from "@/server/events/repeats"
+import { runEventNoticePass } from "@/server/events/schedule"
+import { runWaitingListPass } from "@/server/events/waiting-list"
+import { postSearchResults, postSitemapFiles } from "@/server/posts/public"
+import {
+  guideSearchResults,
+  guideSitemapEntries,
+} from "@/server/directory/guides"
+import { DRAFT_EVENTS_KIND } from "@/lib/events/draft-events-step"
+import {
+  DIRECTORY_EMAIL_KIND,
+  DIRECTORY_TRIGGER_KINDS,
+} from "@/lib/directory/automation-nodes"
+import {
+  directoryTriggerExecutor,
+  executeDirectoryEmailStep,
+  featuredEndingTick,
+} from "@/server/directory/automation-events"
+
+/**
+ * What this app changes about the shell, on the server side.
+ *
+ * The companion to `options.ts`. That file is seen by the browser, so it holds
+ * the drawing and the wording; this one never is, so it holds the work — the
+ * parts that reach the database or call something outside.
+ *
+ * Open `src/server/app-options.ts` for the full list of what can go in here and
+ * what each one does. Anything not offered there is a compile error, on
+ * purpose: the shell always knows every way an app can deviate from it.
+ *
+ * New server functions still go in `src/lib/api/`, never here: the guard test
+ * only walks that folder, so an endpoint declared here would be an unguarded
+ * door nobody is told about.
+ */
+export const appServerOptions: AppServerOptions = {
+  pages: {
+    /**
+     * What fills each of this app's own front page rows, keyed by the same
+     * names `options.ts` registers. Answering null leaves the row off the page,
+     * which is how an empty category, nothing coming up, no deals on, no posts
+     * yet, and a visitor who may not see the page behind the row are all said.
+     */
+    frontPageRowReaders: {
+      listings: ({ settings, workspaceId }) =>
+        readListingsRow(workspaceId, settings),
+      categories: ({ settings, workspaceId }) =>
+        readCategoriesRow(workspaceId, settings),
+      events: ({ settings, workspaceId }) =>
+        readEventsRow(workspaceId, settings),
+      deals: ({ settings, workspaceId }) => readDealsRow(workspaceId, settings),
+      posts: ({ settings, workspaceId }) => readPostsRow(workspaceId, settings),
+      guides: ({ settings, workspaceId }) =>
+        readGuidesRow(workspaceId, settings),
+    },
+  },
+  automations: {
+    executors: {
+      [DRAFT_EVENTS_KIND]: executeDraftEventsStep,
+      [DIRECTORY_EMAIL_KIND]: executeDirectoryEmailStep,
+      ...Object.fromEntries(
+        DIRECTORY_TRIGGER_KINDS.map((kind) => [kind, directoryTriggerExecutor])
+      ),
+    },
+  },
+  workspaces: {
+    copyChoices: [{ key: "listings", label: "Copy listings" }],
+    onCopy: copyDirectoryWorkspace,
+  },
+  sitemap: {
+    // Category pages and guides, of which no site has thousands. Listings,
+    // events and posts are in the numbered files below.
+    extraEntries: async (workspaceId) =>
+      (
+        await Promise.all([
+          directorySitemapEntries(workspaceId),
+          guideSitemapEntries(workspaceId),
+        ])
+      ).flat(),
+    chunkFiles: async (workspaceId) =>
+      (
+        await Promise.all([
+          directorySitemapChunkFiles(workspaceId),
+          eventSitemapFiles(workspaceId),
+          postSitemapFiles(workspaceId),
+        ])
+      ).flat(),
+  },
+  search: {
+    sources: [
+      directorySearchResults,
+      postSearchResults,
+      eventSearchResults,
+      guideSearchResults,
+    ],
+  },
+  background: {
+    workers: [
+      {
+        name: "directory featured renewal reminders",
+        tick: runFeaturedRenewalReminders,
+      },
+      {
+        name: "repeating events top-up",
+        tick: runRepeatTopUps,
+      },
+      {
+        // Every pass, not throttled: it is two small indexed reads when
+        // nobody is waiting anywhere, and a seat freed by an admin should
+        // reach the next person in seconds rather than minutes.
+        name: "event waiting list",
+        tick: runWaitingListPass,
+      },
+      {
+        // Every pass, like the waiting list: one indexed look when no event
+        // has changed, and a storm cancelling a concert should reach the 200
+        // people going within a minute or two (task events/27).
+        name: "event cancelled or postponed emails",
+        tick: async () => {
+          await runEventNoticePass()
+        },
+      },
+      {
+        // Asks at most once a minute: an email waits for an hour of quiet
+        // anyway, so a minute late is nothing.
+        name: "deal emails to listing followers",
+        tick: followMailTick,
+      },
+      {
+        // One look every ten minutes across every server, and none at all
+        // while no live flow starts from a featured spot ending.
+        name: "featured spot ending automations",
+        tick: featuredEndingTick,
+      },
+      {
+        // At most once an hour: a message's words are emptied 30 days after
+        // it was sent, and an hour late is nothing.
+        name: "owner message text after 30 days",
+        tick: ownerMessageTextSweep,
+      },
+    ],
+  },
+}

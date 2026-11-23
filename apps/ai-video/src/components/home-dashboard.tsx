@@ -98,7 +98,7 @@ export function HomeDashboard() {
   const loading = !data && !error
 
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="space-y-[var(--shell-gutter,0.75rem)]">
       {/* Title row */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -126,9 +126,9 @@ export function HomeDashboard() {
       ) : null}
 
       {/* Hero — resume cards. Full-width responsive grid, capped small. */}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(178px,1fr))] gap-4 sm:gap-6">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(178px,1fr))] gap-[var(--shell-gutter,0.75rem)]">
         {loading
-          ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          ? null
           : heroItems.map((item) => (
               <HeroCard
                 key={item.id}
@@ -160,7 +160,7 @@ export function HomeDashboard() {
       </div>
 
       {/* Body — activity timeline + trending archive */}
-      <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-[var(--shell-gutter,0.75rem)] lg:grid-cols-2">
         <ActivityCard loading={loading} sections={activitySections} />
         <TrendingCard
           loading={loading}
@@ -462,14 +462,14 @@ function HeroCard({ item, onOpen }: { item: HeroItem; onOpen: () => void }) {
 function StatusBadge({ status }: { status: NonNullable<HeroItem["status"]> }) {
   if (status === "ready") {
     return (
-      <span className="absolute left-2.5 top-2.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700">
+      <span className="absolute left-2.5 top-2.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
         Ready
       </span>
     )
   }
   if (status === "error") {
     return (
-      <span className="absolute left-2.5 top-2.5 rounded-full bg-rose-100 px-2 py-0.5 text-[10.5px] font-semibold text-rose-700">
+      <span className="absolute left-2.5 top-2.5 rounded-full bg-rose-100 px-2 py-0.5 text-[10.5px] font-semibold text-rose-700 dark:bg-rose-950/50 dark:text-rose-400">
         Error
       </span>
     )
@@ -496,18 +496,6 @@ function MediaPill({
       <Icon className="size-2.5" />
       {children}
     </span>
-  )
-}
-
-function SkeletonCard() {
-  return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="aspect-[2/3] animate-pulse bg-muted" />
-      <div className="space-y-1.5 px-3 py-2.5">
-        <div className="h-3 w-4/5 animate-pulse rounded bg-muted" />
-        <div className="h-2.5 w-1/2 animate-pulse rounded bg-muted" />
-      </div>
-    </div>
   )
 }
 
@@ -538,11 +526,7 @@ function ActivityCard({
       </div>
 
       {loading ? (
-        <div className="mt-4 space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-9 animate-pulse rounded bg-muted" />
-          ))}
-        </div>
+        null
       ) : sections.length === 0 ? (
         <p className="mt-6 text-center text-sm text-muted-foreground">No recent activity yet.</p>
       ) : (
@@ -630,11 +614,7 @@ function TrendingCard({
       </div>
 
       {loading ? (
-        Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="border-t border-border/60 px-4 py-2.5">
-            <div className="h-8 animate-pulse rounded bg-muted" />
-          </div>
-        ))
+        null
       ) : rows.length === 0 ? (
         <p className="border-t border-border/60 px-4 py-8 text-center text-sm text-muted-foreground">
           No analyzed reels yet.

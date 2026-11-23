@@ -15,6 +15,8 @@ import {
   type AiVideoUser,
 } from "@/server/schema"
 import { now, requireAdminUser, requireUser, uuid } from "@/server/security"
+import { shouldDeliverNotification } from "@/server/notification-preferences"
+import { publishNotificationCreated } from "@/server/notification-events"
 
 export type FeedbackType = "suggestion" | "bug_report" | "question" | "praise"
 
@@ -250,7 +252,13 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
           throw new Error("Vote was not created")
         }
 
-        if (shouldNotifyFeedbackAuthor(row, user)) {
+        if (
+          shouldNotifyFeedbackAuthor(row, user) &&
+          (await shouldDeliverNotification(
+            { recipientUserId: row.userId, type: "feedback_vote" },
+            tx
+          ))
+        ) {
           await tx.insert(aiVideoNotifications).values({
             id: uuid(),
             recipientUserId: row.userId,
@@ -260,6 +268,7 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
             feedbackVoteId: vote.id,
             createdAt,
           })
+          await publishNotificationCreated(row.userId, tx)
         }
       })
     }
@@ -339,7 +348,13 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
         throw new Error("Comment was not created")
       }
 
-      if (shouldNotifyFeedbackAuthor(feedback, user)) {
+      if (
+        shouldNotifyFeedbackAuthor(feedback, user) &&
+        (await shouldDeliverNotification(
+          { recipientUserId: feedback.userId, type: "feedback_comment" },
+          tx
+        ))
+      ) {
         await tx.insert(aiVideoNotifications).values({
           id: uuid(),
           recipientUserId: feedback.userId,
@@ -349,6 +364,7 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
           feedbackCommentId: comment.id,
           createdAt,
         })
+        await publishNotificationCreated(feedback.userId, tx)
       }
 
       return comment

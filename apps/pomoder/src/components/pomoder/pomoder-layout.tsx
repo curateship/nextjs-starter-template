@@ -7,6 +7,7 @@ import {
 
 const pageDetails: Record<string, { page: PomoderPage; title: string }> = {
   "/": { page: "dashboard", title: "Ready to focus?" },
+  "/history": { page: "history", title: "Focus history" },
   "/leaderboard": { page: "leaderboard", title: "Leaderboard" },
   "/pricing": { page: "pricing", title: "Pricing" },
   "/rooms": { page: "rooms", title: "Focus rooms" },
@@ -19,7 +20,11 @@ const pageDetails: Record<string, { page: PomoderPage; title: string }> = {
 
 export function PomoderLayout() {
   const pathname = useLocation({ select: (location) => location.pathname })
-  const details = pageDetails[pathname]
+  const details =
+    pageDetails[pathname] ??
+    (pathname.startsWith("/rooms/")
+      ? { page: "rooms" as const, title: "Join this focus room" }
+      : undefined)
   if (!details) throw new Error(`Unknown Pomoder route: ${pathname}`)
 
   return (

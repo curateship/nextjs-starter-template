@@ -1,17 +1,30 @@
 import * as React from "react"
 import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import {
   ArrowDownIcon,
   ArrowUpIcon,
+  CheckIcon,
   ChevronDownIcon,
   ChevronsUpDownIcon,
   SearchIcon,
   StarIcon,
 } from "lucide-react"
 
-import {
-  formatCompactUsd,
-  formatPriceDisplay,
-} from "@/components/trading/format"
+import { compactUsd, formatPrice, pct, signedPct } from "@/lib/format"
 import { filterMarketsByCoins } from "@/components/trading/market-watchlist-order"
 import { MarketListLoadingSkeleton } from "@/components/loading-skeleton"
 import { Input } from "@/components/ui/input"
@@ -21,13 +34,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
 import {
   STICKY_SCROLL_OVERRIDES,
   STICKY_TABLE_HEADER,
@@ -42,10 +49,10 @@ import {
 import type { MarketRow } from "@/lib/hl/hooks"
 import { isMarketVisible } from "@/lib/hl/market-visibility"
 import type { PerpMarketCategory } from "@/lib/hl/perp-markets"
+import { saveDashboardWatchlistTabOrder } from "@/lib/api/shell-settings"
 import { cn } from "@/lib/utils"
 
-type WatchlistTab = "favorites" | "active" | "gainers" | "losers"
-type ActiveTab = "positions" | "orders"
+type WatchlistTab = "active" | "orders" | "favorites" | "watch"
 type SortKey = "vol" | "change"
 type CategoryFilter = "all" | PerpMarketCategory
 type PickerView =
@@ -64,21 +71,134 @@ type PickerSortKey =
   | "openInterest"
 
 const TABS: { value: WatchlistTab; label: string }[] = [
-  { value: "favorites", label: "Fav" },
   { value: "active", label: "Active" },
-  { value: "gainers", label: "Gainers" },
-  { value: "losers", label: "Losers" },
+  { value: "orders", label: "Open" },
+  { value: "favorites", label: "Fav" },
+  { value: "watch", label: "Watch" },
 ]
 
-const CATEGORIES: Array<{ value: CategoryFilter; label: string }> = [
-  { value: "all", label: "All categories" },
-  { value: "crypto", label: "Crypto" },
-  { value: "stocks", label: "Stocks" },
-  { value: "indices", label: "Indices" },
-  { value: "commodities", label: "Commodities" },
-  { value: "forex", label: "Forex" },
-  { value: "other", label: "Other" },
-]
+// Reconcile a saved order against the source `TABS` list: keep known values in
+// their stored order, drop anything unknown, and append any tabs that were
+// added to the app after the order was saved.
+function orderTabs(order: readonly string[]): typeof TABS {
+  const byValue = new Map<string, (typeof TABS)[number]>(
+    TABS.map((tab) => [tab.value, tab])
+  )
+  const seen = new Set<string>()
+  const result: typeof TABS = []
+  for (const value of order) {
+    const tab = byValue.get(value)
+    if (tab && !seen.has(value)) {
+      result.push(tab)
+      seen.add(value)
+    }
+  }
+  for (const tab of TABS) {
+    if (!seen.has(tab.value)) result.push(tab)
+  }
+  return result
+}
+
+// Resolve a saved order (possibly empty/partial) into a full list of tab
+// values, falling back to the built-in order. An order saved before the tabs
+// changed (it names a tab that no longer exists) is dropped whole rather than
+// half-kept, so the new set arrives in its intended order.
+function resolveTabOrder(saved: readonly string[] | undefined): WatchlistTab[] {
+  const known = new Set<string>(TABS.map((tab) => tab.value))
+  const usable =
+    saved && saved.length > 0 && saved.every((value) => known.has(value))
+      ? saved
+      : TABS.map((tab) => tab.value)
+  return orderTabs(usable).map((tab) => tab.value)
+}
+
+function SortableTab({
+  value,
+  label,
+  active,
+  onSelect,
+}: {
+  value: WatchlistTab
+  label: string
+  active: boolean
+  onSelect: () => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: value })
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      onClick={onSelect}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "flex flex-1 touch-none items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-xs font-medium transition-colors",
+        active
+          ? "bg-primary text-primary-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        isDragging && "z-10 opacity-70"
+      )}
+    >
+      {label}
+    </button>
+  )
+}
+
+/**
+ * Minimum a row needs to appear in the picker. Live Hyperliquid `MarketRow`s
+ * satisfy all of it; Binance backtest rows only carry the required fields.
+ */
+export type MarketPickerRow = {
+  coin: string
+  markPx: string
+  prevDayPx: string
+  collateralSymbol?: string
+  funding?: string
+  openInterest?: string
+  dayNtlVlm?: string
+  maxLeverage?: number
+  category?: string
+  dex?: string
+  liveData?: boolean
+}
+
+/**
+ * Selection box for the picker. Shared by the header and the rows so both read
+ * the same — a Checkbox component in the header rendered a check on a white
+ * background when partially selected, which looked broken.
+ */
+function PickMark({
+  state,
+  dimmed,
+}: {
+  state: "checked" | "indeterminate" | "unchecked"
+  dimmed?: boolean
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex size-4 items-center justify-center rounded-[4px] border border-input",
+        state !== "unchecked" &&
+          "border-primary bg-primary text-primary-foreground",
+        dimmed && "opacity-50"
+      )}
+    >
+      {state === "checked" ? <CheckIcon className="size-3.5" /> : null}
+      {state === "indeterminate" ? (
+        <span className="h-0.5 w-2 rounded-full bg-current" />
+      ) : null}
+    </span>
+  )
+}
 
 const PICKER_VIEWS: Array<{ value: PickerView; label: string }> = [
   { value: "favorites", label: "Favorites" },
@@ -102,22 +222,54 @@ export function MarketWatchlist({
   selected,
   positionMarkets,
   openOrderMarkets,
+  alertMarkets,
   favorites,
   onToggleFavorite,
   onSelect,
+  initialTabOrder,
+  accountLoading,
 }: {
   rows: MarketRow[]
   selected: string
   positionMarkets: ReadonlySet<string>
   openOrderMarkets: ReadonlySet<string>
+  /** Markets the user has placed an alert on — the Watch tab. */
+  alertMarkets: ReadonlySet<string>
   favorites: ReadonlySet<string>
   onToggleFavorite: (coin: string) => void
   onSelect: (coin: string) => void
+  // Saved tab order from the route loader (server/DB-backed). Available on the
+  // first render, so the correct first tab shows immediately — no flash.
+  initialTabOrder?: string[]
+  // True while the account snapshot (positions/open orders) is still loading.
+  // Lets the Active and Open tabs show a skeleton instead of a premature
+  // empty message.
+  accountLoading?: boolean
 }) {
   const [query, setQuery] = React.useState("")
-  const [tab, setTab] = React.useState<WatchlistTab>("favorites")
-  const [category, setCategory] = React.useState<CategoryFilter>("all")
-  const [activeTab, setActiveTab] = React.useState<ActiveTab>("orders")
+  // Tab order and the initially-open tab both come from the loader-provided
+  // order, resolved once up front. Saving on drag keeps it in sync server-side.
+  const [tabOrder, setTabOrder] = React.useState<WatchlistTab[]>(() =>
+    resolveTabOrder(initialTabOrder)
+  )
+  const [tab, setTab] = React.useState<WatchlistTab>(() => tabOrder[0])
+  const orderedTabs = React.useMemo(() => orderTabs(tabOrder), [tabOrder])
+  const tabSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+  )
+  const handleTabDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const base = orderedTabs.map((item) => item.value)
+    const from = base.indexOf(active.id as WatchlistTab)
+    const to = base.indexOf(over.id as WatchlistTab)
+    if (from === -1 || to === -1) return
+    const next = arrayMove(base, from, to)
+    setTabOrder(next)
+    saveDashboardWatchlistTabOrder(next).catch(() => {
+      // Best-effort; the new order still applies for this session.
+    })
+  }
   const [sort, setSort] = React.useState<{ key: SortKey; dir: "asc" | "desc" }>(
     {
       key: "vol",
@@ -131,22 +283,24 @@ export function MarketWatchlist({
       ...favorites,
       ...positionMarkets,
       ...openOrderMarkets,
+      // A market with an alert on it must survive the zero-volume filter, or
+      // the Watch tab would list nothing for it.
+      ...alertMarkets,
     ])
     let list = rows
       .filter((row) => isMarketVisible(row, protectedMarkets))
       .filter((row) => !trimmed || row.coin.toUpperCase().includes(trimmed))
-      .filter((row) => category === "all" || row.category === category)
       .map((row) => ({ row, change: dayChangePct(row.markPx, row.prevDayPx) }))
 
     if (tab === "favorites") {
       list = list.filter((item) => favorites.has(item.row.coin))
     } else if (tab === "active") {
-      list = filterMarketsByCoins(
-        list,
-        activeTab === "positions" ? positionMarkets : openOrderMarkets
-      )
-    } else if (tab === "gainers") list = list.filter((item) => item.change > 0)
-    else if (tab === "losers") list = list.filter((item) => item.change < 0)
+      list = filterMarketsByCoins(list, positionMarkets)
+    } else if (tab === "orders") {
+      list = filterMarketsByCoins(list, openOrderMarkets)
+    } else if (tab === "watch") {
+      list = filterMarketsByCoins(list, alertMarkets)
+    }
 
     const direction = sort.dir === "asc" ? 1 : -1
     list.sort((a, b) =>
@@ -159,11 +313,10 @@ export function MarketWatchlist({
     rows,
     selected,
     query,
-    category,
     tab,
-    activeTab,
     positionMarkets,
     openOrderMarkets,
+    alertMarkets,
     favorites,
     sort,
   ])
@@ -178,56 +331,28 @@ export function MarketWatchlist({
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-col gap-2 p-3 pb-2">
-        <div className="flex gap-1.5">
-          {TABS.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              onClick={() => setTab(item.value)}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-xs font-medium transition-colors",
-                tab === item.value
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <Select
-          value={category}
-          onValueChange={(value) => setCategory(value as CategoryFilter)}
+        <DndContext
+          sensors={tabSensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleTabDragEnd}
         >
-          <SelectTrigger className="h-8 w-full bg-muted text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CATEGORIES.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {tab === "active" ? (
-          <div
-            role="group"
-            aria-label="Active market type"
-            className="grid grid-cols-2 rounded-lg bg-muted p-1"
+          <SortableContext
+            items={orderedTabs.map((item) => item.value)}
+            strategy={horizontalListSortingStrategy}
           >
-            <ActiveMarketTab
-              active={activeTab === "orders"}
-              label="Open"
-              onClick={() => setActiveTab("orders")}
-            />
-            <ActiveMarketTab
-              active={activeTab === "positions"}
-              label="Active"
-              onClick={() => setActiveTab("positions")}
-            />
-          </div>
-        ) : null}
+            <div className="flex gap-1.5">
+              {orderedTabs.map((item) => (
+                <SortableTab
+                  key={item.value}
+                  value={item.value}
+                  label={item.label}
+                  active={tab === item.value}
+                  onSelect={() => setTab(item.value)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       </div>
       <div className="flex items-center justify-between border-b px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
         <SortHeader
@@ -283,7 +408,7 @@ export function MarketWatchlist({
                     </span>
                     <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
                       {row.dex ? `${row.dex} · ` : ""}
-                      {liveData ? formatCompactUsd(Number(row.dayNtlVlm)) : "—"}
+                      {liveData ? compactUsd(Number(row.dayNtlVlm)) : "—"}
                     </span>
                   </span>
                   <span
@@ -298,8 +423,7 @@ export function MarketWatchlist({
                   >
                     {liveData ? (
                       <>
-                        {change >= 0 ? "+" : ""}
-                        {change.toFixed(2)}%
+                        {signedPct(change)}
                       </>
                     ) : (
                       "—"
@@ -312,9 +436,13 @@ export function MarketWatchlist({
           {rows.length === 0 ? (
             <MarketListLoadingSkeleton />
           ) : visible.length === 0 ? (
-            <div className="px-3 py-8 text-center text-xs text-muted-foreground">
-              {emptyMarketText(tab, activeTab)}
-            </div>
+            accountLoading && (tab === "active" || tab === "orders") ? (
+              <MarketListLoadingSkeleton />
+            ) : (
+              <div className="px-3 py-8 text-center text-xs text-muted-foreground">
+                {query.trim() ? "No matches." : emptyMarketText(tab)}
+              </div>
+            )
           ) : null}
         </div>
       </ScrollArea>
@@ -340,15 +468,50 @@ export function MarketPicker({
   favorites,
   onToggleFavorite,
   onSelect,
+  trigger,
+  metrics = true,
+  multiple = false,
+  onSelectMany,
+  maxSelectable,
+  modal = false,
 }: {
-  rows: MarketRow[]
+  rows: MarketPickerRow[]
   selected: string
   protectedMarkets: ReadonlySet<string>
   favorites: ReadonlySet<string>
   onToggleFavorite: (coin: string) => void
-  onSelect: (coin: string) => void
+  /** Single-select only; multi-select reports through `onSelectMany`. */
+  onSelect?: (coin: string) => void
+  /**
+   * Replaces the default market-symbol button — lets the same picker act as an
+   * "Add market" control in the backtest and bot panels.
+   */
+  trigger?: React.ReactNode
+  /**
+   * Funding, volume, open interest and the category tabs come from live
+   * Hyperliquid data. Backtest markets are Binance rows that only carry price
+   * and 24h change, so they turn this off rather than show empty columns.
+   */
+  metrics?: boolean
+  /**
+   * Check off several markets and add them in one go, instead of reopening the
+   * picker per market. `onSelectMany` receives everything ticked.
+   */
+  multiple?: boolean
+  onSelectMany?: (coins: string[]) => void
+  /** Caps how many can be ticked at once (remaining slots in the parent list). */
+  maxSelectable?: number
+  /**
+   * Render the picker's popover in modal mode. Required when the trigger
+   * lives inside a Dialog: the dialog's scroll lock otherwise swallows wheel
+   * events on the portaled list, so it won't scroll.
+   */
+  modal?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
+  const [picked, setPicked] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
   const [query, setQuery] = React.useState("")
   const [view, setView] = React.useState<PickerView>("all")
   const [category, setCategory] = React.useState<CategoryFilter>("all")
@@ -374,7 +537,9 @@ export function MarketPicker({
       list = list.filter((row) => row.category === "crypto")
     } else if (view === "tradfi") {
       list = list.filter((row) =>
-        ["stocks", "indices", "commodities", "forex"].includes(row.category)
+        ["stocks", "indices", "commodities", "forex"].includes(
+          row.category ?? ""
+        )
       )
       if (category !== "all") {
         list = list.filter((row) => row.category === category)
@@ -408,23 +573,95 @@ export function MarketPicker({
         : { key, dir: key === "market" ? "asc" : "desc" }
     )
 
+  // An unlimited parent list passes Infinity; treat that as "no cap" so the
+  // footer doesn't advertise a nonsense maximum.
+  const cap =
+    maxSelectable !== undefined && Number.isFinite(maxSelectable)
+      ? maxSelectable
+      : undefined
+  const roomLeft = (set: ReadonlySet<string>) =>
+    cap === undefined || set.size < cap
+  const addWithinLimit = (set: Set<string>, coins: string[]) => {
+    for (const coin of coins) {
+      if (!roomLeft(set)) break
+      set.add(coin)
+    }
+    return set
+  }
+  const togglePick = (coin: string) =>
+    setPicked((current) => {
+      const next = new Set(current)
+      if (next.has(coin)) next.delete(coin)
+      else addWithinLimit(next, [coin])
+      return next
+    })
+  const visibleCoins = visible.map((row) => row.coin)
+  const allVisiblePicked =
+    visibleCoins.length > 0 && visibleCoins.every((coin) => picked.has(coin))
+  const someVisiblePicked =
+    !allVisiblePicked && visibleCoins.some((coin) => picked.has(coin))
+  // Clear whenever anything listed is ticked — not only when *all* of it is.
+  // With a cap (50) and a long list (~600), "all ticked" is unreachable, which
+  // left this button stuck on "select" with no way back.
+  const toggleVisible = () =>
+    setPicked((current) => {
+      const next = new Set(current)
+      if (allVisiblePicked || someVisiblePicked) {
+        visibleCoins.forEach((coin) => next.delete(coin))
+        return next
+      }
+      return addWithinLimit(next, visibleCoins)
+    })
+  const favoriteCoins = rows
+    .map((row) => row.coin)
+    .filter((coin) => favorites.has(coin))
+  const pickFavorites = () =>
+    setPicked((current) => addWithinLimit(new Set(current), favoriteCoins))
+  const commitPicked = () => {
+    if (picked.size === 0) return
+    onSelectMany?.([...picked])
+    setPicked(new Set())
+    setOpen(false)
+  }
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      modal={modal}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) {
+          setPicked(new Set())
+          setQuery("")
+        }
+      }}
+    >
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label="Choose market"
-          className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[15px] font-bold transition-colors hover:bg-muted"
-        >
-          <MarketIcon key={selected} coin={selected} />
-          <span>{selected}-PERP</span>
-          <ChevronDownIcon className="size-3.5 text-muted-foreground" />
-        </button>
+        {trigger ?? (
+          <button
+            type="button"
+            aria-label="Choose market"
+            className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[15px] font-bold transition-colors hover:bg-muted"
+          >
+            <MarketIcon key={selected} coin={selected} />
+            <span>{selected}-PERP</span>
+            <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="h-[min(72vh,640px)] w-[min(94vw,960px)] max-w-none gap-0 overflow-hidden rounded-xl p-0"
+        className={cn(
+          "flex flex-col gap-0 overflow-hidden rounded-xl p-0",
+          // Without the metric columns there are only three columns to show, so
+          // the wide fixed-height sheet would be mostly empty space.
+          // The scroll area needs a definite height to scroll — a max-height
+          // silently clips the list instead (no scrollbar, no wheel).
+          metrics
+            ? "h-[min(72vh,640px)] w-[min(94vw,960px)] max-w-none"
+            : "h-[min(60vh,440px)] w-[min(94vw,520px)] max-w-none"
+        )}
       >
         <div className="flex flex-col gap-3 border-b p-3">
           <div className="relative">
@@ -438,7 +675,12 @@ export function MarketPicker({
             />
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-1" role="tablist">
-            {PICKER_VIEWS.map((item) => (
+            {(metrics
+              ? PICKER_VIEWS
+              : PICKER_VIEWS.filter(
+                  (item) => item.value === "favorites" || item.value === "all"
+                )
+            ).map((item) => (
               <button
                 key={item.value}
                 type="button"
@@ -486,9 +728,35 @@ export function MarketPicker({
           </div>
         ) : null}
         <ScrollArea className={cn("min-h-0 flex-1", STICKY_SCROLL_OVERRIDES)}>
-          <Table className="min-w-[760px] text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3">
+          <Table
+            className={cn(
+              "text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3",
+              metrics ? "min-w-[760px]" : "min-w-0"
+            )}
+          >
             <TableHeader className={STICKY_TABLE_HEADER}>
               <TableRow>
+                {multiple ? (
+                  <TableHead column="select">
+                    <button
+                      type="button"
+                      onClick={toggleVisible}
+                      aria-label="Select all listed markets"
+                      aria-pressed={allVisiblePicked}
+                      className="flex items-center"
+                    >
+                      <PickMark
+                        state={
+                          allVisiblePicked
+                            ? "checked"
+                            : someVisiblePicked
+                              ? "indeterminate"
+                              : "unchecked"
+                        }
+                      />
+                    </button>
+                  </TableHead>
+                ) : null}
                 <PickerTableHead
                   label="Market"
                   sortKey="market"
@@ -507,24 +775,28 @@ export function MarketPicker({
                   sort={sort}
                   onSort={toggleSort}
                 />
-                <PickerTableHead
-                  label="Funding"
-                  sortKey="funding"
-                  sort={sort}
-                  onSort={toggleSort}
-                />
-                <PickerTableHead
-                  label="Volume"
-                  sortKey="volume"
-                  sort={sort}
-                  onSort={toggleSort}
-                />
-                <PickerTableHead
-                  label="Open interest"
-                  sortKey="openInterest"
-                  sort={sort}
-                  onSort={toggleSort}
-                />
+                {metrics ? (
+                  <>
+                    <PickerTableHead
+                      label="Funding"
+                      sortKey="funding"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                    <PickerTableHead
+                      label="Volume"
+                      sortKey="volume"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                    <PickerTableHead
+                      label="Open interest"
+                      sortKey="openInterest"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                  </>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -534,16 +806,40 @@ export function MarketPicker({
                 const openInterest =
                   Number(row.openInterest) * Number(row.markPx)
                 const favorite = favorites.has(row.coin)
-                const liveData = row.liveData
+                // Binance backtest rows carry no liveData flag; their price is
+                // always real, so only an explicit false means "no data".
+                const liveData = row.liveData !== false
                 return (
                   <TableRow
                     key={row.coin}
-                    data-state={selected === row.coin ? "selected" : undefined}
+                    aria-selected={multiple ? picked.has(row.coin) : undefined}
+                    data-state={
+                      (multiple ? picked.has(row.coin) : selected === row.coin)
+                        ? "selected"
+                        : undefined
+                    }
                     onClick={() => {
-                      onSelect(row.coin)
+                      if (multiple) {
+                        togglePick(row.coin)
+                        return
+                      }
+                      onSelect?.(row.coin)
                       setOpen(false)
                     }}
                   >
+                    {multiple ? (
+                      <TableCell column="select">
+                        {/* The row owns the click, so this is only the mark. */}
+                        <PickMark
+                          state={
+                            picked.has(row.coin) ? "checked" : "unchecked"
+                          }
+                          dimmed={
+                            !picked.has(row.coin) && !roomLeft(picked)
+                          }
+                        />
+                      </TableCell>
+                    ) : null}
                     <TableCell className="py-2 pl-3">
                       <div className="flex items-center gap-2">
                         <button
@@ -567,11 +863,14 @@ export function MarketPicker({
                           />
                         </button>
                         <span className="font-semibold">
-                          {displaySymbol(row.coin)}-{row.collateralSymbol}
+                          {displaySymbol(row.coin)}
+                          {row.collateralSymbol ? `-${row.collateralSymbol}` : ""}
                         </span>
-                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
-                          {row.maxLeverage}x
-                        </span>
+                        {row.maxLeverage ? (
+                          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
+                            {row.maxLeverage}x
+                          </span>
+                        ) : null}
                         {row.dex ? (
                           <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
                             {row.dex}
@@ -580,7 +879,7 @@ export function MarketPicker({
                       </div>
                     </TableCell>
                     <TableCell className="font-mono tabular-nums">
-                      {liveData ? formatPriceDisplay(row.markPx) : "—"}
+                      {liveData ? formatPrice(row.markPx) : "—"}
                     </TableCell>
                     <TableCell
                       className={cn(
@@ -594,22 +893,27 @@ export function MarketPicker({
                     >
                       {liveData ? (
                         <>
-                          {change >= 0 ? "+" : ""}
-                          {change.toFixed(2)}%
+                          {signedPct(change)}
                         </>
                       ) : (
                         "—"
                       )}
                     </TableCell>
-                    <TableCell className="font-mono tabular-nums">
-                      {liveData ? `${funding.toFixed(4)}%` : "—"}
-                    </TableCell>
-                    <TableCell className="font-mono tabular-nums">
-                      {liveData ? formatCompactUsd(Number(row.dayNtlVlm)) : "—"}
-                    </TableCell>
-                    <TableCell className="font-mono tabular-nums">
-                      {liveData ? formatCompactUsd(openInterest) : "—"}
-                    </TableCell>
+                    {metrics ? (
+                      <>
+                        <TableCell className="font-mono tabular-nums">
+                          {liveData ? pct(funding, 4) : "—"}
+                        </TableCell>
+                        <TableCell className="font-mono tabular-nums">
+                          {liveData
+                            ? compactUsd(Number(row.dayNtlVlm))
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="font-mono tabular-nums">
+                          {liveData ? compactUsd(openInterest) : "—"}
+                        </TableCell>
+                      </>
+                    ) : null}
                   </TableRow>
                 )
               })}
@@ -623,9 +927,49 @@ export function MarketPicker({
             </div>
           ) : null}
         </ScrollArea>
-        <div className="border-t px-3 py-2 text-[11px] text-muted-foreground">
-          {visible.length} market{visible.length === 1 ? "" : "s"}
-        </div>
+        {multiple ? (
+          <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={favoriteCoins.length === 0}
+                onClick={pickFavorites}
+              >
+                <StarIcon className="size-3.5" />
+                All favorites
+              </Button>
+              {picked.size > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPicked(new Set())}
+                >
+                  Clear
+                </Button>
+              ) : null}
+              <span className="text-[11px] text-muted-foreground">
+                {picked.size} selected
+                {cap !== undefined ? ` · ${cap} max` : ""}
+              </span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              disabled={picked.size === 0}
+              onClick={commitPicked}
+            >
+              Add {picked.size > 0 ? picked.size : ""}
+              {picked.size === 1 ? " market" : " markets"}
+            </Button>
+          </div>
+        ) : (
+          <div className="border-t px-3 py-2 text-[11px] text-muted-foreground">
+            {visible.length} market{visible.length === 1 ? "" : "s"}
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )
@@ -683,7 +1027,7 @@ function displaySymbol(coin: string) {
 }
 
 function pickerSortValue(
-  row: MarketRow,
+  row: MarketPickerRow,
   key: Exclude<PickerSortKey, "market">
 ) {
   switch (key) {
@@ -700,36 +1044,17 @@ function pickerSortValue(
   }
 }
 
-function ActiveMarketTab({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "rounded-md px-2 py-1 text-xs font-medium transition-colors",
-        active
-          ? "bg-card text-foreground shadow-xs"
-          : "text-muted-foreground hover:text-foreground"
-      )}
-    >
-      {label}
-    </button>
-  )
-}
-
-function emptyMarketText(tab: WatchlistTab, activeTab: ActiveTab): string {
-  if (tab === "favorites") return "No favorite markets."
-  if (tab !== "active") return "No matches."
-  return activeTab === "positions" ? "No active positions." : "No open orders."
+function emptyMarketText(tab: WatchlistTab): string {
+  switch (tab) {
+    case "active":
+      return "No active positions."
+    case "orders":
+      return "No open orders."
+    case "favorites":
+      return "No favorite markets."
+    case "watch":
+      return "No markets with alerts."
+  }
 }
 
 function SortHeader({

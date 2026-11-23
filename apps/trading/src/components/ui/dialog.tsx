@@ -68,7 +68,11 @@ function DialogContent({
 }) {
   return (
     <DialogPortal>
-      {showOverlay ? <DialogOverlay /> : null}
+      {showOverlay ? (
+        <DialogPrimitive.Close asChild>
+          <DialogOverlay />
+        </DialogPrimitive.Close>
+      ) : null}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-variant={variant}
@@ -166,7 +170,7 @@ function DialogFooter({
       data-variant={variant}
       className={cn(
         "flex flex-row justify-end gap-2 **:data-[slot=button]:h-9",
-        variant === "default" && "rounded-b-xl border-t bg-muted/50 px-6 py-5",
+        variant === "default" && "px-6 pt-0 pb-5",
         // Admin footers sit directly on the gray shell: no border, no band.
         contentVariant === "admin" &&
           variant === "default" &&
@@ -199,7 +203,7 @@ function DialogTitle({
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "text-base leading-none font-medium",
+        "text-lg leading-none font-medium",
         contentVariant === "admin" && "truncate",
         className
       )}

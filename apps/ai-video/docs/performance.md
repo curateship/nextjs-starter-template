@@ -38,6 +38,21 @@ and `editor-timeline.tsx`.
 - React re-renders of the preview/timeline should happen only on edits, resize,
   or when the windowed video set changes — never as a function of the playhead.
 
+### Dragging is a per-frame path too
+
+- A clip drag fires a pointer move per frame, so the same rule applies: the chip
+  moves by direct `el.style.left` writes and commits to the store once, on
+  release. Snapping follows suit — the guide line is positioned through a stable
+  imperative handle (`SnapGuideApi` in `studio-timeline.tsx`), never state.
+- Anything a drag needs from the rest of the project is gathered **once, on
+  pointer-down**, not per move. `buildSnapIndex` (`timeline-snapping.ts`) walks
+  every track a single time and leaves a sorted array per lane; each move then
+  binary-searches it. Rebuilding that per move would make a long timeline
+  stutter, and nothing it reads can change mid-drag anyway.
+- The same applies to the preview's text-overlay drag: position and centre-guide
+  visibility are written straight to the DOM, because a re-render there would
+  remount the `<video>` elements.
+
 ### Mount only the media you need
 
 - Keep a live `<video>` only for clips near the playhead (active plus a short

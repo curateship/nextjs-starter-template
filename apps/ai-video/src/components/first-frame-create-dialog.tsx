@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  AlertCircleIcon,
   ImageIcon,
   ImagePlusIcon,
   Loader2Icon,
@@ -10,15 +9,22 @@ import {
 import { MediaPicker } from "@/components/media-picker"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -221,131 +227,152 @@ export function FirstFrameCreateDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+      <Dialog
+        open={open && !pickerOpen && !actorPickerOpen}
+        onOpenChange={handleDialogOpenChange}
+      >
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>Create First Frame</DialogTitle>
+            <DialogDescription>
+              Generate a reference first frame for the selected actor.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <div className="space-y-5">
-              {modalError ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                >
-                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{modalError}</span>
-                </div>
-              ) : null}
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <FirstFrameNameAspectFields
+                  name={name}
+                  onNameChange={setName}
+                  aspectRatio={aspectRatio}
+                  aspectRatios={allowedAspectRatios}
+                  onAspectRatioChange={setAspectRatio}
+                  onSelectOpenChange={handleModalSelectOpenChange}
+                />
+              </CardContent>
+            </Card>
 
-              <FirstFrameNameAspectFields
-                name={name}
-                onNameChange={setName}
-                aspectRatio={aspectRatio}
-                aspectRatios={allowedAspectRatios}
-                onAspectRatioChange={setAspectRatio}
-                onSelectOpenChange={handleModalSelectOpenChange}
-              />
-
-              <div className="grid gap-2">
-                <Label>Reference Source</Label>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant={referenceSource === "actor" ? "default" : "outline"}
-                    size="sm"
-                    aria-pressed={referenceSource === "actor"}
-                    onClick={() => {
-                      setPickerOpen(false)
-                      setReferenceSource("actor")
-                    }}
-                  >
-                    Actor image
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={referenceSource === "media" ? "default" : "outline"}
-                    size="sm"
-                    aria-pressed={referenceSource === "media"}
-                    onClick={() => setReferenceSource("media")}
-                  >
-                    Media library image
-                  </Button>
-                </div>
-                <div className="grid w-full max-w-52 gap-2">
-                  <button
-                    type="button"
-                    className="group relative cursor-pointer overflow-hidden rounded-lg border-2 border-dashed text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-                    onClick={() =>
-                      referenceSource === "actor"
-                        ? setActorPickerOpen(true)
-                        : setPickerOpen(true)
-                    }
-                    aria-label={
-                      referenceSource === "actor"
-                        ? "Select actor image"
-                        : "Select media library image"
-                    }
-                  >
-                    {referencePreviewUrl ? (
-                      <div className="relative aspect-square">
-                        <img
-                          src={referencePreviewUrl}
-                          alt="Reference"
-                          className="h-full w-full object-cover"
-                          draggable={false}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                          <span className="text-sm font-medium text-white">
-                            Click to change
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex aspect-square flex-col items-center justify-center gap-2 bg-muted/50 transition-colors group-hover:bg-muted">
-                        <ImagePlusIcon className="size-8 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          Select image
-                        </span>
-                      </div>
-                    )}
-                  </button>
-                  {referenceSource === "media" && referenceMediaUrl ? (
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Reference image</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel>Reference Source</FieldLabel>
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant={
+                        referenceSource === "actor" ? "default" : "outline"
+                      }
                       size="sm"
-                      className="w-fit text-destructive hover:text-destructive"
-                      onClick={clearReferenceMedia}
+                      aria-pressed={referenceSource === "actor"}
+                      onClick={() => {
+                        setPickerOpen(false)
+                        setReferenceSource("actor")
+                      }}
                     >
-                      Remove image
+                      Actor image
                     </Button>
-                  ) : null}
-                  {referenceSource === "media" ? (
-                    <MediaPicker
-                      open={pickerOpen}
-                      onOpenChange={setPickerOpen}
-                      onSelectMedia={handleReferenceSelect}
-                      currentMediaUrl={referenceMediaUrl ?? undefined}
-                      showVideos={false}
-                    />
-                  ) : null}
+                    <Button
+                      type="button"
+                      variant={
+                        referenceSource === "media" ? "default" : "outline"
+                      }
+                      size="sm"
+                      aria-pressed={referenceSource === "media"}
+                      onClick={() => setReferenceSource("media")}
+                    >
+                      Media library image
+                    </Button>
+                  </div>
+                  <div className="grid w-full max-w-52 gap-2">
+                    <button
+                      type="button"
+                      className="group relative cursor-pointer overflow-hidden rounded-lg border-2 border-dashed text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+                      onClick={() =>
+                        referenceSource === "actor"
+                          ? setActorPickerOpen(true)
+                          : setPickerOpen(true)
+                      }
+                      aria-label={
+                        referenceSource === "actor"
+                          ? "Select actor image"
+                          : "Select media library image"
+                      }
+                    >
+                      {referencePreviewUrl ? (
+                        <div className="relative aspect-square">
+                          <img
+                            src={referencePreviewUrl}
+                            alt="Reference"
+                            className="h-full w-full object-cover"
+                            draggable={false}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                            <span className="text-sm font-medium text-white">
+                              Click to change
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex aspect-square flex-col items-center justify-center gap-2 bg-muted/50 transition-colors group-hover:bg-muted">
+                          <ImagePlusIcon className="size-8 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            Select image
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                    {referenceSource === "media" && referenceMediaUrl ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-fit text-destructive hover:text-destructive"
+                        onClick={clearReferenceMedia}
+                      >
+                        Remove image
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              <FirstFramePromptFields
-                prompt={prompt}
-                onPromptChange={setPrompt}
-                tags={tags}
-                onTagsChange={setTags}
-                model={model}
-                onModelChange={setModel}
-                onSelectOpenChange={handleModalSelectOpenChange}
-              />
-            </div>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Prompt</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <FirstFramePromptFields
+                  prompt={prompt}
+                  onPromptChange={setPrompt}
+                  tags={tags}
+                  onTagsChange={setTags}
+                  model={model}
+                  onModelChange={setModel}
+                  onSelectOpenChange={handleModalSelectOpenChange}
+                />
+              </CardContent>
+            </Card>
+
+            {modalError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {modalError}
+              </p>
+            ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={closeDialog}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting}
+              onClick={closeDialog}
+            >
               Cancel
             </Button>
             <Button
@@ -364,6 +391,16 @@ export function FirstFrameCreateDialog({
         </DialogContent>
       </Dialog>
 
+      {referenceSource === "media" ? (
+        <MediaPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onSelectMedia={handleReferenceSelect}
+          currentMediaUrl={referenceMediaUrl ?? undefined}
+          showVideos={false}
+        />
+      ) : null}
+
       <Dialog
         open={actorPickerOpen}
         onOpenChange={(next) => {
@@ -377,6 +414,9 @@ export function FirstFrameCreateDialog({
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>Select Actor Image</DialogTitle>
+            <DialogDescription>
+              Pick the actor whose image seeds this first frame.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody>
             <div className="flex flex-col gap-4">
@@ -462,7 +502,7 @@ export function FirstFrameNameAspectFields({
   return (
     <>
       <div className="grid gap-2">
-        <Label htmlFor="first-frame-name">Name</Label>
+        <FieldLabel htmlFor="first-frame-name">Name</FieldLabel>
         <Input
           id="first-frame-name"
           value={name}
@@ -472,7 +512,7 @@ export function FirstFrameNameAspectFields({
       </div>
 
       <div className="grid gap-2">
-        <Label>Aspect Ratio</Label>
+        <FieldLabel htmlFor="first-frame-aspect">Aspect Ratio</FieldLabel>
         <Select
           value={aspectRatio}
           onOpenChange={onSelectOpenChange}
@@ -480,7 +520,7 @@ export function FirstFrameNameAspectFields({
             onAspectRatioChange(value as FirstFrameAspectRatio)
           }
         >
-          <SelectTrigger id="first-frame-aspect" className="w-full">
+          <SelectTrigger id="first-frame-aspect" className="w-full sm:w-fit">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -517,19 +557,19 @@ export function FirstFramePromptFields({
   return (
     <>
       <div className="grid gap-2">
-        <Label htmlFor="first-frame-prompt">Prompt</Label>
+        <FieldLabel htmlFor="first-frame-prompt">Prompt</FieldLabel>
         <Textarea
           id="first-frame-prompt"
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}
           placeholder="Describe the first frame composition, scene, pose, lighting, and mood."
-          rows={5}
+          rows={1}
         />
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="grid gap-2">
-          <Label htmlFor="first-frame-tags">Tags</Label>
+          <FieldLabel htmlFor="first-frame-tags">Tags</FieldLabel>
           <Input
             id="first-frame-tags"
             value={tags}
@@ -538,13 +578,22 @@ export function FirstFramePromptFields({
           />
         </div>
         <div className="grid gap-2">
-          <Label>AI Model</Label>
+          <FieldLabel
+            htmlFor="first-frame-model"
+            hint={
+              model === "dall-e-3"
+                ? "DALL-E 3 uses text context only; reference images are not sent to this model."
+                : undefined
+            }
+          >
+            AI Model
+          </FieldLabel>
           <Select
             value={model}
             onOpenChange={onSelectOpenChange}
             onValueChange={(value) => onModelChange(value as ActorModelId)}
           >
-            <SelectTrigger id="first-frame-model" className="w-full">
+            <SelectTrigger id="first-frame-model" className="w-full sm:w-fit">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -555,12 +604,6 @@ export function FirstFramePromptFields({
               ))}
             </SelectContent>
           </Select>
-          {model === "dall-e-3" ? (
-            <p className="text-xs text-muted-foreground">
-              DALL-E 3 uses text context only; reference images are not sent to
-              this model.
-            </p>
-          ) : null}
         </div>
       </div>
     </>

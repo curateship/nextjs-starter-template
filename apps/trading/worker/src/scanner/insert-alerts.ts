@@ -7,7 +7,7 @@ import type { AlertDraft } from "./alert-engine"
 
 /**
  * Persists alert drafts, deduped on dedupeKey — the one place scanner
- * modules write to scanner_alerts.
+ * modules and the worker watchdog write to scanner_alerts.
  */
 export async function insertAlerts(
   drafts: AlertDraft[],

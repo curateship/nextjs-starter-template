@@ -1,0 +1,111 @@
+# Custom Shell docs
+
+This library explains the working Custom Shell application. The folders match
+the product areas an admin or developer sees, so a new doc has an obvious home.
+Start with [the application map](architecture/application-map.md) for the route,
+server, data, and app-extension boundaries.
+
+Rules shared by every app remain in the repo's `docs/shell/` folder. Do not copy
+those rulebooks here. `docs/shell/shell-and-apps.md` explains ownership,
+`docs/shell/what-lives-where.md` explains file placement, and the repo's
+`docs/README.md` indexes the shared architecture, security, UI, deployment, and
+local setup docs.
+
+## Accounts
+
+- [Authentication and sessions](accounts/authentication-and-sessions.md)
+- [Account security](accounts/security.md)
+- [App roles](accounts/app-roles.md), an app's own kinds of account such as employees
+
+## AI
+
+- [Providers, keys, and usage](ai/providers-keys-and-usage.md)
+
+## Architecture
+
+- [Application map](architecture/application-map.md)
+- [Routes and integrations](architecture/routes-and-integrations.md)
+
+## Automations
+
+- [Automations](automations/overview.md)
+- [The Automations dashboard](automations/dashboard.md): Automations, Runs and Waiting on you in the Admin 3 panel design
+- [Automation run refresh](automations/run-refresh.md)
+- [App-owned automation run results](automations/app-owned-run-results.md)
+
+## Billing
+
+- [Plans, subscriptions, and entitlements](billing/plans-subscriptions-and-entitlements.md), including in-app plan changes and their test path
+
+## Content
+
+- [Announcements](content/announcements.md)
+- [Public pages, search, and SEO](content/public-pages-search-and-seo.md)
+- [Public page load errors](content/public-page-load-errors.md)
+- [Building a page](content/building-the-front-page.md)
+- [Hiding a row, and choosing its screens](content/showing-and-hiding-public-things.md)
+- [Alignment and parts of a front page row](content/front-page-row-alignment-and-parts.md)
+- [The divider row](content/front-page-divider-rows.md)
+- [A hero's background colour](content/hero-background-colour.md)
+- [The hero's email box](content/hero-email-box.md)
+
+## CRM
+
+- [The inbox, and the leads it makes](crm/inbox-and-leads.md)
+
+## Email and notifications
+
+- [Newsletters and broadcasts](email/newsletters-and-broadcasts.md)
+- [Sequences](email/sequences.md)
+- [System emails](email/system-emails.md)
+- [Notifications](email/notifications.md)
+
+## Feedback
+
+- [Feedback and roadmap](feedback/feedback-and-roadmap.md)
+
+## Media
+
+- [Media library, picker, and storage](media/library-picker-and-storage.md)
+- [Where uploaded files are kept](media/storage-settings.md)
+- [Picture sizes on public pages](media/image-sizes-on-public-pages.md)
+
+## Operations
+
+- [Background work](operations/background-work.md)
+- [Maintenance, health, cleanup, and traffic](operations/maintenance-health-cleanup-and-traffic.md)
+
+## People and workspaces
+
+- [Users, contacts, and segments](people/users-contacts-and-segments.md)
+- [Workspaces and membership](people/workspaces-and-membership.md)
+
+## Settings
+
+- [Administration and personalization](settings/administration-and-personalization.md)
+- [The dark mode shade](settings/dark-mode-shade.md)
+- [The left menu shade](settings/left-menu-shade.md), and the one-shade style that paints the left menu, top bar and page one grey
+- [The gutter shade](settings/page-shade.md)
+- [Block, widget and panel card styling](settings/block-styling.md)
+- [Side panel widths](settings/side-panel-widths.md)
+- [The app canvas](settings/the-app-canvas.md)
+- [Public theme presets](settings/public-theme-presets.md)
+
+## UI
+
+- [App shell and navigation](ui/app-shell-and-navigation.md)
+- [Home and dashboards](ui/home-and-dashboards.md)
+- [Dashboard controls](ui/dashboard-controls.md)
+- [Admin](ui/admin.md), the one admin dashboard: Overview, Users and Feedback, with Plans and Announcements in its ⋮
+- [Forms, tables, dialogs, and accessibility](ui/forms-tables-dialogs-and-accessibility.md)
+- [The bar while a page loads](ui/page-loading-bar.md)
+
+## Adding a doc
+
+Put the file in the folder for the product area it explains and add its link to
+this index in the same change. Use one file per subject. Update an existing file
+when behavior changes instead of creating a second version of the same truth.
+
+Write what the app does, why the rule exists, and where ownership changes. Keep
+screenshots in `assets/`. If a subject applies unchanged to every app built on
+Custom Shell, update the matching repo doc instead of repeating it here.

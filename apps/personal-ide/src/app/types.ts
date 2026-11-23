@@ -5,6 +5,8 @@ export type WorkspaceInfo = {
   hidden: boolean
   isStandalone: boolean
   isTauri: boolean
+  /** From this worktree's own `local-apps.json`. Null when the app has no port. */
+  port: number | null
 }
 
 export type WorkspaceList = {
@@ -133,6 +135,7 @@ export type WorkspaceStatus = "running" | "waiting"
 
 export type EditorSettings = {
   defaultTaskTemplate: string
+  startTaskPrompt: string
 }
 
 export type SettingsSaveStatus = "idle" | "saving" | "saved"

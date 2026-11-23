@@ -1,0 +1,891 @@
+import * as React from "react"
+import { useNavigate, useRouter } from "@tanstack/react-router"
+import { ChevronDownIcon, PlusIcon, Trash2Icon } from "lucide-react"
+
+import { BinDialog } from "@/components/project/bin-dialog"
+import { NOBODY, NewTaskDialog, type NewTaskStart } from "@/components/project/new-task-dialog"
+import { ProjectActivity } from "@/components/project/project-activity"
+import { ProjectChat } from "@/components/project/project-chat"
+import { ProjectFiles } from "@/components/project/project-files"
+import { QuickNewTask } from "@/components/project/quick-new-task"
+import { ReasonDialog } from "@/components/project/reason-dialog"
+import { SaveViewDialog, SavedViewsControls } from "@/components/project/saved-views"
+import { DashboardTabButton, DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { ALL_LANE, NOBODY_LANE, TaskBoard, type BoardLane } from "@/components/project/task-board"
+import { TaskCalendar } from "@/components/project/task-calendar"
+import { DELETE_TASK_DETAIL, DELETE_TASK_QUESTION } from "@/components/project/task-body"
+import { TaskFilterPopover } from "@/components/project/task-filter-popover"
+import {
+  MembersFilterMenu,
+  TaskSearchBox,
+  TaskSelectButton,
+} from "@/components/project/task-header-controls"
+import { TaskList } from "@/components/project/task-list"
+import { PointAnchor, TaskRightClickMenu } from "@/components/project/task-right-click"
+import { TaskTimeline } from "@/components/project/task-timeline"
+import { PanelReopenButton } from "@/components/shared/three-panels"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { loadProjectChatUnread } from "@/lib/api/project/chat"
+import { saveStatusOrder, type ProjectPage } from "@/lib/api/project/projects"
+import { saveTaskOrder } from "@/lib/api/project/sorting"
+import {
+  assignProjectTask,
+  deleteProjectTask,
+  duplicateProjectTask,
+  saveTask,
+  setStatus,
+  type NewTaskProject,
+  type TaskCard,
+} from "@/lib/api/project/tasks"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
+import { useRememberedChoice } from "@/lib/remembered-choice"
+import { getProjectErrorMessage } from "@/lib/project/errors"
+import { rememberProject } from "@/lib/project/new-task-project"
+import { BOARD_GROUP_KEY, PROJECT_TASK_VIEW_KEY, taskFoldsKey, taskGroupingKey } from "@/lib/project/panel-keys"
+import { todayKey } from "@/lib/project/dates"
+import { addDays } from "@/lib/project/days"
+import type { ListDrop } from "@/lib/project/list-drop"
+import { dropChange } from "@/lib/project/my-task-order"
+import { runsTheTeam, type TaskPriority, type TaskStatus, isOpenStatus } from "@/lib/project/rules"
+import { filterTasks, hasTaskFilters, NO_TASK_FILTERS, type TaskFilters } from "@/lib/project/task-filters"
+import { byPosition } from "@/lib/project/task-order"
+import { overDoingLimit } from "@/lib/project/doing-limit"
+import { TASK_GROUPINGS, canMoveInGroup, groupTasks, type TaskGrouping } from "@/lib/project/task-groups"
+import { placesAfterReorder } from "@/lib/project/task-order"
+import { useProjectLive } from "@/lib/project/use-project-live"
+import { viewHasFilters } from "@/lib/project/saved-views"
+import { pickedWordsUnder, readRightClick, type RightClickTarget } from "@/lib/project/right-click"
+import { TASK_HEADER_BUTTONS, TASK_HEADER_EARLY, TASK_HEADER_NEW } from "@/lib/project/task-header-look"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
+
+const VIEWS = ["list", "board", "calendar", "timeline", "activity", "files", "chat"] as const
+type View = (typeof VIEWS)[number]
+
+/** The header's New task, as opposed to a Board column's "+". */
+const HEADER_NEW_TASK = "header"
+/** The New task opened by right-clicking empty space, at the mouse. */
+const POINTER_NEW_TASK = "pointer"
+
+const GROUPS = ["status", "person"] as const
+/** The Board's Group row: its status columns alone, or a row of them per person. */
+const BOARD_GROUPINGS = ["none", "assignee"] as const satisfies readonly TaskGrouping[]
+const noGroups = () => []
+
+/** What a New task dropdown starts on: a Board column's or a List heading's. */
+type QuickStart = {
+  status?: TaskStatus
+  /** A member's id, or `NOBODY`. */
+  assignee?: string
+  priority?: TaskPriority
+  due?: string | null
+  tooltip?: string
+}
+
+/**
+ * The task a List heading's "+" starts: one that lands under that heading
+ * (Tyler, 19 Oct 2026: "a '+' icon for me to add a task that will slot into
+ * that sort"). Only Today, Tomorrow and No due date can be started in by
+ * date; a new task can't be made Overdue or Earlier, and This week or Later
+ * name no one day, so those headings have no "+".
+ */
+function startInGroup(grouping: TaskGrouping, key: string): QuickStart | null {
+  const none = key === "none"
+  switch (grouping) {
+    case "status":
+      return { status: key as TaskStatus }
+    case "priority":
+      return { priority: key as TaskPriority }
+    case "assignee":
+      return { assignee: none ? NOBODY : key }
+    case "due":
+      if (key === "today") return { due: todayKey() }
+      if (key === "tomorrow") return { due: addDays(todayKey(), 1) }
+      return none ? { due: null } : null
+    default:
+      return null
+  }
+}
+type Group = (typeof GROUPS)[number]
+
+/** A Board row's person for a new task: on a person's row it is theirs; "Nobody assigned" makes it nobody's. */
+function laneAssignee(laneId: string | undefined) {
+  return laneId === NOBODY_LANE ? NOBODY : laneId === ALL_LANE ? undefined : laneId
+}
+
+/** A Board drop in another person's row, waiting for "Hand it over?". */
+type PendingHandOver = {
+  task: TaskCard
+  person: { id: string; name: string } | null
+  status: TaskStatus
+  order: string[]
+}
+
+/**
+ * The project's tasks, as a Board (one column per status, or a row per person
+ * when grouped), a List under Filter's Group row (status, due date and so on), a Calendar of
+ * due dates or a Timeline of start and due dates, its Activity, every file in it, and its own Chat. The tab last
+ * used is remembered in this browser; the search and filters live in the
+ * address. A status change or a new order shows at once and is put back if
+ * the server refuses it. A "Just me" list has no Files or Chat, since
+ * nobody else can read it.
+ *
+ * The header, as Tyler drew it on 14 Oct 2026: underlined tabs (List first
+ * since 19 Oct 2026), then search, Filter (which holds the due date since
+ * 19 Oct 2026), Views, whose tasks show (moved here from the left panel), and New task. New task, and the "+" on each Board column,
+ * open a dropdown rather than a window. A card's "..." duplicates or deletes it.
+ */
+export function ProjectTasksPanel({
+  page,
+  filters,
+  onFilters,
+  onOpenTask,
+  openTaskId,
+  openChat,
+  onChatOpened,
+  onRows,
+}: {
+  page: ProjectPage
+  filters: TaskFilters
+  onFilters: (patch: Partial<TaskFilters>) => void
+  onOpenTask: (taskId: string) => void
+  /** The task open in the right panel, outlined on the Board and List. */
+  openTaskId?: string
+  /** A chat notice's link asked for the Chat tab. */
+  openChat: boolean
+  onChatOpened: () => void
+  /**
+   * Told the tasks in the order they show, first first: the List's rows, or
+   * on the other tabs the project's own order, so the right panel can open
+   * the first task on arrival.
+   */
+  onRows: (ids: string[]) => void
+}) {
+  const router = useRouter()
+  const navigate = useNavigate()
+  // List first, and where a new browser starts (Tyler, 19 Oct 2026).
+  const [chosenView, setView] = useRememberedChoice<View>(PROJECT_TASK_VIEW_KEY, "list", VIEWS)
+  // A "Just me" list has no Chat and no Files tab, since nobody else shares it.
+  const hasChat = !page.project.personal
+  const view = (chosenView === "chat" || chosenView === "files") && !hasChat ? "list" : chosenView
+
+  React.useEffect(() => {
+    if (!openChat) return
+    if (hasChat) setView("chat")
+    onChatOpened()
+  }, [openChat, hasChat, setView, onChatOpened])
+  const [tasks, setTasks] = useSyncedDraft(page.tasks)
+  const [statusOrder, setStatusOrder] = useSyncedDraft(page.project.statusOrder)
+  // "3 new" on the Chat tab. Opening the chat reads it, so nothing shows there
+  // and nothing is left once I move on; elsewhere it follows new messages.
+  const [chatUnread, setChatUnread] = useSyncedDraft(page.chatUnread)
+  useProjectLive(
+    hasChat ? page.project.id : undefined,
+    (change) => change === "chat",
+    () => {
+      if (view === "chat") return
+      loadProjectChatUnread(page.project.id).then(setChatUnread, () => undefined)
+    }
+  )
+  // Which New task dropdown is open: the header's, or a Board column's by its key.
+  const [quickOpen, setQuickOpen] = React.useState<string | null>(null)
+  // "More options": the full window, with what the dropdown held.
+  const [full, setFull] = React.useState<NewTaskStart | null>(null)
+  const [deleting, setDeleting] = React.useState<TaskCard | null>(null)
+  // A right-clicked task's menu, and where the last right-click on empty space opened New task.
+  const [taskMenu, setTaskMenu] = React.useState<{ x: number; y: number; task: TaskCard } | null>(null)
+  const [pointNew, setPointNew] = React.useState<{ x: number; y: number; start: QuickStart } | null>(null)
+  // Whether the right button went down on words already picked; read before a Mac picks the word under it.
+  const rightPress = React.useRef(false)
+  const [binOpen, setBinOpen] = React.useState(false)
+  const [savingView, setSavingView] = React.useState(false)
+  // The task waiting for its Stuck reason, and where the Board dropped it.
+  const [stuck, setStuck] = React.useState<{ task: TaskCard; order?: string[] } | null>(null)
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const readOnly = page.project.archived
+  const [massSelectOn, setMassSelectOn] = React.useState(false)
+  // The row whose right-click turned Mass select on, ticked as it starts.
+  const [tickOnStart, setTickOnStart] = React.useState<string | null>(null)
+  // A "Just me" list has one person, so there is nothing to group by.
+  const [chosenGroup, setGroup] = useRememberedChoice<Group>(BOARD_GROUP_KEY, "status", GROUPS)
+  const byPerson = chosenGroup === "person" && !page.project.personal
+  const [handingOver, setHandingOver] = React.useState<PendingHandOver | null>(null)
+
+  const filtered = filterTasks(tasks, filters)
+  // Off the List, the first task is the first in the project's own order.
+  const orderedIds = view === "list" ? null : [...filtered].sort(byPosition).map((task) => task.id).join(",")
+  React.useEffect(() => {
+    if (orderedIds !== null) onRows(orderedIds ? orderedIds.split(",") : [])
+  }, [orderedIds, onRows])
+  // Who a task can go to: the members, and the site admin, who can take tasks themselves.
+  const assignees = page.siteAdminMe ? [...page.members, page.siteAdminMe] : page.members
+  const people = assignees.map((m) => ({ id: m.userId, name: m.name, avatarUrl: m.avatarUrl }))
+  const lanes = React.useMemo<BoardLane[]>(() => {
+    const members = page.members.map((m) => ({ id: m.userId, name: m.name, avatarUrl: m.avatarUrl }))
+    // Someone assigned who has since come off the project still gets a row, so no task goes missing.
+    const others = new Map<string, BoardLane>()
+    for (const task of tasks) {
+      if (task.assignee && !members.some((m) => m.id === task.assignee?.id)) {
+        others.set(task.assignee.id, { id: task.assignee.id, name: task.assignee.name, avatarUrl: task.assignee.avatarUrl })
+      }
+    }
+    return [...members, ...others.values(), { id: NOBODY_LANE, name: "Nobody assigned" }]
+  }, [page.members, tasks])
+  // The List and Timeline's Group row, kept per project in this browser (Tyler, 19 Oct 2026).
+  const [grouping, setGrouping] = useRememberedChoice<TaskGrouping>(
+    taskGroupingKey(page.project.id),
+    "none",
+    TASK_GROUPINGS
+  )
+  const grouped = groupTasks(filtered, grouping)
+
+  async function reorder(taskIds: string[]) {
+    const before = tasks
+    const places = placesAfterReorder(tasks, taskIds)
+    setTasks((current) =>
+      current.map((t) => (places.has(t.id) ? { ...t, position: places.get(t.id)! } : t))
+    )
+    const ok = await run(() => saveTaskOrder(page.project.id, taskIds))
+    if (!ok) setTasks(before)
+    else await router.invalidate()
+  }
+
+  /**
+   * A List row let go: a new order inside its heading, or under another
+   * heading a change to what it is grouped by, then its place there (Tyler,
+   * 24 Oct 2026). Each change is the same save as the task's own picker, so
+   * Stuck asks why and a new person is asked "Hand it over?" first.
+   */
+  function dropRow(drop: ListDrop) {
+    const task = tasks.find((t) => t.id === drop.taskId)
+    if (!task) return
+    if (drop.from === drop.to) return void reorder(drop.taskIds)
+    const order = drop.taskIds
+    const none = drop.to === "none"
+    switch (grouping) {
+      case "status":
+        return requestStatus(task, drop.to as TaskStatus, order)
+      case "assignee": {
+        const person = none ? null : people.find((p) => p.id === drop.to)
+        // Someone no longer on the project: nobody to hand it to, so the drop is ignored rather than unassigning.
+        if (person === undefined) return
+        return setHandingOver({ task, person: person && { id: person.id, name: person.name }, status: task.status, order })
+      }
+      case "priority": {
+        const priority = drop.to as TaskPriority
+        return void moveTask(task, { priority }, () => saveTask({ taskId: task.id, priority }), order)
+      }
+      case "due": {
+        const change = dropChange(drop.to, todayKey())
+        if (!change || !("dueDate" in change)) return
+        const { dueDate } = change
+        return void moveTask(task, { dueDate, dueAt: null }, () => saveTask({ taskId: task.id, dueDate }), order)
+      }
+    }
+  }
+
+  /** One change from a List drop and the task's place under its new heading: shown at once, put back if refused. */
+  async function moveTask(task: TaskCard, patch: Partial<TaskCard>, save: () => Promise<unknown>, order: string[]) {
+    const before = tasks
+    const places = placesAfterReorder(tasks, order)
+    setTasks((current) =>
+      current.map((t) => ({
+        ...t,
+        ...(t.id === task.id ? patch : null),
+        ...(places.has(t.id) ? { position: places.get(t.id)! } : null),
+      }))
+    )
+    const ok = await run(async () => {
+      await save()
+      await saveTaskOrder(page.project.id, order)
+    })
+    if (!ok) setTasks(before)
+    await router.invalidate()
+  }
+
+  /** A new status, and with `order` (the new column's tasks, from the Board) its place there too. */
+  async function changeStatus(
+    task: TaskCard,
+    status: TaskStatus,
+    stuckReason: string | null,
+    order?: string[]
+  ) {
+    if (task.status === status) return true
+    const before = tasks
+    const places = order ? placesAfterReorder(tasks, order) : new Map<string, number>()
+    setTasks((current) =>
+      current.map((t) => ({
+        ...t,
+        ...(t.id === task.id ? { status, stuckReason } : null),
+        ...(places.has(t.id) ? { position: places.get(t.id)! } : null),
+      }))
+    )
+    const ok = await run(async () => {
+      await setStatus({ taskId: task.id, status, stuckReason })
+      if (order) await saveTaskOrder(page.project.id, order)
+    })
+    if (!ok) setTasks(before)
+    await router.invalidate()
+    return ok
+  }
+
+  /** A Board column dropped in a new place: shown at once, saved for everyone on the project, put back if refused. */
+  async function changeStatusOrder(next: TaskStatus[]) {
+    const before = statusOrder
+    setStatusOrder(next)
+    const ok = await run(() => saveStatusOrder({ projectId: page.project.id, statusOrder: next }))
+    if (!ok) setStatusOrder(before)
+    else await router.invalidate()
+  }
+
+  /** A day dropped on the Calendar: the same save as picking the date on the task. */
+  async function changeDueDate(task: TaskCard, dueDate: string | null) {
+    const before = tasks
+    setTasks((current) => current.map((t) => (t.id === task.id ? { ...t, dueDate } : t)))
+    const ok = await run(() => saveTask({ taskId: task.id, dueDate }))
+    if (!ok) setTasks(before)
+    await router.invalidate()
+  }
+
+  /** A bar moved or stretched on the Timeline: the same save as picking the dates on the task. */
+  async function changeDates(task: TaskCard, dates: { startDate?: string | null; dueDate?: string | null }) {
+    const before = tasks
+    setTasks((current) => current.map((t) => (t.id === task.id ? { ...t, ...dates } : t)))
+    const ok = await run(() => saveTask({ taskId: task.id, ...dates }))
+    if (!ok) setTasks(before)
+    await router.invalidate()
+  }
+
+  /**
+   * After "Hand it over?": the same hand-over as the task's person picker,
+   * which tells them and waits for them to accept, then the column it was
+   * dropped in and its place there.
+   */
+  async function handOver({ task, person, status, order }: PendingHandOver) {
+    const ok = await run(
+      async () => {
+        await assignProjectTask({ taskId: task.id, assigneeUserId: person?.id ?? null, note: null })
+        if (status !== task.status) {
+          // Never Stuck here: a drop into another row's Stuck is refused before asking.
+          await setStatus({ taskId: task.id, status, stuckReason: null })
+        }
+        await saveTaskOrder(page.project.id, order)
+      }
+    )
+    if (ok) setHandingOver(null)
+    await router.invalidate()
+  }
+
+  function pickView(next: View) {
+    if (view === "chat") setChatUnread(0)
+    setView(next)
+    // Mass select belongs to the List; leaving it turns it off.
+    setMassSelectOn(false)
+  }
+
+  function requestStatus(task: TaskCard, status: TaskStatus, order?: string[]) {
+    // Stuck needs its reason first; every other move goes straight through.
+    if (status === "stuck") setStuck({ task, order })
+    else void changeStatus(task, status, null, order)
+  }
+
+  const here = { screen: page.viewScreen, people, groups: TASK_GROUPINGS }
+  const taskTab = view !== "activity" && view !== "files" && view !== "chat"
+
+  const thisProject: NewTaskProject = {
+    id: page.project.id,
+    name: page.project.name,
+    color: page.project.color,
+    members: assignees,
+  }
+
+  /** A New task dropdown, opened by `children`. `key` says which one is open. */
+  function quickNewTask(
+    key: string,
+    children: React.ReactNode,
+    start?: QuickStart
+  ) {
+    return (
+      <QuickNewTask
+        projects={[thisProject]}
+        milestones={page.milestones}
+        initialProjectId={page.project.id}
+        status={start?.status}
+        assignee={start?.assignee}
+        priority={start?.priority}
+        due={start?.due}
+        tooltip={start?.tooltip}
+        align={key === HEADER_NEW_TASK ? "end" : "start"}
+        open={quickOpen === key}
+        onOpenChange={(open) => setQuickOpen(open ? key : null)}
+        onMoreOptions={(_projectId, draft) => setFull(draft)}
+        onCreated={rememberProject}
+      >
+        {children}
+      </QuickNewTask>
+    )
+  }
+
+  /** Duplicate from a card's menu: the copy opens beside the Board, as from the task's own cog. */
+  async function duplicate(task: TaskCard) {
+    let copyId = ""
+    const ok = await run(async () => {
+      copyId = (await duplicateProjectTask(task.id)).id
+    })
+    if (!ok) return
+    await router.invalidate()
+    onOpenTask(copyId)
+  }
+
+  async function remove(task: TaskCard) {
+    const ok = await run(() => deleteProjectTask(task.id))
+    if (!ok) return
+    setDeleting(null)
+    // A deleted task can't stay open beside the Board.
+    if (task.id === openTaskId) {
+      void navigate({
+        to: ".",
+        replace: true,
+        search: (previous: Record<string, unknown>) => ({ ...previous, task: undefined }),
+      })
+    }
+    await router.invalidate()
+  }
+
+  /** What a right-click on empty space starts on: the Board column, Calendar day or List heading under the mouse. */
+  function startAt(target: Extract<RightClickTarget, { kind: "new" }>): QuickStart {
+    return {
+      ...(target.group ? startInGroup(grouping, target.group) : null),
+      ...(target.status ? { status: target.status, assignee: laneAssignee(target.lane) } : null),
+      ...(target.due ? { due: target.due } : null),
+    }
+  }
+
+  /**
+   * Right-click (Tyler, 22 Oct 2026): a task's Duplicate and Delete, or New
+   * task at the mouse on empty space. An archived project, a text box, a link
+   * or picked words keep the browser's own menu.
+   */
+  function rightClick(event: React.MouseEvent) {
+    const onPickedWords = rightPress.current
+    rightPress.current = false
+    // A dropdown opened from inside the tabs (a column's "+", a card's "...") is drawn
+    // elsewhere on the page but still passes its right-clicks up to here; it keeps the browser's.
+    if (readOnly || !(event.target instanceof Element) || !event.currentTarget.contains(event.target)) return
+    const target = readRightClick(event.target, onPickedWords)
+    if (!target) return
+    // The keyboard's menu key has no mouse position, so the menu opens under what has focus.
+    const box = event.target.getBoundingClientRect()
+    const at = event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : { x: box.left, y: box.bottom }
+    // The word a Mac picks under the right button isn't the person's, so it doesn't stay picked.
+    if (!onPickedWords) window.getSelection()?.removeAllRanges()
+    if (target.kind === "task") {
+      const task = tasks.find((t) => t.id === target.taskId)
+      if (!task) return
+      event.preventDefault()
+      setQuickOpen(null)
+      setTaskMenu({ ...at, task })
+      return
+    }
+    event.preventDefault()
+    setTaskMenu(null)
+    setPointNew({ ...at, start: startAt(target) })
+    setQuickOpen(POINTER_NEW_TASK)
+  }
+
+  const [selectedSlot, setSelectedSlot] = React.useState<HTMLDivElement | null>(null)
+  // A task is deleted by whoever made it, or by the site admin.
+  const canDelete = (task: TaskCard) => task.createdByUserId === page.myUserId || runsTheTeam(page.myRole)
+
+  // Open tasks for the members dropdown, counted before any filter.
+  const openTasks = tasks.filter((task) => isOpenStatus(task.status))
+
+  // What the Group row shows on this tab, which a saved view keeps with the filters.
+  const viewGroup: TaskGrouping | undefined =
+    view === "board" ? (byPerson ? "assignee" : undefined) : view === "list" || view === "timeline" ? grouping : undefined
+  const viewToSave = { ...filters, group: viewGroup }
+
+  function saveView() {
+    if (!viewHasFilters(viewToSave)) {
+      showErrorToast("Search, pick a filter or choose a group first, then save it as a view.")
+      return
+    }
+    setSavingView(true)
+  }
+
+  /** A saved view's group: the List and Timeline take it, and the Board's rows follow. */
+  function openGroup(next: TaskGrouping) {
+    setGrouping(next)
+    if (!page.project.personal) setGroup(next === "assignee" ? "person" : "status")
+  }
+
+  return (
+    <>
+      {/* Its own stronger line, so the tabs part from the List's grey header (Tyler, 19 Oct 2026:
+          "revert to the way it was but make that header divider appear"). Every other line keeps
+          Settings > Styling's Divider lines, which is too faint to show against that grey. */}
+      <DashboardCardHeader className="@container border-b-muted-foreground/10">
+        <PanelReopenButton side="left" label="Show the project page" />
+        <DashboardTabs
+          value={view}
+          onValueChange={(value) => pickView(value as View)}
+          tabs={[
+            { value: "list", label: "List" },
+            { value: "board", label: "Board" },
+            { value: "calendar", label: "Calendar" },
+            { value: "timeline", label: "Timeline" },
+          ]}
+          after={
+            <MoreViews
+              view={view}
+              hasChat={hasChat}
+              chatUnread={view === "chat" ? 0 : chatUnread}
+              onPick={pickView}
+              onBin={readOnly ? null : () => setBinOpen(true)}
+            />
+          }
+        />
+        {/* Search and Select sit in the header itself, not in a ⋮ (Tyler, 16 Nov 2026:
+            "move the mass select and search outside"), as on My dashboard. */}
+        <div className={cn("ml-auto", TASK_HEADER_BUTTONS, TASK_HEADER_EARLY)}>
+          {taskTab ? (
+            <>
+              {/* The List's "3 selected" button lands here, left of the search. */}
+              {view === "list" ? <div ref={setSelectedSlot} className="contents" /> : null}
+              <TaskSearchBox narrow="early" value={filters.q ?? ""} onChange={(q) => onFilters({ q: q || undefined })} />
+              {/* Mass select is the List's, so only the List offers it. */}
+              {view === "list" && !readOnly ? (
+                <TaskSelectButton
+                  narrow="early"
+                  on={massSelectOn}
+                  onToggle={() => {
+                    setTickOnStart(null)
+                    setMassSelectOn(!massSelectOn)
+                  }}
+                />
+              ) : null}
+              <TaskFilterPopover
+                filters={filters}
+                onChange={onFilters}
+                        buttonVariant="ghost"
+                group={
+                  view === "board"
+                    ? // The Board keeps its status columns; Group only adds a row per person.
+                      page.project.personal
+                      ? undefined
+                      : {
+                          value: byPerson ? "assignee" : "none",
+                          options: BOARD_GROUPINGS,
+                          onChange: (next) => setGroup(next === "assignee" ? "person" : "status"),
+                        }
+                    : view === "list" || view === "timeline"
+                      ? { value: grouping, options: TASK_GROUPINGS, onChange: (next) => setGrouping(next as TaskGrouping) }
+                      : undefined
+                }
+                onSaveView={saveView}
+              />
+              <SavedViewsControls
+                views={page.views}
+                filters={viewToSave}
+                onChange={onFilters}
+                onGroup={openGroup}
+                here={here}
+                saveButton={false}
+                buttonVariant="ghost"
+              />
+              {/* A "Just me" list has one person, so there is nobody to pick. */}
+              {page.project.personal ? null : (
+                <MembersFilterMenu
+                  members={assignees}
+                  myUserId={page.myUserId}
+                  openTotal={openTasks.length}
+                  openUnassigned={openTasks.filter((task) => !task.assignee).length}
+                  value={filters.person}
+                  onChange={(person) => onFilters({ person })}
+                />
+              )}
+            </>
+          ) : null}
+          {readOnly
+            ? null
+            : quickNewTask(
+                HEADER_NEW_TASK,
+                // Words where there is room; an icon with its name in a narrow panel.
+                <Button type="button" className={TASK_HEADER_NEW.early.button} aria-label="New task">
+                  <PlusIcon className="size-4" />
+                  <span className={TASK_HEADER_NEW.early.word}>New task</span>
+                </Button>
+              )}
+        </div>
+        <PanelReopenButton side="right" label="Show the task" />
+      </DashboardCardHeader>
+      {view === "chat" ? (
+        <ProjectChat page={page} />
+      ) : view === "activity" ? (
+        <ProjectActivity projectId={page.project.id} onOpenTask={onOpenTask} />
+      ) : view === "files" ? (
+        <ProjectFiles projectId={page.project.id} onOpenTask={onOpenTask} onOpenChat={() => setView("chat")} />
+      ) : (
+        // List, Board, Calendar and Timeline, and the empty space under them, take a right-click.
+        <div
+          className="flex min-h-0 flex-1 flex-col"
+          onPointerDown={(event) => {
+            if (event.button === 2) rightPress.current = pickedWordsUnder(event.target)
+          }}
+          onContextMenu={rightClick}
+        >
+          {hasTaskFilters(filters) && filtered.length === 0 ? (
+            <div className="grid justify-items-start gap-2 p-4 text-sm text-muted-foreground">
+              <span>No tasks match {filters.q?.trim() ? `"${filters.q.trim()}"` : "these filters"}.</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => onFilters({ ...NO_TASK_FILTERS, person: undefined })}>
+                Clear filters
+              </Button>
+            </div>
+          ) : view === "calendar" ? (
+            <TaskCalendar
+              tasks={filtered}
+              milestones={page.milestones}
+              readOnly={readOnly || busy}
+              onOpenTask={onOpenTask}
+              onDueDate={(task, dueDate) => void changeDueDate(task, dueDate)}
+            />
+          ) : view === "timeline" ? (
+            <TaskTimeline
+              tasks={filtered}
+              groups={grouped?.groups}
+              groupsOf={grouped?.groupsOf ?? noGroups}
+              readOnly={readOnly || busy}
+              onOpenTask={onOpenTask}
+              onDates={(task, dates) => void changeDates(task, dates)}
+            />
+          ) : view === "board" ? (
+            <TaskBoard
+              tasks={filtered}
+              openTaskId={openTaskId}
+              readOnly={readOnly || busy}
+              onOpenTask={onOpenTask}
+              onMove={requestStatus}
+              onReorder={(taskIds) => void reorder(taskIds)}
+              lanes={byPerson ? lanes : undefined}
+              statusOrder={statusOrder}
+              onStatusOrder={(next) => void changeStatusOrder(next)}
+              addTask={
+                readOnly
+                  ? undefined
+                  : (key, status, laneId, button, label) =>
+                      quickNewTask(key, button, { status, tooltip: label, assignee: laneAssignee(laneId) })
+              }
+              cardActions={
+                readOnly
+                  ? undefined
+                  : {
+                      onDuplicate: (task) => void duplicate(task),
+                      onDelete: (task) => setDeleting(task),
+                      canDelete,
+                    }
+              }
+              onHandOver={(task, personId, status, order) => {
+                // A move to Stuck in another row still needs its reason, so it is refused here.
+                if (status === "stuck" && task.status !== "stuck") {
+                  showErrorToast("Hand it over first, then mark it Stuck from its own row.")
+                  return
+                }
+                const person = personId ? (lanes.find((lane) => lane.id === personId) ?? null) : null
+                setHandingOver({ task, person: person && { id: person.id, name: person.name }, status, order })
+              }}
+              // Counted from every task, so a filter never hides who is over the limit.
+              doingWarnings={overDoingLimit(tasks, page.project.doingLimit)}
+            />
+          ) : (
+            <TaskList
+              tasks={filtered}
+              readOnly={readOnly}
+              busy={busy}
+              onOpenTask={(task) => onOpenTask(task.id)}
+              openTaskId={openTaskId}
+              onRows={onRows}
+              groups={grouped?.groups}
+              foldsKey={taskFoldsKey(page.project.id, grouping)}
+              groupsOf={grouped?.groupsOf}
+              ordered={!readOnly}
+              onDrop={readOnly ? undefined : dropRow}
+              canMove={(_from, to) => canMoveInGroup(grouping, to)}
+              bulk={{ people, projects: page.otherProjects }}
+              selectedSlot={selectedSlot}
+              massSelect={{
+                on: massSelectOn,
+                onToggle: () => {
+                  setTickOnStart(null)
+                  setMassSelectOn(!massSelectOn)
+                },
+                tick: tickOnStart,
+              }}
+              onDelete={(task) => setDeleting(task)}
+              canDelete={canDelete}
+              myUserId={page.myUserId}
+              addTask={
+                readOnly
+                  ? undefined
+                  : (groupKey, button) => {
+                      const start = startInGroup(grouping, groupKey)
+                      return start ? quickNewTask(`group:${grouping}:${groupKey}`, button, start) : null
+                    }
+              }
+            />
+          )}
+        </div>
+      )}
+      {taskMenu ? (
+        <TaskRightClickMenu
+          at={taskMenu}
+          onClose={() => setTaskMenu(null)}
+          canDelete={canDelete(taskMenu.task)}
+          onDuplicate={() => void duplicate(taskMenu.task)}
+          onDelete={() => setDeleting(taskMenu.task)}
+          massSelect={
+            view === "list" && !readOnly
+              ? {
+                  on: massSelectOn,
+                  onToggle: () => {
+                    setTickOnStart(massSelectOn ? null : taskMenu.task.id)
+                    setMassSelectOn(!massSelectOn)
+                  },
+                }
+              : undefined
+          }
+        />
+      ) : null}
+      {pointNew && !readOnly
+        ? quickNewTask(POINTER_NEW_TASK, <PointAnchor x={pointNew.x} y={pointNew.y} />, pointNew.start)
+        : null}
+      <NewTaskDialog
+        projects={[thisProject]}
+        milestones={page.milestones}
+        initialProjectId={page.project.id}
+        start={full ?? undefined}
+        open={Boolean(full)}
+        onClose={() => setFull(null)}
+        onCreated={rememberProject}
+      />
+      <BinDialog projectId={page.project.id} open={binOpen} onClose={() => setBinOpen(false)} />
+      <SaveViewDialog open={savingView} filters={viewToSave} here={here} onClose={() => setSavingView(false)} />
+      <ConfirmDialog
+        open={Boolean(handingOver)}
+        onOpenChange={(open) => (open || busy ? undefined : setHandingOver(null))}
+        destructive={false}
+        title={handingOver?.person ? `Hand this task to ${handingOver.person.name}?` : "Take everyone off this task?"}
+        description={
+          handingOver
+            ? handingOver.person
+              ? `"${handingOver.task.title}" goes to ${handingOver.person.name}, who is told and has to accept it.`
+              : `"${handingOver.task.title}" is left with nobody assigned.`
+            : ""
+        }
+        confirmLabel={handingOver?.person ? "Hand over" : "Unassign"}
+        loading={busy}
+        onConfirm={() => (handingOver ? void handOver(handingOver) : undefined)}
+      />
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onOpenChange={(open) => (open || busy ? undefined : setDeleting(null))}
+        title={DELETE_TASK_QUESTION}
+        description={deleting ? `"${deleting.title}". ${DELETE_TASK_DETAIL}` : DELETE_TASK_DETAIL}
+        confirmLabel="Delete task"
+        destructive
+        loading={busy}
+        onConfirm={() => (deleting ? void remove(deleting) : undefined)}
+      />
+      <ReasonDialog
+        open={Boolean(stuck)}
+        title="Why is it stuck?"
+        description={
+          stuck
+            ? `"${stuck.task.title}" moves to Stuck, and whoever handed it out is told.`
+            : ""
+        }
+        label="Reason"
+        confirmLabel="Mark Stuck"
+        busy={busy}
+        onClose={() => setStuck(null)}
+        onConfirm={async (reason) =>
+          stuck ? changeStatus(stuck.task, "stuck", reason, stuck.order) : false
+        }
+      />
+    </>
+  )
+}
+
+const MORE_VIEW_LABEL: Partial<Record<View, string>> = { activity: "Activity", files: "Files", chat: "Chat" }
+
+/**
+ * Activity, Files and Chat, and the bin, behind More beside the four tabs,
+ * as Tyler drew the page on 13 Oct 2026, and drawn as a tab since 14 Oct. While one of the three is showing,
+ * the button wears its name. "3 new" on the project's chat shows on the
+ * button and on Chat.
+ */
+function MoreViews({
+  view,
+  hasChat,
+  chatUnread,
+  onPick,
+  onBin,
+}: {
+  view: View
+  hasChat: boolean
+  chatUnread: number
+  onPick: (view: View) => void
+  /** Null on an archived project. */
+  onBin: (() => void) | null
+}) {
+  const showing = MORE_VIEW_LABEL[view]
+  const unread =
+    chatUnread > 0 ? (
+      <Badge className="h-4 px-1.5">
+        {chatUnread} new<span className="sr-only"> {chatUnread === 1 ? "message" : "messages"}</span>
+      </Badge>
+    ) : null
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {/* Drawn as a fifth tab, marked while one of its views shows. */}
+        <DashboardTabButton active={Boolean(showing)}>
+          {showing ?? "More"}
+          {unread}
+          <ChevronDownIcon className="size-4" />
+        </DashboardTabButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48">
+        <DropdownMenuItem onSelect={() => onPick("activity")}>Activity</DropdownMenuItem>
+        {hasChat ? (
+          <>
+            <DropdownMenuItem onSelect={() => onPick("files")}>Files</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onPick("chat")}>
+              Chat
+              {unread}
+            </DropdownMenuItem>
+          </>
+        ) : null}
+        {onBin ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onBin}>
+              <Trash2Icon className="size-4" />
+              Bin
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}

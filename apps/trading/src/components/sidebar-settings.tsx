@@ -73,7 +73,6 @@ function getSectionIdFromDropId(id: string) {
 
 type SidebarSettingsProps = {
   config: ShellConfig
-  isSaving: boolean
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
 }
@@ -81,7 +80,6 @@ type SidebarSettingsProps = {
 type SortableItemProps = {
   sectionId: string
   item: ShellItem
-  isSaving: boolean
   onItemChange: (
     sectionId: string,
     itemId: string,
@@ -113,7 +111,6 @@ type SortableChildProps = {
 type SortableSectionProps = {
   section: ShellSection
   isDraggingItem: boolean
-  isSaving: boolean
   onSectionTitleChange: (sectionId: string, title: string) => void
   onSectionDelete: (sectionId: string) => void
   onReset: () => void
@@ -241,7 +238,6 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
 function SortableSidebarItem({
   sectionId,
   item,
-  isSaving,
   onItemChange,
   onItemDelete,
   onChildAdd,
@@ -251,6 +247,7 @@ function SortableSidebarItem({
   onSaveConfig,
 }: SortableItemProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [closing, setClosing] = React.useState(false)
   const {
     attributes,
     listeners,
@@ -433,15 +430,19 @@ function SortableSidebarItem({
             </div>
           </DialogBody>
           <DialogFooter variant="plain">
+            {/* Edits already auto-save; this flushes the pending one, then
+                closes — so the modal keeps its Save button. */}
             <Button
               type="button"
-              disabled={isSaving}
+              disabled={closing}
               onClick={async () => {
+                setClosing(true)
                 const saved = await onSaveConfig()
+                setClosing(false)
                 if (saved) setDialogOpen(false)
               }}
             >
-              {isSaving ? "Saving" : "Save"}
+              {closing ? "Saving" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -453,7 +454,6 @@ function SortableSidebarItem({
 function SortableSectionCard({
   section,
   isDraggingItem,
-  isSaving,
   onSectionTitleChange,
   onSectionDelete,
   onReset,
@@ -529,7 +529,7 @@ function SortableSectionCard({
               type="button"
               variant="outline"
               size="sm"
-              className="hover:bg-red-50"
+              className="hover:bg-destructive/10 hover:text-destructive"
               onClick={() => onSectionDelete(section.id)}
               aria-label={`Delete ${section.title || "sidebar section"}`}
             >
@@ -556,7 +556,6 @@ function SortableSectionCard({
                   key={entry.id}
                   sectionId={section.id}
                   item={entry}
-                  isSaving={isSaving}
                   onItemChange={onItemChange}
                   onItemDelete={onItemDelete}
                   onChildAdd={onChildAdd}
@@ -588,7 +587,6 @@ function SortableSectionCard({
 
 export function SidebarSettings({
   config,
-  isSaving,
   onConfigChange,
   onSaveConfig,
 }: SidebarSettingsProps) {
@@ -1020,7 +1018,6 @@ export function SidebarSettings({
                 key={section.id}
                 section={section}
                 isDraggingItem={isDraggingItem}
-                isSaving={isSaving}
                 onSectionTitleChange={handleSectionTitleChange}
                 onSectionDelete={handleSectionDelete}
                 onReset={() => onConfigChange(createDefaultShellConfig())}

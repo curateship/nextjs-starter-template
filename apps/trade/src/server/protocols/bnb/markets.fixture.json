@@ -1,0 +1,412 @@
+{
+  "captured": "2026-09-08; real provider fields, trimmed for tests",
+  "tokens": {
+    "tokens": [
+      {
+        "name": "PancakeSwap Token",
+        "chainId": 56,
+        "symbol": "CAKE",
+        "address": "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
+        "decimals": 18,
+        "logoURI": "https://tokens.pancakeswap.finance/images/0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82.png"
+      },
+      {
+        "name": "8PAY Network v2",
+        "chainId": 56,
+        "symbol": "8PAY v2",
+        "address": "0x6EaDc05928ACd93eFB3FA0DFbC644D96C6Aa1Df8",
+        "decimals": 18,
+        "logoURI": "https://tokens.pancakeswap.finance/images/0x6EaDc05928ACd93eFB3FA0DFbC644D96C6Aa1Df8.png"
+      },
+      {
+        "name": "Bittrue",
+        "chainId": 56,
+        "symbol": "BTR",
+        "address": "0x5a16E8cE8cA316407c6E6307095dc9540a8D62B3",
+        "decimals": 18,
+        "logoURI": "https://tokens.pancakeswap.finance/images/0x5a16E8cE8cA316407c6E6307095dc9540a8D62B3.png"
+      },
+      {
+        "name": "Binance Pegged USDT",
+        "chainId": 56,
+        "symbol": "USDT",
+        "address": "0x55d398326f99059fF775485246999027B3197955",
+        "decimals": 18,
+        "logoURI": "https://tokens.pancakeswap.finance/images/0x55d398326f99059fF775485246999027B3197955.png"
+      },
+      {
+        "name": "WBNB Token",
+        "chainId": 56,
+        "symbol": "WBNB",
+        "address": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+        "decimals": 18,
+        "logoURI": "https://tokens.pancakeswap.finance/images/0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c.png"
+      },
+      {
+        "name": "BTR token",
+        "chainId": 56,
+        "symbol": "BTR",
+        "address": "0xfed13D0c40790220fbdE712987079Eda1Ed75C51",
+        "decimals": 18,
+        "logoURI": "https://tokens.pancakeswap.finance/images/0xfed13D0c40790220fbdE712987079Eda1Ed75C51.png"
+      }
+    ]
+  },
+  "pairs": [
+    {
+      "chainId": "bsc",
+      "pairAddress": "0xAfB2Da14056725E3BA3a30dD846B6BBbd7886c56",
+      "baseToken": {
+        "address": "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",
+        "name": "PancakeSwap Token",
+        "symbol": "Cake"
+      },
+      "priceUsd": "2.30",
+      "volume": {
+        "h24": 5294332.31,
+        "h6": 1318897.73,
+        "h1": 133973.31,
+        "m5": 20803.71
+      },
+      "priceChange": {
+        "m5": 0.22,
+        "h1": 1.35,
+        "h6": -1.03,
+        "h24": 3.62
+      },
+      "liquidity": {
+        "usd": 1036509.42,
+        "base": 133095,
+        "quote": 965.8867
+      }
+    },
+    {
+      "chainId": "bsc",
+      "pairAddress": "0x172fcD41E0913e95784454622d1c3724f546f849",
+      "baseToken": {
+        "address": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+        "name": "Wrapped BNB",
+        "symbol": "WBNB"
+      },
+      "priceUsd": "754.80",
+      "volume": {
+        "h24": 297530131.31,
+        "h6": 88519373.37,
+        "h1": 16287312.68,
+        "m5": 808834.99
+      },
+      "priceChange": {
+        "h1": 0.48,
+        "h6": 0.05,
+        "h24": 2.52
+      },
+      "liquidity": {
+        "usd": 12019282.67,
+        "base": 3096.3724,
+        "quote": 9682125
+      }
+    },
+    {
+      "chainId": "bsc",
+      "pairAddress": "0xBC7AC609Fa730239190A70952e64eE1DFC2530AC",
+      "baseToken": {
+        "address": "0x5a16E8cE8cA316407c6E6307095dc9540a8D62B3",
+        "name": "Bitrue Token",
+        "symbol": "BTR"
+      },
+      "priceUsd": "0.01469",
+      "volume": {
+        "h24": 96.11,
+        "h6": 0,
+        "h1": 0,
+        "m5": 0
+      },
+      "priceChange": {
+        "h24": 0.64
+      },
+      "liquidity": {
+        "usd": 59190.3,
+        "base": 2014275,
+        "quote": 29823
+      }
+    },
+    {
+      "chainId": "bsc",
+      "pairAddress": "0x787ABD73593Bed588852163402d191C302c7f8b6",
+      "baseToken": {
+        "address": "0xfed13D0c40790220fbdE712987079Eda1Ed75C51",
+        "name": "BTR token",
+        "symbol": "BTR"
+      },
+      "priceUsd": "0.05013",
+      "volume": {
+        "h24": 3660986.65,
+        "h6": 1323236.99,
+        "h1": 142468.71,
+        "m5": 7601.08
+      },
+      "priceChange": {
+        "m5": -0.43,
+        "h1": -1.37,
+        "h6": -4.97,
+        "h24": 9
+      },
+      "liquidity": {
+        "usd": 550910.7,
+        "base": 5191427,
+        "quote": 290651
+      }
+    }
+  ],
+  "pools": {
+    "data": [
+      {
+        "id": "bsc_0x172fcd41e0913e95784454622d1c3724f546f849",
+        "type": "pool",
+        "attributes": {
+          "base_token_price_usd": "0.999828670544697",
+          "base_token_price_native_currency": "0.00131967101655506",
+          "quote_token_price_usd": "754.71",
+          "quote_token_price_native_currency": "1.0",
+          "base_token_price_quote_token": "0.001319671017",
+          "quote_token_price_base_token": "757.764615162",
+          "address": "0x172fcd41e0913e95784454622d1c3724f546f849",
+          "name": "USDT / WBNB 0.01%",
+          "pool_created_at": "2025-11-09T12:44:04Z",
+          "fdv_usd": "9182010719.37863",
+          "market_cap_usd": "9182319853.76057",
+          "price_change_percentage": {
+            "m5": "0.001",
+            "m15": "0.039",
+            "m30": "0.022",
+            "h1": "-0.029",
+            "h6": "-0.046",
+            "h24": "-0.018"
+          },
+          "transactions": {
+            "m5": {
+              "buys": 2022,
+              "sells": 2314,
+              "buyers": 1004,
+              "sellers": 1102
+            },
+            "m15": {
+              "buys": 5695,
+              "sells": 6053,
+              "buyers": 2293,
+              "sellers": 2459
+            },
+            "m30": {
+              "buys": 12051,
+              "sells": 12630,
+              "buyers": 3982,
+              "sellers": 4465
+            },
+            "h1": {
+              "buys": 34352,
+              "sells": 38932,
+              "buyers": 7801,
+              "sellers": 8547
+            },
+            "h6": {
+              "buys": 169919,
+              "sells": 212323,
+              "buyers": 21657,
+              "sellers": 23180
+            },
+            "h24": {
+              "buys": 550716,
+              "sells": 680076,
+              "buyers": 43965,
+              "sellers": 42780
+            }
+          },
+          "volume_usd": {
+            "m5": "732132.312600374",
+            "m15": "2238878.5262683",
+            "m30": "5240708.10228872",
+            "h1": "15836519.4152092",
+            "h6": "87332071.5659342",
+            "h24": "293303253.768101"
+          },
+          "reserve_in_usd": "11980988.4045"
+        },
+        "relationships": {
+          "base_token": {
+            "data": {
+              "id": "bsc_0x55d398326f99059ff775485246999027b3197955",
+              "type": "token"
+            }
+          },
+          "quote_token": {
+            "data": {
+              "id": "bsc_0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+              "type": "token"
+            }
+          },
+          "dex": {
+            "data": {
+              "id": "pancakeswap-v3-bsc",
+              "type": "dex"
+            }
+          }
+        }
+      },
+      {
+        "id": "bsc_0xbec6906a984f4695aca0f15bafa7de5eb45b54ab",
+        "type": "pool",
+        "attributes": {
+          "base_token_price_usd": "5.4475893885417",
+          "base_token_price_native_currency": "0.007195635456554289",
+          "quote_token_price_usd": "0.995968912904269",
+          "quote_token_price_native_currency": "0.00131967101655506",
+          "base_token_price_quote_token": "5.4525979326",
+          "quote_token_price_base_token": "0.1833988151",
+          "address": "0xbec6906a984f4695aca0f15bafa7de5eb45b54ab",
+          "name": "BNC4 / USDT 0.25%",
+          "pool_created_at": "2026-09-08T01:57:22Z",
+          "fdv_usd": "4640251.0351046",
+          "market_cap_usd": null,
+          "price_change_percentage": {
+            "m5": "-0.312",
+            "m15": "-0.717",
+            "m30": "-6.004",
+            "h1": "-1.612",
+            "h6": "-29.933",
+            "h24": "45.422"
+          },
+          "transactions": {
+            "m5": {
+              "buys": 889,
+              "sells": 942,
+              "buyers": 586,
+              "sellers": 666
+            },
+            "m15": {
+              "buys": 2922,
+              "sells": 2779,
+              "buyers": 1664,
+              "sellers": 1645
+            },
+            "m30": {
+              "buys": 8353,
+              "sells": 7191,
+              "buyers": 3612,
+              "sellers": 3577
+            },
+            "h1": {
+              "buys": 33689,
+              "sells": 29916,
+              "buyers": 9180,
+              "sellers": 8214
+            },
+            "h6": {
+              "buys": 152179,
+              "sells": 135161,
+              "buyers": 24314,
+              "sellers": 22210
+            },
+            "h24": {
+              "buys": 523992,
+              "sells": 473662,
+              "buyers": 42520,
+              "sellers": 35914
+            }
+          },
+          "volume_usd": {
+            "m5": "168567.96724111",
+            "m15": "702904.095657988",
+            "m30": "2270692.3199842",
+            "h1": "12091264.5379189",
+            "h6": "56851171.1145334",
+            "h24": "204764000.782016"
+          },
+          "reserve_in_usd": "1976669.491"
+        },
+        "relationships": {
+          "base_token": {
+            "data": {
+              "id": "bsc_0x7c8d5502b544ddaf8852fc46d1174e34876d545c",
+              "type": "token"
+            }
+          },
+          "quote_token": {
+            "data": {
+              "id": "bsc_0x55d398326f99059ff775485246999027b3197955",
+              "type": "token"
+            }
+          },
+          "dex": {
+            "data": {
+              "id": "pancakeswap-v3-bsc",
+              "type": "dex"
+            }
+          }
+        }
+      }
+    ],
+    "included": [
+      {
+        "id": "bsc_0x55d398326f99059ff775485246999027b3197955",
+        "type": "token",
+        "attributes": {
+          "address": "0x55d398326f99059ff775485246999027b3197955",
+          "name": "Tether USD",
+          "symbol": "USDT",
+          "decimals": 18,
+          "image_url": "https://coin-images.coingecko.com/coins/images/35021/large/USDT.png?1707233575",
+          "banner_image_url": null,
+          "coingecko_coin_id": "binance-bridged-usdt-bnb-smart-chain"
+        }
+      },
+      {
+        "id": "bsc_0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+        "type": "token",
+        "attributes": {
+          "address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+          "name": "Wrapped BNB",
+          "symbol": "WBNB",
+          "decimals": 18,
+          "image_url": "https://coin-images.coingecko.com/coins/images/12591/large/binance-coin-logo.png?1696512401",
+          "banner_image_url": null,
+          "coingecko_coin_id": "wbnb"
+        }
+      },
+      {
+        "id": "bsc_0x7c8d5502b544ddaf8852fc46d1174e34876d545c",
+        "type": "token",
+        "attributes": {
+          "address": "0x7c8d5502b544ddaf8852fc46d1174e34876d545c",
+          "name": "Cea Industries",
+          "symbol": "BNC4",
+          "decimals": 18,
+          "image_url": null,
+          "banner_image_url": null,
+          "coingecko_coin_id": null
+        }
+      },
+      {
+        "id": "bsc_0xeec6574eabba52bac3f0277f2cd5ac7e67197886",
+        "type": "token",
+        "attributes": {
+          "address": "0xeec6574eabba52bac3f0277f2cd5ac7e67197886",
+          "name": "Kiichain",
+          "symbol": "KII",
+          "decimals": 18,
+          "image_url": "https://coin-images.coingecko.com/coins/images/102175539/large/KII.jpg?1786688852",
+          "banner_image_url": null,
+          "coingecko_coin_id": "kiichain"
+        }
+      }
+    ]
+  },
+  "security": {
+    "code": 1,
+    "message": "OK",
+    "result": {
+      "0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82": {
+        "is_honeypot": "0"
+      }
+    }
+  }
+}

@@ -1,0 +1,543 @@
+# CMS and Custom Shell
+
+CMS uses the shared Custom Shell code for accounts, billing, automations,
+navigation, public pages and settings. Directory routes, tables, migrations,
+imports and app options belong to CMS.
+
+The CMS settings tabs are registered in `src/app/options.ts`. Directory and
+Listing badges load their own panels through the shell's settings tab
+extension. Adding a CMS setting does not require editing the shared settings
+page.
+
+CMS enables `workspaces.siteBranding`. A site is branded with **one picture**:
+its logo, saved on that site, from which the app makes the dark version and
+cuts the browser-tab icons. A site that has uploaded none is drawn with the
+app's logo instead. Its share image sits beside it, and both are edited in
+Platform settings → General settings, which shows them above the app-wide logo
+whenever an app has site branding on.
+
+CMS had a Site identity tab of its own until 27 Sep 2026, with a favicon, a
+logo, a dark logo, a share image, the site name and an accent colour. The name
+and the colour were second copies of General settings and Public → Styling, and
+the favicon and dark logo were two uploads the app now makes itself. Tyler
+called it redundant; the tab is gone and nothing it did is lost. The site's
+accent colour is Public → Styling → Brand, on `publicTheme.brandColor`,
+including colours converted by migration
+`0075_custom_shell_public_brand_color`.
+
+The shell's site-branding contract is documented once in the repo's
+`docs/shell/shell-and-apps.md`.
+
+Settings → Public pages → Front page belongs to the site you are in, from
+27 Sep 2026. It was one set of rows for the whole deployment until then, which
+is why a second website would have opened with the first one's hero. Rows saved
+app-wide before that date are still in the app-wide record and are no longer
+read or shown here: on Tyler's call every site starts with none and is built
+from scratch. A site with no rows draws its header and its footer with nothing
+between them, rather than the deployment's own sign-up block. There is no limit
+on how many rows a page has.
+
+The shell also takes kinds of row from an app, through
+`pages.frontPageRowKinds` and its server half `pages.frontPageRowReaders`, and
+CMS registers five: listings, category cards, upcoming events, current deals and
+latest posts. That is the whole of the old Settings → Directory → Home page
+builder, which is gone along with its table. `workspace/docs/home-page-rows.md`
+says what the five hold and what fills them.
+
+A site's `/` is the shell's front page now. This app still claims that address
+in its options, but only to forward the deployment's own root to sign-in; a
+site's root is answered "not mine" so the shell draws it.
+
+Platform Navigation combines the sidebar and top right menu editors. Top left
+max items sits inside the sidebar card and keeps the existing saved limit.
+Member Navigation groups the member editors separately. Sidebar sections use
+16px gaps to match their card inset, and menu actions stay inside their cards.
+CMS-specific settings remain under This app.
+
+Public Navigation is three cards, one per part of a public page: Header layout,
+which holds the Public menu and the Action items row, then Breadcrumbs, then
+Public footer, which holds Social accounts and Copyright. Public Styling is
+five cards: Brand, Page frame, Spacing and borders, Header and footer, and
+Modal. Every on-or-off setting in the shell's settings screens is the same
+switch row, and a save the server refuses names the field it is waiting for
+instead of reporting a save that did not happen.
+
+The shell's optional app-owned left header content keeps the standard sidebar
+links as its fallback. CMS leaves this option unset. Worker builds expand the
+page registry so CMS's page declarations remain available outside Vite.
+
+## Applying updates
+
+Copy shell-owned files from Custom Shell. Keep CMS's `src/app/`, directory
+files, migrations, import scripts, environment and workspace documents.
+Preserve the `cms` package name and the import command when merging package
+scripts and dependencies. Regenerate the route tree from CMS's combined routes.
+
+Run the full test suite after a shell merge, then the app and Node TypeScript
+checks. Validate the existing CMS server on port 3015 in a browser.
+
+CMS also inherits the shell's Storage settings, generated brand images,
+plan-change confirmations and header quick settings. CMS keeps its own site
+identity panel and directory settings. Sidebar width belongs to each person.
+
+CMS also inherits the shell's public header, footer and breadcrumbs, public
+styling presets, resized public pictures, the page loading bar, per-page search
+engine controls and the bell that clears its number without marking notices
+read.
+
+One container owns a public page's left and right edge. `public-page-frame.tsx`
+works that padding out once and hands it to the header, the content column and
+the footer, so the logo, the cards and the footer links line up at every window
+width, and Settings > Styling > Spacing and borders moves all three together.
+Space after the logo, in Settings > Public > Navigation > Header layout, is a
+whole number of pixels from 0 to 400 and only applies from 1024px up, where the
+menu words are in the bar. The front page can open with a hero row, its blocks
+share one vertical spacing, and the plan cards and the FAQ are the shell's.
+
+Every draggable chip in Settings drags from any part of itself, not only from
+the six-dot grip on its left: the public menu's links and dropdown groups, the
+action items, the social accounts and the signed-in top-right menu. The cursor
+is an open hand over a chip and an arrow over its name, and a click on the name
+still opens that chip's window. A chip's window types normally: its box is drawn
+outside the chip but React sent its keys up to the chip's drag listeners, where a
+space meant "lift this chip" and never reached the box, so a public menu link's
+name could not contain a space. The chip's listeners now ignore anything that
+did not happen inside the chip itself. Pressing Done in that window also closes
+it once: the id a chip is keyed on now survives the link being edited, where
+before the edited link got a new id, the chip was rebuilt, and the window it
+held was drawn a second time before closing.
+
+Add row opens a window of cards, one per kind of row, with CMS's own five,
+Listings, Category cards, Upcoming events, Current deals and Latest posts,
+under their own heading and each with its own icon named in `src/app/options.ts`.
+Picking a card makes the row and opens it. A row then keeps the kind it was
+made with: the row window states the kind and offers no way to change it.
+
+Each front page row chooses where it sits across the page and which of its
+parts a visitor sees. Alignment offers Follow the site, Left, Centred and
+Right, and Follow the site reads CMS's own Content alignment setting, so no
+row moved when this arrived. The row window is three cards that all fold away,
+Row content, the card for the row's kind, then Visibility at the bottom, and
+Visibility holds Hide this row from visitors plus a switch for the heading, the
+introduction, and the parts that belong to that kind. These are the shell's
+app-wide front page rows, not the per-site directory rows, which have their own
+editor and are untouched by this.
+
+The public site can read its headings in Libre Baskerville. The face is
+self-hosted in `public/fonts/`, alongside Inter, under the SIL Open Font
+License, and `src/theme.css` declares it. A shell merge that changes the fonts
+has to copy `public/fonts/` as well as `src/`, or the heading font falls back
+silently.
+
+Dark mode has a shade setting. Settings > Styling > Dark mode offers Near
+black, Charcoal, Graphite and Soft grey, and every grey surface lifts together
+so the text keeps the same contrast at all four. A workspace that has never
+chosen one reads as Near black, which is the dark mode CMS always had. The
+public pages have no shade control and stay near black whatever the signed-in
+app is set to.
+
+A page now has three tiers of grey, darkest first: the page behind the cards,
+then the sidebar rail and the sticky bar, then the cards. The page is
+`--shell-canvas` in `src/theme.css` and the rail is halfway between it and a
+card, so a card reads as raised in both light and dark. Styling's old "Main
+content area" and "Sidebar & sticky bar" colour pickers are gone, because
+`styling.content` blended toward `--muted`, which sits below a card in light
+mode and above it in dark, so one saved number turned the page darker than the
+cards in one mode and lighter in the other. Both fields stay in the saved row
+and the public side still reads them.
+
+Tab strips and the colour-mode switcher move one pill. The raised white
+background is a single element behind the buttons rather than a background on
+the chosen one, so switching slides it across instead of blinking it from one
+place to the next, and `src/lib/hooks/use-sliding-pill.ts` measures it from
+whichever button is selected. Flipping light to dark freezes every transition
+for two frames so the page does not fade one colour at a time, and anything
+carrying `data-keep-motion` is exempt, which is how the switcher's own pill
+still slides while the page repaints.
+
+A window's backdrop fades in over the same 150ms as the window, and the blurred
+page behind it eases rather than switching on.
+
+A public page keeps the page it is drawing while the next one loads.
+`src/lib/hooks/use-painted-pathname.ts` reads the address on screen rather than
+the one being fetched, so clicking into the admin no longer re-aligns the front
+page for the half second before it goes.
+
+The public footer sits where it is told. Settings > Public > Navigation >
+Public footer > Footer alignment offers Follow the site, Left and Centred, and
+Follow the site reads Styling > Page frame > Content alignment, which is what
+every site saved before the choice existed reads as. The footer reads the
+site's own alignment rather than the page's, so a card page centring its one
+box says nothing about where the footer belongs.
+
+The front page has its own row spacing. Settings > Public pages > Front page >
+Space between rows is a whole number of pixels up to 160, a phone draws 70% of
+it because a desktop-sized gap is most of a phone screen, and flat mode still
+collapses both. The default is 80px, which is the 5rem `src/theme.css` always
+drew.
+
+CMS keeps two shell files forked on purpose.
+`src/components/pages/site-search-page.tsx` uses `publicCardHover` from
+`src/lib/layout/card-hover.ts` instead of the shell's `hover:bg-accent/40`, so
+search results lift and cast a shadow like every other CMS card. It stays a
+fork until that hover moves into the shell.
+`src/lib/format/bulk-result.ts` counts a third pile, the records that were
+already the way the button would set them, which "Change many at once" needs
+and the shell's copy does not have. A shell merge must not overwrite it. Both
+forks end when the shell takes the same change.
+
+## The 3 October 2026 hero background merge
+
+Six shell files came over: the front page model and its test, the front page
+rows and their test, the row dialog and the settings schema. `src/theme.css`
+gained two rules at the end. No migration: the field it changes already
+existed.
+
+**A hero's background colour has two colours now, one per mode.** It used to
+be a single hex code used in light mode and dark mode alike, so a pale band
+glared on a dark page. Background colour is a list of three. **No colour**
+leaves the page showing. **Muted grey** is a slider, 0 to 100, where the left
+end is barely off the page and the right end is a clear band, and the same
+drag darkens the band in light mode and lightens it in dark mode. **Fixed
+colour** is the old colour square and hex box, and a hex is still one colour
+in both modes, because that is what a hex means.
+
+Under the slider sit two swatches, the light band and the dark band side by
+side, redrawing as you drag.
+
+**Why `theme.css` changed.** An inline `background-color` is one colour and
+cannot change when the page turns dark, so the band carries
+`--shell-hero-band-light` and `--shell-hero-band-dark` as custom properties
+plus a `data-hero-band` attribute, and two rules at the end of `theme.css`
+pick between them.
+
+**What a row stores** is `grey-<n>` or `#rrggbb`, never the CSS it becomes,
+which is what keeps a settings field from writing CSS into a visitor's
+browser.
+
+## The 3 October 2026 picture and picker merge
+
+Seven shell files came over: the hero block, the media picker and its test, the
+picture thumbnail, the picture field, the front page row editor and the
+feedback box. No migration.
+
+**A hero's picture keeps its own shape.** It used to sit in a fixed 16:9 box
+set to fit inside, so a picture that was not 16:9 was drawn small in the middle
+of that box with grey bars either side of it. The picture now fills the width
+of its column and is as tall as its own shape makes it. A 720 by 720 picture in
+a 556px column draws 556 by 556, where before it was 313 by 313 inside a 556 by
+313 grey box. Nothing is cropped.
+
+**The media picker is always its own window.** It used to have a second mode
+that drew the whole library inside the window that opened it, which in a 96px
+picture field stretched the field across the form and ran off the bottom of the
+screen. That mode is gone, so the picker opens over the window that asked for
+it and Escape closes only the picker.
+
+## What the second 30 September 2026 shell merge brought
+
+The first that day was the dark shade and the sliding pill. This one carried the
+shell's `fbfd6c5a7` and `db61e4efa`.
+
+**A Divider front page row.** An eighth shell row kind, beside the five CMS adds
+of its own. It has no words: it draws a thin line, three dots, or nothing at
+all, which leaves a gap between the rows either side of it. Its Heading box is
+labelled Name, because the name only shows in the rows list in Settings. The
+divider carries its own Shade, 0 to 100, and does not read
+Settings > Styling > Divider lines, so one break on a site's front page can be
+stronger than the hairlines inside a card.
+
+**A third Layout, Whole screen.** Full width and Narrow are unchanged and no
+saved row moves. A whole-screen row steps outside the public content column and
+the page's own left and right edge, so it runs from one side of the window to
+the other. `<main>` now carries `overflow-x-clip` so the window never gains a
+sideways scrollbar. Every row kind can use it, CMS's five included.
+
+**A fix to the segment window.** Editing a hand-picked segment used to be able
+to empty it: the window asks the server for its people after it opens, and Save
+was live during the wait, so renaming a segment then deleted everybody in it.
+Save is now held with its reason shown until the people arrive, a failed load
+says so in the card with Try again, and a tick made during the wait is merged
+with the arriving list.
+
+No migration is owed. Front page rows live in the settings JSON, and the
+segment fix is all in the browser.
+
+## The CRM, and a hero's own colour
+
+Carried from the shell on 3 October 2026.
+
+**The CRM.** Email that comes in becomes a lead you can chase. Admin → CRM is
+an inbox of conversations down one side and the lead's own record down the
+other: their stage, what the work is worth, and when to chase them. Mail
+arrives through Resend's inbound webhook on the address set in
+Settings → Email → Inbound address, and a reply goes back out from that same
+address so the answer lands in the CRM rather than in a send-only mailbox.
+
+A lead is an email address, not a contact. Somebody writing in has not asked
+for the newsletter, so an inbound address never adds itself to the audience.
+It links to a contact only when one already exists on that address, or when
+somebody presses Add to contacts.
+
+Replies go out under a name set once in Settings → Email, with a signature of
+a name, a business and a phone number under them, and they quote the message
+they answer unless that is switched off. Answering a closed or snoozed thread
+puts it back in the inbox. A chase date that passes puts a notice in the bell,
+and clicking the notice opens that conversation.
+
+**A hero's own background colour.** A front page hero row can carry a colour,
+painted as a band right across the window whatever its Layout says, with a
+switch to run that colour under the menu. With the switch on the menu bar
+stops painting its own background, so the colour is what shows through its
+blur. Only the top row of the page can do it. The shell's own
+`docs/content/hero-background-colour.md` in custom-shell has the detail.
+
+**Also carried:** the bell's unread count and its unread list stopped being the
+same thing, written pages gained `hidden_from_search` and `canonical_url`, and
+the public menu's text size is now a setting.
+
+## Migrations
+
+The current shell includes database migrations through
+`0085_custom_shell_crm_quote_replies.sql`. CMS numbers its own migrations
+past the shell's, so a shell migration takes the next free CMS number and keeps
+its name. The shell's `0080` and `0081` are CMS's
+`0102_custom_shell_notifications_seen.sql` and
+`0103_custom_shell_per_page_index_controls.sql`, and the shell's `0082` to
+`0085` are CMS's `0113` to `0116`, all four of them the CRM: its six tables,
+the inbound address, the reply name, the signature, and the quote switch. The
+`crm_follow_up` notice type is added to the `notifications` check constraint,
+which is a widening, so no saved notice stops being valid. Apply pending migrations
+with `npm run db:migrate` against the intended CMS database before running the
+updated app. Supply `CUSTOM_SHELL_DATABASE_URL` explicitly; the migration
+command does not load a local environment file. The background worker has its own build and start commands,
+`npm run build:worker` and `npm run worker`. Production releases must run that
+worker for scheduled shell and directory work.
+
+CMS retains its earlier `0077_custom_shell_sidebar_width_per_person.sql`.
+The shell's `0078` migration repeats that operation safely. Migration tracking
+uses the full filename, so the two `0077` filenames do not conflict.
+
+## Shell merge, 5 October 2026
+
+The shell was merged in again on 5 Oct 2026, from `apps/shell` in ws-4.
+Shell-origin files were replaced wholesale after each one was proved to be an
+unmodified older shell version: the app's copy was hashed and matched against
+every version of that file in the repository's history. A file with no match is
+a real fork and was left alone.
+
+**Never overwritten, in any app.** `src/app/options.ts`,
+`src/app/server-options.ts`, `src/app/open-endpoints.ts`, `src/routeTree.gen.ts`
+and `src/lib/layout/scaffold-styling.ts`. The first three are the app's own
+answers to the shell, the route tree is generated per app, and the styling file
+is the live Custom Shell styling that Personal IDE writes into a generated app.
+
+**What arrived.** The CRM, page blocks, the front page editor at
+`/admin/pages/edit`, the sliding tab pill, the three-tier dark canvas, blocked
+senders, and the smaller fixes between the app's last merge and this one. Plus
+the three changes made in the shell the same day: the external-link button that
+appears when the pointer is on the workspace block at the top of the sidebar,
+Members and Public moving back into the Platform settings card, and
+`src/border-first.css`, which stops every divider being drawn near-black for the
+first frames of a fresh page load.
+
+**What was deleted.** The shell replaced the settings-based front page row
+editor with the page-blocks editor, and moved two of its files into
+`src/components/pages/`. The old copies were still sitting in this app, out of
+step with the shell they were written against. Every file removed was proved to
+have come from the shell, to be gone from the shell now, and to be imported by
+nothing outside the group removed with it.
+
+**The route tree was regenerated** with `@tanstack/router-generator` rather than
+by starting a dev server. The generator drops the trailing
+`declare module '@tanstack/react-start'` Register block that the Vite plugin
+writes, and it typechecks fine without it, so the block was put back from the
+committed file and the resulting diff checked to be purely additive.
+
+**This app.** 84 shell files updated, 35 added and 7 removed. Six migrations
+were carried, the shell's `0086` through `0091`, as CMS's `0117` through
+`0122`: page blocks, written pages as blocks, the cold contact status, delivery
+clicks, the automation engagement index and blocked senders.
+
+**CMS keeps two forks, both deliberate.** `components/pages/site-search-page.tsx`
+uses `publicCardHover` from its own `lib/layout/card-hover.ts` instead of the
+shell's `hover:bg-accent/40`, and `lib/format/bulk-result.ts` is ahead of the
+shell's. Both were left exactly as they were. The search-page fork conflicts on
+every merge until that hover moves into the shell, which would change the
+shell's own search cards, and Tyler has not decided.
+
+## Shell merge, 5 October 2026 (second)
+
+A small one on top of the merge earlier the same day: eight files, no
+migrations, no new routes, and nothing for the route generator to rebuild. Every
+app was exactly seven files behind and gained one new file.
+
+- **The Tag rule is a combobox.** Contacts → Filters → Tag, and the same field in
+  the segment window, now picks from the tags contacts actually carry instead of
+  taking comma-separated text. `src/components/ui/multi-combobox.tsx` is the new
+  control, built from the Popover, ScrollArea and Badge already here rather than
+  from a new dependency.
+- **Each block in the page editor's list wears its kind's mark**, the same
+  picture the cards on the left use.
+- **Both states of the editor's right-hand panel have a button that shuts every
+  card at once.** The cards hear it through an optional signal in
+  `inspector-card.tsx`, so any panel that puts no button in its header — the
+  newsletter editor, the automation panels — is unchanged.
+- **The block list's header links to the page itself**, opening it in a new tab.
+
+Nothing was deleted and nothing forked. CMS's `lib/format/bulk-result.ts` is no
+longer a fork at all: the previous merge folded its "already that way" count
+into the shell's own copy, and this merge confirms the two are identical again.
+
+## Shell merge, 15 October 2026
+
+Every shell change since the 5 Oct merges is in CMS. 70 shell files were
+replaced and 14 added. Each replaced file was first matched against every
+version of that file in custom-shell's history, and all 70 were unmodified
+older shell copies. Nothing was deleted. `site-search-page.tsx` stays CMS's
+own, as above; the shell has not changed it since.
+
+**What arrived.**
+
+- **A page an admin adds has its own picture and a description**, and the
+  Pages list block shows chosen pages as cards with both.
+- **AI has its own row in Settings**, at Platform settings → AI
+  (`/admin/settings/ai`), below Payments.
+- **"Test this key" says why a key failed**, in the provider's own words, and
+  Gemini runs on its current models instead of the retired 2.5 ones.
+- **A Passkeys switch in Settings → General** turns passkey sign-in off for the
+  whole app while keeping saved passkeys.
+- **Three billing fixes.** The checkout return page asks Stripe itself, a
+  monthly to yearly switch starts a new paid period that day, and the
+  `billing.returnPaths` app option names where Stripe sends people back to.
+- **The top left of the signed-in header can show a breadcrumb or shortcuts**
+  instead of the left menu's links. "Top left shows" sits on Platform settings
+  → Navigation for admins and on Members → Navigation for members. Sidebar
+  links stays the default, so nothing changes until someone picks another.
+- **Adding the app to a phone's home screen works properly.** A web app
+  manifest is served at `/manifest.webmanifest`, built from the app's name and
+  logo, with the `homeScreen` app option to change where the icon opens.
+- **A table's heading row is underlined with the divider colour** from
+  Settings → Styling, so it no longer reads as a double line under a panel
+  header.
+- **Smaller fixes:** the date picker, the rich text editor and the AI model
+  list picked up the shell's latest copies.
+
+**Two migrations**, under CMS's next free numbers:
+`0125_custom_shell_written_page_picture.sql` (shell 0092) and
+`0126_custom_shell_written_page_description.sql` (shell 0093). Neither is
+applied yet, locally or live.
+
+**Kept as CMS's own.** `scripts/setup-database.mjs` stays the shell's file
+without the CRM sample step, and `package.json` was left alone because it
+already has everything the shell added. `src/routeTree.gen.ts` was rebuilt
+with the route generator to take the one new route, `/manifest.webmanifest`,
+and the diff is additions only.
+
+**Tests.** The type check is clean. Two `broadcast-send.test.ts` tests failed
+only when three apps' suites ran at once, and pass alone. **One test fails in the shell too.** `public-branding.test.ts` expects the
+public header settings without the `menuFontSize` field the shell now writes.
+It fails the same way in `apps/shell`.
+
+## Shell merge, 30 October 2026
+
+Every shell change since the 15 Oct merge is in Directory. 97 files were
+replaced, 65 added (four of them migrations) and 8 deleted. Each replaced file
+was first matched against every version of that file in the shell's history.
+`src/components/shell/shell-layout.tsx` was not a plain older copy: it carried
+a panel view addition the shell had made too, so a three-way merge came out as
+the shell's copy.
+
+**What arrived.**
+
+- **Contacts and Segments are one three-column dashboard**, with CSV import,
+  notes on a contact, Filter, New and mass select, and the old contacts page,
+  segments page and contact window deleted.
+- **App roles.** An app can add its own kinds of account beside admin and
+  member. Directory declares none yet, so every account works as before.
+- **Big video uploads** go to storage in pieces, up to 5GB, which needs
+  `@aws-sdk/s3-request-presigner`. It is added to `package.json` at the
+  version the shell uses.
+- **An automation's test run picks a contact**, and webhooks skip in tests.
+- **Saved views and a Dashboard tabs setting** for three-column dashboards.
+- **Every table line is drawn from one rule**, and a panel header's bottom line
+  becomes the table's top line when a table sits right under it.
+- **Settings → Styling → Left menu shade**, a slider that sets the left menu
+  and top bar between the page colour and a card's colour.
+- **The front page and `/login` are the sign-in card alone.**
+- **The worker build drops stylesheets**, so a CSS import can no longer stop
+  the worker from starting.
+
+**The panel view is gone.** `src/lib/layout/panel-view.ts` and its test are
+deleted, because the shell removed them on 30 Oct: Personal no longer frames
+apps that way.
+
+**Four migrations owed**, under Directory's next free numbers:
+`0132_custom_shell_app_roles.sql` (shell 0094),
+`0133_custom_shell_test_run_contact.sql` (shell 0095),
+`0134_custom_shell_contact_notes.sql` (shell 0096) and
+`0135_custom_shell_saved_views.sql` (shell 0097). None is applied yet, locally
+or live.
+
+**Kept as Directory's own.** `scripts/setup-database.mjs` stays Directory's,
+because the shell's copy now imports the CRM sample script Directory does not
+carry and names the shell's own database. `src/app/open-endpoints.ts` and
+`.prettierrc` stay Directory's own. `src/components/pages/site-search-page.tsx`
+is a shell file Directory edited to use its own card hover; the shell has not
+changed it since, so it was left as it is. No route was added, so
+`src/routeTree.gen.ts` is unchanged.
+
+## Shell merge, 5 November 2026
+
+Every shell change up to 5 Nov is in Directory: 85 files replaced and 25 added, with nothing deleted. Each replaced file was first matched against every version of that file in the shell's history, and each was an unedited older shell copy.
+
+**What arrived.**
+
+- **Big uploads pick up where they stopped.** An upload carries on after a closed tab and can be paused. A line at the edge of the screen shows it on every page. The Media library shows storage used and its monthly cost. One video is still capped at 5GB unless the app sets `media.videoMaxBytes`, as `docs/shell/big-uploads.md` explains.
+- **The Views button keeps the picked view picked.** It remembers the view last opened on each screen in this browser. It opens that view again on arrival, and has a "No view" row to leave it.
+- **The 3 Nov shell clean-up.** The Settings cards share one auto-save hook, one secret key box and one dropdown row. The email and automation editors share one frame. Menu upgrade steps 1 to 12 are gone from `src/lib/workspaces.ts`. On 3 Nov every live site counted (Trade, Fitness, Video, Project, Date, Note, Flowfly, Course and course-de) was on step 12 or later.
+- **One folding menu for every ⋮ and "+ Add" dropdown**, `src/components/shared/folding-menu.tsx`. See `docs/shell/folding-menu.md`.
+- **Pages that open with no signal**, through `useOfflinePages` and `public/offline-worker.js`. Nothing switches it on until the app calls the hook, as `docs/shell/offline-pages.md` explains.
+- **The Overview's widget tabs follow Settings → Styling → Dashboard tabs.**
+- **`homeScreen.shareTarget`**, which can put the app in an Android phone's share menu. It does nothing until the app sets it.
+- **The dev server leaves `playwright-core` out of its start-up scan**, in `vite.config.ts`. That package's Mac add-on stopped the dev server starting.
+- **The document editor takes an app's own `clean` rule**, so an app can add kinds of content to a document. Leaving it out keeps today's rules. See `docs/shell/document-editor.md`.
+
+**No migration was new.** The shell has added none since 0097, and Directory already had every one.
+
+**Kept as Directory's own.** `src/app/` stays Directory's own, and so does `src/app/open-endpoints.ts`, which lists Directory's own open endpoints. `.prettierrc` and `src/components/pages/site-search-page.tsx` stay Directory's own, because the shell has not changed them since Directory's copy. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` were left out, because Directory keeps its own `scripts/setup-database.mjs`, which never loads them.
+
+**One Directory file changed to fit.** The shell's `DocumentEditor` now works out the document's type from its `value`. The rich text field in `src/components/directory/listing-custom-fields.tsx` names it as `DocumentEditor<WrittenPageNode>`, because its empty value would otherwise read as any kind of document.
+
+## Shell merge, 12 November 2026
+
+Every shell change since the 7 Nov shell at `e69b7243e` is in Directory, up to the shell at `9757749ff`: 266 files replaced, 179 added and 75 deleted. Each replaced or deleted file was an unedited older shell copy, so nothing Directory changed was lost.
+
+**What arrived.**
+
+- **The Admin dashboard is one three-panel screen.** Overview, Users, Plans, Feedback, Announcements, Analytics and the Media library are sections of its Dashboards block, and Pages, Styling and Navigations sit inside it too. Their old separate screens are gone.
+- **The CRM is one three-panel dashboard**, with accounts, subscribers and leads as three separate lists, Leads as its own section, lead tags, and Newsletter, Contacts, System emails and Dev outbox inside it.
+- **Automations is one three-panel dashboard**, Automations and Waiting on you, with each flow's runs on its own tab and templates in the editor's palette. The old `/admin/automations/<id>` and template addresses are gone.
+- **Settings → Styling gained Blocks, widgets, Side panels and Panel cards**, with Reset panels, Opacity for the first card in a side panel, and a border shade of its own for the left menu and top bar under Sidebar & Top navigation.
+- **The header's Settings cog can hold links**, and Navigations' link editors open as popovers.
+- **Nothing pops up when something works.** Success toasts and Undo bars are gone from the shell's screens. Failures still raise the red error toast.
+- **Referrals and the changelog are gone**, along with their tables.
+
+**Migrations.** Shell 0098 to 0114 are this app's 0136 to 0152. 0144 drops the referral and changelog tables, and 0149 deletes the mailing-list contacts marked Account. They run on the local database the next time the dev server starts, and on live at the next deploy. **Directory is live**, so both run on the live database at its next deploy, and the dropped tables cannot come back.
+
+**Kept as Directory's own.** `src/app/`, `scripts/setup-database.mjs` and the route list's own routes; the route list was rebuilt with the router generator, and the shell's `@tiptap/extension-list` package was added. The shell's sample scripts `crm-samples.mjs`, `crm-samples.test.mjs` and `send-sample-inbound.mjs` stay out, as before.
+
+**Checked.** Typecheck is clean in both the app and node configs. Tests were not run. Not checked in a browser: no dev server on this app's port runs from workspace-4.
+
+## Shell merge, 15 November 2026
+
+Every shell change since `9757749ff` is in Directory, up to the shell at `83d208d87`: 23 files replaced and 4 added. Each replaced file was an unedited copy of an older shell version.
+
+**What arrived.**
+
+- **Settings -> Styling -> Sidebar & Top navigation has a Style choice.** Own shade is the look the left menu and top bar always had. Same grey as the page makes the left menu, the top bar and the page one grey, with no line along the left menu's edge or under the top bar. It is `sidebarStyle`, saved with the site's styling, so no migration. Tyler, 14 Nov 2026: "add an option in styling settings to choose between the currant sidebar/topnav styling to this (the bg and the side and top as one gray shade)".
+- **Shell polish.** The media picker rings only the picture Select will use. Review and send no longer sends on a stray Enter, and refuses to send until it has counted who gets it. Adding everybody the filters match to a segment asks first. Renaming a big hand-picked segment works. Typed page settings survive opening a block. The Cloudflare R2 card tests new details before saving them instead of saving on a timer.
+
+**No migration was new**, nothing was deleted, and no route changed. `scripts/setup-database.mjs` keeps Directory's own version.
+
+**Checked.** Typecheck has 2 errors in Directory's own `automation-events.ts` (a contact's `userId`), both there before the merge. The 140 tests in the 9 changed test files pass. Not checked in a browser: no dev server on this app's port runs from workspace-4.

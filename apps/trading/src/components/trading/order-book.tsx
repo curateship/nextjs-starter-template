@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { formatPriceDisplay } from "@/components/trading/format"
+import { formatPrice, pct } from "@/lib/format"
 import { useL2Book } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
 import { cn } from "@/lib/utils"
@@ -70,9 +70,9 @@ export function OrderBook({
       <div className="flex items-center justify-between border-y bg-muted/40 px-3 py-1 font-mono text-[11px] tabular-nums">
         <span className="text-muted-foreground">Spread</span>
         <span>
-          {formatPriceDisplay(spread)}{" "}
+          {formatPrice(spread)}{" "}
           <span className="text-muted-foreground">
-            ({spreadPct.toFixed(3)}%)
+            ({pct(spreadPct, 3)})
           </span>
         </span>
       </div>
@@ -134,7 +134,7 @@ function BookRow({
           side === "bid" ? "text-emerald-600" : "text-red-500"
         )}
       >
-        {formatPriceDisplay(px)}
+        {formatPrice(px)}
       </span>
       <span className="relative text-right">{sz}</span>
       <span className="relative text-right text-muted-foreground">

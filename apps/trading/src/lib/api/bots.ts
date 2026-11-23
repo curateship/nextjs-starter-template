@@ -2,12 +2,18 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import type { JsonValue } from "@/lib/api/audit"
+import type { GuardianStatus } from "@/lib/api/guardian"
 import { hyperliquidMarketSchema } from "@/lib/hl/market-symbol"
 import {
   normalizeAutomationConfig,
-  automationConfigSchema,
   type AutomationConfig,
 } from "@/lib/strategies/strategy-config"
+
+export type BotListPosition = {
+  market: string
+  szi: number
+  entry_px: number
+}
 
 export type BotListItem = {
   id: string
@@ -21,14 +27,36 @@ export type BotListItem = {
   wallet_label: string
   network: string
   realized_pnl: number
+  /** Realized P&L for the current UTC day, summed across the bot's markets. */
+  daily_realized_pnl: number
+  /**
+   * Open per-market positions, both modes. A live bot's figure is its
+   * wallet's position on that market — manual trades on the same wallet
+   * and market are included.
+   */
+  positions: BotListPosition[]
   trade_count: number
   created_at: string
   updated_at: string
 }
 
+export type FleetEvent = {
+  id: string
+  bot_id: string
+  bot_name: string
+  level: string
+  type: string
+  message: string
+  created_at: string
+}
+
 export type BotListResponse = {
   bots: BotListItem[]
   workerOnline: boolean
+  /** Account-level kill-switch state, shown as the bots-page banner. */
+  guardian: GuardianStatus
+  /** Newest events across the fleet (last 100), for the activity feed. */
+  events: FleetEvent[]
 }
 
 export type BotMarketState = {
@@ -51,6 +79,12 @@ export type BotDetailResponse = {
     paper_starting_equity: number | null
     source_name: string | null
     automation_id: string | null
+    /**
+     * The source automation has been saved with different settings since
+     * this run last took them. Saves never touch a deployed run — the admin
+     * applies by hand (pause → apply → resume).
+     */
+    settings_behind: boolean
   }
   states: BotMarketState[]
   trades: {
@@ -63,6 +97,8 @@ export type BotDetailResponse = {
     fee: string
     closed_pnl: string | null
     fill_time: string
+    /** The resting order's limit price behind this fill, for slippage. */
+    order_px: string | null
   }[]
   open_orders: {
     id: string
@@ -86,35 +122,8 @@ export type BotDetailResponse = {
     wins: number
     losses: number
   }
+  workerOnline: boolean
 }
-
-const createBotSchema = z
-  .object({
-    name: z.string().min(1).max(255),
-    walletId: z.string().min(1),
-    markets: z.array(hyperliquidMarketSchema).min(1),
-    exchange: z.string().min(1).max(20).default("hyperliquid"),
-    mode: z.enum(["paper", "live"]),
-    /** The bot's config is the Automation's server-compiled snapshot. */
-    automationId: z.string().uuid(),
-    paperStartingEquity: z.number().positive().max(100_000_000).optional(),
-  })
-  .superRefine((input, ctx) => {
-    if (input.markets.length !== 1) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["markets"],
-        message: "Automation bots can trade exactly one market.",
-      })
-    }
-  })
-
-const updateBotSchema = z.object({
-  botId: z.string().min(1),
-  name: z.string().min(1).max(255),
-  markets: z.array(hyperliquidMarketSchema).min(1),
-  params: automationConfigSchema,
-})
 
 const botCommandSchema = z.object({
   botId: z.string().min(1),
@@ -145,12 +154,23 @@ const loadBotsFn = createServerFn({ method: "GET" }).handler(
   }
 )
 
+const loadAutomationBotFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ automationId: z.string().uuid() }))
+  .handler(async ({ data }): Promise<{ botId: string | null }> => {
+    const user = await requireUser()
+    const { getAutomationBotId } = await import("@/server/bots")
+    return { botId: await getAutomationBotId(user.id, data.automationId) }
+  })
+
 const loadBotDetailFn = createServerFn({ method: "POST" })
   .inputValidator(botIdSchema)
   .handler(async ({ data }): Promise<BotDetailResponse> => {
     const user = await requireUser()
     const { getBotDetail } = await import("@/server/bots")
-    const detail = await getBotDetail(user.id, data.botId)
+    const [detail, workerOnline] = await Promise.all([
+      getBotDetail(user.id, data.botId),
+      botWorkerOnline(),
+    ])
 
     return {
       bot: {
@@ -169,8 +189,10 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
           : null,
         source_name: detail.sourceName,
         automation_id: detail.bot.automationId,
+        settings_behind: detail.settingsBehind,
         realized_pnl: Number(detail.aggregates?.realizedPnl ?? 0),
         trade_count: Number(detail.aggregates?.tradeCount ?? 0),
+        ...aggregateBotStates(detail.states),
       },
       states: detail.states.map((state) => ({
         market: state.market,
@@ -198,6 +220,7 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
         fee: trade.fee,
         closed_pnl: trade.closedPnl,
         fill_time: trade.fillTime.toISOString(),
+        order_px: trade.orderPx,
       })),
       open_orders: detail.openOrders.map((order) => ({
         id: order.id,
@@ -221,32 +244,72 @@ const loadBotDetailFn = createServerFn({ method: "POST" })
         wins: Number(detail.aggregates?.wins ?? 0),
         losses: Number(detail.aggregates?.losses ?? 0),
       },
+      workerOnline,
     }
   })
 
-const createBotFn = createServerFn({ method: "POST" })
-  .inputValidator(createBotSchema)
+const deployBotSchema = z.object({
+  automationId: z.string().uuid(),
+  markets: z.array(hyperliquidMarketSchema).min(1).max(200),
+  walletId: z.string().min(1),
+  mode: z.enum(["paper", "live"]),
+  paperStartingEquity: z.number().positive().max(100_000_000).optional(),
+})
+
+/** Deploys the automation as its live run (the editor's Bot mode). */
+const deployBotFn = createServerFn({ method: "POST" })
+  .inputValidator(deployBotSchema)
   .handler(async ({ data }): Promise<{ botId: string }> => {
     const { requireAppOrigin } = await import("@/server/origin")
-    const { createUserBot } = await import("@/server/bots")
+    const { deployAutomationBot } = await import("@/server/bots")
     requireAppOrigin()
     const user = await requireUser()
-    const bot = await createUserBot(user.id, data)
-    return { botId: bot.id }
+    return deployAutomationBot(user.id, data)
   })
 
-const updateBotFn = createServerFn({ method: "POST" })
-  .inputValidator(updateBotSchema)
+const updateMarketsSchema = z.object({
+  botId: z.string().min(1),
+  markets: z.array(hyperliquidMarketSchema).min(1).max(200),
+})
+
+/** Edits a run's market list; the worker restarts its runners to match. */
+const updateBotMarketsFn = createServerFn({ method: "POST" })
+  .inputValidator(updateMarketsSchema)
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const { requireAppOrigin } = await import("@/server/origin")
-    const { updateUserBot } = await import("@/server/bots")
+    const { updateBotMarkets } = await import("@/server/bots")
     requireAppOrigin()
     const user = await requireUser()
-    await updateUserBot(user.id, data.botId, {
-      name: data.name,
-      markets: data.markets,
-      params: data.params,
-    })
+    await updateBotMarkets(user.id, data.botId, data.markets)
+    return { ok: true }
+  })
+
+const renameBotSchema = z.object({
+  botId: z.string().min(1),
+  name: z.string().trim().min(1).max(255),
+})
+
+/** Names a bot run — a named run is kept; the next deploy won't replace it. */
+const renameBotFn = createServerFn({ method: "POST" })
+  .inputValidator(renameBotSchema)
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { renameUserBot } = await import("@/server/bots")
+    requireAppOrigin()
+    const user = await requireUser()
+    await renameUserBot(user.id, data.botId, data.name)
+    return { ok: true }
+  })
+
+/** Pulls the automation's saved settings into a PAUSED bot, by hand. */
+const applyBotSettingsFn = createServerFn({ method: "POST" })
+  .inputValidator(botIdSchema)
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { requireAppOrigin } = await import("@/server/origin")
+    const { applyAutomationSettings } = await import("@/server/bots")
+    requireAppOrigin()
+    const user = await requireUser()
+    await applyAutomationSettings(user.id, data.botId)
     return { ok: true }
   })
 
@@ -287,16 +350,29 @@ export function loadBots() {
   return loadBotsFn()
 }
 
+/** The bot deployed from an automation (latest), for the editor's Bot tab. */
+export function loadAutomationBot(automationId: string) {
+  return loadAutomationBotFn({ data: { automationId } })
+}
+
 export function loadBotDetail(botId: string) {
   return loadBotDetailFn({ data: { botId } })
 }
 
-export function createBot(input: z.infer<typeof createBotSchema>) {
-  return createBotFn({ data: input })
+export function deployBot(input: z.infer<typeof deployBotSchema>) {
+  return deployBotFn({ data: input })
 }
 
-export function updateBot(input: z.infer<typeof updateBotSchema>) {
-  return updateBotFn({ data: input })
+export function renameBot(botId: string, name: string) {
+  return renameBotFn({ data: { botId, name } })
+}
+
+export function updateBotMarkets(botId: string, markets: string[]) {
+  return updateBotMarketsFn({ data: { botId, markets } })
+}
+
+export function applyBotSettings(botId: string) {
+  return applyBotSettingsFn({ data: { botId } })
 }
 
 export function sendCommand(
@@ -323,31 +399,96 @@ async function requireUser() {
   return user
 }
 
-async function botListForUser(userId: string): Promise<BotListResponse> {
-  const { listUserBots } = await import("@/server/bots")
+/**
+ * Folds a bot's per-market state rows into what the fleet list needs: open
+ * positions (persisted for both paper and live brokers) and realized
+ * P&L for the current UTC day (the worker keys dailyPnlDate to UTC).
+ */
+function aggregateBotStates(
+  rows: {
+    market: string
+    paperPosition: unknown
+    dailyRealizedPnl: string | number | null
+    dailyPnlDate: string | null
+  }[]
+): { positions: BotListPosition[]; daily_realized_pnl: number } {
+  const today = new Date().toISOString().slice(0, 10)
+  const positions: BotListPosition[] = []
+  let daily = 0
+  for (const row of rows) {
+    const raw = row.paperPosition as {
+      szi?: unknown
+      entryPx?: unknown
+    } | null
+    const szi = raw ? Number(raw.szi ?? 0) : 0
+    if (szi !== 0) {
+      positions.push({
+        market: row.market,
+        szi,
+        entry_px: Number(raw?.entryPx ?? 0),
+      })
+    }
+    if (row.dailyPnlDate === today) daily += Number(row.dailyRealizedPnl ?? 0)
+  }
+  return { positions, daily_realized_pnl: daily }
+}
+
+/** True while the bot worker's newest heartbeat is fresh (last 30s). */
+async function botWorkerOnline(): Promise<boolean> {
   const { desc, sql } = await import("drizzle-orm")
   const { db } = await import("@/server/db")
   const { tradingWorkerHeartbeats } = await import("@/server/schema")
+  const [heartbeat] = await db
+    .select({ lastSeenAt: tradingWorkerHeartbeats.lastSeenAt })
+    .from(tradingWorkerHeartbeats)
+    .where(sql`${tradingWorkerHeartbeats.meta}->>'workerKind' = 'bot'`)
+    .orderBy(desc(tradingWorkerHeartbeats.lastSeenAt))
+    .limit(1)
+  return heartbeat
+    ? Date.now() - heartbeat.lastSeenAt.getTime() < 30_000
+    : false
+}
 
-  const [rows, [heartbeat]] = await Promise.all([
-    listUserBots(userId),
-    db
-      .select({ lastSeenAt: tradingWorkerHeartbeats.lastSeenAt })
-      .from(tradingWorkerHeartbeats)
-      .where(sql`${tradingWorkerHeartbeats.meta}->>'workerKind' = 'bot'`)
-      .orderBy(desc(tradingWorkerHeartbeats.lastSeenAt))
-      .limit(1),
-  ])
+async function botListForUser(userId: string): Promise<BotListResponse> {
+  const { listUserBots, listUserBotStates, listUserBotEvents } = await import(
+    "@/server/bots"
+  )
+  const { getGuardianStatus } = await import("@/server/guardian")
+
+  const [rows, stateRows, workerOnline, guardian, eventRows] =
+    await Promise.all([
+      listUserBots(userId),
+      listUserBotStates(userId),
+      botWorkerOnline(),
+      getGuardianStatus(userId),
+      listUserBotEvents(userId),
+    ])
+
+  const statesByBot = new Map<string, typeof stateRows>()
+  for (const state of stateRows) {
+    const list = statesByBot.get(state.botId)
+    if (list) list.push(state)
+    else statesByBot.set(state.botId, [state])
+  }
 
   return {
     bots: rows.map((row) => ({
       ...serializeBotRow(row.bot, row.walletLabel, row.network),
       realized_pnl: Number(row.realizedPnl),
       trade_count: row.tradeCount,
+      ...aggregateBotStates(statesByBot.get(row.bot.id) ?? []),
     })),
-    workerOnline: heartbeat
-      ? Date.now() - heartbeat.lastSeenAt.getTime() < 30_000
-      : false,
+    workerOnline,
+    guardian,
+    events: eventRows.map((row) => ({
+      id: row.id,
+      bot_id: row.botId,
+      bot_name: row.botName,
+      level: row.level,
+      type: row.type,
+      message: row.message,
+      created_at: row.createdAt.toISOString(),
+    })),
   }
 }
 

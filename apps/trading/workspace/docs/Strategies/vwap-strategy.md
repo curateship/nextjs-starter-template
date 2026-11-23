@@ -1,5 +1,11 @@
 # VWAP Strategy — Build, Backtesting, and Findings
 
+> **REMOVED July 17, 2026.** The VWAP indicator is gone from the app: the
+> chart overlay, the VWAP Cross automation indicator, and the `vwap()` /
+> `vwapBands()` math were all deleted. No saved automations, backtests, or
+> bots used it (checked in the database before removal). This document is
+> kept as a historical record of what was learned.
+
 July 8, 2026. This documents everything built and learned while adding a VWAP
 strategy to the trading app: the strategy itself, the backtesting campaign
 (including several honest course-corrections), a dashboard bug that was

@@ -20,13 +20,16 @@ const worker = {
   currentActivity: "Running",
   latestError: null,
   userPaused: null,
+  watchdogLastCheckAt: "2026-07-15T11:59:30.000Z",
+  lastIncidentAt: "2026-07-14T09:00:00.000Z",
+  lastIncidentOngoing: false,
   metrics: [{ label: "Running", value: "1" }],
 }
 
 const initial: WorkersDashboardData = {
   checkedAt: "2026-07-15T12:00:00.000Z",
   canControl: true,
-  overview: { online: 4, active: 4, pausedOrOff: 0, needsAttention: 0 },
+  overview: { online: 5, active: 5, pausedOrOff: 0, needsAttention: 0 },
   workers: [
     {
       ...worker,
@@ -49,6 +52,12 @@ const initial: WorkersDashboardData = {
     },
     {
       ...worker,
+      kind: "alert",
+      label: "Alert Worker",
+      description: "Watches Trade alerts.",
+    },
+    {
+      ...worker,
       kind: "backtest",
       label: "Backtest Worker",
       description: "Runs backtests.",
@@ -63,9 +72,13 @@ describe("WorkersSettings", () => {
     expect(markup).toContain("Bot Worker")
     expect(markup).toContain("Whale Scanner")
     expect(markup).toContain("Market Scanner")
+    expect(markup).toContain("Alert Worker")
     expect(markup).toContain("Backtest Worker")
     expect(markup).toContain("Pause my rules")
-    expect(markup.match(/Turn off/g)).toHaveLength(4)
-    expect(markup.match(/>Pause</g)).toHaveLength(4)
+    expect(markup.match(/Turn off/g)).toHaveLength(5)
+    expect(markup.match(/>Pause</g)).toHaveLength(5)
+    expect(markup.match(/Watchdog check/g)).toHaveLength(5)
+    expect(markup.match(/Last incident/g)).toHaveLength(5)
+    expect(markup).toContain("recovered")
   })
 })

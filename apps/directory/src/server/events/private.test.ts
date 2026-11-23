@@ -1,0 +1,275 @@
+import { readdirSync, readFileSync } from "node:fs"
+import path from "node:path"
+
+import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+
+import { createCategory } from "@/server/directory/categories"
+import { createListing } from "@/server/directory/listings"
+import { setContentCategories } from "@/server/directory/content-categories"
+import type { VisitorSite } from "@/server/directory/public"
+import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
+import { createEvent, updateEvent } from "@/server/events/events"
+import * as publicReads from "@/server/events/public"
+import { EVENT_CONTENT_TYPE, siteEvents } from "@/server/events/schema"
+import {
+  createTestDatabase,
+  insertWorkspace,
+  type TestDatabase,
+} from "@/server/test-support"
+
+/**
+ * A private event opens from its link and is missing from every list. The old
+ * Directory app let each list check for itself, and all but one forgot, so
+ * these tests fail the moment a new public read of events is added without
+ * being proven to leave private events out.
+ */
+
+let client: PGlite
+let database: TestDatabase
+let site: VisitorSite
+let listed: string
+let listedId: string
+let unlisted: { id: string; slug: string }
+
+// 3:00pm on Saturday 26 September 2026 in Toronto, the site's zone.
+const at = new Date("2026-09-26T19:00:00Z")
+const siteNow = "2026-09-26T15:00"
+
+async function publishedEvent(title: string, visibility: "public" | "private") {
+  const created = await createEvent(
+    site.id,
+    { title, when: { startDate: "2026-10-03", startTime: "18:00" } },
+    database
+  )
+  const event = await updateEvent(
+    site.id,
+    created.id,
+    { status: "published", visibility, placeName: "The Local" },
+    database
+  )
+  return { id: event.id, slug: event.slug }
+}
+
+beforeEach(async () => {
+  resetPublicDirectoryCacheForTests()
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db
+  const alpha = await insertWorkspace(database, { name: "Alpha" })
+  site = { id: alpha.id, name: alpha.name, url: "https://alpha.example.com" }
+  const open = await publishedEvent("Open market", "public")
+  listed = open.slug
+  listedId = open.id
+  unlisted = await publishedEvent("Members market", "private")
+})
+
+afterEach(async () => {
+  resetPublicDirectoryCacheForTests()
+  await client.close()
+})
+
+type PublicRead = keyof typeof publicReads
+
+/**
+ * Every function `public.ts` exports. A list returns the addresses it shows a
+ * visitor. Anything else says why it is not a list. A new export that is
+ * missing here fails the type check and the first test below.
+ */
+const everyPublicRead: Record<
+  PublicRead,
+  (() => Promise<string[]>) | { notAList: string }
+> = {
+  readUpcomingEvents: async () =>
+    (
+      await publicReads.readUpcomingEvents(site, 1, siteNow, database)
+    ).events.map((event) => event.slug),
+  readEventsBetween: async () =>
+    (
+      await publicReads.readEventsBetween(
+        site,
+        "2026-09-27",
+        "2026-11-07",
+        database
+      )
+    ).map((event) => event.slug),
+  eventSearchResults: async () =>
+    (await publicReads.eventSearchResults(site.id, "market", 10, database)).map(
+      (result) => result.path.replace("/events/", "")
+    ),
+  readEventSuggestions: async () =>
+    (
+      await publicReads.readEventSuggestions(site.id, "market", at, database)
+    ).map((row) => row.slug),
+  eventSitemapFile: async () =>
+    ((await publicReads.eventSitemapFile(site.id, 0, database, at)) ?? []).map(
+      (entry) => entry.path.replace("/events/", "")
+    ),
+  eventSitemapFiles: {
+    notAList:
+      "Counts the numbered files and never names an event. Proven by the sitemap tests, where a site of only private events has none.",
+  },
+  newestEventsForFeed: async () =>
+    (await publicReads.newestEventsForFeed(site.id, 20, database)).map(
+      (row) => row.slug
+    ),
+  readCalendarFeed: async () =>
+    (await publicReads.readCalendarFeed(site.id, at, database))?.events.map(
+      (event) => event.slug
+    ) ?? [],
+  readPublicEvent: {
+    notAList: "One event by its address: the link a private event is for.",
+  },
+  eventPageExists: {
+    notAList:
+      "Whether one event's page opens at an address an old link forwards to, the same rule as readPublicEvent.",
+  },
+  eventsArePublic: { notAList: "Reads the Events page's switch." },
+  findEventPlace: { notAList: "Finds a listing by its address, not events." },
+  findReportableEvent: {
+    notAList:
+      "One event by its id, for a visitor reporting a page they opened.",
+  },
+  readEventCategories: {
+    notAList: "Lists categories, not events. Proven on its own below.",
+  },
+  eventsAccessFor: { notAList: "Reads the Events page's switch." },
+  readEventDateCounts: {
+    notAList: "Counts events rather than naming them. Proven on its own below.",
+  },
+  readEventPins: async () => {
+    // Both events on the map, so the read has a private pin to leave out.
+    for (const id of [listedId, unlisted.id]) {
+      await database
+        .update(siteEvents)
+        .set({ latitude: 43.65, longitude: -79.38 })
+        .where(eq(siteEvents.id, id))
+    }
+    resetPublicDirectoryCacheForTests()
+    const shown = await publicReads.readEventPins(site, siteNow, database)
+    return shown.pins.map((pin) => pin.slug)
+  },
+  readEventNeighbours: async () => {
+    // Both events at one listing, read from a third that is not either.
+    const listing = await createListing(site.id, { title: "The Rex" }, database)
+    for (const slug of [listed, unlisted.slug]) {
+      const id = slug === listed ? listedId : unlisted.id
+      await updateEvent(site.id, id, { listingId: listing.id }, database)
+    }
+    const shown = await publicReads.readEventNeighbours(
+      site,
+      { id: "someone-else", seriesKey: "someone-else", listingId: listing.id },
+      siteNow,
+      database
+    )
+    return [...shown.dates, ...shown.atPlace].map((row) => row.slug)
+  },
+}
+
+describe("private events", () => {
+  it("names every function public.ts exports", () => {
+    const exported = Object.entries(publicReads)
+      .filter(([, value]) => typeof value === "function")
+      .map(([name]) => name)
+      .sort()
+    expect(Object.keys(everyPublicRead).sort()).toEqual(exported)
+  })
+
+  for (const [name, read] of Object.entries(everyPublicRead)) {
+    if (typeof read !== "function") continue
+    it(`are left out of ${name}`, async () => {
+      const shown = await read()
+      // The public event proves the read found something to leave out from.
+      expect(shown).toContain(listed)
+      expect(shown).not.toContain(unlisted.slug)
+    })
+  }
+
+  it("still open from their link, marked private", async () => {
+    const page = await publicReads.readPublicEvent(
+      site,
+      unlisted.slug,
+      database
+    )
+    expect(page?.event.isPrivate).toBe(true)
+    const open = await publicReads.readPublicEvent(site, listed, database)
+    expect(open?.event.isPrivate).toBe(false)
+  })
+
+  it("are never counted behind the Events page's date chips", async () => {
+    const counts = await publicReads.readEventDateCounts(
+      site,
+      siteNow,
+      [{ from: "2026-10-03", to: "2026-10-03" }],
+      database
+    )
+    // One public event on that day, and the private one beside it uncounted.
+    expect(counts).toEqual({ anyTime: 1, windows: [1], past: 0 })
+  })
+
+  it("never make a category a filter on the Events page", async () => {
+    const members = await createCategory(site.id, { name: "Members" }, database)
+    await setContentCategories(
+      site.id,
+      EVENT_CONTENT_TYPE,
+      unlisted.id,
+      [members.id],
+      database
+    )
+    expect(await publicReads.readEventCategories(site.id, database)).toEqual([])
+
+    await updateEvent(site.id, unlisted.id, { visibility: "public" }, database)
+    resetPublicDirectoryCacheForTests()
+    expect(
+      (await publicReads.readEventCategories(site.id, database)).map(
+        (row) => row.slug
+      )
+    ).toEqual([members.slug])
+  })
+
+  it("come back to every list when switched to public", async () => {
+    await updateEvent(site.id, unlisted.id, { visibility: "public" }, database)
+    resetPublicDirectoryCacheForTests()
+    for (const read of Object.values(everyPublicRead)) {
+      if (typeof read === "function") {
+        expect(await read()).toContain(unlisted.slug)
+      }
+    }
+  })
+})
+
+describe("the events table", () => {
+  /**
+   * Only these files may read the table. A list written anywhere else would
+   * skip the private filter in `public.ts`, so it has to live there instead.
+   */
+  const allowed = [
+    "server/directory/custom-sections.ts", // Admin: counts and clears events' answers to the site's own event fields, never lists events.
+    "server/directory/featured.ts", // Featured spots: an owner's own events and the admin's placements.
+    "server/directory/listings-dashboard.ts", // Admin: a listing's events and the reports queue on the Listings dashboard.
+    "server/directory/reports.ts", // Admin: the reports queue names each event.
+    "server/events/events-dashboard.ts", // Admin: the Events dashboard's rows, counts and Overview.
+    "server/events/events.ts", // Admin → Events, which shows everything.
+    "server/events/place.ts", // Column rules for a listing as the place.
+    "server/events/public.ts", // Every public read, through the one filter.
+    "server/events/repeats.ts", // Admin: a repeating event's dates.
+    "server/events/schedule.ts", // Admin: one event cancelled or postponed by id, and the pass emailing its own list.
+    "server/events/schema.ts",
+    "server/events/share-image.ts", // One event's card, found by its address.
+    "server/events/sign-ups.ts", // One event's sign-up box, found by its id.
+    "server/events/waiting-list.ts", // One event at a time, by id, for the queue behind it.
+  ]
+
+  it("is read only by the admin, the public reads and the share card", () => {
+    const root = path.resolve(__dirname, "../..")
+    const readers = readdirSync(root, { recursive: true, encoding: "utf8" })
+      .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file))
+      .filter((file) =>
+        /\bsiteEvents\b/.test(readFileSync(path.join(root, file), "utf8"))
+      )
+      .map((file) => file.split(path.sep).join("/"))
+      .sort()
+    expect(readers).toEqual(allowed)
+  })
+})

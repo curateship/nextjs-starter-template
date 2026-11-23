@@ -44,9 +44,9 @@ describe("market scanner trade stream", () => {
     )
 
     await stream.start()
-    expect(stream.meta().marketScannerSubscriptions).toBe(0)
+    expect(stream.meta().subscriptions).toBe(0)
     await vi.advanceTimersByTimeAsync(10_000)
-    expect(stream.meta().marketScannerSubscriptions).toBe(1)
+    expect(stream.meta().subscriptions).toBe(1)
 
     stream.stop()
     expect(unsubscribe).toHaveBeenCalledOnce()

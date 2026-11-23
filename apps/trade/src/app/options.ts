@@ -1,0 +1,242 @@
+import {
+  CandlestickChartIcon,
+  PinIcon,
+  SearchIcon,
+  TargetIcon,
+} from "lucide-react"
+
+import type { AppOptions } from "@/lib/app-options"
+import {
+  NO_SAVED_NOTICE_ROW,
+  TRADE_NOTICE_CATEGORIES,
+  tradeNoticeDetail,
+  type TradeNoticeRow,
+} from "@/lib/trade/notice-appearance"
+
+/**
+ * What this app changes about the shell.
+ *
+ * Open `src/lib/app-options.ts` for the full list of what can go in here and
+ * what each one does. Anything not offered there is a compile error, on
+ * purpose: the shell always knows every way an app can deviate from it.
+ *
+ * This file belongs to the app, not the shell. **In custom-shell itself it
+ * stays empty forever.** The moment the shell puts a value here, every app ever
+ * copied from it conflicts on this file on every future merge — which is the
+ * exact problem the file exists to avoid.
+ *
+ * The type is written as an annotation rather than `satisfies` so that an empty
+ * object still reads as the full shape. Both catch a misspelled option.
+ */
+export const appOptions: AppOptions = {
+  workspaces: {
+    /**
+     * Trade is one site and always will be. The shell defaults to this, and
+     * saying it here anyway is worth the line: this file is where somebody
+     * reads what this app is, and a default can change under you.
+     */
+    whoMayHave: "off",
+  },
+  header: {
+    leftContent: {
+      roles: ["member", "admin"],
+      component: () => import("@/components/trade/pinned-markets-header"),
+    },
+    rightActions: [
+      {
+        /**
+         * The pinned markets, on a phone only. They are drawn along the header
+         * itself on anything wider — this is the copy that rides in the
+         * three-dot dropdown the shell folds the app's controls into, where a
+         * phone header has no room for a row of chips.
+         */
+        id: "pinned-markets",
+        label: "Pinned markets",
+        icon: PinIcon,
+        roles: ["member", "admin"],
+        foldsOnPhone: true,
+        // A list of markets rather than a button, so it takes a line of its
+        // own in the dropdown instead of reading as one more button in the row.
+        ownSection: true,
+        component: () => import("@/components/trade/pinned-markets-menu"),
+      },
+      {
+        /**
+         * One field that searches every exchange's market list at once. It is
+         * first in the row because it is the way into a market by name, and
+         * everybody's own screens, so a member gets it as well as an admin.
+         */
+        id: "market-search",
+        label: "Search markets",
+        icon: SearchIcon,
+        roles: ["member", "admin"],
+        // The one control that stays in the row on a phone, as a magnifier.
+        // Tyler's drawing of the three-dot dropdown on 16 Oct 2026 has no
+        // search in it, and the field's width broke the one sliding line of
+        // buttons in there.
+        component: () => import("@/components/trade/market-search-header"),
+      },
+      {
+        id: "active-trades",
+        label: "Active trades",
+        icon: CandlestickChartIcon,
+        roles: ["member", "admin"],
+        // Folds on a phone, Tyler's drawing of 16 Oct 2026, so the row is the
+        // exchange's name, the search, the bell and the three dots. The
+        // figures sit just under the pinned markets in there.
+        foldsOnPhone: true,
+        // Tyler, 17 Oct 2026: an option to bring it out of the dropdown into
+        // the row on a phone, set in Settings → Top right menu.
+        phoneChoice: true,
+        component: () => import("@/components/trade/active-trades-header"),
+      },
+      {
+        /**
+         * How today is going against the daily goal. Everybody's own figure
+         * off their own wallets, so a member gets it as well as an admin, and
+         * it draws nothing at all until a goal is set in Settings → Goals.
+         */
+        id: "goal",
+        label: "Goal",
+        icon: TargetIcon,
+        foldsOnPhone: true,
+        phoneChoice: true,
+        component: () => import("@/components/trade/goal-header"),
+      },
+    ],
+    /**
+     * One switch, and it is about somebody's own screen rather than about the
+     * app, so a member gets it as well as an admin. It hides every figure
+     * saying what was made or lost, wherever that figure is drawn.
+     */
+    quickSettings: [
+      {
+        id: "hide-pnl",
+        component: () => import("@/components/trade/hide-pnl-setting"),
+      },
+      {
+        /**
+         * The member's public trader profile: the page at `/t/<handle>` that
+         * shows what their real wallets made. Everybody's own, so a member
+         * gets it as well as an admin.
+         */
+        id: "public-profile",
+        component: () => import("@/components/social/public-profile-setting"),
+      },
+      {
+        /** The page of traders the member follows or copies. Everybody's own. */
+        id: "following",
+        component: () => import("@/components/social/following-setting"),
+      },
+    ],
+  },
+  settings: {
+    /**
+     * The trading engine runs as its own program on the server, so "is it
+     * running, and pause it" is a real question with a real answer — and
+     * Settings is where somebody goes to change how the app behaves.
+     */
+    tabs: [
+      {
+        id: "trading-engine",
+        label: "Trading engine",
+        // A pointer, never the component: this file is read on the server, and
+        // the panel reads the engine's state through `@/lib/api/*`.
+        panel: () => import("@/components/workers/workers-settings"),
+      },
+      {
+        id: "markets",
+        label: "Markets",
+        panel: () => import("@/components/trade/market-settings"),
+      },
+      {
+        // The tab holds the two sound switches and the master switch for
+        // alerts on drawn lines. A switch nobody can find is a switch that
+        // is not there, so the label names both.
+        id: "sounds",
+        label: "Sounds and alerts",
+        panel: () => import("@/components/trade/trade-sound-settings"),
+      },
+      {
+        // Clearing trendlines, fibs or price alerts from every market at once.
+        // The chart's own bin only clears the market it is showing.
+        id: "drawings",
+        label: "Drawings",
+        panel: () => import("@/components/trade/drawing-settings"),
+      },
+      {
+        // The rules a person builds for their real-money entries, each a stack
+        // of conditions that warns or blocks.
+        id: "trading-rules",
+        label: "Trading rules",
+        panel: () => import("@/components/trade/trading-rules-settings"),
+      },
+      {
+        // How much this account is trying to make in a day, and the button in
+        // the top right that says how today is going against it.
+        id: "goals",
+        label: "Goals",
+        panel: () => import("@/components/trade/goal-settings"),
+      },
+    ],
+  },
+  notifications: {
+    categories: TRADE_NOTICE_CATEGORIES,
+    /**
+     * How a trade notice looks, worked out from the words the shell is already
+     * holding — no server, so every row is right on the first paint.
+     *
+     * A trade notice's sentence was written by this app, in
+     * `trade-notice-words.ts` and `engine-health.ts`, so reading it back into a
+     * heading, figures, a tab and a tile is this app recognising its own
+     * handwriting. `detailsFor` below adds what only a server can say.
+     */
+    describe: (notice) =>
+      notice.type === "app_activity"
+        ? tradeNoticeDetail(NO_SAVED_NOTICE_ROW, notice)
+        : null,
+    /**
+     * Everything about its own notices this app can only get from a server:
+     * the page each one came off, and the pieces saved beside newer ones.
+     *
+     * A trade notice is one shell type carrying a title and a body, so to the
+     * shell every fill, every crossed line and every engine outage looked the
+     * same and led nowhere. All of it is remembered in `trade_notice_links`
+     * when the notice is written, and this is where the bell asks for it.
+     *
+     * Only this app's own notices are asked about. The shell's own — a reply on
+     * a piece of feedback, a published update, a run waiting for approval —
+     * already know where they lead, and asking about them would be a database
+     * trip that can only ever come back empty.
+     *
+     * The figures come off the server and the tile is added here, in the
+     * browser, because an icon is a React component and cannot travel through
+     * a server function.
+     */
+    detailsFor: async (notices) => {
+      const mine = notices.filter((one) => one.type === "app_activity")
+      if (mine.length === 0) return {}
+      const { loadTradeNoticeDetails } = await import(
+        "@/lib/api/trade/notice-links"
+      )
+      // A failed read loses the addresses and the saved pieces, not the bell.
+      // Everything else is recovered from the words the browser already holds,
+      // so the tray still draws its headings, figures and tabs — it just opens
+      // nothing until the next page of notices asks again.
+      const rows = await loadTradeNoticeDetails(mine.map((one) => one.id)).catch(
+        () => ({}) as Record<string, TradeNoticeRow>
+      )
+      // Only the notices with a saved row. Everything else was already drawn
+      // by `describe` from the same words, so repeating it here would be the
+      // same answer twice.
+      return Object.fromEntries(
+        mine
+          .filter((notice) => rows[notice.id])
+          .map((notice) => [
+            notice.id,
+            tradeNoticeDetail(rows[notice.id], notice),
+          ])
+      )
+    },
+  },
+}

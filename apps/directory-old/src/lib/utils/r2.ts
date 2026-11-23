@@ -1,0 +1,209 @@
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+
+// R2 credentials from environment variables
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID!
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID!
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY!
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || 'site-media'
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL // Optional: if using public access
+const HAS_R2_CREDENTIALS = Boolean(R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY)
+const USE_LOCAL_STORAGE = process.env.NODE_ENV !== 'production' && !HAS_R2_CREDENTIALS
+const LOCAL_PUBLIC_STORAGE_ROOT = path.resolve(process.cwd(), 'public', 'local-media')
+const LOCAL_PRIVATE_STORAGE_ROOT = path.resolve(process.cwd(), '.local-storage', R2_BUCKET_NAME)
+const MAX_OBJECT_KEY_BYTES = 1024
+
+// Create S3 client configured for R2
+const r2Client = HAS_R2_CREDENTIALS
+  ? new S3Client({
+      region: 'auto',
+      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: R2_ACCESS_KEY_ID,
+        secretAccessKey: R2_SECRET_ACCESS_KEY,
+      },
+    })
+  : null
+
+export function usesLocalObjectStorage() {
+  return USE_LOCAL_STORAGE
+}
+
+export function getLocalObjectUrl(fileName: string) {
+  resolveLocalObjectPath(fileName)
+  return `/local-media/${fileName.split('/').map(encodeURIComponent).join('/')}`
+}
+
+export function resolveLocalObjectPath(fileName: string, root = LOCAL_PUBLIC_STORAGE_ROOT) {
+  const normalizedRoot = path.resolve(root)
+  const segments = fileName.split('/')
+
+  if (
+    !fileName
+    || Buffer.byteLength(fileName) > MAX_OBJECT_KEY_BYTES
+    || fileName.includes('\0')
+    || fileName.includes('\\')
+    || path.isAbsolute(fileName)
+    || segments.some((segment) => !segment || segment === '.' || segment === '..')
+  ) {
+    throw new Error('Invalid object storage key')
+  }
+
+  const resolvedPath = path.resolve(normalizedRoot, ...segments)
+  if (!resolvedPath.startsWith(`${normalizedRoot}${path.sep}`)) {
+    throw new Error('Invalid object storage key')
+  }
+
+  return resolvedPath
+}
+
+function requireR2Client() {
+  if (!r2Client) {
+    throw new Error('R2 object storage is not configured')
+  }
+  return r2Client
+}
+
+async function writeLocalObject(fileName: string, fileBuffer: Buffer, root = LOCAL_PUBLIC_STORAGE_ROOT) {
+  const localPath = resolveLocalObjectPath(fileName, root)
+  await mkdir(path.dirname(localPath), { recursive: true })
+  await writeFile(localPath, fileBuffer)
+}
+
+async function readLocalObject(fileName: string) {
+  try {
+    return await readFile(resolveLocalObjectPath(fileName))
+  } catch (error) {
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error
+    return readFile(resolveLocalObjectPath(fileName, LOCAL_PRIVATE_STORAGE_ROOT))
+  }
+}
+
+function getContentType(fileName: string) {
+  const extension = path.extname(fileName).toLowerCase()
+  const contentTypes: Record<string, string> = {
+    '.avif': 'image/avif',
+    '.gif': 'image/gif',
+    '.jpeg': 'image/jpeg',
+    '.jpg': 'image/jpeg',
+    '.mkv': 'video/x-matroska',
+    '.mov': 'video/quicktime',
+    '.mp4': 'video/mp4',
+    '.png': 'image/png',
+    '.svg': 'image/svg+xml',
+    '.webm': 'video/webm',
+    '.webp': 'image/webp',
+  }
+  return contentTypes[extension] || 'application/octet-stream'
+}
+
+function getLocalRange(fileBuffer: Buffer, range?: string | null) {
+  if (!range) return { body: fileBuffer, contentRange: undefined }
+
+  const match = /^bytes=(\d+)-(\d*)$/.exec(range)
+  if (!match) return { body: fileBuffer, contentRange: undefined }
+
+  const start = Number(match[1])
+  const requestedEnd = match[2] ? Number(match[2]) : fileBuffer.length - 1
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(requestedEnd) || start > requestedEnd || start >= fileBuffer.length) {
+    return { body: fileBuffer, contentRange: undefined }
+  }
+
+  const end = Math.min(requestedEnd, fileBuffer.length - 1)
+  return {
+    body: fileBuffer.subarray(start, end + 1),
+    contentRange: `bytes ${start}-${end}/${fileBuffer.length}`,
+  }
+}
+
+/**
+ * Upload a file to R2
+ */
+export async function uploadToR2(
+  fileName: string,
+  fileBuffer: Buffer,
+  contentType: string
+): Promise<string> {
+  if (USE_LOCAL_STORAGE) {
+    await writeLocalObject(fileName, fileBuffer)
+    return getLocalObjectUrl(fileName)
+  }
+
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: fileName,
+    Body: fileBuffer,
+    ContentType: contentType,
+    CacheControl: 'public, max-age=31536000, immutable',
+  })
+
+  await requireR2Client().send(command)
+
+  // Return full public URL
+  if (R2_PUBLIC_URL) {
+    return `${R2_PUBLIC_URL}/${fileName}`
+  }
+  return `/cdn/${fileName}`
+}
+
+/**
+ * Delete a file from R2
+ */
+export async function deleteFromR2(fileName: string): Promise<void> {
+  if (USE_LOCAL_STORAGE) {
+    await Promise.all([
+      rm(resolveLocalObjectPath(fileName), { force: true }),
+      rm(resolveLocalObjectPath(fileName, LOCAL_PRIVATE_STORAGE_ROOT), { force: true }),
+    ])
+    return
+  }
+
+  const command = new DeleteObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: fileName,
+  })
+
+  await requireR2Client().send(command)
+}
+
+/**
+ * Normalize a getFromR2 Body (SDK stream or local Buffer) into a Response body
+ */
+export function toBodyInit(body: NonNullable<Awaited<ReturnType<typeof getFromR2>>['Body']>): BodyInit {
+  if (
+    typeof body === 'object'
+    && body !== null
+    && 'transformToWebStream' in body
+    && typeof body.transformToWebStream === 'function'
+  ) {
+    return body.transformToWebStream()
+  }
+
+  return body as BodyInit
+}
+
+/**
+ * Get object from R2 (for proxying)
+ */
+export async function getFromR2(fileName: string, range?: string | null) {
+  if (USE_LOCAL_STORAGE) {
+    const fileBuffer = await readLocalObject(fileName)
+    const { body, contentRange } = getLocalRange(fileBuffer, range)
+    return {
+      Body: body,
+      ContentLength: body.length,
+      ContentRange: contentRange,
+      ContentType: getContentType(fileName),
+    }
+  }
+
+  const command = new GetObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: fileName,
+    Range: range || undefined,
+  })
+
+  const response = await requireR2Client().send(command)
+  return response
+}

@@ -1,24 +1,19 @@
 import * as React from "react"
-import {
-  ActivityIcon,
-  AlertCircleIcon,
-  GitBranchIcon,
-  OctagonXIcon,
-  RadarIcon,
-  RepeatIcon,
-  ShieldXIcon,
-  TargetIcon,
-  TimerIcon,
-  TrendingDownIcon,
-  TrendingUpIcon,
-} from "lucide-react"
+import { AlertCircleIcon } from "lucide-react"
 
 import type {
   AutomationNode,
   AutomationSourcePort,
 } from "@/lib/automations/automation"
+import {
+  automationNodeDescription,
+  automationNodeIcon,
+  automationNodeInputMode,
+  automationNodeName,
+} from "@/lib/automations/node-registry"
 import { cn } from "@/lib/utils"
 
+import { AutomationNodeIcon } from "./automation-node-icon"
 import {
   NODE_HEIGHT,
   NODE_WIDTH,
@@ -26,7 +21,6 @@ import {
   nodeOutputPorts,
   portOut,
 } from "./canvas-model"
-import { automationNodeDescription, automationNodeName } from "./node-labels"
 
 export function AutomationCanvasNode({
   node,
@@ -49,8 +43,7 @@ export function AutomationCanvasNode({
 }) {
   const ports = nodeOutputPorts(node)
   const attachmentPorts = nodeAttachmentPorts(node)
-  const isProtectionNode =
-    node.kind === "takeProfit" || node.kind === "stopLoss"
+  const isProtectionNode = automationNodeInputMode(node) === "protection"
   return (
     <div
       role="button"
@@ -91,7 +84,10 @@ export function AutomationCanvasNode({
         )}
       >
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-          <NodeIcon node={node} />
+          <AutomationNodeIcon
+            icon={automationNodeIcon(node)}
+            className="size-4"
+          />
         </span>
         <span className="min-w-0 flex-1 overflow-hidden">
           <span className="flex items-center gap-1.5 text-xs font-semibold">
@@ -133,7 +129,7 @@ export function AutomationCanvasNode({
               onConnectFinish()
             }}
             className={cn(
-              "absolute left-1/2 size-4 -translate-x-1/2 rounded-full border-2 bg-card outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
+              "absolute left-1/2 size-4 -translate-x-1/2 rounded-full border-2 bg-card transition-transform outline-none hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
               connecting ? "border-primary" : "border-muted-foreground/60"
             )}
             style={edge === "top" ? { top: -8 } : { bottom: -8 }}
@@ -154,7 +150,7 @@ export function AutomationCanvasNode({
             onConnectFinish()
           }}
           className={cn(
-            "absolute -left-2 size-4 rounded-full border-2 bg-card outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
+            "absolute -left-2 size-4 rounded-full border-2 bg-card transition-transform outline-none hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
             connecting ? "border-primary" : "border-muted-foreground/60"
           )}
           style={{ top: NODE_HEIGHT / 2 - 8 }}
@@ -185,7 +181,7 @@ export function AutomationCanvasNode({
                 event.stopPropagation()
                 onConnectStart(port.id)
               }}
-              className="absolute -right-2 size-4 rounded-full border-2 border-muted-foreground/60 bg-card outline-none transition-transform hover:scale-125 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
+              className="absolute -right-2 size-4 rounded-full border-2 border-muted-foreground/60 bg-card transition-transform outline-none hover:scale-125 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
               style={{ top: centerY - 8 }}
             />
           </React.Fragment>
@@ -214,7 +210,7 @@ export function AutomationCanvasNode({
               onConnectStart(port.id)
             }}
             className={cn(
-              "absolute left-1/2 size-4 -translate-x-1/2 rounded-full border-2 bg-card outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
+              "absolute left-1/2 size-4 -translate-x-1/2 rounded-full border-2 bg-card transition-transform outline-none hover:scale-125 focus-visible:ring-2 focus-visible:ring-ring",
               isTp ? "border-emerald-500" : "border-red-500"
             )}
             style={onTop ? { top: -8 } : { bottom: -8 }}
@@ -223,17 +219,4 @@ export function AutomationCanvasNode({
       })}
     </div>
   )
-}
-
-function NodeIcon({ node }: { node: AutomationNode }) {
-  if (node.kind === "indicator") return <ActivityIcon className="size-4" />
-  if (node.kind === "logic") return <GitBranchIcon className="size-4" />
-  if (node.kind === "lookback") return <TimerIcon className="size-4" />
-  if (node.kind === "whaleWall") return <RadarIcon className="size-4" />
-  if (node.kind === "takeProfit") return <TargetIcon className="size-4" />
-  if (node.kind === "stopLoss") return <OctagonXIcon className="size-4" />
-  if (node.action === "buy") return <TrendingUpIcon className="size-4" />
-  if (node.action === "short") return <TrendingDownIcon className="size-4" />
-  if (node.action === "reverse") return <RepeatIcon className="size-4" />
-  return <ShieldXIcon className="size-4" />
 }

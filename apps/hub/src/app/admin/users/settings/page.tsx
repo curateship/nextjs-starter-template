@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
+import { CardGroup } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Button } from "@/components/ui/button"
@@ -192,7 +193,7 @@ export default function SettingsPage() {
           </Alert>
         )}
 
-        <div className="space-y-6">
+        <CardGroup className="grid">
           <AdminCard>
             <div className="p-6">
               <form onSubmit={handleProfileUpdate} id="profile-form">
@@ -360,7 +361,7 @@ export default function SettingsPage() {
               </div>
             </div>
           </AdminCard>
-        </div>
+        </CardGroup>
       </div>
     </AdminLayout>
     </>

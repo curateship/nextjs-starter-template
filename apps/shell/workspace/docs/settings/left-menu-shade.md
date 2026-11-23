@@ -1,0 +1,84 @@
+# The left menu shade
+
+The left menu and the bar along the top share one background, and an admin
+sets how light it is in Admin → Styling → Sidebar & Top navigation (called
+Left menu shade until 11 Nov 2026). Tyler asked for the card on 30 October
+2026.
+
+## What the slider means
+
+The slider runs from 0% to 100%. At 0% the left menu is the same colour as the
+page behind the cards. At 100% it is the same colour as a card. Every
+workspace starts at 50%, which is where the left menu has always been.
+
+The two ends are the page and a card, never a fixed grey, so the slider means
+the same thing in light and dark mode and follows every step of
+[the dark mode shade](dark-mode-shade.md). The old `chrome` setting mixed in a
+fixed grey, which put the left menu darker than everything in dark mode and
+made no visible change in light mode. [The app canvas](the-app-canvas.md)
+explains that history.
+
+The left menu and the top bar always move together. Both are painted with
+`bg-sidebar`, and `--sidebar` is `--shell-rail` in both palettes.
+
+## Where it lives
+
+- `src/theme.css` builds `--shell-rail` as a mix of `--card` and
+  `--shell-canvas`, taking `--shell-rail-card-share` of the card, with 50% when
+  the variable is unset. Both the light and the dark block carry it.
+- `src/lib/layout/styling-values.ts` holds the optional `sidebarShade` field on
+  `ShellStyling`, `DEFAULT_SIDEBAR_SHADE`, and `getSidebarShadeVars`, which
+  turns the number into that variable.
+- `src/components/shell/shell-layout.tsx` has `useSidebarShadeVars`, which sets
+  the variable on `<html>`, beside the dark shade's lift.
+- `src/components/settings/styling-settings.tsx` draws the card: the slider and
+  a small preview of a left menu, a top bar and a card.
+- `src/lib/api/shell-settings.ts` accepts `sidebarShade` on save. It is
+  optional, so a saved row and a scaffold from before it existed still load and
+  read as 50%.
+
+## What it does not do
+
+The public, signed-out pages are not affected. They draw their own header and
+have no left menu.
+
+The setting is saved per workspace, with the rest of Styling, so every admin in
+the workspace sees the same left menu.
+
+## The border shade
+
+The same card has a Border shade slider for the line down the left menu's
+edge and the line under the top bar, apart from the thin lines inside cards
+and tables (Tyler, 11 Nov 2026: "add another option to isolate just the
+sidebar and top navigation border shade. Rename this card to "Sidebar & Top
+navigation" and put the border shade there").
+
+- Until it is moved, the edge is the Divider lines colour, as it always was,
+  and the slider says "Divider lines".
+- Moved, it is that share of the text colour, 0 to 100
+  (`sidebarBorderShade`, `sidebarBorderColor` in `src/lib/layout/styling-values.ts`),
+  set as `--sidebar-border` both on the page and on the shell's own wrapper,
+  so Divider lines no longer reaches the edge.
+- It is stored with the workspace's styling, so no migration is needed.
+
+## One shade
+
+The same card has a Style choice at the top (Tyler, 14 Nov 2026: "add an
+option in styling settings to choose between the currant sidebar/topnav
+styling to this (the bg and the side and top as one gray shade)").
+
+- **Own shade** is the look described above, and what a
+  workspace that never chose shows.
+- **Same grey as the page** paints the left menu, the top bar
+  and the page behind the cards one grey, set by
+  [the gutter shade](page-shade.md). The cards stay white on it.
+- One shade drops the line down the left menu's edge and under the top bar.
+  The thin lines between the left menu's groups stay.
+- While one shade is picked, the Shade and Border shade sliders are hidden.
+  Their saved numbers are kept, so switching back restores the old look.
+- It is `sidebarStyle` on `ShellStyling` (`"separate"` or `"one-shade"`).
+  `getSidebarShadeVars` sets the rail's share to 0% in one shade, and
+  `useSidebarStyleAttribute` in `shell-layout.tsx` puts
+  `data-shell-sidebar="one-shade"` on `<html>`. A rule at the end of
+  `src/theme.css` then clears the two edge lines.
+- It is stored with the workspace's styling, so no migration is needed.

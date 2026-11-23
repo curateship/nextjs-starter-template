@@ -1,0 +1,299 @@
+# Promo's own documents
+
+What is true of this app. What is true of every app built on the shell lives in
+the repo's `docs/`, and is never copied here.
+
+## How the code is laid out
+
+- [Where the code lives](where-the-code-lives.md) — what every network shares,
+  what belongs to Reddit alone, and how to add the next one.
+
+## Projects
+
+- [The Projects dashboard](projects-dashboard.md): Tyler's answers of
+  12 Nov 2026, one three-panel dashboard of Overview, Projects, Voices,
+  Accounts, Archive and Messages, the left page with its Dashboards and
+  Projects blocks, Overview's five widgets, a project's summary with Open
+  project, the old addresses that still land; and a project's own page with
+  its description, networks and posts, what the AI is told about what you
+  make, and pausing a project.
+- [Commenting inside a project](commenting.md): Tyler's answers of 5 Nov 2026,
+  each network a folding card with a Posts row and a Commenting row, the
+  keywords dropdown in Commenting's header, what sits on each row, the counts, Pause
+  commenting, the first post opening by itself, the address and old
+  addresses, guests, and Reddit's keywords, posts, comment box, Today and
+  accounts dropdown.
+- [Networks as modules](network-modules.md): a project picks the networks it
+  uses, each a row in its left column that fills the middle and right columns
+  with your own posts on it, the two sides of each network,
+  Reddit's screens folded into its module as tabs and windows, the tables that
+  fold by the column's width, and where the old addresses lead.
+- [The Archive](archive.md): the Projects dashboard's Archive section, every
+  project's videos, carousels and pictures or one project's, sent from Video
+  or uploaded, the key on Settings → Video, how a send is copied,
+  the Bin, the zip, and posting from it with drafts, warnings and several
+  accounts at once.
+- [The link with Viral](viral-link.md): the key on Settings → Viral, the X,
+  LinkedIn and Reddit reads Promo runs for Viral, the posts Viral leaves as
+  drafts, and the posts from Viral ideas reported back.
+- [Guests sent from Project](project-guests.md): somebody on a Project task
+  presses Open in Promo and works one Promo project for 12 hours with no
+  Promo account, what they can and can't do, the stamped note and the key
+  Promo shares with Project.
+
+## Instagram and TikTok
+
+- [Accounts and the daily reading](instagram/accounts-and-the-daily-reading.md):
+  accounts on a phone only, one per phone per network, who is signed in, the
+  daily reading with followers and the shadowban line off the app's Account
+  status page, each post's numbers, and the module on a project's dashboard.
+- [Posting a photo or video](instagram/posting.md): the media library file,
+  the AI caption in the account's voice, Post once from the phone, the link,
+  calling a post off, and what is refused.
+- [An account's profile](instagram/profile.md): the name, bio, link and
+  picture typed in by the phone, held back in the account's first day.
+- [Comments on your posts](instagram/comments.md): read when the phone's
+  notification says one arrived, listed with a suggested answer, sent only on
+  a press.
+- [What differs on TikTok](tiktok/what-differs-on-tiktok.md): no post count,
+  longer captions, shorter bios and answers, Post rather than Share.
+
+## Threads
+
+- [Threads on the rack's phones](threads/threads-on-phones.md): a network of
+  its own beside the phone's Instagram account, the daily reading, a post of
+  one picture or video with its words, comments answered on a press, the
+  name that stays Instagram's, and what waits for a phone.
+
+## Medium
+
+- [The Medium module](medium/medium-module.md): Tyler's answers of 21 Oct 2026,
+  the keyword row and its four kinds, finding stories from Medium's feeds and
+  search, the order with the writer's reach as measured, hiding a writer,
+  tidying, Today, the count on the Medium row, and pausing Medium alone.
+- [Responses on Medium](medium/responses.md): the story and its top responses,
+  what you said before, drafts with the line they answer, Help only, the
+  rewrites, Medium's own rules, every check on Post (warm-up, pace, one account
+  per story, too similar), sending, the Responses tab, answering, edit, delete
+  and Failed.
+- [Articles on Medium](medium/articles.md): outline first, the article, the
+  cover, earlier articles linked, from a Reddit comment, ideas, Publish, the
+  numbers week by week, the public Medium list, and publications with their
+  rules.
+- [Medium accounts and signing in](medium/signing-in-and-accounts.md): adding
+  one, the emailed sign-in link pasted into its own browser, who is signed in,
+  its status, the warm-up, and what the Medium app on a phone does and does not.
+- [How Medium is read](medium/how-medium-is-read.md): why a browser, Medium's own data
+  addresses, what was proved against the real site and what waits for a real
+  account, and the tests.
+
+## X
+
+- [The X module](x/x-module.md): Tyler's answers of 21 Oct 2026, the three
+  kinds of keyword, watched accounts and their bell, ideas and trends, the
+  order with freshness first, what never reaches To look at (closed replies,
+  older than 12 hours, hidden accounts), Today and the AI spend.
+- [Search accounts](x/search-accounts.md): why X needs a signed-in account that
+  only reads, the views it may spend a day, the rate limit, several taking
+  turns, and what a day's reading costs.
+- [Replies on X](x/replies.md): the post and its top replies, drafts, Help
+  only, quotes, every check on Post (no links, 280 characters, warm-up, pace,
+  one account per post, too similar warns), follow back, the Replies tab,
+  answers, mentions, edit, delete and Try again.
+- [Posts of your own on X](x/posts.md): posts and threads, pictures, starting
+  from a Medium article or a Reddit comment, polls, a set hour, communities
+  and their rules, and the public list.
+- [X accounts](x/accounts.md): adding one in a browser or on a phone, the
+  sign-in code, lock screens, the daily look from outside, paid, follow back,
+  direct messages, moving to a phone, and the warm-up.
+- [How X is read](x/how-x-is-read.md): X's own data in the browser, the X app
+  on a phone, what was checked, and that nothing has run against the real X
+  yet.
+
+## LinkedIn
+
+- [The LinkedIn module](linkedin/linkedin-module.md): Tyler's answers of
+  22 Oct 2026, the four kinds of keyword, watched people and pages, who the
+  project sells to, the order with the writer's job title, what never reaches
+  To look at (comments closed, bare reposts, older than 2 days, hidden
+  people), an account's own feed, Today and the AI spend.
+- [Search accounts](linkedin/search-accounts.md): why LinkedIn is read by a
+  spare signed-in account that never comments, the 300 views a day, when one
+  stops, and several taking turns.
+- [Comments on LinkedIn](linkedin/comments.md): drafts, Help only, answering
+  a top comment, the best comments as examples, every check on Post, reacting
+  first, the Sent tab on Commenting, answers, edit, delete, Try again, and the weekly
+  look at whether the comments still show.
+- [Posts of your own on LinkedIn](linkedin/posts.md): posts with a picture, a
+  video or a poll, the link in the first comment, tags, reposts, starting from
+  a Medium article or a Reddit comment, post ideas, newsletter issues, groups
+  and company pages.
+- [People on LinkedIn](linkedin/people.md): connection requests with an AI note, under
+  a weekly number in Settings → Behaviour (20 to begin with), accepting the
+  requests waiting, and who viewed a profile.
+- [LinkedIn accounts](linkedin/accounts.md): adding one, the emailed code,
+  restriction screens, the warm-up, workday hours, Premium, the numbers week
+  by week, important and throwaway, moving to a phone, and messages.
+- [How LinkedIn is read](linkedin/how-linkedin-is-read.md): the browser
+  routines, the LinkedIn app on a phone, and that nothing has run against the
+  real LinkedIn yet.
+
+## Messages
+
+- [Messages](messages-dashboard.md): the Projects dashboard's Messages
+  section, every account's direct messages, read when a notification says one
+  arrived, answered on the right only on a press, and deleted once answered
+  or skipped.
+
+## Reddit
+
+- [Accounts](reddit/accounts-dashboard.md): the Projects dashboard's Accounts
+  section, every account on every platform with In use and Retired tabs and
+  Filter, its status, project, profile and proxy, the account on the right
+  with its ⋮ and the old window's cards, adding one, setting a status by
+  hand, pausing, help-only posts, and retiring.
+- [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,
+  watching a subreddit, why there is no Reddit API, how the order is worked
+  out, the Everything list, searching the posts, the best posts' replies read
+  ahead, the subreddits you never see,
+  how old posts are tidied away, searching again by itself every few hours,
+  ideas for keywords, and each subreddit's self-promotion thread.
+- [Link posts](reddit/link-posts.md) — reading the title and opening of the
+  page a post links to, the guard that refuses any address inside the network,
+  and how the page is labelled for the AI.
+- [Writing the comment](reddit/writing-comments.md) — what the AI is told, the
+  subreddit's own rules, the sent comments it copies the voice of, what comes
+  back, why Post is sometimes off, checking a comment against the rules,
+  rewriting it, what you said before, and ten seconds to undo.
+- [What happened to your comments](reddit/sent-comments.md) — Reddit's Sent
+  tab on Commenting: every sent comment with its upvotes, its replies and whether it is
+  still there, the switch that keeps it out of the AI's examples, removals per
+  subreddit, deleting and editing a comment, and the Failed tab.
+- [Posts of your own](reddit/your-own-posts.md): New post in the right
+  column of a project's Reddit, the subreddit's rules first, the same rules as
+  Post, and the Posts and Failed lists.
+- [Answering replies](reddit/answering-replies.md) — the Replies window on the
+  Sent tab: the replies under a sent comment, drafting and sending an
+  answer from the same account under Post's rules, and how an answer is stored.
+- [How Reddit sees the account](reddit/account-health.md) — karma, account age,
+  and whether a stranger can see the profile, read once a day and on request.
+- [Reddit on phones](reddit/reddit-on-phones.md): who is signed in, the health
+  reading and the comment done in the real Reddit app, finding a phone
+  comment's link, the Post button naming its device, and moving an account
+  from a browser profile to a phone.
+
+## Accounts
+
+- [Behaving like a person](accounts/behaving-like-a-person.md) — the reader
+  browser that searches so accounts never do, the visit around every comment,
+  waking hours, warm-up, the pace limit for young accounts, clicks and
+  scrolls like a hand, and help-only comments that build karma. Settings → Behaviour.
+- [Important and throwaway accounts](accounts/important-and-throwaway.md): the
+  two groups, marking one important for good, and everything Promo refuses
+  that would link them.
+
+## The browser
+
+- [The isolated browser](browser/isolated-sessions.md) — Camoufox in a container,
+  the pinned image, one identity per profile, checking what a website sees,
+  signing in once, the proxy, the limit on how many run at once, profiles
+  working side by side, why only the browser program opens one, and how a dead
+  or leftover one is cleared.
+- [The Jobs window](browser/jobs-dashboard.md): the Jobs button on a
+  project's Reddit module. Whether the browser program is running and how to start it, and
+  every search, read, comment and check it is running, waiting to run,
+  finished or failed, with Cancel and Try again.
+- [Browser profiles](browser/profiles.md) — one isolated browser as a record of
+  its own, which an account points at, and how the first accounts were adopted.
+- [The Anti Detect dashboard](anti-detect-dashboard.md) — Browser profiles,
+  Proxies, Racks and Bans as one three-panel dashboard: the Dashboards and
+  Projects blocks, Overview's four widgets, each section and its record on
+  the right, and the old addresses.
+- [The Anti Detect dashboard's Profiles](browser/profiles-dashboard.md) — the table,
+  the browser inside the app, a profile's backups and history, folders, labels
+  and tags.
+- [Backing a profile up](browser/backups.md) — the volume, encrypted with the
+  server's key and kept in R2, restoring it here or on another machine, and the
+  newest five kept.
+- [The Anti Detect dashboard's Proxies](browser/proxies-dashboard.md) — the table, pasting in
+  a list, the re-test that reaches every proxy, the dead-proxy notice, the
+  record of each proxy's outside address, and what each costs and when it renews.
+
+## Phones
+
+- [Phones and racks](phones/racks-dashboard.md): every phone on every rack
+  in the Anti Detect dashboard's Phones, filtered by the Racks block; the rack
+  blocks on its left page (Racks, Phones), the Rack program tab in its ⋮, New
+  rack with a code made for it, a rack's settings window with its "/" notes,
+  the phones list with Filter, saved views and New phone, and the open phone's
+  screen and ⋮. Also what a phone holds, its status, the old addresses, and an
+  account that runs on a phone.
+- [The rack program](phones/rack-program.md): the program at home that drives
+  the phones, how it reaches Promo without opening a port, the named actions,
+  pairing with a one-time code, signed messages, Disconnect, the one install
+  command, and updating itself with a rollback.
+- [Jobs on phones](phones/phone-jobs.md): a phone account's jobs through the
+  same job list, one at a time per phone and side by side across phones, the
+  phones' own limit, waking hours on the phone's clock, an offline phone
+  refusing at once, pausing the rack, and Settings → Phones.
+- [A phone's screen](phones/screen-window.md): the live picture on the Screen
+  tab and the bigger window, asked for only while it is on screen, control
+  and the hold while a person taps, authenticator codes and texted codes.
+- [A phone's health](phones/phone-health.md): what the rack reads once a
+  minute, the bell for a phone offline, hot, with no signal or nearly full and
+  for the rack going quiet, the four-week battery and heat chart, and each
+  phone's history.
+- [Freezes and ban screens](phones/freezes-and-ban-screens.md): a frozen app
+  reopened and a frozen phone restarted without anything being sent twice,
+  and an app's suspended, locked or "confirm it's you" screen stopping the
+  account at once.
+- [A picture of every step](phones/step-pictures.md): each action's named
+  steps with a screenshot, kept encrypted in R2, how long they are kept, and
+  clearing a failed one's.
+- [Making each phone look like one person's](phones/looking-like-a-real-person.md):
+  the setup check, what the platform sees, wiping a phone between accounts,
+  and Wi-Fi phones that must show their proxy's address.
+- [The daily self-test and app updates](phones/self-test-and-app-updates.md):
+  the spare test phone, walking each action to its last button without
+  pressing it, broken actions refused, and app updates on the test phone
+  first.
+- [iPhones on the rack](phones/iphones.md): a phone's kind, one test phone
+  per kind, hourly inbox reads, the iCloud check before a wipe, the one-time
+  media link, texted codes off the Messages app, and the WebDriverAgent bell.
+- [Seeing the rack](phones/seeing-the-rack.md): a rack's Wall tab of live
+  pictures every 5 seconds, the Jobs tabs on a phone and on a rack, filters
+  and search kept in the address, the shelf map drawn by slot, and the rack
+  program's own log inside Promo.
+
+## Bans
+
+- [Bans](bans.md): Tyler's numbers of 3 Nov 2026, which bans count, the ban
+  record, a phone, proxy or SIM an app has flagged and the phones kept off
+  it, Clean up, ban pages in every browser, a suspended Reddit reading,
+  screens Promo does not know, the kept picture, the app-wide brake, the Bans
+  dashboard, each account's history, why it was retired, where it came from,
+  counts per app and per project, the Instagram and TikTok warm-up, half
+  pace, At risk, throwaway first, the appeal and the weekly look.
+
+## Writing
+
+- [Voices](voices-dashboard.md): the Projects dashboard's Voices section, how
+  the AI sounds and the lines it must not cross, as a record any number of
+  accounts share, saved as it is typed, how the
+  first account's words moved, and trying a voice on a real post.
+
+## Notices
+
+- [Promo's bell notices](notices.md): new replies, removed comments, suspended
+  and shadowbanned accounts, new messages and comments, failures, proxy
+  renewals and phone problems, one notice per thing, and where each opens.
+
+## Shell
+
+- [What promo changes about the shell](shell-integration.md) — the options it
+  sets, the tables it owns, and the fact that it forks no shell file.
+- [Old addresses](old-addresses.md): the pages that only sent an old address
+  on are gone since 13 Nov 2026, apart from `/admin/comments`; bell notices
+  that held one were moved to the new place, and every link to a phone names
+  the Anti Detect dashboard.
+- [No success toasts](no-success-toasts.md): nothing pops up when something works, errors and part-done work still say so, Undo bars included.

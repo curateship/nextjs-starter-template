@@ -39,8 +39,18 @@ export const fairValueGapIndicator: IndicatorModule<FairValueGapParams> = {
   paramsSchema,
   defaultParams: { minGapSize: 1, showFilled: true },
   paramFields: [
-    { key: "minGapSize", label: "Min gap size %", step: 0.1 },
-    { key: "showFilled", label: "Show filled gaps", kind: "boolean" },
+    {
+      key: "minGapSize",
+      label: "Min gap size %",
+      step: 0.1,
+      info: "The smallest imbalance to keep, as a percent of price — filters out tiny chop gaps.",
+    },
+    {
+      key: "showFilled",
+      label: "Show filled gaps",
+      kind: "boolean",
+      info: "Keep drawing a gap (dimmed) after price fills it, instead of removing it.",
+    },
   ],
   warmupBars: () => 5,
 

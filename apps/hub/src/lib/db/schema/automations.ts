@@ -68,7 +68,7 @@ export const siteAutomationRunSteps = pgTable('site_automation_run_steps', {
 }, (table) => [
   uniqueIndex('idx_site_automation_run_steps_node_unique').on(table.runId, table.nodeId),
   index('idx_site_automation_run_steps_run_status').on(table.runId, table.status),
-  check('site_automation_run_steps_kind_check', sql`${table.nodeKind} in ('time', 'scraper', 'router', 'agent', 'post')`),
+  check('site_automation_run_steps_kind_check', sql`${table.nodeKind} in ('time', 'scraper', 'router', 'agent', 'post', 'listing')`),
   check('site_automation_run_steps_status_check', sql`${table.status} in ('pending', 'running', 'success', 'failed', 'skipped')`),
 ])
 

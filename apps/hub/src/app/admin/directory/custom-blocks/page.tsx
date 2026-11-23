@@ -108,7 +108,7 @@ export default function DirectoryCustomBlocksPage() {
 
           <AdminTableShell
             title="Custom Blocks"
-            icon={<Pencil className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Pencil className="text-muted-foreground" />}
             count={filteredTemplates.length}
             controls={
               <TableRightActions>

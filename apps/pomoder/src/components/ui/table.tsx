@@ -160,7 +160,7 @@ function TableSortButton({
     <button
       type="button"
       className={cn(
-        "flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-inherit outline-none transition-colors hover:text-foreground sm:text-sm",
+        "group/sort flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-inherit outline-none transition-colors hover:text-foreground sm:text-sm",
         className
       )}
       {...props}
@@ -168,7 +168,7 @@ function TableSortButton({
       <span>{children}</span>
       <span className="flex size-3.5 items-center justify-center">
         {!active ? (
-          <ChevronsUpDownIcon className="size-3 opacity-50" />
+          <ChevronsUpDownIcon className="size-3 opacity-0 transition-opacity group-hover/sort:opacity-50 group-focus-visible/sort:opacity-50" />
         ) : direction === "asc" ? (
           <ArrowUpIcon className="size-3" />
         ) : (

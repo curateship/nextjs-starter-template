@@ -1,28 +1,25 @@
 import { Link } from "@tanstack/react-router"
-import { AppearanceSettings } from "@/components/appearance-settings"
-import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
+import { Card, CardContent } from "@/components/ui/card"
 import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
-import { TopNavigationSettings } from "@/components/top-navigation-settings"
+import { StylingSettings } from "@/components/styling-settings"
 import { TradingSettings } from "@/components/trading-settings"
 import { OneClickOrderSettings } from "@/components/one-click-order-settings"
 import { WorkersSettings } from "@/components/workers-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
-import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
+import { AlertCircleIcon } from "lucide-react"
 
 const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "trading", label: "Trading" },
   { id: "one-click-order", label: "One Click Order" },
   { id: "workers", label: "Workers" },
-  { id: "appearance", label: "Appearance" },
   { id: "sidebar", label: "Sidebar" },
-  { id: "top-navigation", label: "Top Navigation" },
+  { id: "styling", label: "Styling" },
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
-type SaveStatus = "idle" | "saving" | "saved"
 
 export function getSettingsTabFromPath(path: string): SettingsTabId {
   const segment = path.replace(/^\/admin\/settings\/?/, "")
@@ -35,124 +32,69 @@ export function SettingsPage({
   activeTab,
   config,
   settingsError,
-  saveStatus,
   onConfigChange,
   onSaveConfig,
 }: {
   activeTab: SettingsTabId
   config: ShellConfig
   settingsError: string | null
-  saveStatus: SaveStatus
   onConfigChange: (config: ShellConfig) => void
-  onSaveConfig: (config?: ShellConfig) => Promise<boolean>
+  onSaveConfig: () => Promise<boolean>
 }) {
-  const isSaving = saveStatus === "saving"
-
   return (
-    <div className="w-full">
-      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between md:mb-3 md:gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-xl font-semibold">Settings</h1>
-          <p className="text-sm text-muted-foreground">
-            Configure the shell defaults for this workspace.
-          </p>
-        </div>
-        {activeTab === "appearance" ? (
-          <span className="text-sm text-muted-foreground">
-            Saved automatically in this browser
-          </span>
-        ) : activeTab === "trading" ? (
-          <span className="text-sm text-muted-foreground">
-            Saved automatically
-          </span>
-        ) : activeTab === "one-click-order" ? (
-          <span className="text-sm text-muted-foreground">
-            Templates save immediately
-          </span>
-        ) : activeTab === "workers" ? (
-          <span className="text-sm text-muted-foreground">
-            Controls save immediately
-          </span>
-        ) : (
-          <div className="flex items-center gap-3">
-            {saveStatus === "saved" ? (
-              <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                <CheckIcon className="h-4 w-4" />
-                Saved
-              </span>
-            ) : null}
-            <DashboardToolbarButton
-              type="button"
-              onClick={() => void onSaveConfig()}
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <Loader2Icon className="h-4 w-4 animate-spin" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )}
-              {isSaving ? "Saving" : "Save"}
-            </DashboardToolbarButton>
-          </div>
-        )}
-      </div>
-
+    <div
+      className="flex w-full flex-col pb-8"
+      style={{ gap: "var(--shell-gutter, 1.5rem)" }}
+    >
+      {/* No page header and no save button: the sticky header already names the
+          page, and every edit auto-saves — it shows "Saving…" then "Saved". */}
       {settingsError ? (
         <div
           role="alert"
-          className="mb-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive md:mb-3"
+          className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{settingsError}</span>
         </div>
       ) : null}
 
-      <div className="flex flex-col items-start gap-2 md:gap-3 lg:flex-row">
-        <nav className="flex w-full shrink-0 flex-col lg:w-48">
-          {settingsTabs.map((tab) => (
-            <SettingsTabLink
-              key={tab.id}
-              tabId={tab.id}
-              label={tab.label}
-              active={activeTab === tab.id}
-            />
-          ))}
-        </nav>
+      <div
+        className="flex flex-col items-start lg:flex-row"
+        style={{ gap: "var(--shell-gutter, 1.5rem)" }}
+      >
+        <Card className="w-full shrink-0 lg:w-48">
+          <CardContent className="px-2">
+            <nav className="flex flex-col gap-1">
+              {settingsTabs.map((tab) => (
+                <SettingsTabLink
+                  key={tab.id}
+                  tabId={tab.id}
+                  label={tab.label}
+                  active={activeTab === tab.id}
+                />
+              ))}
+            </nav>
+          </CardContent>
+        </Card>
 
         <div className="min-w-0 flex-1">
           {activeTab === "general" ? (
-            <GeneralSettings
-              config={config}
-              isSaving={isSaving}
-              onConfigChange={onConfigChange}
-            />
+            <GeneralSettings config={config} onConfigChange={onConfigChange} />
           ) : null}
           {activeTab === "trading" ? (
-            <TradingSettings
-              config={config}
-              isSaving={isSaving}
-              onConfigChange={onConfigChange}
-              onSaveConfig={onSaveConfig}
-            />
+            <TradingSettings config={config} onConfigChange={onConfigChange} />
           ) : null}
           {activeTab === "one-click-order" ? <OneClickOrderSettings /> : null}
           {activeTab === "workers" ? <WorkersSettings /> : null}
-          {activeTab === "appearance" ? <AppearanceSettings /> : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings
               config={config}
-              isSaving={isSaving}
               onConfigChange={onConfigChange}
               onSaveConfig={onSaveConfig}
             />
           ) : null}
-          {activeTab === "top-navigation" ? (
-            <TopNavigationSettings
-              config={config}
-              isSaving={isSaving}
-              onConfigChange={onConfigChange}
-              onSaveConfig={onSaveConfig}
-            />
+          {activeTab === "styling" ? (
+            <StylingSettings config={config} onConfigChange={onConfigChange} />
           ) : null}
         </div>
       </div>

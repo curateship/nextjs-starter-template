@@ -1,13 +1,16 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { PROJECT_CONFLICT_MESSAGE } from "@/lib/timeline-schema"
 import type {
   JumpCutAnalysisResult,
+  JumpCutMode,
   JumpCutSensitivity,
 } from "@/server/jump-cuts"
 
 export type {
   JumpCutAnalysisResult,
+  JumpCutMode,
   JumpCutSensitivity,
   JumpCutSuggestion,
 } from "@/server/jump-cuts"
@@ -16,6 +19,8 @@ const jumpCutSchema = z.object({
   projectId: z.string().min(1).max(36),
   clipId: z.string().min(1).max(64),
   sensitivity: z.enum(["conservative", "balanced", "tight"]),
+  mode: z.enum(["dead-air", "filler"]).optional(),
+  fillerTerms: z.array(z.string().min(1).max(32)).max(64).optional(),
 })
 
 const safeErrorMessages = new Set([
@@ -29,6 +34,8 @@ const safeErrorMessages = new Set([
   "Unsupported media type",
   "Another jump-cut analysis is already in progress.",
   "Jump-cut analysis failed",
+  // These flows flush the timeline first, so they surface a save conflict.
+  PROJECT_CONFLICT_MESSAGE,
 ])
 
 export function getJumpCutErrorMessage(error: unknown) {
@@ -48,6 +55,8 @@ export function analyzeJumpCuts(data: {
   projectId: string
   clipId: string
   sensitivity: JumpCutSensitivity
+  mode?: JumpCutMode
+  fillerTerms?: string[]
 }) {
   return analyzeJumpCutsFn({ data })
 }

@@ -1,0 +1,140 @@
+import type { PlanFeatures } from "@/lib/billing/plan-features"
+
+/**
+ * The Pro perks, as one browser-safe list: what each one is called, the
+ * plan-feature key that unlocks it, and the sentence a locked control shows
+ * (the shell's disabled-reason pattern — never a dead button).
+ */
+
+export const PRO_PERKS = {
+  hostRooms: {
+    key: "hostRooms",
+    label: "Host focus rooms",
+    lockedReason: "Hosting rooms is a Pro perk. Upgrade to open your own room.",
+  },
+  premiumMedia: {
+    key: "premiumMedia",
+    label: "Premium sounds and backgrounds",
+    lockedReason:
+      "Premium sounds and backgrounds are a Pro perk. Upgrade to use them.",
+  },
+  uploadMedia: {
+    key: "uploadMedia",
+    label: "Upload your own media",
+    lockedReason:
+      "Uploading your own backgrounds and sounds is a Pro perk. Upgrade to add yours.",
+  },
+  longRangeReports: {
+    key: "longRangeReports",
+    label: "Long history ranges",
+    lockedReason:
+      "Stats beyond two weeks are a Pro perk. Upgrade to see the long ranges.",
+  },
+  aiCredits: {
+    key: "aiCredits",
+    label: "AI credits",
+    lockedReason:
+      "AI generation is a Pro perk. Upgrade to get monthly credits.",
+  },
+  // Tyler's call on 12 Oct 2026 (public profile task 05): only an owner on
+  // Pro can give a focus group a public page.
+  teamPage: {
+    key: "teamPage",
+    label: "A public page for your group",
+    lockedReason:
+      "A public page for a group is a Pro perk. Upgrade to give your group one.",
+  },
+} as const
+
+export type ProPerk = keyof typeof PRO_PERKS
+
+/**
+ * What Pro adds, said the same way on every screen that says it: the plans
+ * page, its link preview and Settings → Plan. The three said three different
+ * things until 12 Oct 2026, when Tyler approved this wording.
+ *
+ * `ai` is the admin's "Show AI backgrounds and soundscapes" switch. Off, the
+ * sentence only loses that clause (Tyler, 15 Nov 2026: hide the AI features
+ * until they are ready to go live).
+ */
+const proAdds = (ai: boolean) =>
+  ai
+    ? "every sound and background, AI backgrounds and soundscapes, hosting rooms, your own uploads and your full history"
+    : "every sound and background, hosting rooms, your own uploads and your full history"
+
+export const proSummary = (ai: boolean) => `Pro adds ${proAdds(ai)}.`
+
+/** The plans page's line once a payment has landed. */
+export const proWelcome = (ai: boolean) =>
+  `You're on Pro, so ${proAdds(ai)} are yours now. Your receipt is in your inbox.`
+
+/** The plans page's headline line and its link preview. */
+export const plansPageSummary = (ai: boolean) =>
+  `The timer, tasks and rooms are free. ${proSummary(ai)}`
+
+/** The old app's Pro numbers, used when a plan does not name its own. */
+export const PAID_DEFAULTS = {
+  storageLimitBytes: 2 * 1024 * 1024 * 1024,
+  monthlyBackgrounds: 5,
+  monthlySoundscapes: 20,
+} as const
+
+/**
+ * Whether a plan's feature record unlocks a perk. An explicit value on the
+ * plan wins, so a perk can be granted on a free plan or withheld from a paid
+ * one, and a missing key falls back to the old app's contract: a paid plan
+ * unlocks everything, a free one nothing. The server's entitlements and the
+ * plans page both read this, so a card never promises what the app refuses.
+ */
+export function planPerkAllowed(
+  features: PlanFeatures,
+  isPaid: boolean,
+  perk: ProPerk
+) {
+  const value = features[PRO_PERKS[perk].key]
+  if (value === undefined) return isPaid
+  return value !== false && value !== null && value !== 0 && value !== ""
+}
+
+/** A plan's own number for a limit, or the paid default, or nothing. */
+export function planNumber(
+  features: PlanFeatures,
+  isPaid: boolean,
+  key: keyof typeof PAID_DEFAULTS
+) {
+  const value = features[key]
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0)
+    return value
+  return isPaid ? PAID_DEFAULTS[key] : 0
+}
+
+/**
+ * Playing, adding and saving files other members share (uploads-and-sharing
+ * task 03, part 10). Unlike the Pro perks, a plan that says nothing has it,
+ * free plans included, so a plan can switch it off later without a code
+ * change by setting `sharedMedia: false`.
+ */
+export const SHARED_MEDIA_FEATURE = "sharedMedia"
+
+export function planAllowsSharedMedia(features: PlanFeatures) {
+  const value = features[SHARED_MEDIA_FEATURE]
+  if (value === undefined) return true
+  return value !== false && value !== null && value !== 0 && value !== ""
+}
+
+/** What the app can and cannot do for one account, resolved server-side. */
+export type PomodoroEntitlements = {
+  plan: string
+  isPaid: boolean
+  canHostRooms: boolean
+  canUsePremiumMedia: boolean
+  canUploadMedia: boolean
+  canUseLongRangeReports: boolean
+  /** Switch on a focus group's public page at /team/<handle>. */
+  canPublishTeamPage: boolean
+  /** Play, add and save files other members share. Every plan, unless switched off. */
+  canUseSharedMedia: boolean
+  storageLimitBytes: number
+  monthlyBackgrounds: number
+  monthlySoundscapes: number
+}

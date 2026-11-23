@@ -1,0 +1,85 @@
+import * as React from "react"
+
+import {
+  sameSoundReference,
+  soundSourceUrl,
+  type SoundReference,
+} from "@/lib/pomodoro/sound-catalog"
+import { soundEngineState } from "@/lib/pomodoro/sound-engine"
+
+/**
+ * A preview player that belongs to the Sounds page and nothing else.
+ *
+ * Tyler, 7 Oct 2026: clicking a sound used to play it through the header's
+ * player, which is the same player the timer's Start drives, so the two
+ * fought. A preview plays on its own `<audio>` element, made when the page
+ * opens and stopped when it closes. It never touches the header's player, the
+ * timer, or what is saved. One preview plays at a time.
+ *
+ * A click or tap on a card plays it and a second one stops it (`toggle`).
+ * Tyler, 10 Oct 2026: playing on hover went, because it fought the click:
+ * "Just remove the hover to play and keep the click to play sound."
+ */
+export function usePreviewAudio() {
+  const audio = React.useRef<HTMLAudioElement | null>(null)
+  const [previewing, setPreviewing] = React.useState<SoundReference | null>(null)
+  const [playing, setPlaying] = React.useState(false)
+  const [failed, setFailed] = React.useState(false)
+  // The header's sound was muted when this preview started, so it plays
+  // silently. The page says so rather than show Pause over no sound.
+  const [muted, setMuted] = React.useState(false)
+
+  React.useEffect(() => {
+    const element = new Audio()
+    element.loop = true
+    element.addEventListener("playing", () => setPlaying(true))
+    element.addEventListener("pause", () => setPlaying(false))
+    element.addEventListener("error", () => {
+      setPlaying(false)
+      setFailed(true)
+    })
+    audio.current = element
+    return () => {
+      element.pause()
+      element.removeAttribute("src")
+      element.load()
+      audio.current = null
+    }
+  }, [])
+
+  /** Plays this sound, or pauses it when it is the one already playing. */
+  const toggle = React.useCallback(
+    (reference: SoundReference) => {
+      const element = audio.current
+      if (!element) return
+      setFailed(false)
+      // The header's volume and mute, so a preview is never louder than the
+      // sound it might replace. Read on every press, so unmuting the header
+      // and pressing the card again is heard.
+      const engine = soundEngineState()
+      element.volume = engine.muted ? 0 : engine.volume / 100
+      setMuted(engine.muted)
+      if (sameSoundReference(previewing, reference)) {
+        if (element.paused) void element.play().catch(() => setFailed(true))
+        // Playing silently and the header is now unmuted: the press is for
+        // hearing it, so it keeps playing at the new volume.
+        else if (!(muted && !engine.muted)) element.pause()
+        return
+      }
+      element.src = soundSourceUrl(reference)
+      setPreviewing(reference)
+      void element.play().catch(() => setFailed(true))
+    },
+    [muted, previewing]
+  )
+
+  /** Stops whatever is playing, when a window with its own player opens. */
+  const stop = React.useCallback(() => {
+    audio.current?.pause()
+    setPreviewing(null)
+  }, [])
+
+  return { previewing, playing, failed, muted: muted && playing, toggle, stop }
+}
+
+export type PreviewAudio = ReturnType<typeof usePreviewAudio>

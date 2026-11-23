@@ -1,0 +1,236 @@
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+import {
+  backgroundPrompt,
+  generateBackgroundVideo,
+  generateSoundscapeAudio,
+  ProviderKeyMissingError,
+} from "@/server/pomodoro/generation-providers"
+
+/**
+ * The only code in this app that talks to an outside service, checked against
+ * a stubbed `fetch`. No key is needed and no request leaves the machine, which
+ * is what makes these runnable anywhere — including on the two paths that only
+ * happen when a provider misbehaves and would otherwise never be exercised.
+ */
+
+const key = vi.hoisted(() => ({ value: "test-key" as string | null }))
+vi.mock("@/server/ai/keys", () => ({
+  getAiKey: () => Promise.resolve(key.value),
+}))
+
+const VIDEO_URI =
+  "https://generativelanguage.googleapis.com/v1beta/files/abc:download"
+
+/** Google's answer to a file address: the download goes on elsewhere. */
+function hop(location: string) {
+  return {
+    ok: false,
+    status: 302,
+    headers: new Headers({ location }),
+  } as unknown as Response
+}
+
+function reply(body: unknown, ok = true) {
+  return {
+    ok,
+    json: () => Promise.resolve(body),
+    arrayBuffer: () => Promise.resolve(new Uint8Array([1, 2, 3]).buffer),
+  } as unknown as Response
+}
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.useRealTimers()
+  key.value = "test-key"
+})
+
+describe("generateSoundscapeAudio", () => {
+  it("asks ElevenLabs for a looping mp3 and hands back the bytes", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(reply(null))
+
+    const result = await generateSoundscapeAudio("rain on a tin roof")
+
+    expect(result.kind).toBe("audio")
+    expect(result.bytes.byteLength).toBe(3)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe("https://api.elevenlabs.io/v1/sound-generation")
+    const body = JSON.parse(String((init as RequestInit).body))
+    expect(body.text).toBe("rain on a tin roof")
+    expect(body.loop).toBe(true)
+  })
+
+  it("refuses before calling anything when no key is set", async () => {
+    key.value = null
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+
+    await expect(generateSoundscapeAudio("anything")).rejects.toBeInstanceOf(
+      ProviderKeyMissingError
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("does not pass the provider's own error text on", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      reply({ detail: "quota exceeded for model eleven_v2" }, false)
+    )
+    await expect(generateSoundscapeAudio("anything")).rejects.toThrow(
+      "PROVIDER_REQUEST_FAILED"
+    )
+  })
+})
+
+describe("generateBackgroundVideo", () => {
+  it("starts a render, polls until done, then downloads the file", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(reply({ name: "operations/123" }))
+      .mockResolvedValueOnce(reply({ done: false }))
+      .mockResolvedValueOnce(
+        reply({ done: true, response: { videos: [{ uri: VIDEO_URI }] } })
+      )
+      .mockResolvedValueOnce(reply(null))
+
+    const promise = generateBackgroundVideo("a quiet forest")
+    await vi.advanceTimersByTimeAsync(30_000)
+    const result = await promise
+
+    expect(result.kind).toBe("video")
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    // The member's words reach the provider inside the framing that keeps the
+    // result usable as scenery.
+    const body = JSON.parse(
+      String((fetchMock.mock.calls[0][1] as RequestInit).body)
+    )
+    expect(body.instances[0].prompt).toContain("a quiet forest")
+    expect(body.instances[0].prompt).toContain("locked camera")
+    expect(body.parameters.resolution).toBe("720p")
+    // Veo refuses "allow_adult" from words alone.
+    expect(body.parameters.personGeneration).toBe("allow_all")
+    // The download never follows the reply anywhere by itself.
+    expect((fetchMock.mock.calls[3][1] as RequestInit).redirect).toBe("manual")
+  })
+
+  it("follows Google's one hop to its own storage, without the key", async () => {
+    vi.useFakeTimers()
+    const storage = "https://storage.googleusercontent.com/video/abc.mp4"
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(reply({ name: "operations/123" }))
+      .mockResolvedValueOnce(
+        reply({ done: true, response: { videos: [{ uri: VIDEO_URI }] } })
+      )
+      .mockResolvedValueOnce(hop(storage))
+      .mockResolvedValueOnce(reply(null))
+
+    const promise = generateBackgroundVideo("a quiet forest")
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect((await promise).kind).toBe("video")
+    expect(String(fetchMock.mock.calls[3][0])).toBe(storage)
+    const last = fetchMock.mock.calls[3][1] as RequestInit
+    expect(last.headers).toBeUndefined()
+    expect(last.redirect).toBe("error")
+  })
+
+  it("refuses a hop to somewhere that is not Google's", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(reply({ name: "operations/123" }))
+      .mockResolvedValueOnce(
+        reply({ done: true, response: { videos: [{ uri: VIDEO_URI }] } })
+      )
+      .mockResolvedValueOnce(hop("https://example.com/evil.mp4"))
+
+    const promise = generateBackgroundVideo("a quiet forest")
+    const settled = expect(promise).rejects.toThrow("PROVIDER_REQUEST_FAILED")
+    await vi.advanceTimersByTimeAsync(20_000)
+    await settled
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it("refuses a download address that is not the provider's own", async () => {
+    vi.useFakeTimers()
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(reply({ name: "operations/123" }))
+      .mockResolvedValueOnce(
+        reply({
+          done: true,
+          response: { videos: [{ uri: "https://example.com/evil.mp4" }] },
+        })
+      )
+
+    const promise = generateBackgroundVideo("a quiet forest")
+    const settled = expect(promise).rejects.toThrow("PROVIDER_INVALID_RESPONSE")
+    await vi.advanceTimersByTimeAsync(20_000)
+    await settled
+  })
+
+  it("reports a render the provider gave up on", async () => {
+    vi.useFakeTimers()
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(reply({ name: "operations/123" }))
+      .mockResolvedValueOnce(reply({ error: { code: 400 } }))
+
+    const promise = generateBackgroundVideo("a quiet forest")
+    const settled = expect(promise).rejects.toThrow(
+      "PROVIDER_GENERATION_FAILED"
+    )
+    await vi.advanceTimersByTimeAsync(20_000)
+    await settled
+  })
+
+  it("sends a style inside the frame, and a starting picture as Veo takes it", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(reply({ name: "operations/123" }))
+      .mockResolvedValueOnce(
+        reply({ done: true, response: { videos: [{ uri: VIDEO_URI }] } })
+      )
+      .mockResolvedValueOnce(reply(null))
+
+    const promise = generateBackgroundVideo("my desk at night", {
+      style: "anime",
+      picture: { bytes: new Uint8Array([255, 216, 255]), mimeType: "image/jpeg" },
+    })
+    await vi.advanceTimersByTimeAsync(20_000)
+    await promise
+
+    const instance = JSON.parse(
+      String((fetchMock.mock.calls[0][1] as RequestInit).body)
+    ).instances[0]
+    // The style comes after the rules it must not lift, and before the words.
+    expect(instance.prompt.indexOf("locked camera")).toBeLessThan(
+      instance.prompt.indexOf("Anime style")
+    )
+    expect(instance.prompt.endsWith("my desk at night")).toBe(true)
+    // The two fields Veo's predictLongRunning takes; it refuses inlineData.
+    expect(instance.image).toEqual({
+      bytesBase64Encoded: "/9j/",
+      mimeType: "image/jpeg",
+    })
+    const parameters = JSON.parse(
+      String((fetchMock.mock.calls[0][1] as RequestInit).body)
+    ).parameters
+    expect(parameters.personGeneration).toBe("allow_adult")
+  })
+
+  it("ignores a style it does not know", () => {
+    expect(backgroundPrompt("a lake", "made-up")).toBe(
+      "Ambient focus background, locked camera, seamless visual motion, no text, no people speaking. a lake"
+    )
+  })
+
+  it("refuses before calling anything when no key is set", async () => {
+    key.value = null
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+    await expect(generateBackgroundVideo("anything")).rejects.toBeInstanceOf(
+      ProviderKeyMissingError
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})

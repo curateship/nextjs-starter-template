@@ -1,0 +1,238 @@
+import * as React from "react"
+
+import type { DashboardBootstrap } from "@/lib/api/trade/dashboard"
+import type { ProtocolId } from "@/lib/protocols/contracts"
+import { loadWalletAccounts, pickWallet } from "@/lib/api/trade/wallets"
+import { writeWalletPanelCache } from "@/lib/trade/dashboard-cache"
+import { keepGoodSummaries } from "@/lib/trade/wallets"
+import type { TradeWallet, WalletAccountSummary } from "@/lib/trade/wallets"
+
+/**
+ * The one owner of wallet state. Mounted once in the workspace so the account
+ * panel (and, in later tasks, the order form and the activity panel) are all
+ * views of the same answer, never three polls disagreeing with each other.
+ *
+ * Refreshes every 15 seconds while the tab is visible, catches up the moment
+ * a hidden tab comes back, and ignores any answer that arrives after a newer
+ * request went out. A poll that fails keeps the last good figures on screen
+ * and tries again next tick; only a first load with nothing to show yet
+ * surfaces an error.
+ *
+ * Scoped to ONE exchange — the page's. Every dashboard belongs to exactly
+ * one, and a Hyperliquid wallet sitting in the Phemex page's account column
+ * reads as money that page could trade, which it cannot. Wallets on other
+ * exchanges stay untouched server-side; this page simply does not show them.
+ */
+
+const REFRESH_MS = 15_000
+
+export type TradeAccount = {
+  /** True only before the first answer — never during a background refresh. */
+  loading: boolean
+  /** The first load failed and there is nothing to show. */
+  failed: boolean
+  wallets: TradeWallet[]
+  summaryOf: (walletId: string) => WalletAccountSummary | null
+  /**
+   * The wallet being traded with, or null until one is picked. Null is a real
+   * answer, never "use the first one": an order goes to whichever wallet this
+   * is, so the wallet has to be chosen on purpose rather than landed on.
+   */
+  activeWallet: TradeWallet | null
+  /** Re-reads everything; what every dialog calls after a save. */
+  refresh: () => Promise<void>
+  /** Makes a wallet the active one — instant on screen, remembered server-side. */
+  switchWallet: (walletId: string) => void
+}
+
+export function useTradeAccount(
+  protocol: ProtocolId,
+  cacheScope: string,
+  initial: DashboardBootstrap["wallets"]
+): TradeAccount {
+  const seeded = React.useMemo(() => {
+    const wallets = initial.rows.filter((one) => one.protocol === protocol)
+    return {
+      wallets,
+      summaries: new Map(
+        initial.summaries.map((summary) => [summary.walletId, summary])
+      ),
+      lastWalletId: initial.lastWalletIds[protocol] ?? null,
+    }
+  }, [initial, protocol])
+  const [wallets, setWallets] = React.useState<TradeWallet[] | null>(() =>
+    !initial.pending && initial.error === null ? seeded.wallets : null
+  )
+  const [summaries, setSummaries] = React.useState<
+    ReadonlyMap<string, WalletAccountSummary>
+  >(() => seeded.summaries)
+  const [lastWalletId, setLastWalletId] = React.useState<string | null>(
+    seeded.lastWalletId
+  )
+  const [chosenWalletId, setChosenWalletId] = React.useState<string | null>(
+    null
+  )
+  const [failed, setFailed] = React.useState(
+    !initial.pending && initial.error !== null
+  )
+
+  // Only the newest request may write state — an old answer landing after a
+  // newer one would put stale figures over fresh ones.
+  const requestRef = React.useRef(0)
+  // What is on screen and how many empty reads each wallet has had in a row,
+  // held in refs so the merge below stays a plain calculation rather than
+  // something that counts twice when React runs an updater twice.
+  const summariesRef = React.useRef<ReadonlyMap<string, WalletAccountSummary>>(
+    seeded.summaries
+  )
+  const missesRef = React.useRef<ReadonlyMap<string, number>>(new Map())
+
+  // The exchange half of the opening answer streams in after the page has
+  // painted; the loader hands this hook a pending marker first and the real
+  // answer as a prop change. Adopted during render, the way React's derived-
+  // state pattern does it — but only into a panel that still has nothing: a
+  // poll answer that beat the stream here is fresher and is kept. Later
+  // loader answers change nothing either; the 15-second poll owns freshness.
+  const [seenInitial, setSeenInitial] = React.useState(initial)
+  if (seenInitial !== initial) {
+    setSeenInitial(initial)
+    if (!initial.pending && wallets === null && !failed) {
+      setWallets(initial.error === null ? seeded.wallets : null)
+      setSummaries(seeded.summaries)
+      setLastWalletId(seeded.lastWalletId)
+      setFailed(initial.error !== null)
+    }
+  }
+
+  // The merge memory follows whatever is on screen, in one place, so the
+  // streamed adoption above and the poll below both feed it without either
+  // writing a ref mid-render. Effects run before any later read starts, so
+  // the next merge always sees the committed map.
+  React.useEffect(() => {
+    summariesRef.current = summaries
+  }, [summaries])
+
+  // A read still on its way. The poll consults it and skips its turn rather
+  // than starting a second one: on a slow or rate-limited exchange a read can
+  // outlast the gap between polls, and stacking them spends a database
+  // connection per waiting request until the pool is gone and every read in
+  // the app — not just this one — waits forever behind them.
+  const inFlightRef = React.useRef<Promise<void> | null>(null)
+
+  const read = React.useCallback(async () => {
+    const request = ++requestRef.current
+    try {
+      const answer = await loadWalletAccounts(protocol)
+      if (requestRef.current !== request) return
+      const protocolWallets = answer.wallets.filter(
+        (one) => one.protocol === protocol
+      )
+      setWallets(protocolWallets)
+      // A wallet the exchange would not answer for keeps the figures it last
+      // had, until it has missed enough reads to be worth saying out loud.
+      const merged = keepGoodSummaries(
+        summariesRef.current,
+        answer.summaries,
+        missesRef.current
+      )
+      missesRef.current = merged.misses
+      setSummaries(merged.summaries)
+      const lastWalletId = answer.lastWalletIds[protocol] ?? null
+      setLastWalletId(lastWalletId)
+      writeWalletPanelCache(cacheScope, {
+        wallets: protocolWallets,
+        summaries: [...merged.summaries.values()],
+        lastWalletId,
+      })
+      setFailed(false)
+    } catch {
+      if (requestRef.current !== request) return
+      // Nothing on screen yet is the only failure worth announcing; with
+      // figures already up, the next tick is the retry.
+      setFailed(true)
+    }
+  }, [protocol, cacheScope])
+
+  /** Starts a read and holds it as THE read until it settles. */
+  const begin = React.useCallback(() => {
+    const running = read().finally(() => {
+      if (inFlightRef.current === running) inFlightRef.current = null
+    })
+    inFlightRef.current = running
+    return running
+  }, [read])
+
+  /** One poll's turn: skipped outright while the last one is still running. */
+  const poll = React.useCallback(() => {
+    if (document.hidden || inFlightRef.current) return
+    void begin()
+  }, [begin])
+
+  // The same guard for every caller. A dialog's save or a finished trade
+  // wants fresh figures, but if a read is already on its way, that read is
+  // the answer — starting a second one is how the connection pool once
+  // drained. A successful dashboard answer makes mounting cost no request;
+  // the first timed refresh is fifteen seconds later. A failed opening answer
+  // retries at once through this same path.
+  const refresh = React.useCallback(
+    () => inFlightRef.current ?? begin(),
+    [begin]
+  )
+
+  React.useEffect(() => {
+    // Never while pending: writing the empty pending marker here would wipe
+    // the cached copy the panel is drawing while the real answer streams in.
+    if (!initial.pending && initial.error === null) {
+      writeWalletPanelCache(cacheScope, {
+        wallets: seeded.wallets,
+        summaries: [...seeded.summaries.values()],
+        lastWalletId: seeded.lastWalletId,
+      })
+    }
+  }, [cacheScope, initial.pending, initial.error, seeded])
+
+  React.useEffect(() => {
+    // The first read is scheduled rather than called in the effect body, so
+    // mounting never sets state mid-render pass — same shape as the poll.
+    const firstRead = initial.error === null ? null : window.setTimeout(poll, 0)
+    const timer = window.setInterval(poll, REFRESH_MS)
+    const onVisible = () => poll()
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      if (firstRead !== null) window.clearTimeout(firstRead)
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
+  }, [initial.error, poll])
+
+  const switchWallet = React.useCallback((walletId: string) => {
+    setChosenWalletId(walletId)
+    // Remembered best-effort: a failed save loses the memory, not the switch.
+    pickWallet(walletId).catch(() => {})
+  }, [])
+
+  const summaryOf = React.useCallback(
+    (walletId: string) => summaries.get(walletId) ?? null,
+    [summaries]
+  )
+
+  const list = wallets ?? []
+  // A remembered id that matches nothing — the wallet was deleted, here or in
+  // another tab — resolves to null, which puts the "pick one" prompt back up.
+  const activeWallet =
+    list.find(
+      (wallet) =>
+        wallet.id === (chosenWalletId ?? lastWalletId) &&
+        wallet.status === "active"
+    ) ?? null
+
+  return {
+    loading: wallets === null && !failed,
+    failed: failed && wallets === null,
+    wallets: list,
+    summaryOf,
+    activeWallet,
+    refresh,
+    switchWallet,
+  }
+}

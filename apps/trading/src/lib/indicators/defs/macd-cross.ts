@@ -23,9 +23,21 @@ export const macdCrossIndicator: IndicatorModule<MacdCrossParams> = {
   paramsSchema,
   defaultParams: { fast: 12, slow: 26, signal: 9 },
   paramFields: [
-    { key: "fast", label: "Fast" },
-    { key: "slow", label: "Slow" },
-    { key: "signal", label: "Signal" },
+    {
+      key: "fast",
+      label: "Fast",
+      info: "Candles in the fast moving average of the MACD.",
+    },
+    {
+      key: "slow",
+      label: "Slow",
+      info: "Candles in the slow moving average of the MACD.",
+    },
+    {
+      key: "signal",
+      label: "Signal",
+      info: "Candles in the signal line the MACD crosses to fire.",
+    },
   ],
   warmupBars: (params) => Math.max((params.slow + params.signal) * 3, 100),
 

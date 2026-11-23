@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+    <node index="0" text="r/help" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,200][1032,280]" />
+    <node index="1" text="Account suspended after one comment?" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,290][1032,370]" />
+    <node index="2" text="Posted by u/someone 3h" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,380][1032,460]" />
+    <node index="3" text="I wrote one comment and now my account is suspended. What happened?" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,470][1032,550]" />
+    <node index="4" text="12" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,560][1032,640]" />
+    <node index="5" text="Reply" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,650][1032,730]" />
+    <node index="6" text="Share" resource-id="" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[48,740][1032,820]" />
+</hierarchy>

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { CustomShellDb } from "@/server/db"
 import * as schema from "@/server/schema"
 
+import { getAlertWorkerStatus } from "../worker-status"
 import { getWorkersDashboard } from "./status"
 
 let client: PGlite
@@ -28,6 +29,8 @@ beforeEach(async () => {
     "../../../drizzle/0041_market_scanner_pause.sql",
     "../../../drizzle/0042_market_scanner_runtime_control.sql",
     "../../../drizzle/0043_dedicated_workers.sql",
+    "../../../drizzle/0045_alert_worker.sql",
+    "../../../drizzle/0049_backtest_timeline.sql",
   ]) {
     await client.exec(await readFile(new URL(file, import.meta.url), "utf8"))
   }
@@ -123,6 +126,44 @@ describe("worker status", () => {
         currentActivity: "Running an old Backtest",
       },
     })
+    await database.insert(schema.tradingWorkerHeartbeats).values({
+      id: "alert-worker-1",
+      startedAt: timestamp,
+      lastSeenAt: new Date(),
+      version: "test",
+      meta: {
+        workerKind: "alert",
+        role: "leader",
+        serviceActive: true,
+        currentActivity: "Watching Trade alerts",
+        alertRules: 2,
+        alertCoins: 1,
+        alertSubscriptions: 288,
+        lastSuccessfulWorkAt: "2026-07-15T12:34:56.000Z",
+        watchdogLastCheckAt: "2026-07-15T12:35:00.000Z",
+      },
+    })
+    await database.insert(schema.scannerAlerts).values({
+      id: "watchdog-down-1",
+      type: "worker_down",
+      title: "Backtest Worker is down",
+      body: "No heartbeat since 2026-07-15T11:00:00.000Z.",
+      data: { workerKind: "backtest", urgent: false, exposure: false },
+      dedupeKey: "worker-down:backtest:1",
+      createdAt: timestamp,
+    })
+    await database.insert(schema.tradingWorkerHeartbeats).values({
+      id: "alert-worker-standby",
+      startedAt: timestamp,
+      lastSeenAt: new Date(Date.now() + 1_000),
+      version: "test",
+      meta: {
+        workerKind: "alert",
+        role: "standby",
+        serviceActive: false,
+        currentActivity: "Starting",
+      },
+    })
     await database
       .update(schema.tradingWorkerControls)
       .set({ paused: true, updatedAt: timestamp })
@@ -138,6 +179,7 @@ describe("worker status", () => {
       "bot",
       "whale-scanner",
       "market-scanner",
+      "alert",
       "backtest",
     ])
     expect(
@@ -157,6 +199,21 @@ describe("worker status", () => {
       value: timestamp.toISOString(),
     })
     expect(
+      result.workers.find((worker) => worker.kind === "alert")
+    ).toMatchObject({
+      state: "running",
+      currentActivity: "Watching Trade alerts",
+      lastSuccessfulWorkAt: "2026-07-15T12:34:56.000Z",
+      watchdogLastCheckAt: "2026-07-15T12:35:00.000Z",
+      lastIncidentAt: null,
+      lastIncidentOngoing: false,
+      metrics: [
+        { label: "Alert rules", value: "2" },
+        { label: "Markets", value: "1" },
+        { label: "Subscriptions", value: "288" },
+      ],
+    })
+    expect(
       result.workers.find((worker) => worker.kind === "backtest")?.metrics
     ).toContainEqual({
       label: "Last completed",
@@ -168,7 +225,12 @@ describe("worker status", () => {
       state: "offline",
       currentActivity: "Not connected",
       role: null,
+      lastIncidentAt: timestamp.toISOString(),
+      lastIncidentOngoing: true,
     })
     expect(result.overview.pausedOrOff).toBe(1)
+    await expect(
+      getAlertWorkerStatus(database as unknown as CustomShellDb)
+    ).resolves.toEqual({ workerOnline: true, workerActive: true })
   })
 })

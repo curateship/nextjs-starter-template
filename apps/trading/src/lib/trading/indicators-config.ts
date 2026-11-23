@@ -7,7 +7,6 @@ import { sessionLabel, type SessionKey } from "@/lib/trading/sessions"
 
 export type IndicatorType =
   | "ema"
-  | "vwap"
   | "bollinger"
   | "rsi"
   | "macd"
@@ -31,6 +30,10 @@ export const QQE_RSI_SOURCES = [
   "close", "open", "high", "low", "hl2", "hlc3", "ohlc4",
 ] as const
 
+/** Bollinger signal modes, stored on the chart as a numeric index (like QQE's
+ * enums). Keep in sync with the module schema in defs/bollinger.ts. */
+export const BOLLINGER_MODES = ["revert", "breakout"] as const
+
 export type IndicatorConfig = {
   /** Stable key; disambiguates multiple EMAs (e.g. "ema-20" / "ema-50"). */
   id: string
@@ -48,13 +51,17 @@ export type IndicatorConfig = {
   params: Record<string, number>
   /** Optional override for the indicator's primary line color. */
   color?: string
+  /** Per-line color overrides for multi-line indicators (EMA: fast/slow/third). */
+  colors?: Record<string, string>
   /** Which session the Sessions indicator draws (type "session" only). */
   session?: SessionKey
 }
 
 export const DEFAULT_INDICATORS: IndicatorConfig[] = [
   // One EMA indicator with up to three lines — the SAME settings shape the
-  // EMA Cross strategy uses, so chart and strategy always match.
+  // EMA Cross strategy uses, so chart and strategy always match. Each line
+  // gets its own settings card and its own color (the `colors` map); the two
+  // fastest switched-on lines drive the chart's cross arrows.
   {
     id: "ema",
     type: "ema",
@@ -69,13 +76,14 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
       showThird: 1,
     },
   },
-  { id: "vwap", type: "vwap", enabled: false, pinned: false, params: {} },
   {
     id: "bollinger",
     type: "bollinger",
     enabled: false,
     pinned: false,
-    params: { period: 20, k: 2 },
+    // mode indexes BOLLINGER_MODES (0 = revert) — same signal rule the
+    // Bollinger strategy node runs.
+    params: { period: 20, k: 2, mode: 0 },
   },
   {
     id: "rsi",
@@ -96,14 +104,26 @@ export const DEFAULT_INDICATORS: IndicatorConfig[] = [
     type: "base",
     enabled: false,
     pinned: false,
-    params: { basePeriods: 36, pumpPeriods: 8 },
+    // Base forming only — the crack settings live on the automation's Base node
+    // for the DCA ladder to read; nothing the chart paints uses them.
+    // Booleans ride as 0/1 in chart configs.
+    params: {
+      basePeriods: 36,
+      pumpPeriods: 8,
+      formedRequireHigherBase: 1,
+      formedMinBars: 20,
+      formedShowLong: 1,
+      formedShowShort: 1,
+    },
   },
   {
     id: "session",
     type: "session",
     enabled: false,
     pinned: false,
-    params: {},
+    // Which session is picked lives on `session`, not here — the chart has had
+    // its own dropdown for it since before the signal existed.
+    params: { wickBodyRatio: 2 },
     session: "nyse",
   },
   {
@@ -186,6 +206,37 @@ export function qqeChartToModuleParams(
   }
 }
 
+/** Chart Bollinger params (mode as index) → the module's typed params. */
+export function bollingerChartToModuleParams(
+  params: Record<string, number>
+): Record<string, number | string> {
+  return {
+    period: params.period ?? 20,
+    k: params.k ?? 2,
+    mode: BOLLINGER_MODES[params.mode] ?? "revert",
+  }
+}
+
+/** Chart Price Action params (0/1 pattern flags) → the module's typed params. */
+export function priceActionChartToModuleParams(
+  params: Record<string, number>
+): Record<string, number | boolean> {
+  return {
+    bullHammer: (params.bullHammer ?? 1) !== 0,
+    bearShootingStar: (params.bearShootingStar ?? 1) !== 0,
+    bullEngulfing: (params.bullEngulfing ?? 1) !== 0,
+    bearEngulfing: (params.bearEngulfing ?? 1) !== 0,
+    bullSweep: (params.bullSweep ?? 1) !== 0,
+    bearSweep: (params.bearSweep ?? 1) !== 0,
+    bullBos: (params.bullBos ?? 1) !== 0,
+    bearBos: (params.bearBos ?? 1) !== 0,
+    wickBodyRatio: params.wickBodyRatio ?? 2,
+    extremeLookback: params.extremeLookback ?? 5,
+    sweepLookback: params.sweepLookback ?? 20,
+    swingLookback: params.swingLookback ?? 5,
+  }
+}
+
 /** Chart Fair Value Gap params (numeric form) → the FVG module's typed params. */
 export function fairValueGapChartToModuleParams(
   params: Record<string, number>
@@ -193,6 +244,32 @@ export function fairValueGapChartToModuleParams(
   return {
     minGapSize: params.minGapSize ?? 1,
     showFilled: (params.showFilled ?? 1) !== 0,
+  }
+}
+
+/** Chart Base params → the Base module's typed params. The card and the module
+ * carry the same shape now that the crack settings live on the DCA node. */
+export function baseChartToModuleParams(
+  params: Record<string, number>
+): Record<string, number | string | boolean> {
+  return {
+    basePeriods: params.basePeriods ?? 36,
+    pumpPeriods: params.pumpPeriods ?? 8,
+    formedRequireHigherBase: (params.formedRequireHigherBase ?? 1) !== 0,
+    formedMinBars: params.formedMinBars ?? 20,
+    formedShowLong: (params.formedShowLong ?? 1) !== 0,
+    formedShowShort: (params.formedShowShort ?? 1) !== 0,
+  }
+}
+
+/** Chart Sessions card → the Sessions module's typed params. The picked
+ * session rides on `config.session` (its own dropdown), not in `params`. */
+export function sessionChartToModuleParams(
+  config: Pick<IndicatorConfig, "params" | "session">
+): Record<string, number | string> {
+  return {
+    session: config.session ?? "nyse",
+    wickBodyRatio: config.params.wickBodyRatio ?? 2,
   }
 }
 
@@ -207,25 +284,40 @@ export function trendlineChartToModuleParams(
   }
 }
 
-/** The EMA indicator's per-line on/off switches (stored as 0/1). */
-export const EMA_TOGGLES = [
-  { key: "showFast", periodKey: "fast", label: "EMA 1" },
-  { key: "showSlow", periodKey: "slow", label: "EMA 2" },
-  { key: "showThird", periodKey: "third", label: "EMA 3" },
+/** The EMA indicator's three lines: per-line period/toggle params, the color
+ * key in `config.colors`, and the palette slot each line defaults to. */
+export const EMA_LINES = [
+  {
+    key: "fast",
+    toggleKey: "showFast",
+    periodKey: "fast",
+    slot: "ema-fast",
+    label: "EMA 1",
+  },
+  {
+    key: "slow",
+    toggleKey: "showSlow",
+    periodKey: "slow",
+    slot: "ema-slow",
+    label: "EMA 2",
+  },
+  {
+    key: "third",
+    toggleKey: "showThird",
+    periodKey: "third",
+    slot: "ema-third",
+    label: "EMA 3",
+  },
 ] as const
 
-/** The chart lines an EMA config draws: switched-on entries with the palette
- * slot each line colors from. */
-export function emaLines(
-  params: Record<string, number>
-): { slot: "ema-fast" | "ema-slow" | "ema-third"; period: number }[] {
-  const slots = ["ema-fast", "ema-slow", "ema-third"] as const
-  return EMA_TOGGLES.flatMap((toggle, index) => {
-    const period = params[toggle.periodKey]
-    const on = (params[toggle.key] ?? 1) !== 0
+export type EmaLineDef = (typeof EMA_LINES)[number]
+
+/** The chart lines an EMA config draws: switched-on entries with a valid period. */
+export function emaLines(params: Record<string, number>): EmaLineDef[] {
+  return EMA_LINES.filter((line) => {
+    const period = params[line.periodKey]
+    const on = (params[line.toggleKey] ?? 1) !== 0
     return on && Number.isFinite(period) && period >= 2
-      ? [{ slot: slots[index], period }]
-      : []
   })
 }
 
@@ -258,15 +350,20 @@ export const INDICATOR_PARAM_FIELDS: Record<
   IndicatorType,
   IndicatorParamFieldDef[]
 > = {
-  ema: [
-    { key: "fast", label: "EMA 1 period" },
-    { key: "slow", label: "EMA 2 period" },
-    { key: "third", label: "EMA 3 period" },
-  ],
-  vwap: [],
+  // EMA renders its own per-line cards in the settings dialog (EMA_LINES),
+  // not this generic field list.
+  ema: [],
   bollinger: [
     { key: "period", label: "Period" },
     { key: "k", label: "StdDev", step: 0.5 },
+    {
+      key: "mode",
+      label: "Mode",
+      kind: "select",
+      options: BOLLINGER_MODES,
+      description:
+        "Revert fades a move beyond a band back to the middle; Breakout follows a close through a band.",
+    },
   ],
   rsi: [
     { key: "period", label: "Period" },
@@ -279,10 +376,56 @@ export const INDICATOR_PARAM_FIELDS: Record<
     { key: "signal", label: "Signal" },
   ],
   base: [
-    { key: "basePeriods", label: "Base periods" },
-    { key: "pumpPeriods", label: "Pump periods" },
+    {
+      key: "basePeriods",
+      label: "Base periods",
+      description:
+        "How many candles back to search for the lowest low that forms a base.",
+    },
+    {
+      key: "pumpPeriods",
+      label: "Pump periods",
+      description:
+        "How many candles the new low must hold before the base counts as confirmed. A green up arrow prints on the candle that confirms it.",
+    },
+    {
+      key: "formedRequireHigherBase",
+      label: "Only levels with the trend",
+      kind: "boolean",
+      description:
+        "On: long marks only a base above the base before it (higher low), short marks only a ceiling below the ceiling before it (lower high). Off: mark every level. This is usually why a level has a dash but no arrow.",
+    },
+    {
+      key: "formedShowLong",
+      label: "Show long arrows (bases)",
+      kind: "boolean",
+      description:
+        "Green up arrow and a teal dash at each confirmed base — support.",
+    },
+    {
+      key: "formedShowShort",
+      label: "Show short arrows (ceilings)",
+      kind: "boolean",
+      description:
+        "Red down arrow and a red dash at each confirmed ceiling — resistance.",
+    },
+    {
+      key: "formedMinBars",
+      label: "Minimum candles between arrows",
+      description:
+        "Arrows can never appear closer together than this many candles, so they stop bunching up. An arrow also only prints on a floor above the last one marked; after price sets a lower floor the indicator measures from there.",
+    },
   ],
-  session: [],
+  // The session itself is picked in its own dropdown further down the dialog.
+  session: [
+    {
+      key: "wickBodyRatio",
+      label: "Wick/body ratio",
+      step: 0.5,
+      description:
+        "How many times longer than its body a wick makes the last candle a rejection — an inverted hammer going long, a hanging man going short — which cancels the signal.",
+    },
+  ],
   priceAction: [
     {
       key: "wickBodyRatio",
@@ -379,7 +522,6 @@ export const INDICATOR_PARAM_FIELDS: Record<
 
 export const INDICATOR_LABELS: Record<IndicatorType, string> = {
   ema: "EMA",
-  vwap: "VWAP",
   bollinger: "Bollinger",
   rsi: "RSI",
   macd: "MACD",
@@ -397,7 +539,7 @@ export function indicatorDisplayName(config: IndicatorConfig): string {
   if (custom) return custom
   const label = INDICATOR_LABELS[config.type]
   if (config.type !== "ema") return label
-  const periods = emaLines(config.params).map((line) => line.period)
+  const periods = emaLines(config.params).map((line) => config.params[line.periodKey])
   return periods.length > 0 ? `${label} ${periods.join("/")}` : label
 }
 
@@ -407,7 +549,7 @@ export function indicatorSettingsSummary(config: IndicatorConfig): string {
   if (config.type === "ema") {
     const lines = emaLines(config.params)
     return lines.length > 0
-      ? lines.map((line) => `EMA ${line.period}`).join(" · ")
+      ? lines.map((line) => `EMA ${config.params[line.periodKey]}`).join(" · ")
       : "All lines off"
   }
   if (config.type === "priceAction") {
@@ -456,7 +598,6 @@ const PALETTE: Record<string, ThemeHex> = {
   "ema-fast": { light: "#2563eb", dark: "#60a5fa" },
   "ema-slow": { light: "#ea580c", dark: "#fb923c" },
   "ema-third": { light: "#16a34a", dark: "#4ade80" },
-  vwap: { light: "#7c3aed", dark: "#a78bfa" },
   "bollinger-mid": { light: "#0891b2", dark: "#22d3ee" },
   "bollinger-band": { light: "#94a3b8", dark: "#64748b" },
   rsi: { light: "#7c3aed", dark: "#a78bfa" },

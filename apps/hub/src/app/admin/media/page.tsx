@@ -338,7 +338,7 @@ export default function ImagesPage() {
 
           <AdminTableShell
             title="Media"
-            icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<ImageIcon className="text-muted-foreground" />}
             count={paginatedData?.total ?? 0}
             selectedCount={mediaSelection.selectedCount}
             onClearSelection={mediaSelection.clearSelection}

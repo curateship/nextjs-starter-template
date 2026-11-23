@@ -36,13 +36,21 @@ import {
 import { MediaPicker } from "@/components/media-picker"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
@@ -3027,6 +3035,9 @@ function PreviewDialog({
       <DialogContent variant="admin" className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>Preview</DialogTitle>
+          <DialogDescription>
+            Review your slides and caption before exporting.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <div className="grid gap-4 md:grid-cols-[1fr_280px]">
@@ -3113,61 +3124,80 @@ function ExportDialog({
       <DialogContent variant="admin" className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Export Carousel</DialogTitle>
+          <DialogDescription>
+            Download your carousel as image slides or a video.
+          </DialogDescription>
         </DialogHeader>
-        <DialogBody className="gap-5">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <ExportOptionButton
-              active={selectedMode === "zip"}
-              disabled={exporting}
-              icon={<FileArchiveIcon className="size-4" />}
-              title="ZIP"
-              description={`${slideCount} PNG slides and caption.txt`}
-              onClick={() => setMode("zip")}
-            />
-            <ExportOptionButton
-              active={selectedMode === "mp4"}
-              disabled={exporting || mp4Supported === false}
-              icon={<FilmIcon className="size-4" />}
-              title="MP4"
-              description={
-                mp4Supported === false
-                  ? "Not supported by this browser"
-                  : `${slideCount} slides as a video`
-              }
-              onClick={() => setMode("mp4")}
-            />
-          </div>
-
-          {selectedMode === "mp4" ? (
-            <div className="grid gap-2 sm:grid-cols-[1fr_9rem] sm:items-end">
-              <div className="space-y-1.5">
-                <Label htmlFor="carousel-video-duration">Slide duration</Label>
+        <DialogBody>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Format</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ExportOptionButton
+                  active={selectedMode === "zip"}
+                  disabled={exporting}
+                  icon={<FileArchiveIcon className="size-4" />}
+                  title="ZIP"
+                  description={`${slideCount} PNG slides and caption.txt`}
+                  onClick={() => setMode("zip")}
+                />
+                <ExportOptionButton
+                  active={selectedMode === "mp4"}
+                  disabled={exporting || mp4Supported === false}
+                  icon={<FilmIcon className="size-4" />}
+                  title="MP4"
+                  description={
+                    mp4Supported === false
+                      ? "Not supported by this browser"
+                      : `${slideCount} slides as a video`
+                  }
+                  onClick={() => setMode("mp4")}
+                />
               </div>
-              <Input
-                id="carousel-video-duration"
-                type="number"
-                min={1}
-                max={10}
-                step={0.5}
-                value={secondsPerSlide}
-                disabled={exporting}
-                onChange={(event) =>
-                  setSecondsPerSlide(Number(event.target.value))
-                }
-              />
-            </div>
-          ) : null}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="carousel-export-caption">Caption</Label>
-            <Textarea
-              id="carousel-export-caption"
-              value={caption}
-              rows={8}
-              disabled={exporting}
-              onChange={(event) => onUpdateCaption(event.target.value)}
-            />
-          </div>
+              {selectedMode === "mp4" ? (
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="carousel-video-duration">
+                    Slide duration
+                  </FieldLabel>
+                  <Input
+                    id="carousel-video-duration"
+                    type="number"
+                    min={1}
+                    max={10}
+                    step={0.5}
+                    value={secondsPerSlide}
+                    disabled={exporting}
+                    onChange={(event) =>
+                      setSecondsPerSlide(Number(event.target.value))
+                    }
+                  />
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Caption</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-2">
+                <FieldLabel htmlFor="carousel-export-caption">
+                  Caption
+                </FieldLabel>
+                <Textarea
+                  id="carousel-export-caption"
+                  value={caption}
+                  rows={1}
+                  disabled={exporting}
+                  onChange={(event) => onUpdateCaption(event.target.value)}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
           {exporting && progress ? (
             <div className="space-y-2">

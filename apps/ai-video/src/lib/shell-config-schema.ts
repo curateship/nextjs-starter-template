@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import {
   BRAND_KIT_WATERMARK_POSITIONS,
+  createDefaultStyling,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   MEDIA_UPLOAD_MAX_MB_LIMIT,
   type ShellConfig,
@@ -11,6 +12,7 @@ import {
   API_USAGE_LIMIT_MIN,
 } from "@/lib/api-usage-constants"
 import { DUCK_DB_MAX, DUCK_DB_MIN } from "@/lib/audio-ducking"
+import { DEFAULT_NORMALIZE_LOUDNESS } from "@/lib/audio-loudness"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/sidebar-width"
 import { TEXT_FONT_IDS } from "./text-fonts.ts"
 
@@ -109,6 +111,33 @@ export const shellTopRightNavigationItemSchema = z
   })
   .strict()
 
+export const shellBackgroundSchema = z.object({
+  mode: z.enum(["default", "muted", "custom"]),
+  strength: z.number().int().min(0).max(100),
+  color: z.string(),
+})
+
+export const shellModalStylingSchema = z.object({
+  background: shellBackgroundSchema,
+  borderWidth: z.number().int().min(0).max(3),
+  borderColor: shellBackgroundSchema,
+  padding: z.number().int().min(0).max(48),
+  overlayOpacity: z.number().int().min(0).max(100),
+  cardBackground: shellBackgroundSchema,
+  cardBorderWidth: z.number().int().min(0).max(3),
+  cardBorderColor: shellBackgroundSchema,
+})
+
+export const shellStylingSchema = z.object({
+  gutter: z.number().int().min(0).max(48),
+  cardBorderWidth: z.number().int().min(0).max(3),
+  cardBorderColor: shellBackgroundSchema,
+  dividerColor: shellBackgroundSchema,
+  content: shellBackgroundSchema,
+  chrome: shellBackgroundSchema,
+  modal: shellModalStylingSchema,
+})
+
 export const shellSectionSchema = z
   .object({
     id: z.string().min(1),
@@ -135,6 +164,9 @@ export const shellGlobalsSchema = z
         )
       ),
     mediaUploadMaxMb: z.number().int().min(1).max(MEDIA_UPLOAD_MAX_MB_LIMIT),
+    // Lenient: settings saved before the home route existed fall back to the
+    // default (empty = Home dashboard) instead of failing to parse.
+    adminRoute: z.string().catch(""),
   })
   .strict()
 
@@ -154,12 +186,14 @@ export const shellConfigSchema = shellGlobalsSchema
       .max(MAX_SIDEBAR_WIDTH),
     // Per-workspace "duck under voice" amount in dB; loader always populates it.
     duckingDb: z.number().min(DUCK_DB_MIN).max(DUCK_DB_MAX),
-    // Route the app opens to on the app root; loader always populates it.
-    defaultRoute: z.string().min(1).max(2048),
+    // Default fills configs saved before export loudness normalization existed.
+    normalizeLoudness: z.boolean().default(DEFAULT_NORMALIZE_LOUDNESS),
     favicon: z.string(),
     brandKit: brandKitConfigSchema,
     topRightNavigation: z.array(shellTopRightNavigationItemSchema),
     sections: z.array(shellSectionSchema),
+    // Default fills configs saved before the styling tab existed.
+    styling: shellStylingSchema.default(() => createDefaultStyling()),
   })
   .strict()
 

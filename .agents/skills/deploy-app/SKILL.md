@@ -1,0 +1,422 @@
+---
+name: deploy-app
+description: Deploy an app in this monorepo to Coolify. A repeat deploy is one script, and the first launch of a new app follows the checklist here (its own Coolify project, database, DNS, email, storage, Turnstile, first admin). Use when Tyler asks, in his current message, to deploy, ship, launch or put an app live. Repo-specific; ship-release is the generic version.
+---
+
+# Deploy App
+
+A repeat deploy took about 22 to 25 minutes, most of it Coolify building;
+the package cache and the dropped copy in the root `Dockerfile` (7 Nov 2026)
+should bring that down, measured on the second deploy after the change, since
+the first fills the cache. `docs/deployment.md` says where the time goes. A first
+launch takes an afternoon the first time and should take an hour with this
+checklist. Pomodoro's launch on 8 Oct 2026 is the worked example, recorded in
+`apps/pomodoro/workspace/docs/launch.md`.
+
+## Before anything
+
+- **Tyler asked for a deploy in his current message.** An earlier "deploy" does
+  not carry forward. A deploy ships the whole branch, never one commit picked
+  out of it.
+- **Never print a secret.** When reading `secrets.env`, `.env.live`,
+  `~/.claude.json` or `~/.codex/config.toml`, hide every line, not only
+  `NAME=value` ones. The comment lines in Trade's `.env.live` hold plain-text
+  passwords.
+- **Read the app's `workspace/docs/launch.md`** when it has one. It lists every
+  value the app needs and what breaks without it.
+
+## Keys and servers
+
+Every key lives in one private file on this Mac:
+`~/.config/deploy-app/secrets.env` (folder `700`, file `600`). Nothing else
+holds them for this skill, and they never go into the repo, a chat or a log.
+The deploy script reads the Coolify keys from it. Load the others the same
+way inside a script, never by printing the file.
+
+| Name in the file | What it is |
+| --- | --- |
+| `COOLIFY_DE_URL`, `COOLIFY_DE_TOKEN` | server1.barelycompany.com, 185.55.243.241, `http://185.55.243.241:8000`. The only server, and every app runs on it. The German box's Coolify was copied there on 1 Nov 2026, so its token and login carry over. The US server (5.78.189.158) is not used. Tyler, 3 Nov 2026: "Remove the US server for deploy app skill. We dont use that server anymore". |
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | The Cloudflare account (typham2@gmail.com) and its one token for setting things up. |
+| `RESEND_API_KEY` | Resend (typham2@gmail.com), full access, so it can add sending domains. |
+| `FIRST_ADMIN_EMAIL`, `FIRST_ADMIN_NAME`, `FIRST_ADMIN_PASSWORD` | Tyler's admin account, created on every app by `create-admin.mjs`. Tyler, 8 Oct 2026. |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ELEVENLABS_API_KEY` | Tyler's AI provider keys, written into a live app's database once, at its launch, by `copy-ai-keys.mjs`. Copied from custom-shell's local Settings → AI on 8 Oct 2026. |
+
+- **A new Coolify server** gets its own pair, `COOLIFY_<NAME>_URL` and
+  `COOLIFY_<NAME>_TOKEN`, a line in the table above, and its short name as
+  `server` in `apps.json`.
+- **Coolify builds `develop`** from GitHub through the "Public GitHub"
+  source. Auto-deploy is off everywhere, so pushing `develop` deploys nothing
+  until a deploy button is pressed.
+- **Each app's own live values** (its database address, encryption key,
+  storage key, Turnstile keys) are in `apps/<app>/.env.live`, which is
+  gitignored.
+- **One Coolify project per app.** Tyler, 8 Oct 2026: the old "System
+  Everything" project is out of date. Never add a resource to it.
+- **The `coolify-de` MCP** in Claude Code uses the same token. Never deploy
+  through `coolify-us`. Codex has its own German entry in `~/.codex/config.toml`.
+
+## One-time setup (Tyler, once ever)
+
+Only redo a line when a key is lost or a server is added.
+
+1. **One Cloudflare setup token, named "claude".** It is the token already
+   in the file, a **user** token under Cloudflare → My Profile → API Tokens.
+   To change what it can do, Edit it there rather than making another. The
+   token's text stays the same, so the file does not change. It needs:
+   - Account → **Workers R2 Storage → Edit** (buckets and their addresses)
+   - Account → **Turnstile → Edit**
+   - Account → **Account API Tokens → Edit** (so I can make each app's own
+     storage key, limited to its bucket)
+   - Account → **Account Settings → Read**
+   - Zone → **Zone → Edit** (to add a new domain)
+   - Zone → **DNS → Edit**
+   - Zone → **Zone Settings → Edit** (HTTPS mode)
+   - Zone Resources: **All zones**, not one domain. No expiry.
+
+   This is a different thing from the keys on the R2 page (R2 → Account
+   Details → API Tokens, and the Account API Tokens list). Those are storage
+   keys a live server uses to read and write files, one per app. Widening one
+   of those does nothing for setup, and it hands the live server more power.
+   The setup token is a **personal** token under My Profile.
+2. **A Coolify token per server.** Coolify → Keys & Tokens → API tokens, with
+   read, write and deploy permissions. server1's is already in the file.
+3. **Resend** is already in the file. A replacement must be a **Full access**
+   key, because sending-only keys cannot add domains.
+
+The whole-account token can do almost anything to every site in the account,
+so it stays on this Mac. Each app gets its own small keys for the server: a
+storage key for its one bucket, its own Turnstile widget, and its own database
+user.
+
+## A repeat deploy
+
+### Tyler's command
+
+The same as Trade's. In the app's own folder (`apps/pomodoro`), type:
+
+```sh
+npm run deploy
+```
+
+Add `-- --dry-run` to see the plan without deploying:
+`npm run deploy -- --dry-run`.
+
+It works because the app's `package.json` has
+`"deploy": "node ../../.agents/skills/deploy-app/scripts/deploy.mjs --push"`.
+npm passes the app's name in, so that line is the same in every app. It lives
+in custom-shell's `package.json` (added 8 Oct 2026), so every app gets it on
+its next shell merge. Trade keeps its own `deploy` line, and a shell merge into
+Trade must keep Trade's and drop the shell's. From the worktree's top folder,
+the long form is
+`node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --push`.
+
+It does the whole deploy in one go:
+
+1. Pushes the branch to `develop`, fast-forward only. If `develop` has
+   commits the branch lacks, it stops before deploying anything.
+2. Says what is live now and how many commits ship.
+3. Builds the website, then the worker once the website is healthy, **one
+   at a time**. The website goes first because it applies any new migration
+   on its way in. Two builds side by side ran the German server out of
+   memory and npm timed out the website's build (29 Oct 2026; Tyler: "change
+   the deploy script so that it deploy one by one"). If one fails, the rest
+   are not started and keep the build they have.
+4. Checks the live health address and prints the answer.
+5. Copies the live left menu down to this Mac, so the laptop matches the
+   menu Tyler set on the live site. It never writes the live menu. See "The
+   left menu" below.
+
+It never writes the AI keys. They go in at launch only (see "The AI keys"
+below).
+
+Before building anything, it clears stuck deploys. A deploy of the same
+website or worker that Coolify still has as queued or running more than 30
+minutes after it started is dead, so the script cancels it and says so. On 30
+Oct 2026 one sat "in progress" for 14 hours and the next deploy answered
+"Deployment not found". A younger one may be another session's real build, so
+the script stops with its age and ID, and deploys nothing, rather than
+cancelling it.
+
+Useful extras, each after `npm run deploy --`: `--dry-run` shows the plan and
+deploys nothing, `--only worker` deploys one resource, `--force` rebuilds without Docker's cache,
+and `--skip-menu` leaves this Mac's menu as it is. Uncommitted changes never ship, and the script says
+so when there are some.
+
+### When I deploy
+
+1. **Tyler asked in his current message.** A deploy ships the whole branch.
+2. **Look at what ships.** Run `--dry-run` first. Say in the report if the
+   push carries another app's files. That app is not redeployed now, but its
+   next deploy takes them.
+3. **Commit only if Tyler asked.** Uncommitted files never ship.
+4. **Run Tyler's command.** Never force a push. If the push is refused, stop
+   and ask.
+5. **Check the menu copied.** The script prints "Copied to local" or "already
+   the same". Say so in the report.
+6. **Check it in a real browser** with the `validate-app` skill, on the live
+   domain. Sign in as Tyler; the left menu is whatever he set there.
+8. **Record it** in the app's `launch.md` → Release record: the commit, the
+   date, the deployment ids, and anything owed.
+
+Trade has its own script: `cd apps/trade && npm run deploy` (engine, then
+worker, then web). Pomodoro's first builds took about 9 minutes for the
+website and 8 for the worker, when the image's health check made Coolify sit
+out 300 seconds before looking.
+
+**Waiting:** while a resource builds, the script prints its status once a
+minute with Coolify's latest step, so a quiet minute is not a hang. Coolify
+reads only the first HEALTHCHECK in the root Dockerfile (the website's), for
+workers too, and sleeps out its start period before checking. That start is
+30 seconds, and the long allowance for a first deploy's migrations sits in the
+retries instead, so Coolify stops waiting as soon as the container is healthy
+(24 Oct 2026).
+
+**Coolify going quiet mid-build:** a 500 or no answer while a build is watched
+is retried every 10 seconds for up to 10 minutes, with one line when it stops
+answering and one when it is back. A 4xx, such as a bad token, still stops at
+once. On 24 Oct 2026 the German Coolify answered 500 to every request for a
+few minutes during a Project deploy; the script quit, and the web build it had
+started was left "in progress" for good and the worker "queued" behind it.
+When that happens, cancel both deployments in Coolify and run the deploy again.
+
+## The left menu
+
+Tyler, 2 Nov 2026: live wins, and the laptop follows it. He edits the menu on
+the live site; every deploy until then had copied the laptop's default menu
+over those edits ("every time i deploy. my navigation (my dashboard) changes
+... its like to revert back to a default"). The rule of 8 Oct 2026, "the
+deployed app's left menu must match the local one" with local winning, is
+gone. The menu is saved in the database, not in the code, so a deploy alone
+never changes it. `scripts/copy-menu.mjs` copies it, and `deploy.mjs` runs it
+after every deploy that includes the website.
+
+- **What it copies:** the admin menu (the `sections`, `topRightNavigation` and
+  name of the workspace Tyler's account points at) and the members' menu
+  (`memberSections` and `memberTopRightNavigation` in the `settings` row).
+  Every other saved setting on the laptop stays as it is.
+- **Which way:** live to the laptop only. Nothing is ever written to the live
+  menu by a script, so menu changes are made on the live site.
+- **Whose menu:** the account named `FIRST_ADMIN_EMAIL` in `secrets.env`, on
+  both sides. On live that account needs one sign-in first, which gives it a
+  workspace.
+- **How it reads live:** through `scripts/live-db.mjs`, which opens a public
+  port on the live database for about a minute and closes it again.
+  `create-admin.mjs` uses the same helper.
+- **By hand:** `node .agents/skills/deploy-app/scripts/copy-menu.mjs <app>`
+  brings the laptop up to date with no deploy. Add `--dry-run` to compare the
+  two menus without writing.
+- **If the copy fails:** the deploy has already finished and stays live. The
+  script prints the command to run by hand.
+- **Trade** deploys with its own script, so its menu is not copied.
+- **Local never uses the live database.** Tyler, 8 Oct 2026: keep them
+  separate, and match the menu by copying it. `npm run dev` runs
+  `setup-database.mjs`, which writes the dev password over his account and
+  applies unshipped migrations to whatever database it is pointed at.
+
+## The AI keys
+
+Tyler, 8 Oct 2026: copy the AI keys to the deployed app's database as well.
+The keys are saved in the database, encrypted, so a deploy alone never puts
+them there. `scripts/copy-ai-keys.mjs` writes them **once, at an app's
+launch** (step 15 below). A repeat deploy never runs it (Tyler, 31 Oct 2026:
+"The script kept readding the api keys. The api keys are only for app launch
+only"), so a key changed or removed in live Settings → AI stays as he left
+it.
+
+- **Where the keys come from:** `secrets.env`, the four names in the table
+  above. Not a local database: Pomodoro's local copy has no keys and no
+  encryption key to hold them.
+- **How they are saved:** encrypted with the app's own
+  `CUSTOM_SHELL_SECRET_ENCRYPTION_KEY` from `apps/<app>/.env.live`, the same
+  way the app's `encryptSecret` does it, into `ai_provider_keys`. That is the
+  row Settings → AI writes, so live shows "Set ••••" and the last four
+  characters, with a Remove button beside it.
+- **Which way:** when it runs, `secrets.env` wins. A provider missing from
+  `secrets.env` is left alone on live.
+- **Changing a key on a live app** is done in that app's Settings → AI, or
+  only when Tyler asks, by editing `secrets.env` and running
+  `node .agents/skills/deploy-app/scripts/copy-ai-keys.mjs <app>`. Add
+  `--dry-run` to see what would change.
+- **It never prints a key**, only the last four characters, the same mask
+  Settings → AI shows.
+- **Run it from the worktree that holds `apps/<app>/.env.live`.** That file is
+  gitignored, so other worktrees do not have it, and the copy stops there.
+- **Trade** deploys with its own script, so its keys are not copied.
+
+## The first launch of a new app
+
+Send Tyler his list in one message at the start, then work through my steps.
+He does one short sitting before the deploy and signs in after it.
+
+### Tyler's list, in one go
+
+Ask for the answers up front:
+
+- **The domain**, already bought at any registrar.
+- **The server:** server1 (`de` in `apps.json`). There is no other.
+- **The first admin's email:** typham2@gmail.com unless he says otherwise.
+- **Anything off at launch:** payments and Google sign-in were off for
+  Pomoder.
+
+**Sitting 1, when I say the resources are ready** (about 5 minutes): at the
+registrar, change the domain's nameservers to the two Cloudflare ones I give
+him. A subdomain of a domain already on Cloudflare, such as
+`<app>.barelycompany.com`, needs no sitting at all.
+
+Only if the API refused the build stage (my step 9), add to that sitting: in
+Coolify → project `<App>` → `<App> Web` → Configuration → Build, set **Docker
+Build Stage Target** to `web` and press Save, then the same on `<App> Worker`
+with `worker`. For Course and Fitness on 19 Oct 2026 the API took it.
+
+**After it is live** (2 minutes): sign in with the admin account I made. The
+AI keys are already there, written by me straight after the first deploy.
+
+### My steps
+
+1. **Laptop dry run.** Follow `docs/deployment.md` "Checking it before you
+   trust it" with `APP=<app>` against an empty Postgres. Browse it as
+   `http://localhost:3999` with `CUSTOM_SHELL_APP_ORIGINS=http://localhost:3999`
+   and a public-looking `CUSTOM_SHELL_APP_URL` (see the traps). Write the
+   app's `workspace/docs/launch.md` from Pomodoro's.
+2. **Add the domain to Cloudflare.** `POST /zones` with
+   `{name, account: {id}, type: "full"}`. Note the two `name_servers` for
+   Tyler's sitting 1. A pending zone already takes DNS records.
+3. **Email.** `POST https://api.resend.com/domains` with
+   `{name, region: "us-east-1"}`. Add the four records it returns to the zone,
+   all **DNS only** (`proxied: false`). The sender is `<App> <hello@<domain>>`.
+4. **Turnstile.** `POST /accounts/{account}/challenges/widgets` with
+   `{name, domains: [<domain>], mode: "managed"}`. Both keys go into
+   `.env.live`.
+5. **Storage.**
+   - **The bucket:** `POST /accounts/{account}/r2/buckets` with `{name,
+     locationHint}`. Use `weur`, near server1.
+   - **Its own key:** `POST /accounts/{account}/tokens` with the permission
+     group "Workers R2 Storage Bucket Item Write" on the resource
+     `com.cloudflare.edge.r2.bucket.<account>_default_<bucket>`. The Access
+     Key ID is the token's `id`, and the Secret Access Key is the SHA-256 of
+     its `value`. Worked on 8 Oct 2026 for Pomoder, with the permission
+     group's id read from `GET /accounts/{account}/tokens/permission_groups`.
+     Name it `<App> storage (<bucket> bucket only)`.
+   - **Test the key:** write, read and delete a file with
+     `@aws-sdk/client-s3`, then check that another bucket is refused.
+6. **Encryption key.** Generate it once with `secrets.token_urlsafe(32)` into
+   `.env.live`. Never change it, and put the same value on the website and the
+   worker.
+7. **Coolify project.** `POST /api/v1/projects` with `name` and
+   `description`. The description allows only letters, numbers, spaces and
+   `- _ . , ! ? ( ) ' " + = * / @ &`, so no colons.
+8. **Database.** `POST /api/v1/databases/postgresql` in the project's
+   `production` environment, with `image: postgres:18-alpine`,
+   `is_public: false`, its own `postgres_user` and `postgres_db`, and a random
+   40-character password. Read `internal_db_url` from `GET /databases/{uuid}`
+   straight into `.env.live`. Because it is internal only, the address needs
+   no `sslmode` suffix. Never use "System Everything DB": its SSL is off, and
+   turning it on restarts the live System Everything site.
+9. **The two resources.**
+   - **Create:** `POST /api/v1/applications/public` with `git_repository`
+     `https://github.com/curateship/nextjs-starter-template`, `git_branch`
+     `develop`, `build_pack` `dockerfile`, `dockerfile_location`
+     `/Dockerfile`, `base_directory` `/` and `ports_exposes` `3000`. Set
+     `is_auto_deploy_enabled`, `health_check_enabled` and `instant_deploy`
+     all false. The image's own health check is used.
+   - **The website** also gets `domains` `https://<d>,https://www.<d>`,
+     `redirect` `non-www` and `is_force_https_enabled` true.
+   - **The worker** gets no domains. Coolify gives it an `sslip.io` address
+     anyway, so `PATCH` its `domains` to `""`.
+   - **The build stage:** `PATCH /applications/{uuid}` with
+     `dockerfile_target_build` `web` on the website and `worker` on the
+     worker, then read it back. That worked for Course and Fitness on 19 Oct
+     2026. Earlier launches saw the API refuse it, and only then does it go
+     in Tyler's sitting 1. Without it, Docker builds the last stage in the
+     file, the worker, on both.
+10. **Variables.** `POST /applications/{uuid}/envs`, one per value, with
+    `is_preview: false` and `is_literal: true`.
+    - **Build-time** (`is_buildtime: true`): only `APP`, plus `WORKER_PACKAGES`
+      on a worker that needs one.
+    - **Everything else** (`is_buildtime: false`, `is_runtime: true`): a
+      build-time value is recorded in the image's history.
+    - **The list:** Pomodoro's `launch.md` table has every value. Two are easy
+      to miss: `CUSTOM_SHELL_APP_ORIGINS` and `CUSTOM_SHELL_API_ENV=production`.
+      `CUSTOM_SHELL_R2_PUBLIC_URL` is `https://media.<domain>`, set before the
+      address exists.
+11. **Send Tyler sitting 1.** Wait for him.
+12. **Once the zone is active:**
+    - **Storage address:** connect `media.<domain>` to the bucket with
+      `POST .../r2/buckets/{bucket}/domains/custom` (`domain`, `zoneId`,
+      `enabled: true`, `minTLS: "1.2"`). Do this before anything is uploaded,
+      because the shell saves full file addresses such as profile photos.
+    - **Email:** `POST /domains/{id}/verify` on Resend.
+    - **The site's address:** in the zone, set `A @` to the server's IP and
+      `CNAME www` to the bare domain, both proxied. Replace any registrar
+      parking records.
+13. **Deploy.** Add the app to `apps.json`, check its `package.json` has the
+    `"deploy"` line (it comes from the shell), then run `npm run deploy` in
+    its folder. A first deploy always goes website first, then
+    worker, because nothing is live yet and every migration is new. It ends
+    by checking `https://<domain>/api/health`.
+14. **Make Tyler's admin account.** Every new app gets one, straight after
+    its first deploy. Add the database's uuid to `apps.json`, then run
+    `node .agents/skills/deploy-app/scripts/create-admin.mjs <app>`.
+    - **What it uses:** the email, name and password are `FIRST_ADMIN_*` in
+      `secrets.env`. They never go in this skill or anywhere in the repo,
+      because the repo is public.
+    - **What it does:** it opens a public port on the database for about a
+      minute and closes it in a `finally`. It adds the account as admin and
+      verified, with the password hashed exactly as the app does. If Tyler
+      registered first, it promotes that account and sets this password.
+    - **Prove it:** sign in on the live site with those details and open
+      `/admin/users`.
+    - **Never** run `scripts/setup-database.mjs` against a live database.
+15. **Write the AI keys:** run `copy-ai-keys.mjs <app>`. The first deploy
+    skipped them, because `apps.json` had no database uuid until step 14.
+    This is the only time they are written; later deploys leave them alone.
+16. **Send Tyler the after-launch note:** sign in. The AI keys are already
+    there, so he does not paste them. Once he has signed in, run
+    `copy-menu.mjs <app>` so this Mac's menu matches the live one. The first deploy cannot copy it, because his
+    account has no workspace on live until that first sign-in. From then on he edits the menu on the live site.
+17. **Walk through and record.** Use `validate-app` on the live domain, then
+    fill in the Release record in `launch.md`.
+
+## Traps that cost time on 8 Oct 2026
+
+- **"There is no Coolify MCP."** There was one, in Codex's config. Check
+  `claude mcp list` and `~/.codex/config.toml` before saying an MCP is missing.
+- **The timer needs a secure page.** On plain `http://` at any address but
+  `localhost`, `crypto.randomUUID` does not exist and Start does nothing.
+  Headless Chromium ignores `--unsafely-treat-insecure-origin-as-secure`.
+- **Production refuses a `localhost` address in `CUSTOM_SHELL_APP_URL`**,
+  because emailed links would point at the reader's own machine.
+- **A missing `CUSTOM_SHELL_APP_ORIGINS` refuses every form** with "Invalid
+  origin". People see "We could not complete that request."
+- **Sign-up needs working email** in production, so test accounts on a laptop
+  go straight into the database as verified.
+- **Querying Cloudflare's nameservers directly from this laptop returned
+  nothing** even while the records were live. Trust Resend's verify call or
+  `1.1.1.1`.
+- **The deploy's health check can fail on a brand-new address while the site
+  is up.** Project, 19 Oct 2026: every try said "fetch failed" because this
+  Mac had looked the name up before the A record existed and kept the "no such
+  address" answer. `curl --resolve <host>:443:<ip from dig @1.1.1.1>` answered
+  `{"status":"ok"}`. Playwright gets past it with
+  `--host-resolver-rules=MAP <host> <ip>`. Run the steps the script skipped
+  after the failed check (admin, AI keys, menu) by hand.
+- **A Coolify app locked to one commit ships nothing.** An app's Git Commit
+  SHA must be `HEAD`. Locked to a commit, Coolify finds that commit's image,
+  skips the build and restarts the old code, and the deploy still reads
+  "finished" and healthy. The 1 Nov 2026 move left 20 apps on server1 locked
+  to the commit each last had on the old box; Tyler noticed on 2 Nov 2026 that
+  Project's changes never reached the site, and every app was set back to
+  `HEAD` that day. `deploy.mjs` now refuses a locked app before deploying
+  (`lockedCommit`) and fails a deployment that built anything but develop's
+  commit (`wrongBuild`).
+- **Trade's variables are all build-time.** Do not copy that setup.
+- **Cloudflare imports the registrar's parking and email-forwarding records.**
+  Replace A and www at deploy time, and ask Tyler whether the forwarding still
+  matters.
+
+## The report
+
+One sentence that says it is live (or what stopped it). Then bullets: the live
+address, the commit, both deployment ids, the health answer, what the browser
+check covered, and what is still owed. Name anything Tyler has to click or
+delete, such as setup tokens, a key's scope or the build stage.

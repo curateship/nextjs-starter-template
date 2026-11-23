@@ -10,27 +10,37 @@ import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  getModalStyleVars,
   isShellItem,
+  MODAL_STYLE_VAR_NAMES,
+  normalizeStyling,
   normalizeTopRightNavigation,
   renderShellIcon,
+  resolveBackground,
   type ShellConfig,
   type ShellItem,
+  type ShellModalStyling,
+  type ShellStyling,
 } from "@/lib/custom-shell"
 import { clampMaxCandles } from "@/lib/backtest/types"
+import { clampLiquidationAlertThreshold } from "@/lib/trading/liquidation-risk"
+import { normalizeOrderDefaults } from "@/lib/trading/order-defaults"
 import {
   getMountedLocation,
   isFullBleedLocation,
 } from "@/lib/full-bleed-location"
 import type { AuthUser } from "@/lib/api/auth"
-import { loadCurrentUser, logout } from "@/lib/api/auth"
+import { logout } from "@/lib/api/auth"
 import {
   getShellSettingsErrorMessage,
   saveSidebarWidth,
   saveShellSettings,
 } from "@/lib/api/shell-settings"
 import type { WorkspaceListResponse } from "@/lib/api/workspaces"
+import type { SaveStatus } from "@/components/ui/save-status"
 
-type SaveStatus = "idle" | "saving" | "saved"
+// Debounce window before an edit on the settings page is auto-saved.
+const CONFIG_SAVE_DEBOUNCE_MS = 700
 
 type ShellRuntime = {
   config: ShellConfig
@@ -38,7 +48,8 @@ type ShellRuntime = {
   saveStatus: SaveStatus
   feedbackRefreshToken: number
   onConfigChange: (config: ShellConfig) => void
-  onSaveConfig: (nextConfig?: ShellConfig) => Promise<boolean>
+  /** Flushes a pending auto-save now; reports whether it landed. */
+  onSaveConfig: () => Promise<boolean>
   onOpenFeedback: () => void
   onOpenFeedbackThread: (feedbackId: string) => void
 }
@@ -75,6 +86,15 @@ export function ShellLayout({
   const savedSidebarWidthRef = React.useRef(config.sidebarWidth)
   const sidebarWidthSaveQueueRef = React.useRef(Promise.resolve())
   const sidebarWidthSaveVersionRef = React.useRef(0)
+  // Auto-save plumbing for the full shell config (settings page). Mirrors the
+  // sidebar-width queue/version pattern below: edits schedule a debounced save
+  // that runs on a serialized queue so rapid edits persist in order.
+  const latestConfigRef = React.useRef(config)
+  const configSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  )
+  const configSaveQueueRef = React.useRef(Promise.resolve())
+  const configSaveVersionRef = React.useRef(0)
   const [settingsError, setSettingsError] = React.useState<string | null>(null)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
@@ -85,6 +105,7 @@ export function ShellLayout({
   const lastSettingsRef = React.useRef(settings)
 
   useShellFavicon(config.favicon)
+  useModalStyleVars(config.styling.modal)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -94,58 +115,134 @@ export function ShellLayout({
     lastSettingsRef.current = settings
     const nextConfig = normalizeConfig(settings)
     savedSidebarWidthRef.current = nextConfig.sidebarWidth
+    // Fresh server data supersedes any pending debounced auto-save so an
+    // in-flight edit can't overwrite it.
+    if (configSaveTimerRef.current) {
+      clearTimeout(configSaveTimerRef.current)
+      configSaveTimerRef.current = null
+    }
+    latestConfigRef.current = nextConfig
     setConfig(nextConfig)
     setSettingsError(null)
     setSaveStatus("idle")
   }, [settings])
 
-  React.useEffect(() => {
-    let active = true
+  // NOTE: no focus/visibilitychange auto-redirect. A client-side "am I still
+  // signed in?" check on every tab focus was bouncing the user to /login
+  // whenever the client-side loadCurrentUser call didn't see the session cookie
+  // (which happens intermittently in the IDE's embedded preview). Route auth is
+  // guarded server-side by the _authenticated loader on navigation, which reads
+  // the cookie from the request directly — that's the reliable gate.
 
-    const redirectIfSignedOut = async () => {
-      const currentUser = await loadCurrentUser().catch(() => null)
-      if (active && !currentUser) {
-        window.location.href = "/login"
+  // Persists the freshest config immediately, cancelling any pending debounce.
+  // Skips while the workspace name is blank (the server rejects an empty name)
+  // so an in-progress edit doesn't flash an error. Returns whether it saved.
+  // `explicit` is set by the one place a save is still a button press — the
+  // sidebar link modal — so a refusal says why instead of doing nothing.
+  const saveConfigNow = React.useCallback(async (explicit = false) => {
+    if (configSaveTimerRef.current) {
+      clearTimeout(configSaveTimerRef.current)
+      configSaveTimerRef.current = null
+    }
+
+    const snapshot = latestConfigRef.current
+    if (!snapshot.workspaceName.trim()) {
+      if (explicit) {
+        setSettingsError(
+          "Give the workspace a name on the General tab before saving."
+        )
       }
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void redirectIfSignedOut()
-      }
-    }
-
-    window.addEventListener("focus", redirectIfSignedOut)
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-
-    return () => {
-      active = false
-      window.removeEventListener("focus", redirectIfSignedOut)
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-    }
-  }, [])
-
-  const handleConfigChange = React.useCallback((nextConfig: ShellConfig) => {
-    setConfig(nextConfig)
-    setSettingsError(null)
-    setSaveStatus("idle")
-  }, [])
-
-  const handleSaveConfig = React.useCallback(async (nextConfig?: ShellConfig) => {
-    setSettingsError(null)
-    setSaveStatus("saving")
-
-    try {
-      await saveShellSettings(nextConfig ?? config)
-      setSaveStatus("saved")
-      return true
-    } catch (error) {
-      if (nextConfig) setConfig(config)
-      setSettingsError(getShellSettingsErrorMessage(error))
-      setSaveStatus("idle")
       return false
     }
-  }, [config])
+
+    const version = configSaveVersionRef.current + 1
+    configSaveVersionRef.current = version
+    setSaveStatus("saving")
+
+    const save = configSaveQueueRef.current
+      .catch(() => undefined)
+      .then(() => saveShellSettings(snapshot))
+    configSaveQueueRef.current = save.then(
+      () => undefined,
+      () => undefined
+    )
+
+    try {
+      await save
+      if (version === configSaveVersionRef.current) {
+        setSaveStatus("saved")
+      }
+      return true
+    } catch (error) {
+      if (version === configSaveVersionRef.current) {
+        const message = getShellSettingsErrorMessage(error)
+        setSettingsError(message)
+        setSaveStatus("idle")
+        toast.error(message)
+      }
+      return false
+    }
+  }, [])
+
+  // Every settings edit funnels through here. Update state immediately and
+  // schedule a debounced auto-save; the settings-sync effect above uses
+  // setConfig directly, so loading data never triggers a save.
+  const handleConfigChange = React.useCallback(
+    (nextConfig: ShellConfig) => {
+      setConfig(nextConfig)
+      latestConfigRef.current = nextConfig
+      setSettingsError(null)
+      if (configSaveTimerRef.current) {
+        clearTimeout(configSaveTimerRef.current)
+      }
+      configSaveTimerRef.current = setTimeout(() => {
+        configSaveTimerRef.current = null
+        void saveConfigNow()
+      }, CONFIG_SAVE_DEBOUNCE_MS)
+    },
+    [saveConfigNow]
+  )
+
+  // The sidebar link-editor dialog's Save button flushes any pending debounced
+  // save immediately, so closing it never leaves an unsaved edit.
+  const handleSaveConfig = React.useCallback(
+    () => saveConfigNow(true),
+    [saveConfigNow]
+  )
+
+  // Flush a pending auto-save if the shell unmounts (logout / full navigation)
+  // so a debounced edit isn't dropped. It joins the same queue as every other
+  // save — an earlier write may still be in flight, and jumping it would let
+  // the older config land last. Fire-and-forget — no state updates, since the
+  // component is going away.
+  React.useEffect(() => {
+    return () => {
+      if (configSaveTimerRef.current) {
+        clearTimeout(configSaveTimerRef.current)
+        configSaveTimerRef.current = null
+        const snapshot = latestConfigRef.current
+        if (snapshot.workspaceName.trim()) {
+          configSaveQueueRef.current = configSaveQueueRef.current
+            .catch(() => undefined)
+            .then(() => saveShellSettings(snapshot))
+            .then(
+              () => undefined,
+              () => undefined
+            )
+        }
+      }
+    }
+  }, [])
+
+  // Auto-clear the "Saved" badge a couple seconds after it appears so it
+  // doesn't linger in the shared header after leaving the settings page.
+  React.useEffect(() => {
+    if (saveStatus !== "saved") {
+      return
+    }
+    const timer = setTimeout(() => setSaveStatus("idle"), 2000)
+    return () => clearTimeout(timer)
+  }, [saveStatus])
 
   const handleSidebarWidthCommit = React.useCallback((sidebarWidth: number) => {
     const version = sidebarWidthSaveVersionRef.current + 1
@@ -214,9 +311,27 @@ export function ShellLayout({
     ]
   )
 
+  // Recolors both the sidebar rail and the sticky header (both use bg-sidebar).
+  // Opaque so the two render the same color regardless of what sits behind them.
+  const chromeBackground = resolveBackground(config.styling.chrome, {
+    opaque: true,
+  })
+  // Divider lines resolve to the theme --border token; overriding it (and the
+  // sidebar edge) on this wrapper recolors the rules inside cards and tables plus
+  // the sidebar border across the whole shell at once.
+  const dividerColor = resolveBackground(config.styling.dividerColor, {
+    base: "--muted-foreground",
+  })
+  const rootStyle = {
+    ...(chromeBackground ? { "--sidebar": chromeBackground } : {}),
+    ...(dividerColor
+      ? { "--border": dividerColor, "--sidebar-border": dividerColor }
+      : {}),
+  } as React.CSSProperties
+
   return (
     <ShellRuntimeContext.Provider value={runtime}>
-      <div className="min-h-screen bg-muted/60">
+      <div className="min-h-screen bg-muted/60 dark:bg-background" style={rootStyle}>
         <SidebarProvider
           className="h-screen"
           sidebarWidth={config.sidebarWidth}
@@ -232,10 +347,11 @@ export function ShellLayout({
             <StickyHeader
               navLinks={getStickyHeaderNavLinks(config, currentPath)}
               rightNavItems={config.topRightNavigation}
+              saveStatus={saveStatus}
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
-            <ShellPageContent fullBleed={fullBleed}>
+            <ShellPageContent fullBleed={fullBleed} styling={config.styling}>
               <Outlet />
             </ShellPageContent>
           </SidebarInset>
@@ -254,18 +370,17 @@ export function ShellLayout({
 function ShellPageContent({
   children,
   fullBleed,
+  styling,
 }: {
   children: React.ReactNode
   fullBleed: boolean
+  styling: ShellStyling
 }) {
   return (
-    <DashboardContent
-      className={
-        fullBleed
-          ? "overflow-hidden p-0 space-y-0 sm:p-0 sm:space-y-0 md:p-0"
-          : undefined
-      }
-    >
+    // Full-bleed workspaces still receive the styling contract so they track the
+    // content-spacing setting and go flat at 0; DashboardContent just skips the
+    // outer gutter padding/gap for them (they pad themselves from --shell-gutter).
+    <DashboardContent styling={styling} fullBleed={fullBleed}>
       {children}
     </DashboardContent>
   )
@@ -290,17 +405,41 @@ function normalizeConfig(settings: ShellConfig | null) {
     maxCandles: clampMaxCandles(settings.maxCandles),
     adminRoute: settings.adminRoute ?? fallback.adminRoute,
     orderConfirmation: settings.orderConfirmation,
+    liquidationAlertThresholdPct: clampLiquidationAlertThreshold(
+      settings.liquidationAlertThresholdPct
+    ),
+    orderDefaults: normalizeOrderDefaults(settings.orderDefaults),
     favicon: settings.favicon ?? fallback.favicon,
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
     topRightNavigation: normalizeTopRightNavigation(
       settings.topRightNavigation
     ),
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    styling: normalizeStyling(settings.styling),
   }
+}
+
+// The dialog portals to document.body, outside the shell subtree, so modal
+// styling is applied as CSS variables on the document root where it can reach.
+function useModalStyleVars(modal: ShellModalStyling) {
+  React.useEffect(() => {
+    const root = document.documentElement
+    const vars = getModalStyleVars(modal)
+    for (const name of MODAL_STYLE_VAR_NAMES) {
+      const value = vars[name]
+      if (value === undefined) {
+        root.style.removeProperty(name)
+      } else {
+        root.style.setProperty(name, value)
+      }
+    }
+    return () => {
+      for (const name of MODAL_STYLE_VAR_NAMES) {
+        root.style.removeProperty(name)
+      }
+    }
+  }, [modal])
 }
 
 function useShellFavicon(favicon: string) {
@@ -341,11 +480,6 @@ function getShellItems(config: ShellConfig) {
   )
 }
 
-function isDashboardPath(config: ShellConfig, currentPath: string) {
-  const dashboardPaths = config.topNavigation.map((item) => item.href)
-  return currentPath === "/" || dashboardPaths.includes(currentPath)
-}
-
 function isActivePath(href: string, currentPath: string) {
   return (
     href === currentPath ||
@@ -363,19 +497,6 @@ function findActiveSectionItem(items: ShellItem[], currentPath: string) {
 }
 
 function getStickyHeaderNavLinks(config: ShellConfig, currentPath: string) {
-  if (isDashboardPath(config, currentPath)) {
-    return config.topNavigation
-      .filter((item) => item.visible)
-      .map((item) => ({
-        label: item.label,
-        href: item.href,
-        icon: item.icon
-          ? renderShellIcon(item.icon, "h-3.5 w-3.5")
-          : undefined,
-        active: currentPath === item.href,
-      }))
-  }
-
   const items = getShellItems(config)
   const activeSectionItem = findActiveSectionItem(items, currentPath)
   const activeItem = items.find((item) => isActivePath(item.href, currentPath))

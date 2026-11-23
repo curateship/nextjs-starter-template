@@ -179,7 +179,7 @@ export function UnusedImagesPage() {
 
       <DashboardTable
         title="Unused Images"
-        icon={<ImageOffIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        icon={<ImageOffIcon className="text-muted-foreground" />}
         count={visibleItems.length}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}

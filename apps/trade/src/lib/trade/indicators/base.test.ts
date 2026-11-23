@@ -1,0 +1,723 @@
+import { describe, expect, it } from "vitest"
+
+import {
+  BASE_FIELDS,
+  baseIndicator,
+  baseInForce,
+  baseLevelsInForce,
+  baseDashes,
+  baseWaitNote,
+  baseWindow,
+  cappedHold,
+} from "@/lib/trade/indicators/base"
+import { readIndicatorParams } from "@/lib/trade/indicators/contract"
+import type {
+  IndicatorCandle,
+  IndicatorContext,
+} from "@/lib/trade/indicators/contract"
+
+const HOUR = 3_600_000
+
+/**
+ * What the chart these candles came off is set to. The base indicator reads
+ * neither of them — it counts candles and never asks what time it is — so this
+ * is here to satisfy the contract every indicator is called through.
+ */
+const CHART: IndicatorContext = { zone: "UTC", interval: "1h" }
+
+/**
+ * Candles built from their lows alone (or their highs, for the ceiling side).
+ * The other side is pushed well out of the way so one test's shape can never
+ * accidentally make a level on the other.
+ */
+function bars(lows: number[], highs?: number[]): IndicatorCandle[] {
+  return lows.map((low, index) => ({
+    openTime: index * HOUR,
+    low,
+    high: highs?.[index] ?? low + 100,
+    close: low + 0.5,
+  }))
+}
+
+/** The settings every test starts from: the smallest search the rule allows. */
+function settings(over: Record<string, number | boolean> = {}) {
+  return {
+    searchBars: 4,
+    holdBars: 1,
+    minBarsApart: 1,
+    withTrendOnly: false,
+    showBases: true,
+    showCeilings: false,
+    ...over,
+  }
+}
+
+/**
+ * The plain window-by-window scan, kept here as the independent comparison.
+ *
+ * It reads the rule the way a person would: for every candle, look at the
+ * `half` candles on each side and ask whether this one is the lowest of them.
+ * Slow on purpose. The fast pass in the indicator has a sliding window and a
+ * queue of candidates, and the only way to trust that is to check it against
+ * something with no cleverness in it at all.
+ */
+function slowLevelsInForce(
+  candles: readonly IndicatorCandle[],
+  params: ReturnType<typeof settings>,
+  side: "up" | "down"
+): Array<number | null> {
+  const { half, wait } = baseWindow(
+    params.searchBars as number,
+    params.holdBars as number
+  )
+  const floor = side === "up"
+  const prices = candles.map((bar) => (floor ? bar.low : bar.high))
+
+  const confirmed = new Array<boolean>(candles.length).fill(false)
+  const levels = new Array<number>(candles.length).fill(Number.NaN)
+  for (let at = 0; at < candles.length; at += 1) {
+    const from = at - half
+    const to = at + half
+    if (from < 0 || to >= candles.length) continue
+    if (at + wait >= candles.length) continue
+    // Ties go to the earliest candle, so a flat double bottom marks its first
+    // dip and not its second. That is why `best` starts at the window's left
+    // edge and only moves on a strictly better price.
+    let best = from
+    for (let j = from + 1; j <= to; j += 1) {
+      const better = floor ? prices[j] < prices[best] : prices[j] > prices[best]
+      if (better) best = j
+    }
+    if (best !== at) continue
+    confirmed[at + wait] = true
+    levels[at + wait] = prices[at]
+  }
+
+  const answer: Array<number | null> = new Array(candles.length).fill(null)
+  let inForce: number | null = null
+  let previous = Number.NaN
+  let countedAt = -Infinity
+  for (let i = 0; i < candles.length; i += 1) {
+    if (confirmed[i]) {
+      const level = levels[i]
+      const withTrend =
+        !Number.isFinite(previous) ||
+        (side === "up" ? level > previous : level < previous)
+      previous = level
+      if (
+        (!(params.withTrendOnly as boolean) || withTrend) &&
+        i - countedAt >= (params.minBarsApart as number)
+      ) {
+        inForce = level
+        countedAt = i
+      }
+    }
+    answer[i] = inForce
+  }
+  return answer
+}
+
+// One dip to 5 at candle 4. The window is 4 candles wide, so a low has to beat
+// the 2 candles on each side of it, and the level is announced 2 candles after
+// the low — candle 6.
+const ONE_BASE = [10, 9, 8, 7, 5, 6, 7, 8, 9, 10]
+
+// The same again, then a deeper dip to 4 at candle 10, announced at candle 12.
+const TWO_BASES = [10, 9, 8, 7, 5, 6, 7, 8, 9, 10, 4, 5, 6, 7, 8, 9]
+
+describe("the base indicator", () => {
+  it("marks a floor on the candle its wait finishes on", () => {
+    const paint = baseIndicator.compute(bars(ONE_BASE), settings(), CHART)
+
+    // At candle 6's own close — the candle the wait finished on, which sits
+    // well above the level itself. Timing an entry near a level is a different
+    // job; this only says the level is now there.
+    expect(paint.marks).toEqual([{ time: 6 * HOUR, price: 7.5, side: "up" }])
+    // The dash sits on the candles that made the level, not across the chart:
+    // the low was candle 4, and it reaches two candles either side of it.
+    expect(paint.dashes).toEqual([
+      { fromTime: 2 * HOUR, toTime: 6 * HOUR, price: 5, side: "up" },
+    ])
+  })
+
+  it("finds a ceiling by exactly the same rule, upside down", () => {
+    const highs = [5, 6, 7, 8, 10, 9, 8, 7, 6, 5]
+    const paint = baseIndicator.compute(
+      bars(
+        highs.map((high) => high - 100),
+        highs
+      ),
+      settings({ showBases: false, showCeilings: true }),
+      CHART
+    )
+
+    expect(paint.marks).toEqual([
+      { time: 6 * HOUR, price: -91.5, side: "down" },
+    ])
+    expect(paint.dashes).toEqual([
+      { fromTime: 2 * HOUR, toTime: 6 * HOUR, price: 10, side: "down" },
+    ])
+  })
+
+  /**
+   * **Both sides, in every kind of market.**
+   *
+   * Until 14 Sep 2026 a base had to be the lowest low of the 36 candles BEFORE
+   * it and only the 8 after it. In a rising market no pullback low is ever the
+   * lowest of the previous 36 candles, so bases stopped appearing and the chart
+   * showed nothing but ceilings; a falling market showed nothing but bases.
+   * Tyler sent a screenshot of exactly that and asked for both.
+   */
+  it("finds both floors and ceilings whichever way the market is going", () => {
+    // A drift with a swing of its own riding on it, so there are real
+    // pullbacks to find rather than one unbroken line.
+    const shaped = (drift: number) =>
+      bars(
+        Array.from({ length: 400 }, (_, i) => {
+          const mid = 100 + i * drift + Math.sin(i / 6.4) * 9
+          return mid - 0.4
+        }),
+        Array.from({ length: 400 }, (_, i) => {
+          const mid = 100 + i * drift + Math.sin(i / 6.4) * 9
+          return mid + 0.4
+        })
+      )
+    const both = settings({
+      searchBars: 36,
+      holdBars: 8,
+      minBarsApart: 20,
+      showBases: true,
+      showCeilings: true,
+    })
+
+    for (const drift of [0.35, -0.35, 0]) {
+      const paint = baseIndicator.compute(shaped(drift), both, CHART)
+      const floors = paint.dashes.filter((dash) => dash.side === "up")
+      const ceilings = paint.dashes.filter((dash) => dash.side === "down")
+      expect(floors.length).toBeGreaterThan(3)
+      expect(ceilings.length).toBeGreaterThan(3)
+    }
+  })
+
+  it("draws nothing at all for a side that is switched off", () => {
+    const paint = baseIndicator.compute(
+      bars(ONE_BASE),
+      settings({ showBases: false }),
+      CHART
+    )
+    expect(paint).toEqual({ lines: [], dashes: [], marks: [], boxes: [] })
+  })
+
+  it("keeps the dash but drops the arrow on a floor that is lower than the last", () => {
+    const candles = bars(TWO_BASES)
+    const both = baseIndicator.compute(candles, settings(), CHART)
+    expect(both.marks.map((mark) => mark.time)).toEqual([6 * HOUR, 12 * HOUR])
+
+    const withTrend = baseIndicator.compute(
+      candles,
+      settings({ withTrendOnly: true }),
+      CHART
+    )
+    // The second floor is at 4, below the first at 5 — no arrow.
+    expect(withTrend.marks.map((mark) => mark.time)).toEqual([6 * HOUR])
+    // But it is still a level, and it still shows as one.
+    expect(withTrend.dashes).toEqual(both.dashes)
+    expect(both.dashes.map((dash) => dash.price)).toEqual([5, 4])
+  })
+
+  it("never lets two arrows land closer together than the spacing", () => {
+    const candles = bars(TWO_BASES)
+    // The two arrows are 6 candles apart, so 10 is more than they can clear.
+    const spaced = baseIndicator.compute(
+      candles,
+      settings({ minBarsApart: 10 }),
+      CHART
+    )
+    expect(spaced.marks.map((mark) => mark.time)).toEqual([6 * HOUR])
+    // Spacing thins the arrows and never the dashes.
+    expect(spaced.dashes).toHaveLength(2)
+  })
+
+  it("hides an arrow on its own without touching the dash under it", () => {
+    const candles = bars(ONE_BASE)
+    const hidden = baseIndicator.compute(
+      candles,
+      settings({ showLongArrows: false }),
+      CHART
+    )
+    const shown = baseIndicator.compute(candles, settings(), CHART)
+    expect(hidden.marks).toEqual([])
+    expect(hidden.dashes).toEqual(shown.dashes)
+  })
+
+  it("still calls the buy when the arrow is hidden, because hiding is only drawing", () => {
+    const candles = bars(ONE_BASE)
+    expect(
+      baseIndicator.signals?.(candles, settings({ showLongArrows: false }))
+    ).toEqual([{ time: 6 * HOUR, side: "buy" }])
+  })
+
+  it("says nothing about a chart with less history than the search needs", () => {
+    expect(baseIndicator.compute(bars([10, 9, 8]), settings(), CHART)).toEqual({
+      lines: [],
+      dashes: [],
+      marks: [],
+      boxes: [],
+    })
+    expect(baseIndicator.compute([], settings(), CHART)).toEqual({
+      lines: [],
+      dashes: [],
+      marks: [],
+      boxes: [],
+    })
+  })
+
+  it("reads its own settings, so junk in a saved row draws the defaults", () => {
+    const fromJunk = baseIndicator.compute(
+      bars(ONE_BASE),
+      { searchBars: Number.NaN } as never,
+      CHART
+    )
+    // 36 candles of search over 10 candles of history finds nothing, which is
+    // the honest answer — not a crash, and not a chart drawn from NaN.
+    expect(fromJunk).toEqual({ lines: [], dashes: [], marks: [], boxes: [] })
+  })
+
+  it("caps the wait below the search, because there is nothing longer to wait for", () => {
+    expect(cappedHold(36, 8)).toBe(8)
+    expect(cappedHold(36, 36)).toBe(35)
+    expect(cappedHold(36, 400)).toBe(35)
+  })
+
+  /**
+   * The chart's settings panel and the DCA step's inspector both print this,
+   * and both read it from here. They used to write it out separately, which is
+   * how the two would have started disagreeing the moment the rule changed.
+   */
+  it("says out loud when the wait it uses is not the wait that was typed", () => {
+    // 36 and 8: a level has to beat 18 candles each side, so the wait is 18.
+    expect(baseWaitNote(36, 8)).toBe(
+      "A level has to beat the 18 candles on each side of it, so the wait cannot be shorter than 18 candles. It is acting as 18."
+    )
+    // Typed longer than the search: capped under it, and said differently.
+    expect(baseWaitNote(36, 400)).toBe(
+      "The wait has to be shorter than the search, so it is acting as 35 candles."
+    )
+    // Nothing to say when the wait asked for is the wait used.
+    expect(baseWaitNote(36, 18)).toBeNull()
+  })
+})
+
+describe("reading an indicator's settings", () => {
+  it("fills every field from the defaults when nothing is stored", () => {
+    expect(readIndicatorParams(BASE_FIELDS, null)).toEqual({
+      searchBars: 36,
+      holdBars: 8,
+      minBarsApart: 20,
+      withTrendOnly: true,
+      showBases: true,
+      showCeilings: true,
+      showLongArrows: true,
+      showShortArrows: true,
+    })
+  })
+
+  it("keeps what it can read and falls back on what it cannot", () => {
+    const read = readIndicatorParams(BASE_FIELDS, {
+      searchBars: 50,
+      holdBars: "eight",
+      showBases: 1,
+    })
+    expect(read.searchBars).toBe(50)
+    expect(read.holdBars).toBe(8)
+    expect(read.showBases).toBe(true)
+  })
+
+  it("holds a number to whole candles inside the range it offered", () => {
+    const read = readIndicatorParams(BASE_FIELDS, {
+      searchBars: 9000,
+      holdBars: 0,
+      minBarsApart: 12.6,
+    })
+    expect(read.searchBars).toBe(500)
+    expect(read.holdBars).toBe(1)
+    expect(read.minBarsApart).toBe(13)
+  })
+
+  it("ignores a setting nobody offered", () => {
+    const read = readIndicatorParams(BASE_FIELDS, { crackPercent: 3 })
+    expect(read.crackPercent).toBeUndefined()
+  })
+})
+
+describe("the base in force", () => {
+  it("is the level that confirmed last, whatever price has done since", () => {
+    expect(baseInForce(bars(TWO_BASES), settings())).toBeCloseTo(4, 9)
+  })
+
+  it("is null until one has confirmed, so nothing rests on a guess", () => {
+    expect(baseInForce(bars([10, 9, 8]), settings())).toBeNull()
+    expect(baseInForce([], settings())).toBeNull()
+  })
+
+  it("answers the same level the chart draws a dash at", () => {
+    const candles = bars(ONE_BASE)
+    const paint = baseIndicator.compute(candles, settings(), CHART)
+    expect(baseInForce(candles, settings())).toBeCloseTo(
+      paint.dashes[0].price,
+      9
+    )
+  })
+})
+
+describe("the base at every candle, in one pass", () => {
+  /**
+   * The claim the backtest now leans on: the level at candle `k` is decided by
+   * candles 0 to `k` and cannot be changed by anything after it.
+   *
+   * That is why a replay can work the whole history out once and then look the
+   * answer up, instead of handing the history over again on every bar and
+   * asking afresh. Asking afresh is what it used to do, and on 250 coins over
+   * ten years it was billions of comparisons — the run that never finished and
+   * took the server's memory with it.
+   *
+   * So this checks the two ways of asking give the same answer at EVERY
+   * candle, not just the last one. If they ever diverge, the shortcut is wrong
+   * and every backtest built on it is wrong with it.
+   */
+  it("gives the same answer as asking about each stretch on its own", () => {
+    const lows = [
+      50, 48, 46, 44, 42, 40, 41, 43, 45, 44, 42, 39, 38, 40, 41, 42, 43, 41,
+      37, 36, 38, 39, 40, 42, 44, 43, 41, 39, 45, 47, 49, 46, 44, 42, 40, 38,
+    ]
+    const candles = bars(lows)
+    const params = settings({ searchBars: 5, holdBars: 2 })
+
+    const onePass = baseLevelsInForce(candles, params)
+
+    expect(onePass).toHaveLength(candles.length)
+    for (let k = 0; k < candles.length; k += 1) {
+      expect(onePass[k]).toBe(baseInForce(candles.slice(0, k + 1), params))
+    }
+    // And it really did find something, or the check above proves nothing.
+    expect(onePass.some((one) => one !== null)).toBe(true)
+  })
+
+  it("answers nothing for a stretch too short to have confirmed a level", () => {
+    const params = settings({ searchBars: 5, holdBars: 2 })
+    expect(baseLevelsInForce(bars([]), params)).toEqual([])
+    expect(baseLevelsInForce(bars([50, 48, 46]), params)).toEqual([
+      null,
+      null,
+      null,
+    ])
+  })
+
+  it("matches the old scan exactly across 2,000 random histories in both directions", () => {
+    let seed = 0x51_1d_1e
+    const random = () => {
+      seed = (seed * 1_664_525 + 1_013_904_223) >>> 0
+      return seed / 0x1_0000_0000
+    }
+    const whole = (maximum: number) => Math.floor(random() * maximum)
+
+    for (let sample = 0; sample < 2_000; sample += 1) {
+      const count = whole(121)
+      const lows = Array.from({ length: count }, () => 50 + whole(21))
+      const highs = lows.map((low) => low + whole(21))
+      const candles = bars(lows, highs)
+      const params = settings({
+        searchBars: 4 + whole(42),
+        holdBars: 1 + whole(60),
+        minBarsApart: 1 + whole(20),
+        withTrendOnly: whole(2) === 1,
+      })
+
+      for (const side of ["up", "down"] as const) {
+        expect(baseLevelsInForce(candles, params, side)).toEqual(
+          slowLevelsInForce(candles, params, side)
+        )
+      }
+    }
+  })
+})
+
+describe("the chart and the ladder mean the same thing by a base", () => {
+  /**
+   * Every base a ladder anchors to is a base the chart drew an arrow on.
+   *
+   * They used to disagree, badly and silently. Two settings decide whether a
+   * confirmed level actually counts — it must sit above the one before it, and
+   * it must not crowd the last one — and both were applied to the chart's
+   * arrows and to nothing else. On twenty of one account's coins the chart drew
+   * 1,387 bases while the ladder followed 1,622, so a ladder re-aimed at levels
+   * that were never on screen and the two could not be compared at all.
+   */
+  function priced(lows: number[]): IndicatorCandle[] {
+    return lows.map((low, index) => ({
+      openTime: index * HOUR,
+      low,
+      high: low + 100,
+      close: low + 0.5,
+    }))
+  }
+
+  // A long, uneven walk so bases confirm often, some higher than the last and
+  // some lower, and some only a few candles apart.
+  const walk = Array.from({ length: 400 }, (_, i) =>
+    Math.round(100 + Math.sin(i / 5) * 6 + Math.sin(i / 23) * 14 - i * 0.05)
+  )
+
+  for (const withTrendOnly of [true, false]) {
+    for (const minBarsApart of [1, 20, 60]) {
+      it(`agrees with the arrows — trend ${withTrendOnly}, ${minBarsApart} apart`, () => {
+        const candles = priced(walk)
+        const params = settings({
+          searchBars: 8,
+          holdBars: 3,
+          withTrendOnly,
+          minBarsApart,
+          showBases: true,
+          showCeilings: false,
+        })
+
+        const drawn = baseIndicator.compute(candles, params, CHART).marks
+        const levels = baseLevelsInForce(candles, params)
+
+        // Every moment the ladder's level MOVES is a moment the chart drew an
+        // arrow, at the same candle.
+        const moved: number[] = []
+        let last: number | null = null
+        for (const [index, one] of levels.entries()) {
+          if (one !== null && one !== last) moved.push(candles[index].openTime)
+          last = one
+        }
+
+        expect(moved).toEqual(drawn.map((mark) => mark.time))
+      })
+    }
+  }
+})
+
+describe("the bases a backtest chart draws", () => {
+  /**
+   * A dash at each base the run actually used, sitting on the low that made it.
+   *
+   * Two things went wrong here in one go. The chart drew the indicator's own
+   * dashes, which mark every level that ever confirmed whatever the spacing
+   * rule says — so turning "fewest candles between bases" up changed the run
+   * and nothing on screen. Then the fix for that drew each base as a line from
+   * where it took over to where the next one did, which put rules straight
+   * across the chart miles from any candle, because a base stays in force long
+   * after price has left it.
+   */
+  const walk = Array.from({ length: 400 }, (_, i) =>
+    Math.round(100 + Math.sin(i / 5) * 6 + Math.sin(i / 23) * 14 - i * 0.05)
+  )
+  const candles = walk.map((low, index) => ({
+    openTime: index * HOUR,
+    low,
+    high: low + 100,
+    close: low + 0.5,
+  }))
+
+  function withApart(minBarsApart: number) {
+    return settings({
+      searchBars: 8,
+      holdBars: 3,
+      withTrendOnly: false,
+      minBarsApart,
+      showBases: true,
+      showCeilings: false,
+    })
+  }
+
+  it("draws fewer of them when bases must be further apart", () => {
+    expect(baseDashes(candles, withApart(60)).length).toBeLessThan(
+      baseDashes(candles, withApart(1)).length
+    )
+  })
+
+  it("draws one for every base the chart puts an arrow on, and no others", () => {
+    const params = withApart(20)
+    expect(baseDashes(candles, params)).toHaveLength(
+      baseIndicator.compute(candles, params, CHART).marks.length
+    )
+  })
+
+  it("never floats: every dash sits on a low that really happened", () => {
+    // The whole point of a base is that it is a price price stopped at. A mark
+    // hanging in space above the candles is not a base, it is a bug — and it is
+    // what a line drawn from one base to the next looks like.
+    for (const dash of baseDashes(candles, withApart(20))) {
+      const under = candles.filter(
+        (bar) => bar.openTime >= dash.fromTime && bar.openTime <= dash.toTime
+      )
+      expect(Math.min(...under.map((bar) => bar.low))).toBe(dash.price)
+    }
+  })
+
+  it("draws nothing at all before any candles have arrived", () => {
+    // The backtest chart asks for these while the prices are still loading. A
+    // throw here is a blank page instead of a chart.
+    expect(baseDashes([], withApart(20))).toEqual([])
+    expect(baseDashes(candles.slice(0, 3), withApart(20))).toEqual([])
+  })
+
+  it("stays a mark on a spot, never a line across the chart", () => {
+    // The dash reaches `wait` candles either side of the low, the same span
+    // the trading chart's own dashes use, so the two draw one level the same
+    // way. At these settings that is 4 each side: nine candles, eight gaps.
+    const { wait } = baseWindow(8, 3)
+    for (const dash of baseDashes(candles, withApart(20))) {
+      const wide = (dash.toTime - dash.fromTime) / HOUR
+      expect(wide).toBeLessThanOrEqual(2 * wait)
+    }
+  })
+})
+
+describe("an arrow and a signal are the same event", () => {
+  /**
+   * The one promise the Signals step stands on.
+   *
+   * Not "the two rules agree" — the same list, read two ways. Two passes that
+   * merely agreed today would be free to stop agreeing, and this indicator has
+   * already been on the wrong end of exactly that: the chart drew 1,387 bases
+   * while the ladder followed 1,622, on the same coins with the same settings.
+   */
+  const walk = Array.from({ length: 400 }, (_, i) =>
+    Math.round(100 + Math.sin(i / 5) * 6 + Math.sin(i / 23) * 14 - i * 0.05)
+  )
+  const candles = walk.map((low, index) => ({
+    openTime: index * HOUR,
+    low,
+    // A high that moves with the low, so the ceiling side has real shapes of
+    // its own to find rather than a flat line nothing can confirm.
+    high: low + 20 + Math.round(Math.sin(index / 7) * 5),
+    close: low + 0.5,
+  }))
+
+  for (const withTrendOnly of [true, false]) {
+    for (const minBarsApart of [1, 20]) {
+      it(`one for one — trend ${withTrendOnly}, ${minBarsApart} apart`, () => {
+        const params = settings({
+          searchBars: 8,
+          holdBars: 3,
+          withTrendOnly,
+          minBarsApart,
+          showBases: true,
+          showCeilings: true,
+        })
+
+        const arrows = baseIndicator.compute(candles, params, CHART).marks
+        const called = baseIndicator.signals?.(candles, params) ?? []
+
+        expect(called).toHaveLength(arrows.length)
+        // Enough arrows for the comparison to mean something. A pass over a
+        // shape that produced none would be two empty lists agreeing.
+        expect(arrows.length).toBeGreaterThan(3)
+        expect(called).toEqual(
+          arrows.map((arrow) => ({
+            time: arrow.time,
+            side: arrow.side === "up" ? "buy" : "sell",
+          }))
+        )
+      })
+    }
+  }
+
+  it("switching ceilings off switches the sell side off", () => {
+    // On a chart this hides a drawing. On a step that trades these it stops it
+    // selling, and that is the honest reading of the same switch rather than a
+    // second meaning bolted on.
+    const params = settings({
+      searchBars: 8,
+      holdBars: 3,
+      minBarsApart: 1,
+      showBases: true,
+      showCeilings: false,
+    })
+    const called = baseIndicator.signals?.(candles, params) ?? []
+    expect(called.length).toBeGreaterThan(0)
+    expect(called.every((one) => one.side === "buy")).toBe(true)
+  })
+
+  it("says nothing at all when both sides are off", () => {
+    const params = settings({ showBases: false, showCeilings: false })
+    expect(baseIndicator.signals?.(candles, params)).toEqual([])
+  })
+
+  it("comes back in the order the candles happened", () => {
+    const params = settings({
+      searchBars: 8,
+      holdBars: 3,
+      minBarsApart: 1,
+      showBases: true,
+      showCeilings: true,
+    })
+    const called = baseIndicator.signals?.(candles, params) ?? []
+    const times = called.map((one) => one.time)
+    expect(times).toEqual([...times].sort((a, b) => a - b))
+  })
+
+  it("answers an empty list rather than throwing on no candles", () => {
+    expect(baseIndicator.signals?.([], settings())).toEqual([])
+  })
+})
+
+/**
+ * Ceilings, for the selling grid's stop.
+ *
+ * The same rule mirrored, in the same pass, so a selling grid's stop can ride
+ * a confirmed ceiling above its range from day one.
+ */
+describe("the same rule read for ceilings", () => {
+  const lows = [
+    50, 48, 46, 44, 42, 40, 41, 43, 45, 44, 42, 39, 38, 40, 41, 42, 43, 41, 37,
+    36, 38, 39, 40, 42, 44, 43, 41, 39, 45, 47, 49, 46, 44, 42, 40, 38,
+  ]
+  // Mirrored highs, so a ceiling really does confirm on this shape.
+  const highs = lows.map((low) => 200 - low)
+  const params = settings({ searchBars: 5, holdBars: 2 })
+
+  /**
+   * **The easiest bug in the whole feature to ship without noticing.**
+   *
+   * `baseLevelsInForce` remembers its answer against the candle array, and the
+   * key it remembers under used to be the four settings alone. So a chart
+   * asked for floors and then for ceilings — which is exactly what a coin
+   * running both a buying grid and a selling grid does — was handed the
+   * floors back the second time, and the selling grid rested its stop on a
+   * level from the wrong side of the price.
+   */
+  it("does not hand back the cached floors when the ceilings are asked for", () => {
+    const candles = bars(lows, highs)
+
+    const floors = baseLevelsInForce(candles, params, "up")
+    const ceilings = baseLevelsInForce(candles, params, "down")
+
+    // Both found something, or the comparison below proves nothing.
+    expect(floors.some((one) => one !== null)).toBe(true)
+    expect(ceilings.some((one) => one !== null)).toBe(true)
+    expect(ceilings).not.toEqual(floors)
+    // And the second answer is the same one a fresh array gives, which is what
+    // "not out of the cache" means.
+    expect(ceilings).toEqual(
+      baseLevelsInForce(bars(lows, highs), params, "down")
+    )
+  })
+
+  it("finds a level among the highs, above the price, not below it", () => {
+    const candles = bars(lows, highs)
+    const ceiling = baseInForce(candles, params, "down")
+    expect(ceiling).not.toBeNull()
+    expect(ceiling).toBeGreaterThan(Math.max(...lows))
+  })
+
+  it("still defaults to floors when nobody says which side", () => {
+    const candles = bars(lows, highs)
+    expect(baseLevelsInForce(candles, params)).toEqual(
+      baseLevelsInForce(candles, params, "up")
+    )
+  })
+})

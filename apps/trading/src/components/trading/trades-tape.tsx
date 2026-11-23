@@ -1,4 +1,4 @@
-import { formatPriceDisplay } from "@/components/trading/format"
+import { formatPrice } from "@/lib/format"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useTrades } from "@/lib/hl/hooks"
 import type { TradingNetwork } from "@/lib/hl/network"
@@ -32,7 +32,7 @@ export function TradesTape({
                   trade.side === "B" ? "text-emerald-600" : "text-red-500"
                 )}
               >
-                {formatPriceDisplay(trade.px)}
+                {formatPrice(trade.px)}
               </span>
               <span className="text-right">{trade.sz}</span>
               <span className="text-right text-muted-foreground">

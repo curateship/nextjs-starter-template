@@ -1,12 +1,12 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
-  AlertCircleIcon,
   BellIcon,
   Loader2Icon,
   ClapperboardIcon,
   GaugeIcon,
   MessageSquareIcon,
+  ShieldCheckIcon,
   ThumbsUpIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -22,7 +22,6 @@ import {
 } from "@/components/dashboard-toolbar"
 import {
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -76,6 +75,11 @@ const notificationTypeLabels: Record<NotificationType, string> = {
   feedback_comment: "Comment",
   creator_watch: "Creator watch",
   api_usage_alert: "API usage",
+  automation_approval: "Automation approval",
+}
+
+function getAutomationName(item: NotificationItem) {
+  return item.automation_name || "Deleted automation"
 }
 
 function getCreatorName(item: NotificationItem) {
@@ -93,12 +97,22 @@ function getNotificationActivity(item: NotificationItem) {
     return "API credits"
   }
 
+  if (item.type === "automation_approval") {
+    return `${getAutomationName(item)} approval`
+  }
+
   return item.type === "creator_watch"
     ? `${getCreatorHandle(item)} new reels`
     : item.actor_name
 }
 
 function getNotificationTarget(item: NotificationItem) {
+  if (item.type === "automation_approval") {
+    return item.automation_approval_state === "timed_out"
+      ? `${getAutomationName(item)}, approval timed out`
+      : `${getAutomationName(item)}, waiting for approval`
+  }
+
   if (item.type === "api_usage_alert") {
     const level = item.api_usage_level === "blocked" ? "limit reached" : "near limit"
     return `${item.api_usage_used_credits ?? 0} of ${item.api_usage_limit_credits ?? 0} credits, ${level}`
@@ -307,6 +321,14 @@ export function NotificationsPage({
   }
 
   function openNotification(item: NotificationItem) {
+    if (item.type === "automation_approval" && item.automation_id) {
+      void navigate({
+        to: "/admin/automations/$automationId",
+        params: { automationId: item.automation_id },
+      })
+      return
+    }
+
     if (item.type === "creator_watch" && item.creator_id) {
       void navigate({
         to: "/admin/creators/$creatorId",
@@ -322,22 +344,13 @@ export function NotificationsPage({
 
   return (
     <div className="w-full pb-8">
-      {error ? (
-        <div
-          role="alert"
-          className="mt-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
-
       <DashboardTable
         title="Notifications"
         icon={
-          <BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <BellIcon className="text-muted-foreground" />
         }
         count={filteredNotifications.length}
+        status={error ? { tone: "error", text: error } : null}
         selectedCount={selectedIds.size}
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
@@ -357,17 +370,6 @@ export function NotificationsPage({
                 Delete ({selectedIds.size})
               </DashboardToolbarButton>
             ) : null}
-            <DashboardToolbarButton
-              type="button"
-              variant="destructive"
-              disabled={
-                notifications.length === 0 || deleting || loadingMore
-              }
-              onClick={() => setClearAllOpen(true)}
-            >
-              <Trash2Icon className="size-4" />
-              Clear all
-            </DashboardToolbarButton>
             <DashboardToolbarSearch
               name="notification-search"
               value={searchQuery}
@@ -381,7 +383,6 @@ export function NotificationsPage({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Read filter"
-                labels={["All", "Unread", "Read"]}
               >
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
@@ -397,13 +398,6 @@ export function NotificationsPage({
             >
               <DashboardToolbarSelectTrigger
                 aria-label="Type filter"
-                labels={[
-                  "All types",
-                  "Thumbs up",
-                  "Comments",
-                  "Creator watch",
-                  "API usage",
-                ]}
               >
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
@@ -413,8 +407,20 @@ export function NotificationsPage({
                 <SelectItem value="feedback_comment">Comments</SelectItem>
                 <SelectItem value="creator_watch">Creator watch</SelectItem>
                 <SelectItem value="api_usage_alert">API usage</SelectItem>
+                <SelectItem value="automation_approval">
+                  Automation approval
+                </SelectItem>
               </SelectContent>
             </Select>
+            <DashboardToolbarButton
+              type="button"
+              variant="destructive"
+              disabled={notifications.length === 0 || deleting || loadingMore}
+              onClick={() => setClearAllOpen(true)}
+            >
+              <Trash2Icon className="size-4" />
+              Clear all
+            </DashboardToolbarButton>
           </>
         }
         header={
@@ -480,7 +486,7 @@ export function NotificationsPage({
                   Status
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden lg:table-cell">
                 <TableSortButton
                   active={sortColumn === "created"}
                   direction={sortDirection}
@@ -539,6 +545,8 @@ export function NotificationsPage({
                   <ClapperboardIcon className="size-4 text-muted-foreground" />
                 ) : item.type === "api_usage_alert" ? (
                   <GaugeIcon className="size-4 text-muted-foreground" />
+                ) : item.type === "automation_approval" ? (
+                  <ShieldCheckIcon className="size-4 text-muted-foreground" />
                 ) : (
                   <MessageSquareIcon className="size-4 text-muted-foreground" />
                 )}
@@ -553,7 +561,9 @@ export function NotificationsPage({
                         ? item.api_usage_level === "blocked"
                           ? "Limit reached"
                           : "Near limit"
-                      : item.actor_name}
+                        : item.type === "automation_approval"
+                          ? getAutomationName(item)
+                          : item.actor_name}
                   </p>
                 </div>
               </div>
@@ -577,7 +587,7 @@ export function NotificationsPage({
                 {item.read_at ? "Read" : "Unread"}
               </Badge>
             </TableCell>
-            <TableCell column="mutedMeta">
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
               {dateFormatter.format(new Date(item.created_at))}
             </TableCell>
           </TableRow>
@@ -627,11 +637,8 @@ function NotificationDeleteDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>This cannot be undone.</DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <DialogBody>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </DialogBody>
         <DialogFooter variant="plain">
           <Button
             type="button"

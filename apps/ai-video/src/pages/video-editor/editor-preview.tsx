@@ -10,6 +10,19 @@ import {
 } from "@/lib/audio-ducking"
 import { requireTextFont } from "@/lib/text-fonts"
 import {
+  captionEntranceProgress,
+  captionWordAnimation,
+  captionWordTransformCss,
+  isAnimatedCaption,
+  resolveCaptionAnimation,
+} from "@/lib/caption-animations"
+import {
+  dipOpacityAt,
+  resolveIncomingTransition,
+  transitionReachState,
+  type ClipTransition,
+} from "@/lib/clip-transitions"
+import {
   timelineDurationMs,
   useEditorRuntime,
   useEditorSelector,
@@ -18,6 +31,10 @@ import {
 } from "@/pages/video-editor/editor-store"
 import type { PlaybackSeekMode } from "@/pages/video-editor/playback-clock"
 import { DESIGN_HEIGHT } from "@/pages/video-editor/timeline-utils"
+import {
+  snapStageCenter,
+  stageSnapThreshold,
+} from "@/pages/video-editor/timeline-snapping"
 
 // How far media elements may drift from the clock before being re-seeked.
 const PLAYING_DRIFT_S = 0.25
@@ -25,14 +42,23 @@ const PAUSED_DRIFT_S = 0.04
 const MEDIA_LOOK_AHEAD_MS = 2000
 
 // Clock-synced video/audio elements need their track (mute state)...
+// `transition` is the resolved blend entering this clip (crossfade/slide draw
+// the clip early over the previous one; dip is handled by a separate overlay).
 type MediaEntry = {
   clip: EditorClip
   track: EditorTrack
   zIndex: number
   order: number
+  transition?: ClipTransition | null
 }
 // ...while images/text are static visuals that only need stacking order.
-type VisualEntry = { clip: EditorClip; zIndex: number }
+type VisualEntry = {
+  clip: EditorClip
+  zIndex: number
+  transition?: ClipTransition | null
+}
+// A dip-to-black seam: a black overlay peaking on the seam (see dipOpacityAt).
+type DipWindow = { seamMs: number; durationMs: number }
 type PlaybackFrame = {
   startMs: number
   videos: Map<string, MediaEntry>
@@ -88,24 +114,33 @@ function seekPreviewMedia(
   requests.set(el, { mode, targetS })
 }
 
-// Flatten clips with their stacking order (track 0 on top).
+// Flatten clips with their stacking order (track 0 on top), resolving the
+// transition entering each clip from its same-track predecessor.
 function flattenTracks(tracks: EditorTrack[]) {
   const media: MediaEntry[] = []
   const images: VisualEntry[] = []
   const texts: VisualEntry[] = []
+  const dips: DipWindow[] = []
   tracks.forEach((track, trackIndex) => {
     const zIndex = tracks.length - trackIndex
-    for (const clip of track.clips) {
+    track.clips.forEach((clip, idx) => {
+      const transition = resolveIncomingTransition(
+        clip,
+        idx > 0 ? track.clips[idx - 1] : null
+      )
+      if (transition?.kind === "dip") {
+        dips.push({ seamMs: clip.startMs, durationMs: transition.durationMs })
+      }
       if (clip.kind === "text") {
         texts.push({ clip, zIndex })
       } else if (clip.kind === "image" && clip.url) {
-        images.push({ clip, zIndex })
+        images.push({ clip, zIndex, transition })
       } else if (clip.url) {
-        media.push({ clip, track, zIndex, order: media.length })
+        media.push({ clip, track, zIndex, order: media.length, transition })
       }
-    }
+    })
   })
-  return { media, images, texts }
+  return { media, images, texts, dips }
 }
 
 // Registers/unregisters an element in a shared map. The ref object is
@@ -172,6 +207,8 @@ export function EditorPreview() {
   const audioRefs = React.useRef(new Map<string, HTMLAudioElement>())
   const imageRefs = React.useRef(new Map<string, HTMLImageElement>())
   const textRefs = React.useRef(new Map<string, HTMLDivElement>())
+  // Full-frame black layer driven by any active dip-to-black seam.
+  const dipRef = React.useRef<HTMLDivElement>(null)
   const syncFrameRef = React.useRef<() => void>(() => undefined)
   // Per-word spans for karaoke captions, keyed `${clipId}:${index}`.
   const wordRefs = React.useRef(new Map<string, HTMLSpanElement>())
@@ -185,6 +222,14 @@ export function EditorPreview() {
     startY: number
     moved: boolean
   } | null>(null)
+  // The two centre lines a dragged text overlay locks onto. Shown and hidden
+  // imperatively for the same reason the drag itself is imperative — state
+  // here would re-render the preview (and reload its <video> elements) on
+  // every pointer move.
+  const centerGuideRefs = React.useRef<{
+    x: HTMLDivElement | null
+    y: HTMLDivElement | null
+  }>({ x: null, y: null })
   const [containerBox, setContainerBox] = React.useState({ w: 0, h: 0 })
 
   // Track the available panel space; the stage is sized in JS because CSS
@@ -212,7 +257,7 @@ export function EditorPreview() {
   }
 
   // The clip lists only change on edits.
-  const { media, images, texts } = React.useMemo(
+  const { media, images, texts, dips } = React.useMemo(
     () => flattenTracks(tracks),
     [tracks]
   )
@@ -232,14 +277,21 @@ export function EditorPreview() {
     const empty = () => ({ enter: [], leave: [], prepare: [], release: [] })
     const add = (item: PlaybackEntry) => {
       const { clip } = item.entry
-      const start = events.get(clip.startMs) ?? empty()
+      // Crossfade/slide clips are drawn early over the outgoing clip's tail, so
+      // they become active `durationMs` before their real start. Dip does not
+      // reach back (it is a separate black overlay). Leave stays at the end.
+      const transition = item.entry.transition
+      const reachMs =
+        transition && transition.kind !== "dip" ? transition.durationMs : 0
+      const enterMs = clip.startMs - reachMs
+      const start = events.get(enterMs) ?? empty()
       start.enter.push(item)
-      events.set(clip.startMs, start)
+      events.set(enterMs, start)
       const endMs = clip.startMs + clip.durationMs
       const end = events.get(endMs) ?? empty()
       end.leave.push(item)
       if (item.kind === "media") {
-        const prepareMs = Math.max(0, clip.startMs - MEDIA_LOOK_AHEAD_MS)
+        const prepareMs = Math.max(0, enterMs - MEDIA_LOOK_AHEAD_MS)
         const prepare = events.get(prepareMs) ?? empty()
         prepare.prepare.push(item.entry)
         events.set(prepareMs, prepare)
@@ -422,15 +474,22 @@ export function EditorPreview() {
     // then touches only active entries and clips crossing a boundary.
     for (const el of videoRefs.current.values()) {
       if (el.style.opacity !== "0") el.style.opacity = "0"
+      if (el.style.transform) el.style.transform = ""
       if (!el.paused) el.pause()
     }
     for (const el of audioRefs.current.values()) {
       if (!el.paused) el.pause()
     }
-    for (const el of imageRefs.current.values()) el.style.visibility = "hidden"
+    for (const el of imageRefs.current.values()) {
+      el.style.visibility = "hidden"
+      if (el.style.opacity && el.style.opacity !== "1") el.style.opacity = "1"
+      if (el.style.transform) el.style.transform = ""
+    }
     for (const el of textRefs.current.values()) el.style.visibility = "hidden"
     for (const el of wordRefs.current.values()) {
       el.style.opacity = String(KARAOKE_DIM)
+      // Clear any lingering animated-caption transform from a prior index.
+      if (el.style.transform) el.style.transform = ""
     }
 
     function syncFrame() {
@@ -496,18 +555,47 @@ export function EditorPreview() {
       for (const [url, entry] of frame.videos) {
         const el = videoRefs.current.get(url)
         if (!el) continue
-        if (el.style.opacity !== "1") el.style.opacity = "1"
-        const zIndex = String(entry.zIndex)
-        if (el.style.zIndex !== zIndex) el.style.zIndex = zIndex
-        const muted = entry.track.muted || !!entry.clip.muted
+        const { clip } = entry
+        // Reach-back: this clip is drawn early over the previous one, held on
+        // its first frame while its alpha/slide ramps in (see the export path
+        // in video-render.ts). It sits one layer above its same-track neighbour.
+        const reaching =
+          !!entry.transition &&
+          entry.transition.kind !== "dip" &&
+          timeMs < clip.startMs
+        if (reaching) {
+          const state = transitionReachState(
+            entry.transition!.kind,
+            clip.startMs,
+            entry.transition!.durationMs,
+            timeMs
+          )
+          const opacity = String(state.opacity)
+          if (el.style.opacity !== opacity) el.style.opacity = opacity
+          const zIndex = String(entry.zIndex + 1)
+          if (el.style.zIndex !== zIndex) el.style.zIndex = zIndex
+          const transform = state.translateXPct
+            ? `translateX(${state.translateXPct}%)`
+            : ""
+          if (el.style.transform !== transform) el.style.transform = transform
+        } else {
+          if (el.style.opacity !== "1") el.style.opacity = "1"
+          const zIndex = String(entry.zIndex)
+          if (el.style.zIndex !== zIndex) el.style.zIndex = zIndex
+          if (el.style.transform) el.style.transform = ""
+        }
+        const muted = entry.track.muted || !!clip.muted
         if (el.muted !== muted) el.muted = muted
         const volume = entry.track.duck
           ? sampleEnvelope(duckEnvelope, timeMs)
           : 1
         if (el.volume !== volume) el.volume = volume
-        const targetS =
-          (entry.clip.trimStartMs + (timeMs - entry.clip.startMs)) / 1000
-        if (!playing && !el.paused) el.pause()
+        // Freeze the first frame during the reach-back so content is continuous
+        // once real playback begins at the seam.
+        const targetS = reaching
+          ? clip.trimStartMs / 1000
+          : (clip.trimStartMs + (timeMs - clip.startMs)) / 1000
+        if ((!playing || reaching) && !el.paused) el.pause()
         seekPreviewMedia(
           el,
           targetS,
@@ -515,7 +603,9 @@ export function EditorPreview() {
           seekToleranceS,
           mediaSeekRequests
         )
-        if (playing && el.paused) void el.play().catch(() => undefined)
+        if (playing && !reaching && el.paused) {
+          void el.play().catch(() => undefined)
+        }
       }
 
       // Audio: only active clips are visited on each tick.
@@ -538,12 +628,78 @@ export function EditorPreview() {
         if (playing && el.paused) void el.play().catch(() => undefined)
       }
 
-      // Karaoke: binary-search the active word and update only the two spans
-      // whose state changes, rather than rewriting every word every frame.
+      // Image reach-back: an incoming image drawn early over the previous clip
+      // fades/slides in exactly like a video (it just holds its single frame).
+      for (const entry of frame.images.values()) {
+        const transition = entry.transition
+        if (!transition || transition.kind === "dip") continue
+        const el = imageRefs.current.get(entry.clip.id)
+        if (!el) continue
+        if (timeMs < entry.clip.startMs) {
+          const state = transitionReachState(
+            transition.kind,
+            entry.clip.startMs,
+            transition.durationMs,
+            timeMs
+          )
+          el.style.opacity = String(state.opacity)
+          el.style.zIndex = String(entry.zIndex + 1)
+          el.style.transform = state.translateXPct
+            ? `translateX(${state.translateXPct}%)`
+            : ""
+        } else {
+          if (el.style.opacity !== "1") el.style.opacity = "1"
+          const zIndex = String(entry.zIndex)
+          if (el.style.zIndex !== zIndex) el.style.zIndex = zIndex
+          if (el.style.transform) el.style.transform = ""
+        }
+      }
+
+      // Dip-to-black: a full-frame black layer at whichever seam is nearest.
+      const dipEl = dipRef.current
+      if (dipEl) {
+        let dipOpacity = 0
+        for (const dip of dips) {
+          const value = dipOpacityAt(dip.seamMs, dip.durationMs, timeMs)
+          if (value > dipOpacity) dipOpacity = value
+        }
+        const opacity = String(dipOpacity)
+        if (dipEl.style.opacity !== opacity) dipEl.style.opacity = opacity
+      }
+
+      // Karaoke: binary-search the active word and update spans imperatively.
       for (const { clip } of frame.texts.values()) {
         if (!clip.words?.length) continue
-        const active = activeWordIndex(clip.words, timeMs - clip.startMs)
+        const relativeMs = timeMs - clip.startMs
+        const active = activeWordIndex(clip.words, relativeMs)
         const previous = activeWords.get(clip.id)
+        const animation = resolveCaptionAnimation(clip.animation)
+
+        if (isAnimatedCaption(animation)) {
+          // The active word animates continuously through its entrance, so it
+          // must be re-styled every frame (one span). When it changes, the
+          // outgoing word is reset to the resting dimmed look.
+          if (previous != null && previous !== active) {
+            const previousEl = wordRefs.current.get(`${clip.id}:${previous}`)
+            if (previousEl) {
+              previousEl.style.opacity = String(KARAOKE_DIM)
+              previousEl.style.transform = ""
+            }
+          }
+          const activeEl = wordRefs.current.get(`${clip.id}:${active}`)
+          if (activeEl) {
+            const t = captionWordAnimation(
+              animation,
+              captionEntranceProgress(relativeMs, clip.words[active].startMs)
+            )
+            activeEl.style.opacity = String(t.opacity)
+            activeEl.style.transform = captionWordTransformCss(t)
+          }
+          activeWords.set(clip.id, active)
+          continue
+        }
+
+        // Static highlight: only the two spans that change need touching.
         if (previous === active) continue
         if (previous != null) {
           const previousEl = wordRefs.current.get(`${clip.id}:${previous}`)
@@ -564,7 +720,7 @@ export function EditorPreview() {
       }
       unsubscribe()
     }
-  }, [clock, playbackFrames, duckEnvelope])
+  }, [clock, playbackFrames, duckEnvelope, dips])
 
   // --- Drag a text overlay to reposition it on the frame -------------------
   // Grab anywhere on the text; the offset between the pointer and the text's
@@ -591,6 +747,30 @@ export function EditorPreview() {
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
+  // Where the text would land for this pointer position, centre snapping
+  // included. Alt zeroes the threshold, which is how the bypass works: nothing
+  // is ever within zero of a centre line.
+  function resolveTextDrag(
+    drag: { offsetX: number; offsetY: number },
+    e: React.PointerEvent,
+    rect: DOMRect
+  ) {
+    const x = clamp01((e.clientX - rect.left + drag.offsetX) / rect.width)
+    const y = clamp01((e.clientY - rect.top + drag.offsetY) / rect.height)
+    return snapStageCenter({
+      x,
+      y,
+      thresholdX: e.altKey ? 0 : stageSnapThreshold(rect.width),
+      thresholdY: e.altKey ? 0 : stageSnapThreshold(rect.height),
+    })
+  }
+
+  function paintCenterGuides(showX: boolean, showY: boolean) {
+    const { x, y } = centerGuideRefs.current
+    if (x) x.style.display = showX ? "block" : "none"
+    if (y) y.style.display = showY ? "block" : "none"
+  }
+
   function handleTextMove(e: React.PointerEvent) {
     const drag = textDragRef.current
     const stage = stageRef.current
@@ -603,16 +783,15 @@ export function EditorPreview() {
       return
     }
     drag.moved = true
-    const rect = stage.getBoundingClientRect()
-    const nx = clamp01((e.clientX - rect.left + drag.offsetX) / rect.width)
-    const ny = clamp01((e.clientY - rect.top + drag.offsetY) / rect.height)
+    const snapped = resolveTextDrag(drag, e, stage.getBoundingClientRect())
     const el = textRefs.current.get(drag.clipId)
     if (el) {
       // Imperative during the drag — avoids re-rendering the whole preview
       // (and reloading <video> elements) on every pointer move.
-      el.style.left = `${nx * 100}%`
-      el.style.top = `${ny * 100}%`
+      el.style.left = `${snapped.x * 100}%`
+      el.style.top = `${snapped.y * 100}%`
     }
+    paintCenterGuides(snapped.snappedX, snapped.snappedY)
   }
 
   function handleTextUp(e: React.PointerEvent) {
@@ -621,12 +800,15 @@ export function EditorPreview() {
     const stage = stageRef.current
     if (!drag) return
     ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    paintCenterGuides(false, false)
     if (!drag.moved || !stage) return
     // Commit the final position once, as a single undo step.
-    const rect = stage.getBoundingClientRect()
-    const nx = clamp01((e.clientX - rect.left + drag.offsetX) / rect.width)
-    const ny = clamp01((e.clientY - rect.top + drag.offsetY) / rect.height)
-    dispatch({ type: "UPDATE_CLIP", clipId: drag.clipId, patch: { x: nx, y: ny } })
+    const snapped = resolveTextDrag(drag, e, stage.getBoundingClientRect())
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: drag.clipId,
+      patch: { x: snapped.x, y: snapped.y },
+    })
   }
 
   const hasClips = media.length > 0 || images.length > 0 || texts.length > 0
@@ -697,6 +879,8 @@ export function EditorPreview() {
           const active = words?.length
             ? activeWordIndex(words, now - clip.startMs)
             : -1
+          const animation = resolveCaptionAnimation(clip.animation)
+          const animated = isAnimatedCaption(animation)
           return (
           <div
             key={clip.id}
@@ -729,22 +913,85 @@ export function EditorPreview() {
             }}
           >
             {words?.length
-              ? words.map((word, i) => (
+              ? words.map((word, i) => {
                   // Karaoke: each word is a span the sync loop dims/lights;
-                  // initial opacity matches the (paused) playhead.
-                  <span
-                    key={i}
-                    ref={registerRef(wordRefs, `${clip.id}:${i}`)}
-                    style={{ opacity: i === active ? 1 : KARAOKE_DIM }}
-                  >
-                    {word.text}
-                    {i < words.length - 1 ? " " : ""}
-                  </span>
-                ))
+                  // initial style matches the (paused) playhead. The trailing
+                  // space is a sibling text node so animated (inline-block)
+                  // words still wrap. Animated clips carry the active word's
+                  // entrance transform up front to avoid a first-frame flash.
+                  const isActiveWord = i === active
+                  const enter =
+                    animated && isActiveWord
+                      ? captionWordAnimation(
+                          animation,
+                          captionEntranceProgress(
+                            now - clip.startMs,
+                            word.startMs
+                          )
+                        )
+                      : null
+                  return (
+                    <React.Fragment key={i}>
+                      <span
+                        ref={registerRef(wordRefs, `${clip.id}:${i}`)}
+                        style={{
+                          opacity: enter
+                            ? enter.opacity
+                            : isActiveWord
+                              ? 1
+                              : KARAOKE_DIM,
+                          ...(animated
+                            ? {
+                                display: "inline-block",
+                                transformOrigin: "center",
+                                transform: enter
+                                  ? captionWordTransformCss(enter)
+                                  : undefined,
+                              }
+                            : null),
+                        }}
+                      >
+                        {word.text}
+                      </span>
+                      {i < words.length - 1 ? " " : ""}
+                    </React.Fragment>
+                  )
+                })
               : clip.text}
           </div>
           )
         })}
+
+        {/* Centre alignment guides. Only visible while a dragged text overlay
+            is locked onto that line, so they never sit over the frame during
+            normal playback. */}
+        <div
+          ref={(el) => {
+            centerGuideRefs.current.x = el
+          }}
+          data-snap-guide="stage-x"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/80"
+          style={{ display: "none", zIndex: 95 }}
+        />
+        <div
+          ref={(el) => {
+            centerGuideRefs.current.y = el
+          }}
+          data-snap-guide="stage-y"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/80"
+          style={{ display: "none", zIndex: 95 }}
+        />
+
+        {/* Dip-to-black overlay: opacity driven by the sync loop, on top of
+            every clip so the frame truly dips through black. */}
+        <div
+          ref={dipRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-black"
+          style={{ opacity: 0, zIndex: 90 }}
+        />
 
         {/* Empty-project hint */}
         {!hasClips && (

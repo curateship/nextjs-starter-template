@@ -1,0 +1,454 @@
+# The shell and the apps built on it
+
+Custom Shell is the template every app in this repo is copied from. This file
+is the rulebook for that relationship: what an app may edit, what it may never
+edit, and how an app changes shell behaviour through options instead of through
+edits. Read it before building an app on the shell or adding an option to it.
+
+## How apps are made, and why it constrains you
+
+A new app is a **copy of the whole `apps/shell` folder**. Improvements
+made in the shell reach those apps later by merging the shell into them — one
+way, shell → app, forever.
+
+A merge only has something to argue about when **both sides edited the same
+file**. So the rule that keeps every app able to take shell updates is:
+
+> **An app never edits a shell-origin file. Not even one line.**
+
+An edited shell file is a fork. It does not conflict once — it conflicts on
+every future merge, forever, and it always will. That is how the older apps
+ended up unable to take a shell update at all: nine of them put their own tables
+inside the shell's `src/server/schema.ts`, which drifted 1,300 to 2,200 lines
+apart, and there was no way back.
+
+## What an app may edit
+
+Three things, and nothing else:
+
+- **`src/app/**`** — the app's own answers. This is how an app changes shell
+  behaviour. The shell creates these files once and never touches them again.
+- **Files the app itself created** — new routes, components, tables, workers,
+  and new endpoints under `src/lib/api/`. A new file has no shell version, so it
+  can never conflict.
+- **`drizzle/` migrations it added**, and its own `.env`.
+
+Everything else in the repo belongs to the shell.
+
+## What a site owns, and what the deployment owns
+
+An app can serve one website or many, and `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN`
+is what says which. With it unset — Trade, Video, Custom Shell itself — there is
+one public website and its settings are the app-wide ones, **including when
+that one site has been given a domain of its own.** A custom domain is matched
+without any base domain being set, so a page drawn on it used to read the
+site's own row while the Settings screen edited the app-wide one, and an
+admin's menu edit never appeared on the website. With it set, every site is
+reached on its own address and these belong to the site whose address was
+visited:
+
+- its name, its one logo and its share image, through `workspaces.siteBranding`.
+  The logo is the only picture an admin uploads: the dark version and the
+  browser-tab sizes are cut from it when it is saved, exactly as they are from
+  the app-wide logo. A site used to upload a favicon and a dark logo of its own
+  as well, which was three pictures for what one does, and a site that set its
+  own favicon lost the cut sizes entirely. Tyler called that redundant on
+  27 Sep 2026.
+
+  **A site does not borrow the app's logo**, the same way it does not borrow its
+  menu. A site with none shows its name, and the app-wide picture is the
+  deployment's own — its sign-in pages, and every page of a one-site app. So
+  General settings shows one logo box, not two: the site's on a multisite app,
+  the app's on a one-site one
+
+  **An app with `siteBranding` on that runs as one website** (no base domain,
+  as Course does on systemeverything.com) still saves that Logo box on its one
+  site, because the box follows `siteBranding` and not the base domain. So its
+  public pages and browser tab read the logo, dark logo and tab sizes from that
+  site, the oldest one in the database. If the site has no logo of its own they
+  fall back to the app-wide logo. Before 16 Nov 2026 they read only the
+  app-wide one, so the logo Tyler uploaded on systemeverything.com was saved
+  but never shown, and the site had no tab icon.
+  `src/server/shell-settings.ts`, tested in `public-branding.test.ts`.
+- its brand colour, in `publicTheme`
+- its public menu, its public footer and the footer's copyright line
+- **its front page rows**, from 27 Sep 2026. They were app-wide until then, so
+  a second website opened with the first one's hero. A site that has built none
+  draws its header and its footer with nothing between them — never the
+  deployment's own sign-up block, which on somebody else's website is an advert
+  for software they did not come for. That block still draws on the
+  deployment's own address and in a one-site app, where it is the right answer.
+  There is no limit on how many rows a front page has, from the same day: only
+  the stored list's own bound of 500, which nobody meets by adding rows.
+
+Everything else on a public page — the header's layout, the breadcrumbs, the
+footer's social accounts, the SEO fields, the fonts — is one answer for the
+whole deployment.
+
+**An open button on a signed-in screen opens the site picked in the left
+menu**, not the address the admin is signed in on. On a multisite app the
+deployment's own address draws its oldest site's public pages, so a bare
+`/about` there opened a different site's page from the one being edited.
+Every such button builds its link with `useSiteAddress` in
+`src/lib/hooks/use-site-address.ts`, which uses the left menu's own rule in
+`workspacePublicOrigin` (`src/lib/workspaces/addresses.ts`): the subdomain on
+`localhost` and on a deployment without a domain, the site's own domain on a
+deployment that has one, and the plain path in a one-site app. A site's
+address is a different address, so somebody signed in only on the
+deployment's address arrives there signed out. Tyler asked for this on
+17 Oct 2026.
+
+## App options
+
+One file holds an app's answers:
+
+| App writes here | Shell reads it in |
+| --- | --- |
+| `src/app/options.ts` | `src/lib/app-options.ts` |
+| `src/app/server-options.ts` | `src/server/app-options.ts` |
+
+Two pairs because of one line: `options.ts` can be seen by the browser and
+`server-options.ts` never is, since only `src/lib/api/*`, `src/routes/api/**`
+and `src/server/*` may import `@/server/*`. Drawing and wording go in the first;
+anything that reaches the database or calls something outside goes in the
+second.
+
+The shell file in each pair is the catalogue: it defines what can be changed and
+what each option means. Anything not offered there is a compile error, on
+purpose — the shell always knows every way an app can deviate from it.
+
+**In Custom Shell itself both app files stay empty forever.** The moment the
+shell puts a value in one, every app copied from it conflicts on that file on
+every merge.
+
+What is on offer today. An option is added when a real app needs it, never on
+the guess that one might:
+
+- `workspaces.siteBranding` — lets an app such as CMS give each public site its
+  own favicon, logo, dark logo and share image. It defaults to false, preserving
+  app-wide branding. When enabled, public requests use the visited site's
+  images and fall back to app-wide images for empty fields. The signed-in
+  settings contract exposes `workspaceFavicon`, `workspaceLogo`,
+  `workspaceLogoDark` and `workspaceShareImage`; the guarded save writes only
+  the current site's settings. The site's colour uses `publicTheme.brandColor`.
+- `publicTheme` — the public look a fresh install starts with. The app names only
+  the fields it wants to change, saved app-wide values replace matching fields,
+  and anything omitted keeps the shell's built-in look. The settings record
+  keeps only differences from the app default, so an unrelated save does not
+  freeze inherited values.
+- `billing.returnPaths` (server) — the three places Stripe hands people back
+  to: after paying, after backing out of checkout, and from the billing
+  portal. Unset means the shell's own success page, `/pricing` and the
+  account dialog's Billing tab. The shell adds the checkout session id to the
+  success path, so the app's page there can confirm the purchase through
+  `confirmCheckoutSession`. Pomodoro points all three at `/plans`.
+- `homeScreen` — where the icon opens once someone adds the app to a phone's
+  home screen (`startPath`), and the name under it (`shortName`). Unset opens
+  the front page under the app's name. `shareTarget` puts the app in an
+  Android phone's share menu, opening the page it names with the shared link.
+  See `home-screen.md`. Project opens `/dashboard`; Viral names a share page.
+- `landing.page` — replace `/` outright: loader, `<head>` and component together
+- `signIn.frame` — the frame drawn around the shell's ten signed-out pages
+  (sign in, register, forgot and reset password, verify email, the sign-in
+  link, change email and its undo, reporting an unwanted sign-in, maintenance)
+  in place of the public site's header and footer. The card and everything in
+  it stay the shell's: fields, Google, passkeys, checks and redirects. The app's
+  component is handed the card as children and decides where it sits. It is a
+  loader, `() => import(...)`, because a frame draws the app's chrome and that
+  reaches server functions the options module may not import. `AuthShell`
+  declares the lazy component once and reads the option only when it first
+  draws, and shows nothing rather than the public frame while it loads, so the
+  old look never flashes. Unset keeps the public frame. Pomodoro uses it.
+  **Load the frame's stylesheet from an always-loaded module too**, such as
+  the file `src/app/options.ts` imports for `landing.page`. A stylesheet that
+  only arrives with the on-demand frame lands after the server's copy of the
+  styles is removed, and the page flashes unstyled in between; Pomodoro
+  measured that gap at about 200ms. A stylesheet import carries no code, so it
+  does not reopen the import circle.
+- `pages.frontPageRowKinds` — extra kinds of row in the front page builder, each
+  carrying its label, its hint, an optional icon for its card in the Add row
+  window, a pointer to the panel that edits its own fields
+  and a pointer to the component that draws it, paired with
+- `pages.frontPageRowReaders` (server) — what fills one of those rows for the
+  site being answered, keyed by the same `key`. Answering `null` leaves the row
+  off the page, which is how "nothing is coming up" and "this visitor may not
+  see that page" are said. A row of an app kind is stored as the shell's own row
+  fields plus the app's key and a bag of settings the shell keeps and never
+  reads, so the shell's own list of kinds stays closed. The one thing the shell
+  does read in what a reader returns is `action: { label, href }`, which it
+  draws as a button beside the row's heading — the way to the whole list a row
+  shows a handful of, named and addressed by the app because only the app knows
+  where its own list lives
+- `automations.nodes` — extra steps in the automation palette, each carrying its
+  own icon and a pointer to its settings panel, paired with
+- `automations.executors` (server) — what those steps do when a flow reaches
+  them, keyed by the same `kind`
+- `sitemap.extraEntries` (server) — public addresses from the app's own tables,
+  read for the site whose domain is being answered
+- `sitemap.chunkFiles` (server) — the numbered sitemap files an app serves when
+  it has more addresses than one file can hold, which turns `/sitemap.xml` into
+  an index of them and moves the site's pages to `/sitemap.xml?part=pages`
+- `automations.canvasHeaderStatus` — a piece of the app's own in the canvas
+  header, for what the flow IS right now rather than what a run produced
+- `automations.runControl` — the app's own control in place of Run
+- `automations.pauseControl` — the app's own control in place of Pause all
+- `notifications.describe` — how one of the app's own notices looks, answered
+  on the spot from the words the shell already holds, so the row is right on
+  the first paint rather than redrawn a moment later
+- `notifications.detailsFor` — what the app can only say after asking a server,
+  asked once per page of notices rather than once per click: the page one goes
+  to, the heading and figures the bell draws it with, its tile and its tab. The
+  shell knows what its own notices are about; an `app_activity` notice carries
+  its own words and nowhere to go, which is what this answers. Addresses inside
+  the app only: anything else is dropped rather than followed, because these
+  strings come out of a database
+- `notifications.categories` — the app's own tabs in the tray, after the
+  shell's Unread and All. Each notice names one through its `categoryId`
+- `media.videoMaxBytes` — the biggest video one upload may be. Unset is 5GB;
+  `"bucket"` is the most R2 holds in one file, just under 5TB. Video uses
+  `"bucket"`. See `big-uploads.md`.
+- `media.storageUsed` (server) — what the app keeps in the bucket beside the
+  library's files, such as Video's smooth copies, so the Media library's
+  storage total and monthly cost count it.
+- `header.leftContent` — optional app-owned left navigation, lazy-loaded for
+  the allowed roles. The component receives `fallback`, the current sidebar
+  links, and renders that value when it has nothing to show. The same links
+  remain visible while the component loads. Custom Shell leaves the option
+  unset.
+- `header.rightActions` — the app's own controls in the signed-in header, in
+  the order the app writes them. Each one's stable id, label, icon and allowed
+  roles put it in the same draggable Top right menu settings as the shell
+  controls, where it can be reordered or hidden like any of them, and a control
+  the app has stopped offering leaves its saved row alone rather than deleting
+  it. A component loads only when the header draws. Two controls sharing an id
+  are refused out loud. Unset leaves the header and its settings unchanged.
+  **On a phone the ones marked `foldsOnPhone` fold into a three-dot button
+  drawn at the end of the row**, which opens them in a dropdown; the rest keep
+  their place in the row at every width. The controls inside are the
+  real ones, not copies, so each still opens its own panel. A phone header has
+  room for about four controls, so an app marks the ones it can live without at
+  a glance and leaves the ones somebody opens the page to read in the row. The
+  fold happens below 768px, the same width the sidebar collapses at.
+  **A control with `phoneChoice: true` lets the person pick.** Its chip in
+  Settings → Top right menu gets a phone button reading "Dropdown" or "Menu
+  bar", and a press moves it to the other one. The choice saves with the rest
+  of that row, as `foldsOnPhone` on the saved item, and wins over the app's
+  own `foldsOnPhone`. Unset follows the app, and Reset puts it back. The
+  admin's own menu and the members' menu each keep their own choice. Trade
+  offers it on Goal and Active trades.
+  **Once anything folds, the settings cog folds in with it.** The cog is not
+  drawn in the row, and its rows sit at the bottom of the dropdown with colour
+  mode last. An app that folds nothing keeps its cog, and a cog switched off in
+  the Top right menu stays off in the dropdown too. The dropdown is the phone's
+  width less a 0.5rem gutter each side, and everything in it is packed to the
+  left. A control that sets `ownSection: true` goes at the top, on a line of
+  its own under its own `label` as a heading. It is for a control that is a
+  list rather than a button, Trade's row of pinned markets, where the heading
+  is the only thing saying what the chips are. The buttons share one line
+  under that, which slides sideways and fades out under the right edge rather
+  than wrapping onto a second line, then the cog's rows. The flag does nothing on a wide screen,
+  where nothing is folded.
+- `header.quickSettings` — the app's own switches inside the header's settings
+  cog, in the order the app writes them. The cog, its place in the Top right
+  menu, the panel and the colour-mode pill at the top belong to the shell; each
+  app row is a component behind a pointer, loaded when the menu first opens,
+  and is built from the shared `QuickSettingSwitch` so no app invents its own
+  look. A row names roles when it is not for everybody. Unset leaves the menu
+  holding colour mode alone, which is what the old standalone theme button was.
+  Two rows sharing an id are refused out loud.
+- `roles` — the app's own kinds of account beside admin and member, such as
+  Project's `employee` or CMS's `venue_owner`. Each has an id (stored in
+  `users.role`), a label, a `landing` page, the `features` of the shell it
+  gets, and the left `menu` a fresh install gives it. An app role starts with
+  none of billing, AI usage, Feedback, workspaces, the full Security
+  tab or email change, and the server refuses those to it through `featureGet`
+  and `featurePost`. Everyone signs in on the one `/login`; `/home` sends an
+  app role to its landing page. The app's invite endpoint makes the account
+  with `inviteAccount` (`src/server/people/invite.ts`), and the site admin can
+  also pick the role on Admin → Users. Admin → Navigations edits each role's
+  menu under its own name. A header control, quick setting or left header
+  content that names no `roles` is for admins and members only, so an app role
+  sees one only when the app names it. Unset declares no roles, and every
+  account is an admin or a member as before. The app's doc lives in
+  `apps/shell/workspace/docs/accounts/app-roles.md`.
+
+An app adds a step; it never replaces one of the shell's. A `kind` or a palette
+key the shell already uses is refused out loud.
+
+### The canvas header: shell buttons, and the app's chip
+
+One rule, and it settles every argument this header has had:
+
+> **An app's actions live in the app's chip. All of them.** The shell's own
+> buttons stay the shell's, and an app switches off the ones that do not apply
+> to it. There is no third place.
+
+**Looking the same is not a reason to be the same button.** A control is shared
+only when it *does* the same thing everywhere. Two apps that would write a
+different sentence on the same button do not have the same button.
+
+Run was where this first showed. In the shell it starts a flow; in Trade it is a
+backtest, or switching real money on, or nothing at all because the flow is
+already trading. No wording fixes that — the word itself has to change with what
+the flow is, and the shell cannot know which of the three it is looking at.
+
+Pause was the second, and it hid better because it looked identical. The shell's
+Pause stops **every** automation in the workspace, which is right when
+automations are emails and reminders. In Trade one flow holds a wallet with
+money in the market: pausing everything is far too big a hammer, and pausing
+just this one means something the shell has no word for — stop looking for new
+coins, leave what is already placed exactly where it is. Same icon, same place,
+different act.
+
+The answer is not a slot per button. That way the header ends up half shell and
+half app, with two places to look for an action and no line between them — the
+crossover problem, moved rather than solved. So:
+
+- **`automations.canvasHeaderStatus` is the app's one home in the header.** The
+  chip says what the flow is, and carries every action that belongs to the app.
+  It draws itself completely; the shell gives it a place to stand and nothing
+  else.
+- **Shell buttons an app does not want are switched off**, with a plain option —
+  not replaced in place. Off is the app's decision; what the button does when it
+  is on stays the shell's.
+- **Every option defaults to today's behaviour**, so an app that says nothing is
+  unchanged.
+
+The test before adding anything to this header: *is this the shell acting, or
+the app acting?* The shell's goes in the header as a shell button. The app's
+goes in the chip. Nothing goes in both.
+
+**The shell's own nodes are written exactly the same way**, so there is one way
+to add a node rather than two. A node is:
+
+- `src/lib/automations/nodes/<kind>.ts` — what it is: its palette card, its
+  icon, its settings rules, and a pointer to its panel.
+- `src/components/automations/nodes/<kind>-panel.tsx` — its settings panel.
+- an executor — what it does when a flow reaches it.
+
+The panel is a separate file and the descriptor points at it with
+`fields: () => import("@/components/automations/nodes/<kind>-panel")`, never the
+component itself. The engine reads descriptors, so anything a descriptor's
+module imports is loaded on the server too — and a panel with a dropdown in it
+imports `@/lib/api/*`, which builds a server function as it loads and throws
+outside a request, at boot. The pointer is never followed until a browser draws
+the panel. There is nothing to remember: the type accepts nothing else.
+
+### Where a setting belongs
+
+Three homes, and the test is simple: **if you can picture a Settings screen for
+it, it is not an app option.**
+
+- **`ShellConfig` (database)** — an admin changes it while the app runs, and two
+  installs of the same app can differ. App name, sidebar, styling, maintenance,
+  home routes.
+- **An environment variable** — a secret, or something that differs between
+  staging and production of the *same* app. Stripe keys, `..._BILLING_ENABLED`.
+- **An app option** — decided once by whoever builds the app, the same on every
+  install, and changing it means a code change and a deploy.
+
+An app option may supply the starting value for a runtime setting only when the
+catalogue offers that default explicitly. The public theme does this: the app's
+choice sits under saved site values, while omitted app fields keep the shell's
+built-in look.
+
+### Where an app's own Settings screen goes
+
+Tyler, 9 Oct 2026: "This settings page should be here and it has to be auto
+save." Pomoder had built its admin settings as a page of its own,
+`/admin/pomodoro-settings`, with a Save button on every card, while the rail on
+`/admin/settings` said "This app has no settings of its own."
+
+- **Settings an admin changes while the app runs go in the Settings screen**,
+  as tabs listed in `settings.tabs` in the app's `src/app/options.ts`. They show
+  under App settings in the rail. The shell already offers this, so no shell
+  edit is needed, and no app builds a separate settings page.
+- **They auto-save like every other Settings tab**: no Save button, the header
+  reports the save. `docs/shell/settings-saving.md` holds the timing, and the
+  UI standard's Settings section holds the screen rules.
+- **Clicking between the tabs shows no loading row**, the same as the shell's
+  own tabs: the app reads its settings once per page and holds them, the way
+  the shell layout holds its own record. The UI standard's Settings section
+  says how.
+- **A task or plan that adds a setting names the tab it goes on.** A task that
+  says "a card on `/admin/<app>-settings`" or "a Save button" is wrong before
+  any code is written.
+
+### When an app needs an option that does not exist
+
+Steps 1 and 2 settle most of these without touching the shell at all.
+
+1. **Stop. Do not edit the shell file in the app.**
+2. **Can it be done without an option?** A new file in the app, an existing
+   Settings value, or an env var. Prefer these, in that order. Note that
+   `memberHomeRoute` and `adminRoute` already point anywhere, and every sidebar
+   item already has `visible` and `roles` — a surprising amount is already
+   possible without code.
+3. **Otherwise the change is made here, in the shell.** Add the option to the
+   type with a doc comment, add its reader with **the default equal to today's
+   behaviour**, and change the shell's call site to read through the reader.
+4. **Prove the shell did not change.** With the option unset: `npm run test`,
+   then open the app in a real browser. It must behave exactly as before.
+5. **Merge shell → app** using the checklist below.
+6. **Set the option** in the app's `src/app/options.ts`, or
+   `src/app/server-options.ts` if it runs on the server.
+
+The shell is opinionated at the core and open at the edges. Auth, sessions,
+security and the guard rules are the core: an app that wants those to work
+differently should say so out loud rather than switch it off quietly.
+
+### Merging the shell into an app
+
+Pulling shell updates into an app is a fixed checklist, and it is an AI job:
+
+1. Merge the latest Custom Shell into the app.
+2. Resolve the conflicts. A conflict in a shell file means somebody edited a
+   shell file in the app, so fix that too rather than just picking a side.
+3. Run the app's tests and its type check.
+4. Open the app in a real browser through the `validate-app` skill. A merge that
+   compiles can still break a page, so the browser check is not optional.
+
+### Rules for writing option code
+
+- **Every reader is a `function`, never a `const`.** An app's options file
+  imports an app component, which imports shell components, which can import the
+  options module — a real circle. Function declarations are hoisted and survive
+  it; a const read during boot throws.
+- **Call readers inside a component or a loader, never at the top level of a
+  module.** Route files are the one exception: nothing imports them back, so the
+  circle cannot reach them. This is why the node registry works its list out on
+  first use instead of at import — a module-level list would be built while the
+  app's own nodes are still loading.
+- **A default is written once, in the reader.** `ShellConfig` already gets
+  defaulted in three separate places; app options must not become a fourth.
+- **`src/app/**` never declares a `createServerFn`.** The guard test only walks
+  `src/lib/api`, so an endpoint declared in `src/app` would be an unguarded door
+  nobody is told about. New endpoints go in `src/lib/api/`, which never
+  conflicts anyway. This matters most in `server-options.ts`, which is allowed
+  to reach the database.
+- **`src/app/options.ts` never imports `src/app/server-options.ts`.** That is
+  the back door that would drag the database into the browser bundle.
+- **A dynamic `import()` in a plain function the browser build can reach goes
+  inside `createServerOnlyFn`.** "Never seen by the browser" above holds only
+  after the build has thrown unused code away. Browser-side files such as
+  `src/lib/api/auth/auth.ts` import `@/server/*`, and through
+  `src/server/app-options.ts` that includes the app's own
+  `src/app/server-options.ts` and every worker it lists. The build drops the
+  unused functions, but a dynamic import inside one still became its own
+  browser file that nothing loads, holding the database and the session cookie
+  code. TanStack's check then fails the build at `src/server/auth/security.ts`.
+  Wrapping the function in `createServerOnlyFn` makes the browser build drop
+  the body and the import together. Outside the TanStack build, in the worker
+  and in tests, the wrapper returns the function unchanged.
+  `startWorkspaceFor` in `src/lib/api/auth/auth.ts` and
+  `processPendingEmailRetries` in `src/server/email/retry.ts` are wrapped for
+  this reason. Before the wrap, Pomodoro's website build failed on both on
+  7 Oct 2026, while Custom Shell's passed, because its `server-options.ts` is
+  empty. A dynamic import inside a `createServerFn` handler needs nothing,
+  because the handler is already dropped from the browser build.
+
+`src/lib/app-options.test.ts` and `src/server/app-options.test.ts` cover the
+defaults and the last two rules. The first three are conventions no test can
+see, so they are on whoever writes the code. Defaults are checked by passing an
+empty object rather than by reading this app's own answers, so the check keeps
+working inside an app that has set an option.

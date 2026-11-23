@@ -1,0 +1,359 @@
+import { z } from "zod"
+
+/**
+ * Every Pomoder admin setting: its shape, its default and its limits, in one
+ * browser-safe file the settings page, the server functions and the readers
+ * all use. See `workspace/docs/admin-settings.md`.
+ *
+ * A stored value that no longer fits its shape reads as the default rather
+ * than breaking a page, and the next save writes a good one.
+ */
+
+/** `curated:<key>` or `scene:<key>`: a default is always one catalogue item. */
+const soundKeySchema = z.string().regex(/^curated:[a-z0-9][a-z0-9-]{0,39}$/)
+const sceneKeySchema = z.string().regex(/^scene:[a-z0-9][a-z0-9-]{0,39}$/)
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+/** The longest break message an admin may write. */
+export const BREAK_MESSAGE_MAX = 600
+
+/** The most made-up members the card allows, and the highest hours-a-day cap. */
+export const SIMULATED_TARGET_MAX = 200
+export const SIMULATED_HOURS_MAX = 6
+/**
+ * The hours-a-day dial moves in quarter hours, because the fade (live activity
+ * task 05, Part 1) lowers it by a quarter of an hour a week.
+ */
+export const SIMULATED_HOURS_STEP = 0.25
+/** The lowest the fade takes the dial. */
+export const SIMULATED_HOURS_FLOOR = 1
+/** The longest wait the card allows before a made-up member visits a real room, in seconds. */
+export const REAL_ROOM_VISIT_MAX_SECONDS = 1_800
+/** The highest daily chat cap the voice card takes, in cents. */
+export const SIMULATED_CHAT_CAP_MAX = 10_000
+/** The longest style brief the voice card takes. */
+export const VOICE_BRIEF_MAX = 1000
+/** The most an admin may set a member's daily Pixabay imports to. */
+export const PIXABAY_DAILY_LIMIT_MAX = 200
+/** The most an admin may set the daily sharing limit to. */
+export const SHARE_DAILY_LIMIT_MAX = 500
+
+export const appSettingSchemas = {
+  /**
+   * Tyler, 8 Oct 2026: "Add in app settings to checkbox shuffling sounds and
+   * themes for anon users and users that have not set their own custom themes
+   * and sounds."
+   */
+  "media.shuffleUnset": z.boolean(),
+  /**
+   * The upload window asks AI for a name and two or three tags from the file
+   * name (uploads-and-sharing task 01, part 7). A fraction of a cent per file,
+   * booked on the AI usage page, so an admin can switch it off.
+   */
+  "uploads.aiLabels": z.boolean(),
+  /**
+   * How many Pixabay links one member may import in 24 hours (task 06, part
+   * 8). Every member import uses the site's one Pixabay key, so a brake.
+   */
+  "uploads.pixabayDailyLimit": z.number().int().min(1).max(PIXABAY_DAILY_LIMIT_MAX),
+  /** What a new account and a guest start with, when shuffle is off. */
+  "media.defaults": z.object({
+    sound: soundKeySchema.nullable(),
+    background: sceneKeySchema.nullable(),
+  }),
+  /** A pair that replaces the defaults between two dates, such as December. */
+  "media.seasons": z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().trim().min(1).max(60),
+        starts: dateSchema,
+        ends: dateSchema,
+        sound: soundKeySchema.nullable(),
+        background: sceneKeySchema.nullable(),
+      })
+    )
+    .max(24),
+  /**
+   * Tyler, 9 Oct 2026: "Add a feature for admin to choose a theme that changes
+   * to it for break timer and an area for text so I can put some encourgement
+   * text or tips." The theme replaces everybody's own while a break is on;
+   * null leaves each person's theme alone. The message shows on the break card.
+   */
+  "break.look": z.object({
+    background: sceneKeySchema.nullable(),
+    message: z.string().max(BREAK_MESSAGE_MAX),
+  }),
+  /** The timer a new account and a guest start with. */
+  "timer.newAccount": z.object({
+    focusMinutes: z.number().int().min(1).max(90),
+    shortBreakMinutes: z.number().int().min(1).max(30),
+    longBreakMinutes: z.number().int().min(1).max(60),
+    sessionsBeforeLongBreak: z.number().int().min(2).max(8),
+    dailyGoalSessions: z.number().int().min(1).max(20),
+  }),
+  /**
+   * Room limits (admin task 04). `maxPeople` null means no limit, which is how
+   * rooms worked before. The other two were fixed in code at 5 and 20.
+   */
+  "rooms.limits": z.object({
+    maxPeople: z.number().int().min(2).max(500).nullable(),
+    maxRepeatsPerHost: z.number().int().min(1).max(50),
+    maxInvitesPerRoom: z.number().int().min(1).max(200),
+  }),
+  /**
+   * Words that hold a room message for an admin, or turn into stars (admin
+   * task 05). Whole words only, ignoring case. Empty until an admin adds some.
+   */
+  "chat.blockedWords": z.object({
+    words: z.array(z.string().trim().min(1).max(40)).max(300),
+    rule: z.enum(["hold", "replace"]),
+  }),
+  /** How many messages one person may send in one room per minute. */
+  "chat.speed": z.object({
+    messagesPerMinute: z.number().int().min(1).max(120),
+  }),
+  /**
+   * Shared files (uploads-and-sharing task 05). `dailyLimit` is how many files
+   * one account may share in 24 hours; unsharing never counts. With
+   * `approveFirst` on, a member's first shared file waits for an admin, and
+   * after one approval their shares go straight out.
+   */
+  "sharing.rules": z.object({
+    dailyLimit: z.number().int().min(1).max(SHARE_DAILY_LIMIT_MAX),
+    approveFirst: z.boolean(),
+  }),
+  /**
+   * Whether `/embed/timer`, the timer for a Notion embed block, shows the
+   * timer. Tyler, 7 Nov 2026: "Add enable and disable notion timer in
+   * settings". Off, the page says the timer is switched off.
+   */
+  "embed.notionTimer": z.boolean(),
+  /**
+   * Whether members see AI backgrounds and soundscapes at all. Tyler, 15 Nov
+   * 2026: "I want to hide the ai features for pro users because this feature
+   * is not ready to go live but it will eventually." Off, the plans page,
+   * Settings → Plan and My uploads leave them out, and the server refuses a
+   * generation or an AI credit pack. See `workspace/docs/ai-generation.md`.
+   */
+  "ai.generation": z.boolean(),
+  /** For a spam wave: no new rooms, or no chat anywhere, until switched off. */
+  "safety.pause": z.object({
+    newRooms: z.boolean(),
+    chat: z.boolean(),
+  }),
+  /**
+   * The made-up members (live activity task 01). Tyler, 9 Oct 2026: "We just
+   * need real accounts that mimic live activities." `target` is how many there
+   * should be, `hoursCap` the most any of them focuses in a day, and `paused`
+   * stops the worker starting anything new.
+   */
+  "simulated.accounts": z.object({
+    target: z.number().int().min(0).max(SIMULATED_TARGET_MAX),
+    hoursCap: z.number().min(SIMULATED_HOURS_FLOOR).max(SIMULATED_HOURS_MAX).multipleOf(SIMULATED_HOURS_STEP),
+    paused: z.boolean(),
+  }),
+  /**
+   * One switch per behaviour of the made-up members (live activity task 05,
+   * Part 8). Off stops that behaviour on the next pass and leaves the others
+   * alone; Pause everything outranks all five.
+   */
+  "simulated.switches": z.object({
+    sessions: z.boolean(),
+    rooms: z.boolean(),
+    chat: z.boolean(),
+    follows: z.boolean(),
+    joinReal: z.boolean(),
+  }),
+  /**
+   * Real members stay on top (task 05, Part 1). Once a real member's week
+   * passes `aboveHours`, no made-up account's week is let past theirs; once
+   * real members together focus more than `fadeAfterHours` in a week, the
+   * hours-a-day dial drops a quarter of an hour the week after.
+   */
+  "simulated.realFirst": z.object({
+    aboveHours: z.number().int().min(1).max(80),
+    fadeAfterHours: z.number().int().min(1).max(100_000),
+  }),
+  /**
+   * How long after a real member's public room opens a made-up member walks
+   * in, and after the first how long until a second, drawn between the two
+   * (live activity task 04, Part 3). Tyler, 11 Oct 2026: "The join is a bit
+   * slow. I think it should be around 10sec to 1 min and something I can edit
+   * in settings".
+   */
+  "simulated.realRoomVisit": z
+    .object({
+      minSeconds: z.number().int().min(0).max(REAL_ROOM_VISIT_MAX_SECONDS),
+      maxSeconds: z.number().int().min(0).max(REAL_ROOM_VISIT_MAX_SECONDS),
+    })
+    .refine((value) => value.minSeconds <= value.maxSeconds, "The soonest cannot be later than the latest."),
+  /** The most the room chat may spend on AI lines in one UTC day (task 05, Part 4). */
+  "simulated.chatCap": z.object({
+    centsPerDay: z.number().int().min(0).max(SIMULATED_CHAT_CAP_MAX),
+  }),
+  /**
+   * How the made-up members sound in rooms (live activity task 03). Tyler,
+   * 9 Oct 2026: "There should be options to adjust how the ai sounds too so it
+   * doesnt sound like ai." A never-say entry of "!" means no line may end in
+   * an exclamation mark.
+   */
+  "simulated.voice": z.object({
+    brief: z.string().max(VOICE_BRIEF_MAX),
+    chattiness: z.enum(["quiet", "normal", "talkative"]),
+    length: z.enum(["few", "one", "two"]),
+    lowercase: z.boolean(),
+    emoji: z.boolean(),
+    typo: z.enum(["off", "1in20", "1in10"]),
+    neverSay: z.array(z.string().trim().min(1).max(80)).max(100),
+  }),
+} as const
+
+export type AppSettingKey = keyof typeof appSettingSchemas
+export type AppSettingValue<K extends AppSettingKey> = z.infer<
+  (typeof appSettingSchemas)[K]
+>
+export type MediaSeason = AppSettingValue<"media.seasons">[number]
+
+export const APP_SETTING_DEFAULTS: {
+  [K in AppSettingKey]: AppSettingValue<K>
+} = {
+  // Tyler, 9 Oct 2026: "shuffle is on automatically for all users until they
+  // choose a song or theme." An admin can still switch it off.
+  "media.shuffleUnset": true,
+  "uploads.aiLabels": true,
+  "uploads.pixabayDailyLimit": 10,
+  "media.defaults": { sound: null, background: null },
+  "media.seasons": [],
+  "break.look": { background: null, message: "" },
+  // The schema's own defaults on user_preferences, so nothing changes until
+  // an admin says so.
+  "rooms.limits": { maxPeople: null, maxRepeatsPerHost: 5, maxInvitesPerRoom: 20 },
+  "chat.blockedWords": { words: [], rule: "hold" },
+  // Today's CHAT_LIMIT in rooms.ts, so nothing changes until an admin says so.
+  "chat.speed": { messagesPerMinute: 20 },
+  "safety.pause": { newRooms: false, chat: false },
+  // On, because the embed shipped working (7 Nov 2026).
+  "embed.notionTimer": true,
+  // Off, unlike every other default here: Tyler asked on 15 Nov 2026 for the
+  // AI features to be hidden until they are ready to go live.
+  "ai.generation": false,
+  "sharing.rules": { dailyLimit: 10, approveFirst: true },
+  // Tyler, 9 Oct 2026: the busiest never over three hours a day so a real
+  // member can reach the top. A hundred, not the forty first asked for,
+  // because "at least 10 rooms open at all times" needed it: measured over a
+  // simulated day, 40 fell under ten rooms a third of the time, 80 never did
+  // but now and then left a room with only its host for over ten minutes, and
+  // 100 did neither. The floor is six rooms now, plus three under Starting
+  // soon (see `longCountdownFor`). Tyler, 10 Oct 2026: "Add 30 more made up
+  // profiles and add more rooms so that the starting in... always have 3+
+  // rooms", so 130, which the day test runs. Nothing is made until an admin
+  // presses Make them now.
+  "simulated.accounts": { target: 130, hoursCap: 3, paused: false },
+  "simulated.switches": { sessions: true, rooms: true, chat: true, follows: true, joinReal: true },
+  // The task file's numbers (9 Oct 2026). Both are open questions for Tyler.
+  "simulated.realFirst": { aboveHours: 8, fadeAfterHours: 100 },
+  "simulated.chatCap": { centsPerDay: 50 },
+  "simulated.realRoomVisit": { minSeconds: 10, maxSeconds: 60 },
+  // The task's own defaults, 9 Oct 2026, so the first Preview already sounds
+  // like somebody half-distracted by their own work.
+  "simulated.voice": {
+    brief:
+      "casual, lowercase, short, no exclamation marks, no emoji, never cheerleads, talks like someone half-distracted by their own work",
+    chattiness: "normal",
+    length: "one",
+    lowercase: true,
+    emoji: false,
+    typo: "off",
+    neverSay: ["great job", "let's go", "you've got this", "stay focused", "keep it up", "!"],
+  },
+  "timer.newAccount": {
+    focusMinutes: 25,
+    shortBreakMinutes: 5,
+    longBreakMinutes: 15,
+    sessionsBeforeLongBreak: 4,
+    dailyGoalSessions: 4,
+  },
+}
+
+/** A stored value, or the default when it is missing or no longer fits. */
+export function readAppSetting<K extends AppSettingKey>(
+  key: K,
+  stored: unknown
+): AppSettingValue<K> {
+  const parsed = appSettingSchemas[key].safeParse(stored)
+  return parsed.success
+    ? (parsed.data as AppSettingValue<K>)
+    : APP_SETTING_DEFAULTS[key]
+}
+
+/** The season covering `today` (a `yyyy-mm-dd`), if any. */
+export function seasonOn(seasons: MediaSeason[], today: string) {
+  return seasons.find((season) => season.starts <= today && today <= season.ends) ?? null
+}
+
+/** Why a set of seasons cannot be saved, or null. Two may not overlap. */
+export function seasonsProblem(seasons: MediaSeason[]) {
+  for (const season of seasons) {
+    if (season.ends < season.starts)
+      return `"${season.name}" ends before it starts.`
+  }
+  const sorted = [...seasons].sort((a, b) => a.starts.localeCompare(b.starts))
+  for (let index = 1; index < sorted.length; index += 1) {
+    const before = sorted[index - 1]
+    const after = sorted[index]
+    if (after.starts <= before.ends)
+      return `"${after.name}" overlaps "${before.name}". Two seasons may not share a day.`
+  }
+  return null
+}
+
+/** The pair a page draws for nobody's own pick: a season's, or the defaults. */
+export function defaultPairOn(
+  defaults: AppSettingValue<"media.defaults">,
+  seasons: MediaSeason[],
+  today: string
+) {
+  const season = seasonOn(seasons, today)
+  return {
+    sound: season?.sound ?? defaults.sound,
+    background: season?.background ?? defaults.background,
+  }
+}
+
+/**
+ * A message checked against the blocked words: whole words only, ignoring
+ * case, so "class" is never caught by "ass". Returns whether any matched and
+ * the line with each match turned into stars.
+ */
+export function checkBlockedWords(body: string, words: string[]) {
+  const clean = words.map((word) => word.trim().toLowerCase()).filter(Boolean)
+  if (!clean.length) return { matched: false, starred: body }
+  const escaped = clean.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(${escaped.join("|")})(?![\\p{L}\\p{N}])`, "giu")
+  let matched = false
+  const starred = body.replace(pattern, (found) => {
+    matched = true
+    return "*".repeat(found.length)
+  })
+  return { matched, starred }
+}
+
+/**
+ * Pomoder's tabs under Settings → App settings, each at
+ * `/admin/settings/<id>`. Listed in `src/app/options.ts`; links to a tab use
+ * these ids so an address never drifts from the tab it points at.
+ */
+export const POMODORO_SETTINGS_TABS = {
+  safety: "pomodoro-safety",
+  media: "pomodoro-media",
+  seasons: "pomodoro-seasons",
+  newAccounts: "pomodoro-new-accounts",
+  notionTimer: "pomodoro-notion-timer",
+  aiGeneration: "pomodoro-ai-generation",
+  rooms: "pomodoro-rooms",
+  chat: "pomodoro-chat",
+  breaks: "pomodoro-breaks",
+  pixabay: "pomodoro-pixabay",
+  madeUpMembers: "pomodoro-made-up-members",
+} as const

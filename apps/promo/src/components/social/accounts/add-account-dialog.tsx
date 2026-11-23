@@ -1,0 +1,252 @@
+import * as React from "react"
+import { Link } from "@tanstack/react-router"
+import { Loader2Icon } from "lucide-react"
+
+import { SourceFields, type SourceValue } from "@/components/social/accounts/account-source"
+import { RunsOnSelect } from "@/components/social/accounts/runs-on-select"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { FormDialog } from "@/components/ui/form-dialog"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { priceCents } from "@/lib/bans/options"
+import { addRedditAccount, getRedditAccountsErrorMessage } from "@/lib/api/social/reddit-accounts"
+import { aNetwork, isNetwork, isPhoneAppNetwork, NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
+import { readRunsOn } from "@/lib/social/runs-on"
+import { showErrorToast } from "@/lib/toast/error-toast"
+
+/** The voice picker's value for "no voice". */
+const NO_VOICE = "none"
+
+/**
+ * Adds an account: its network, where it runs, and the voice it drafts with.
+ * Reddit runs on a browser profile or a phone; Instagram and TikTok on a
+ * phone only. One account of a network per profile and per phone, so one
+ * already holding one, and the reader browser, are not offered. Signing in
+ * happens afterwards, in that profile's browser or in the app on that phone.
+ */
+export function AddAccountDialog({
+  open,
+  initialPlatform,
+  profiles,
+  phones,
+  voices,
+  onClose,
+  onAdded,
+}: {
+  open: boolean
+  /** The network the dashboard is filtered to, picked to begin with. */
+  initialPlatform: Network
+  /** The browser profiles free for each network. */
+  profiles: Record<Network, Array<{ id: string; name: string }>>
+  /** The phones free for each network. */
+  phones: Record<Network, Array<{ id: string; name: string; note?: string }>>
+  voices: Array<{ id: string; name: string }>
+  onClose: () => void
+  onAdded: () => Promise<void>
+}) {
+  const [platform, setPlatform] = React.useState<Network>(initialPlatform)
+  const [runsOn, setRunsOn] = React.useState("")
+  const [voiceId, setVoiceId] = React.useState(NO_VOICE)
+  const [invalid, setInvalid] = React.useState(false)
+  const [source, setSource] = React.useState<SourceValue>({ source: "", seller: "", price: "" })
+  const [priceInvalid, setPriceInvalid] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const phoneOnly = isPhoneAppNetwork(platform)
+  const platformProfiles = phoneOnly ? [] : profiles[platform]
+  const platformPhones = phones[platform]
+
+  function reset() {
+    setPlatform(initialPlatform)
+    setRunsOn("")
+    setVoiceId(NO_VOICE)
+    setInvalid(false)
+    setSource({ source: "", seller: "", price: "" })
+    setPriceInvalid(false)
+  }
+
+  async function add() {
+    if (!runsOn) {
+      setInvalid(true)
+      showErrorToast(phoneOnly ? "Pick the phone the account runs on." : "Pick the browser profile or the phone the account runs on.")
+      return
+    }
+    const cents = priceCents(source.price)
+    if (source.source === "bought" && cents === undefined) {
+      setPriceInvalid(true)
+      showErrorToast("The price is dollars, like 40 or 12.50.")
+      return
+    }
+    const picked = readRunsOn(runsOn)
+    setSaving(true)
+    try {
+      await addRedditAccount({
+        ...picked,
+        voiceId: voiceId === NO_VOICE ? null : voiceId,
+        platform,
+        source: source.source ? { kind: source.source, seller: source.seller, priceCents: cents ?? null } : null,
+      })
+      reset()
+      await onAdded()
+    } catch (error) {
+      showErrorToast(getRedditAccountsErrorMessage(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <FormDialog
+      open={open}
+      dirty={Boolean(runsOn) || voiceId !== NO_VOICE || platform !== initialPlatform || Boolean(source.source)}
+      busy={saving}
+      onClose={() => {
+        reset()
+        onClose()
+      }}
+    >
+      {(requestClose) => (
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Add an account</DialogTitle>
+            <DialogDescription>
+              A Reddit or Medium account runs on a browser profile or a phone of its own; an
+              Instagram or TikTok account runs on a phone only. Put it in a project on the Projects
+              dashboard afterwards.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void add()
+            }}
+          >
+            <DialogBody>
+              <div className="grid gap-6">
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>The account</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="add-account-platform">Network</Label>
+                    <Select
+                      value={platform}
+                      onValueChange={(value) => {
+                        if (!isNetwork(value)) return
+                        setPlatform(value)
+                        // A pick from the other network's list may not be on this one.
+                        setRunsOn("")
+                        setInvalid(false)
+                      }}
+                    >
+                      <SelectTrigger id="add-account-platform" className="w-full sm:w-fit sm:min-w-64">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {NETWORKS.map((network) => (
+                          <SelectItem key={network} value={network}>
+                            {NETWORK_NAMES[network]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="add-account-runs-on">Runs on</Label>
+                    <RunsOnSelect
+                      id="add-account-runs-on"
+                      value={runsOn}
+                      onChange={(value) => {
+                        setRunsOn(value)
+                        setInvalid(false)
+                      }}
+                      profiles={platformProfiles}
+                      phones={platformPhones}
+                      invalid={invalid}
+                    />
+                    {platformProfiles.length || platformPhones.length ? null : phoneOnly ? (
+                      <p className="text-sm text-muted-foreground">
+                        Every phone already holds {aNetwork(platform)} account. Add a phone on the{" "}
+                        <Link to="/admin/anti-detect" search={{ section: "phones" }} className="font-medium text-foreground underline underline-offset-2">
+                          Anti Detect dashboard&apos;s Phones
+                        </Link>
+                        .
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Every profile and phone already holds an account, or is the
+                        reader. Make a new profile on the{" "}
+                        <Link
+                          to="/admin/anti-detect"
+                          search={{ section: "profiles" }}
+                          className="font-medium text-foreground underline underline-offset-2"
+                        >
+                          Anti Detect dashboard&apos;s Profiles
+                        </Link>{" "}
+                        or add a phone on the{" "}
+                        <Link to="/admin/anti-detect" search={{ section: "phones" }} className="font-medium text-foreground underline underline-offset-2">
+                          Anti Detect dashboard&apos;s Phones
+                        </Link>
+                        .
+                      </p>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="add-account-voice">Voice</Label>
+                    <Select value={voiceId} onValueChange={setVoiceId}>
+                      <SelectTrigger id="add-account-voice" className="w-full sm:w-fit sm:min-w-64">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_VOICE}>No voice</SelectItem>
+                        {voices.map((voice) => (
+                          <SelectItem key={voice.id} value={voice.id}>
+                            {voice.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Where it came from</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <SourceFields idPrefix="add-account" value={source} onChange={setSource} priceInvalid={priceInvalid} />
+                </CardContent>
+              </Card>
+              </div>
+            </DialogBody>
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={saving} onClick={requestClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2Icon className="animate-spin" /> : null}
+                Add account
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      )}
+    </FormDialog>
+  )
+}

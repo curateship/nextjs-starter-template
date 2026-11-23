@@ -1,10 +1,7 @@
 import { SubscriptionClient } from "@nktkas/hyperliquid"
 
-import { getActivePerpMarkets } from "@/server/hyperliquid/info"
 import { createReadOnlyWebSocketTransport } from "@/server/hyperliquid/transport"
 import { getScannerInfoClient, getScannerUniverse } from "@/server/scanner/info"
-import { TradingViewAlertEngine } from "../alerts/alert-engine"
-import { TradingViewAlertRetention } from "../alerts/retention"
 import { MarketAlertEngine } from "./alert-engine"
 import { MarketScannerRateLimiter } from "./rate-limiter"
 import { MarketScannerRetention } from "./retention"
@@ -14,11 +11,9 @@ import { MarketTradeStream } from "./trade-stream"
 export class MarketScannerSupervisor {
   private subClient: SubscriptionClient | null = null
   private engine: MarketAlertEngine | null = null
-  private alertEngine: TradingViewAlertEngine | null = null
   private tradeStream: MarketTradeStream | null = null
   private readonly rateLimiter = new MarketScannerRateLimiter()
   private readonly retention = new MarketScannerRetention()
-  private readonly alertRetention = new TradingViewAlertRetention()
   private running = false
 
   meta() {
@@ -28,67 +23,49 @@ export class MarketScannerSupervisor {
         marketScannerCoins: 0,
       }),
       marketScannerEnabled: this.engine !== null,
-      ...(this.alertEngine?.meta() ?? { alertRules: 0, alertCoins: 0 }),
-      ...(this.tradeStream?.meta() ?? { marketScannerSubscriptions: 0 }),
+      marketScannerSubscriptions: this.tradeStream?.meta().subscriptions ?? 0,
       currentActivity: this.running ? "Watching market rules" : "Idle",
     }
   }
 
   async start() {
     if (this.running) return
-    await this.startSubsystems()
-  }
-
-  async stop() {
-    this.stopSubsystems()
-  }
-
-  private async startSubsystems() {
-    const [scannerUniverse, alertUniverse] = await Promise.all([
-      getScannerUniverse(),
-      getActivePerpMarkets("mainnet"),
-    ])
+    const scannerUniverse = await getScannerUniverse()
     const scannerCoins = new Set(scannerUniverse.map((asset) => asset.coin))
     this.subClient = new SubscriptionClient({
       transport: createReadOnlyWebSocketTransport("mainnet"),
     })
-    this.alertEngine = new TradingViewAlertEngine(
-      getScannerInfoClient(),
-      this.rateLimiter
-    )
-    await this.alertEngine.start()
-    this.tradeStream = new MarketTradeStream(
-      this.subClient,
-      (trades) => {
-        this.engine?.onTrades(
-          trades.filter((trade) => scannerCoins.has(trade.coin))
-        )
-        this.alertEngine?.onTrades(trades)
-      },
-      async () => alertUniverse
-    )
-    await this.tradeStream.start()
     this.engine = new MarketAlertEngine(
       getScannerInfoClient(),
       this.rateLimiter
     )
-    await this.engine.start()
-    this.retention.start()
-    this.alertRetention.start()
-    this.running = true
-    console.log("market scanner: started")
+    try {
+      await this.engine.start()
+      this.tradeStream = new MarketTradeStream(
+        this.subClient,
+        (trades) =>
+          this.engine?.onTrades(
+            trades.filter((trade) => scannerCoins.has(trade.coin))
+          ),
+        async () => scannerUniverse
+      )
+      await this.tradeStream.start()
+      this.retention.start()
+      this.running = true
+      console.log("market scanner: started")
+    } catch (error) {
+      await this.stop()
+      throw error
+    }
   }
 
-  private stopSubsystems() {
+  async stop() {
     this.running = false
-    this.alertRetention.stop()
     this.retention.stop()
     this.tradeStream?.stop()
-    this.alertEngine?.stop()
     this.engine?.stop()
     this.tradeStream = null
     this.engine = null
-    this.alertEngine = null
     this.subClient = null
   }
 }

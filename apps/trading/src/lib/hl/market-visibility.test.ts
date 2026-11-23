@@ -23,6 +23,15 @@ describe("market visibility", () => {
     expect(isMarketVisible(market, new Set([market.coin]))).toBe(true)
   })
 
+  it("shows a market from a source with no volume feed", () => {
+    // Binance backtest rows carry no dayNtlVlm; judging them on missing volume
+    // would filter every market out of the backtest picker.
+    const market = { coin: "BTC" }
+
+    expect(hasMarketActivity(market)).toBe(false)
+    expect(isMarketVisible(market, new Set())).toBe(true)
+  })
+
   it("shows a market name while its live data is loading", () => {
     const market = {
       coin: "xyz:TSLA",

@@ -21,15 +21,36 @@ export const Route = createFileRoute("/api/rooms/$slug/events")({
     let closed = false
     const stream = new ReadableStream({
       async start(controller) {
-        const send = async (event: string) => { if (!closed) controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(await roomSnapshot(room.id, user.id))}\n\n`)) }
+        const finish = () => { if (closed) return; closed = true; if (heartbeat) clearInterval(heartbeat); void client.end(); controller.close() }
+        const send = async (event: string) => {
+          if (closed) return
+          let payload: string | null = null
+          try { payload = JSON.stringify(await roomSnapshot(room.id, user.id)) } catch { payload = null }
+          if (closed) return
+          if (payload === null) {
+            // The viewer's membership ended (they left or were removed), so
+            // tell the client the stream is over instead of erroring out.
+            controller.enqueue(encoder.encode(`event: room_gone\ndata: {}\n\n`))
+            finish()
+            return
+          }
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${payload}\n\n`))
+        }
         try {
           await client.connect()
           client.on("notification", () => { void send("snapshot") })
           await client.query(`LISTEN ${channel}`)
           await send("snapshot")
-          heartbeat = setInterval(() => controller.enqueue(encoder.encode(": heartbeat\n\n")), 15_000)
-        } catch (error) { controller.error(error) }
-        request.signal.addEventListener("abort", () => { if (closed) return; closed = true; if (heartbeat) clearInterval(heartbeat); void client.end(); controller.close() }, { once: true })
+          heartbeat = setInterval(() => { if (!closed) controller.enqueue(encoder.encode(": heartbeat\n\n")) }, 15_000)
+        } catch (error) {
+          if (!closed) {
+            closed = true
+            if (heartbeat) clearInterval(heartbeat)
+            void client.end()
+            controller.error(error)
+          }
+        }
+        request.signal.addEventListener("abort", () => { finish() }, { once: true })
       },
       cancel() { closed = true; if (heartbeat) clearInterval(heartbeat); return client.end() },
     })

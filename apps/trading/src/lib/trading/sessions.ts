@@ -8,13 +8,18 @@ import { nyseSessionsInRange } from "./nyse-sessions"
 
 export type SessionSpan = { openMs: number; closeMs: number }
 
-export type SessionKey =
-  | "nyse"
-  | "tokyo"
-  | "london"
-  | "utcAsia"
-  | "utcLondon"
-  | "utcNewYork"
+/** Every pickable session, as a tuple so the indicator module can build a
+ * zod enum from the same list the chart's dropdown reads. */
+export const SESSION_KEYS = [
+  "nyse",
+  "tokyo",
+  "london",
+  "utcAsia",
+  "utcLondon",
+  "utcNewYork",
+] as const
+
+export type SessionKey = (typeof SESSION_KEYS)[number]
 
 export const SESSION_OPTIONS: { value: SessionKey; label: string }[] = [
   { value: "nyse", label: "New York — NYSE 9:30–16:00" },
@@ -158,6 +163,107 @@ function utcBlockSessionsInRange(
     day += DAY_MS
   }
   return sessions
+}
+
+/** Padding around a candle range when asking for sessions: spans are clipped
+ * to the range requested, so asking wide keeps every open and close at its
+ * TRUE time instead of the edge of the data. */
+export const SESSION_RANGE_PAD_MS = 2 * DAY_MS
+
+/**
+ * The price the picked session opened at — the open of its first candle — for
+ * the session in progress at `atMs`. Null when `atMs` falls outside the
+ * session's hours, or when the loaded candles don't reach back to its open.
+ * Candles must be in ascending time order.
+ */
+export function sessionOpenPrice(
+  key: SessionKey,
+  candles: { t: number; o: number | string }[],
+  atMs: number
+): number | null {
+  const span = sessionsInRange(
+    key,
+    atMs - SESSION_RANGE_PAD_MS,
+    atMs + SESSION_RANGE_PAD_MS
+  ).find((session) => session.openMs <= atMs && atMs < session.closeMs)
+  if (!span) return null
+  // The loaded candles must reach back past the open, or the earliest one is
+  // just where the data starts — not the price the session opened at.
+  if (candles.length === 0 || candles[0].t > span.openMs) return null
+  const first = candles.find((candle) => candle.t >= span.openMs)
+  if (!first || first.t >= span.closeMs) return null
+  const open = Number(first.o)
+  return open > 0 ? open : null
+}
+
+/**
+ * One shaded session box: the session's span snapped to candle boundaries and
+ * bounded by the high and low the candles inside it made.
+ */
+export type SessionBox = {
+  id: string
+  fromMs: number
+  toMs: number
+  high: number
+  low: number
+}
+
+/**
+ * The boxes to shade for one candle series — the single geometry both the
+ * chart's Sessions overlay and the Sessions indicator module draw from, so a
+ * backtest of a Sessions automation shades exactly what the trade chart does.
+ * Colour is left to the caller.
+ */
+export function sessionBoxes(
+  key: SessionKey,
+  candles: { t: number; h: number | string; l: number | string }[],
+  intervalMs: number
+): SessionBox[] {
+  if (candles.length === 0) return []
+  const firstMs = candles[0].t
+  const lastMs = candles[candles.length - 1].t
+  const spans: { fromMs: number; toMs: number }[] = []
+  for (const session of sessionsInRange(key, firstMs, lastMs)) {
+    const fromMs = Math.max(
+      Math.floor(session.openMs / intervalMs) * intervalMs,
+      firstMs
+    )
+    const toMs = Math.min(
+      Math.ceil(session.closeMs / intervalMs) * intervalMs,
+      lastMs
+    )
+    const prev = spans[spans.length - 1]
+    if (prev && fromMs <= prev.toMs) prev.toMs = Math.max(prev.toMs, toMs)
+    else spans.push({ fromMs, toMs })
+  }
+  const boxes: SessionBox[] = []
+  let index = 0
+  for (const span of spans) {
+    if (!(span.toMs > span.fromMs)) continue
+    while (index < candles.length && candles[index].t < span.fromMs) index += 1
+    let high = -Infinity
+    let low = Infinity
+    while (
+      index < candles.length &&
+      (candles[index].t < span.toMs ||
+        (candles[index].t === span.toMs && span.toMs === lastMs))
+    ) {
+      const candleHigh = Number(candles[index].h)
+      const candleLow = Number(candles[index].l)
+      if (candleHigh > high) high = candleHigh
+      if (candleLow < low) low = candleLow
+      index += 1
+    }
+    if (!(high > low)) continue
+    boxes.push({
+      id: `session-${span.fromMs}`,
+      fromMs: span.fromMs,
+      toMs: span.toMs,
+      high,
+      low,
+    })
+  }
+  return boxes
 }
 
 /** Sessions of the picked kind overlapping [fromMs, toMs], clipped to it. */

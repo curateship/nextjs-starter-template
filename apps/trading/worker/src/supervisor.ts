@@ -12,6 +12,7 @@ import { now } from "@/server/util"
 
 import { BotRunner } from "./bot-runner"
 import { marketHub } from "./market-hub"
+import { globalCommandReason } from "@/lib/trading/guardian"
 
 /**
  * Owns one BotRunner per (bot, market) — a bot now trades several markets at
@@ -75,15 +76,16 @@ export class BotSupervisor {
 
   async handleCommand(command: TradingBotCommand): Promise<void> {
     if (command.command === "pause_all" || command.command === "flatten_all") {
+      const reason =
+        globalCommandReason(command.payload) ??
+        (command.command === "flatten_all" ? "Global flatten" : "Global pause")
       for (const runner of [...this.runners.values()]) {
         // Global commands only touch the issuing user's own bots.
         if (runner.bot.userId !== command.createdByUserId) continue
         if (command.command === "flatten_all") {
-          await runner.flatten("Global flatten")
+          await runner.flatten(reason)
         }
-        await runner.pause(
-          command.command === "flatten_all" ? "Global flatten" : "Global pause"
-        )
+        await runner.pause(reason)
         await db
           .update(tradingBots)
           .set({ desiredState: "paused", updatedAt: now() })
@@ -187,7 +189,7 @@ export class BotSupervisor {
     for (const market of bot.markets) {
       const key = this.key(bot.id, market)
       if (this.runners.has(key)) continue
-      const runner = new BotRunner(bot, market)
+      const runner = new BotRunner(bot, market, marketHub)
       this.runners.set(key, runner)
       try {
         await runner.start(wallet)

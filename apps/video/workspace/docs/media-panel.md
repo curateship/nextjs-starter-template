@@ -1,0 +1,118 @@
+# The Media panel
+
+The editor's Media panel holds every file attached to the project. This doc
+covers the filter menu and saved views, how files get in, and how they reach
+the timeline. Collections, the named groups the filter can show, have their
+own doc in [media-collections.md](media-collections.md).
+
+## Searching
+
+The magnifier at the top of the panel opens a search box in a pop-out, the
+same as the Voiceovers panel's. A pop-out moves itself clear of the left menu
+when the panel is narrow, which the box drawn under the button never did.
+Escape or a click anywhere else closes it, and the words stay until they are
+cleared.
+
+## The filter menu
+
+The funnel at the top of the panel, between search and +, opens one menu
+to the right of the button, over the editor rather than the panel. Tyler drew it on 29 Oct 2026, and it replaced the All / Video / Image / Sound
+tabs and the row of collection chips that sat above the files.
+
+- **Views** come first, once you have saved one. Clicking a view sets its
+  types and collection. A tick marks the view that matches what is showing.
+- **Type** has Video, Image and Sound buttons, and any number can be on.
+  None on shows every type, the same as all three on.
+- **Collection** lists All media, Uncollected and each collection, with a
+  tick on the one showing. Uncollected only shows once a collection exists.
+- **The number beside each row** is how many files picking that row would
+  show in this project, with the types and search already applied. With
+  Video and Sound on, All media counts only the videos and sounds.
+- **+ New collection** opens the same window as the + menu's New collection.
+- **Right-click** a view or a collection for Rename and Delete.
+- **Clear filters** turns every type off and goes back to All media.
+- **A dot on the funnel** says a type or a collection is picked.
+- **The pick is not remembered.** Reopening the editor starts on every type
+  and All media. A saved view is the way to get back to a pick.
+
+The code is `MediaFilterMenu` in
+`src/components/video-editor/studio-media-filter.tsx`. The carousel editor's
+Image panel uses the same menu (see
+[carousel-pictures.md](carousel-pictures.md)).
+
+## Saved views
+
+Save view at the foot of the menu names the pick and keeps it. Tyler chose on
+29 Oct 2026 that a view is yours alone, shows in every project, and keeps the
+types and the collection but not the search words. When the views can't be
+read, an error message says "Your saved views could not be loaded." with Try
+again.
+
+- **Where they are kept:** the shell's `saved_views` table, the same one
+  Viral's views use, under the screen key `editor-media:library`. The rules
+  for what a view keeps are `mediaViewFilters` in
+  `src/lib/video/media-saved-views.ts`, and the server registers them in
+  `src/app/server-options.ts`. No migration was needed.
+- **Nothing picked:** Save view says "Pick a type or a collection first, then
+  save it as a view." A view of every type and All media would show the
+  same as no view.
+- **Its name** starts as what it shows, such as "Video, Sound · B-roll", and
+  can be typed over.
+- **A view whose collection was deleted** still opens. It shows All media
+  with its types, and a message names the collection that went.
+- **Limits** are the shell's: 30 views and a 60-character name.
+- **A guest sent from Project** sees the Type row and Clear filters only. A
+  guest has no collections and no views.
+
+## Getting a file in
+
+The **+** at the top of the panel opens a menu with four choices:
+
+- **Upload media** opens the file picker. Several files can be picked at once,
+  and each is attached to the project as it finishes.
+- **From your phone** shows a QR code that opens a page on a phone for sending
+  videos and photos from its camera roll ([phone-uploads.md](phone-uploads.md)).
+- **Import from a link** downloads TikTok, Instagram and YouTube videos from
+  pasted links into this project ([import-from-a-link.md](import-from-a-link.md)).
+- **New collection** makes an empty collection. Filling it is the grid's
+  Select flow, described in the collections doc.
+
+The dashed "Drop or import media" box that shows while the project has no
+files also opens the file picker when clicked.
+
+## Only dragging puts a file on the timeline
+
+Dragging a tile onto the timeline lands the clip where it is let go. A plain
+click does nothing, so browsing the panel can never drop a clip into the edit
+by accident. This replaced the old behaviour where a click added the file at
+the playhead.
+
+- **The code:** `useDragToTimeline` in
+  `src/components/video-editor/use-drag-to-timeline.tsx`, shared with the AI
+  clip panel. A press that moved less than 5 pixels counts as a click and is
+  ignored.
+- **Anywhere in the timeline counts.** Letting go on a lane lands it on that
+  lane. Letting go on the ruler, the lane's left-hand buttons or the empty
+  space under the last lane lands it on the nearest lane, at the time under
+  the pointer. Letting go outside the timeline adds nothing.
+- **Why the whole timeline:** until 20 Oct 2026 only the lane strips took a
+  drop. A project with one lane is a 40 pixel strip over a lot of empty space,
+  so a drop a little low added nothing and said nothing.
+- **A video or sound file is measured first.** The browser opens the file just
+  far enough to read how long it runs (`loadMediaDurationMs` in
+  `src/lib/video/timeline-utils.ts`), and the clip lands once it knows. If the
+  file will not open, or has not answered after 30 seconds, nothing lands and a
+  message says so. Before 19 Oct 2026 a file that never answered left the drop
+  waiting forever with nothing on screen.
+- **Sound files too:** a sound card's play button previews it, and its name is
+  just a name. Getting the sound into the edit is the same drag.
+- **Videos preview the same way.** A video tile has the sound card's round
+  play button in its top-left corner, frosted: the dark circle at half
+  strength with the picture behind it blurred (Tyler, 18 Nov 2026: "change the play
+  icon in video to the same icon in audio and make the play icon playable so
+  I can preview video", then "lower the opacity of the icon to 50%" and "make it gaussian blur"). It plays the video in the tile with its sound, and
+  pressing it again pauses. One preview plays at a time across the panel,
+  sounds included, and a finished video goes back to its start. Pressing the
+  button never starts a drag. Pictures keep their small ▣ mark.
+  `VideoMediaTile` in `src/components/video-editor/studio-panels.tsx`.
+- **Right-click** on any tile still opens Collections and Delete.

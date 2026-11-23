@@ -2,6 +2,8 @@ export type TradingNotificationKind =
   | "position_opened"
   | "take_profit"
   | "stop_loss"
+  /** A position's distance to liquidation dropped inside the saved threshold. */
+  | "liquidation_risk"
 
 export type PositionSide = "long" | "short"
 

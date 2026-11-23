@@ -1,0 +1,435 @@
+import { z } from "zod"
+
+import {
+  MAX_CLIP_SPEED,
+  MAX_CLIP_VOLUME,
+  MIN_CLIP_SPEED,
+  MIN_CLIP_VOLUME,
+} from "./clip-playback"
+import { CLIP_FITS } from "./clip-frame-fit"
+import {
+  MAX_CLIP_BOX,
+  MAX_CLIP_SCALE,
+  MIN_CLIP_BOX,
+  MIN_CLIP_SCALE,
+} from "./clip-size"
+import {
+  MAX_CLIP_BRIGHTNESS,
+  MAX_CLIP_CONTRAST,
+  MAX_CLIP_SATURATION,
+  MIN_CLIP_BRIGHTNESS,
+  MIN_CLIP_CONTRAST,
+  MIN_CLIP_SATURATION,
+} from "./clip-colour"
+import { CLIP_MOTIONS } from "./clip-motion"
+import { MAX_FADE_MS, MIN_FADE_MS } from "./clip-fades"
+import { TRANSITION_KINDS } from "./clip-transitions"
+import { CAPTION_ANIMATION_IDS } from "./caption-animations"
+import { clipOriginSchema } from "./clip-origin"
+import { progressBarSchema } from "./progress-bar"
+import { TIMER_LABEL_MAX } from "./timer"
+import { MAX_TIMELINE_MARKERS, timelineMarkerSchema } from "./timeline-markers"
+import { MAX_PUNCH_INS, punchInSchema } from "./punch-ins"
+import { MAX_LEVEL_RAISE_DB, MIN_LEVEL_DB } from "./clip-level"
+import { followPointSchema, MAX_FOLLOW_POINTS } from "./follow-track"
+import { STOCK_SOUND_IDS } from "./stock-sounds"
+import { VOICE_CLEAN_STRENGTHS } from "./voice-clean"
+import {
+  MAX_SHAPE_LINE_WIDTH,
+  MIN_SHAPE_LINE_WIDTH,
+  CLIP_SHAPE_KINDS,
+} from "./shapes"
+import { MAX_CAPTION_WORDS } from "./caption-words"
+import {
+  BLUR_SHAPES,
+  MAX_BLUR_STRENGTH,
+  MAX_BLUR_TRACK_POINTS,
+  MIN_BLUR_STRENGTH,
+} from "./blur"
+import { TEXT_FONT_IDS } from "./text-fonts"
+import { SOCIAL_NAME_MAX, SOCIAL_PLATFORMS } from "./social-stickers"
+import { FILM_LOOK_IDS } from "./film-looks"
+import {
+  FRAME_SHAPES,
+  MAX_CORNER_SHARE,
+  MAX_FRAME_BORDER,
+  MIN_CORNER_SHARE,
+} from "./clip-frame-shape"
+import {
+  TEXT_STROKE_WIDTH_MAX,
+  TEXT_WRAP_WIDTH,
+  TEXT_WRAP_WIDTH_MIN,
+} from "./text-lines"
+
+/**
+ * What a project's timeline is allowed to be.
+ *
+ * The timeline is stored as one JSON column, so this schema is the only thing
+ * standing between the editor and a saved value nobody can draw. Both ends
+ * check it: the browser before it saves, the server before it writes.
+ */
+
+/**
+ * What happens to the video where an ad sits (`workspace/docs/ads.md`):
+ * "pause" cuts the video there and carries on after the ad, so the video gets
+ * longer; "over" lays the ad on top while the video keeps running underneath.
+ * Tyler, 4 Nov 2026: "I pick per ad".
+ */
+export const AD_MODES = ["pause", "over"] as const
+export type AdMode = (typeof AD_MODES)[number]
+
+/**
+ * Marks a clip as an ad, so the Ads panel can find, move, swap and remove the
+ * ads together. `shelfId` is the shelf ad it came from; `auto` says Place ads
+ * put it there, and goes when it is moved by hand, so an edit later spreads
+ * the placed ads out again but never moves one you put somewhere yourself.
+ */
+const adMarkSchema = z
+  .object({
+    shelfId: z.string().min(1).max(36).optional(),
+    mode: z.enum(AD_MODES),
+    auto: z.boolean().optional(),
+  })
+  .strict()
+
+// A blend at the seam entering this clip (see clip-transitions.ts). Absent =
+// hard cut.
+const clipTransitionSchema = z
+  .object({
+    kind: z.enum(TRANSITION_KINDS),
+    durationMs: z.number().positive().finite(),
+  })
+  .strict()
+
+const CLIP_KINDS = ["video", "audio", "image", "text", "shape"] as const
+
+export const clipSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    kind: z.enum(CLIP_KINDS),
+    name: z.string().max(255),
+    // Where the clip sits on the timeline, and how long it runs for.
+    startMs: z.number().nonnegative().finite(),
+    durationMs: z.number().nonnegative().finite(),
+    // How far into the source file this clip starts — it moves when the left
+    // edge is trimmed or the clip is split.
+    trimStartMs: z.number().nonnegative().finite(),
+    // Media-backed clips. The address is re-derived from the id every time a
+    // project is opened, so it is a convenience rather than the truth.
+    mediaId: z.string().max(36).optional(),
+    url: z.string().max(2048).optional(),
+    // A starter sound effect that ships with Video (stock-sounds.ts), on a
+    // sound clip with no file of anybody's. Absent on everything else.
+    stockSound: z.enum(STOCK_SOUND_IDS).optional(),
+    muted: z.boolean().optional(),
+    // How loud this clip's own sound plays, 0 silent and 1 as recorded. Absent
+    // means 1, so every timeline saved before this existed still reads.
+    volume: z.number().min(MIN_CLIP_VOLUME).max(MAX_CLIP_VOLUME).optional(),
+    // How fast it plays. 2 is twice as fast, which is half the timeline room.
+    // Absent means 1.
+    speed: z.number().min(MIN_CLIP_SPEED).max(MAX_CLIP_SPEED).optional(),
+    // Hum and hiss taken out of this clip's sound, at one of three strengths
+    // (voice-clean.ts). Absent means its sound plays as recorded.
+    voiceClean: z.enum(VOICE_CLEAN_STRENGTHS).optional(),
+    // Whether a picture that is not the project's shape fits inside the frame
+    // with black at the edges, or fills it and loses the overflow. Absent
+    // means "contain", so a timeline saved before this reads unchanged.
+    fit: z.enum(CLIP_FITS).optional(),
+    // Which part of a filled picture stays on screen, 0 to 1 along whichever
+    // way it overflows (see clip-frame-fit.ts). Absent means the middle.
+    fillFocus: z.number().min(0).max(1).optional(),
+    // A slow move across a still picture over its time on screen. Absent
+    // means it holds still, so a timeline saved before this reads unchanged.
+    // Only picture clips move; the preview and the export ignore it elsewhere.
+    motion: z.enum(CLIP_MOTIONS).optional(),
+    // A film look, a LUT put on before the sliders below (film-looks.ts).
+    // Absent means none.
+    look: z.enum(FILM_LOOK_IDS).optional(),
+    // Brightness, contrast and saturation, in ffmpeg's own `eq` numbers.
+    // Absent means no change (0, 1 and 1), so a timeline saved before these
+    // existed reads unchanged. Only video and picture clips use them.
+    brightness: z
+      .number()
+      .min(MIN_CLIP_BRIGHTNESS)
+      .max(MAX_CLIP_BRIGHTNESS)
+      .optional(),
+    contrast: z
+      .number()
+      .min(MIN_CLIP_CONTRAST)
+      .max(MAX_CLIP_CONTRAST)
+      .optional(),
+    saturation: z
+      .number()
+      .min(MIN_CLIP_SATURATION)
+      .max(MAX_CLIP_SATURATION)
+      .optional(),
+    // How long the sound takes to fade away at the clip's end. Set on music
+    // laid under a project and cut short (see background-music.ts), and by
+    // the Sound fade out slider. Absent means it stops where the clip stops,
+    // as every clip always did. Its bounds stay as wide as they always were,
+    // because projects were saved under them (see clip-fades.ts).
+    fadeOutMs: z.number().nonnegative().finite().optional(),
+    // The other three fades: the sound coming up at the start, and the
+    // picture fading in from see-through and out to it. Absent means none.
+    fadeInMs: z.number().min(MIN_FADE_MS).max(MAX_FADE_MS).optional(),
+    pictureFadeInMs: z.number().min(MIN_FADE_MS).max(MAX_FADE_MS).optional(),
+    pictureFadeOutMs: z.number().min(MIN_FADE_MS).max(MAX_FADE_MS).optional(),
+    // How long the whole source file runs, so a trim cannot reach past its end.
+    sourceDurationMs: z.number().nonnegative().finite().optional(),
+    // On a video or sound: the file starts again from its beginning when it
+    // runs out, so the clip can run for as long as it is stretched
+    // (clip-loop.md). Absent means it plays once, as every clip always did.
+    loop: z.boolean().optional(),
+    // Text clips.
+    text: z.string().max(5000).optional(),
+    fontId: z.enum(TEXT_FONT_IDS).optional(),
+    fontSize: z.number().finite().optional(),
+    color: z.string().max(32).optional(),
+    // A block of colour drawn behind the whole line; unset = no box.
+    highlightColor: z.string().max(32).optional(),
+    // An outline round each letter, its colour and how thick it shows outside
+    // the letter in the 1080-tall design space. Unset means none.
+    strokeColor: z.string().max(32).optional(),
+    strokeWidth: z.number().min(0).max(TEXT_STROKE_WIDTH_MAX).optional(),
+    // How much of the frame's width a line may take before it wraps. Unset
+    // means 90%. Captions fitted into a platform's safe box get less.
+    wrapWidth: z.number().min(TEXT_WRAP_WIDTH_MIN).max(TEXT_WRAP_WIDTH).optional(),
+    // How the words arrive on screen. Unset means they simply appear.
+    animation: z.enum(CAPTION_ANIMATION_IDS).optional(),
+    // When each word of the text is said, matched to the words by position
+    // and measured from the clip's own start (see caption-words.ts). Only
+    // captions written from speech carry them.
+    wordTimes: z
+      .array(
+        z
+          .object({
+            startMs: z.number().finite(),
+            endMs: z.number().finite(),
+          })
+          .strict()
+      )
+      .max(MAX_CAPTION_WORDS)
+      .optional(),
+    // The colour the word being said turns. Unset means no word lights up,
+    // which is how every caption drew before this existed.
+    activeWordColor: z.string().max(32).optional(),
+    // Where the middle of the text sits on the frame, 0–1 in each direction
+    // (0.5/0.5 = dead centre). Set by dragging the text on the preview.
+    x: z.number().min(0).max(1).optional(),
+    y: z.number().min(0).max(1).optional(),
+    // How big a picture is, as a share of the frame it was fitted to (see
+    // clip-size.ts). Absent means the full frame. A picture smaller than the
+    // frame is placed by `x` and `y`, the same as text.
+    scale: z.number().min(MIN_CLIP_SCALE).max(MAX_CLIP_SCALE).optional(),
+    // The box a picture or video is fitted into, as a share of the frame
+    // across and down (see clip-size.ts). A split's half is 1 by 0.5. Absent
+    // means the whole frame.
+    boxWidth: z.number().min(MIN_CLIP_BOX).max(MAX_CLIP_BOX).optional(),
+    boxHeight: z.number().min(MIN_CLIP_BOX).max(MAX_CLIP_BOX).optional(),
+    // The shape of a picture or video smaller than the frame, its rounded
+    // corners as a share of its shorter side, and a border inside its edge
+    // (clip-frame-shape.ts). Absent means a plain rectangle with no border.
+    frameShape: z.enum(FRAME_SHAPES).optional(),
+    cornerRadius: z.number().min(MIN_CORNER_SHARE).max(MAX_CORNER_SHARE).optional(),
+    borderColor: z.string().max(32).optional(),
+    borderWidth: z.number().min(0).max(MAX_FRAME_BORDER).optional(),
+    transition: clipTransitionSchema.optional(),
+    // How the AI made this clip, so Make it again can make it once more in
+    // the same place (clip-origin.ts). Absent on everything uploaded, from
+    // stock, or laid down before this existed.
+    origin: clipOriginSchema.optional(),
+    // On a caption or an opening line: the voice line that says it, so making
+    // that line again replaces these words too. Absent on words typed in.
+    spokenBy: z.string().min(1).max(64).optional(),
+    // Shape clips (shapes.ts): which shape, the second of its two points
+    // (`x` and `y` are the first), how thick its line is, and whether it
+    // draws itself on. `color` is its line's colour.
+    shape: z.enum(CLIP_SHAPE_KINDS).optional(),
+    toX: z.number().min(0).max(1).optional(),
+    toY: z.number().min(0).max(1).optional(),
+    lineWidth: z
+      .number()
+      .min(MIN_SHAPE_LINE_WIDTH)
+      .max(MAX_SHAPE_LINE_WIDTH)
+      .optional(),
+    drawOn: z.boolean().optional(),
+    // Timers (timer.ts): a shape clip whose shape is "timer", counting down
+    // over its own length (up when `timerUp`), with words above and below
+    // the time and a ring that empties unless `timerRing` is false.
+    timerAbove: z.string().max(TIMER_LABEL_MAX).optional(),
+    timerBelow: z.string().max(TIMER_LABEL_MAX).optional(),
+    timerRing: z.boolean().optional(),
+    timerUp: z.boolean().optional(),
+    // Blur clips (blur.ts): a shape clip whose shape is "blur", drawn as its
+    // box or the oval inside it, this soft, and following the places in
+    // `blurTrack` when it follows something.
+    blurShape: z.enum(BLUR_SHAPES).optional(),
+    blurStrength: z.number().min(MIN_BLUR_STRENGTH).max(MAX_BLUR_STRENGTH).optional(),
+    // Social stickers (social-stickers.ts): a shape clip whose shape is
+    // "comment", "subscribe" or "link-in-bio". `text` holds its
+    // words, these the look, the name and round picture on it, and which way
+    // the Link in bio arrow points. The picture is one of the owner's own
+    // uploads, checked again when the export reads it.
+    socialPlatform: z.enum(SOCIAL_PLATFORMS).optional(),
+    socialName: z.string().max(SOCIAL_NAME_MAX).optional(),
+    pictureUrl: z.string().max(2048).regex(/^https?:\/\//).optional(),
+    pointsUp: z.boolean().optional(),
+    // On a sound clip: the Subscribe sticker whose press it is, so the
+    // sticker's Click sound picker can find it and swap it (social-stickers.md).
+    pressFor: z.string().min(1).max(64).optional(),
+    blurTrack: z
+      .array(
+        z
+          .object({
+            atMs: z.number().finite().min(0),
+            x: z.number().min(0).max(1),
+            y: z.number().min(0).max(1),
+          })
+          .strict()
+      )
+      .max(MAX_BLUR_TRACK_POINTS)
+      .optional(),
+    ad: adMarkSchema.optional(),
+    // On a video or sound from the Media panel: the change that brings its
+    // file to the even loudness every clip gets (clip-level.ts).
+    levelDb: z.number().min(MIN_LEVEL_DB).max(MAX_LEVEL_RAISE_DB).optional(),
+    // On text, a shape, or a picture or video smaller than the frame: the
+    // place of the thing it moves with, every half second (follow-track.ts).
+    followTrack: z.array(followPointSchema).max(MAX_FOLLOW_POINTS).optional(),
+    // On a video: play its steadied copy (steady-shaky-footage.md).
+    steady: z.boolean().optional(),
+    // On a video: zooms in on moments of its file (punch-ins.ts).
+    punchIns: z.array(punchInSchema).max(MAX_PUNCH_INS).optional(),
+  })
+  .strict()
+  .superRefine((clip, context) => {
+    if (clip.kind === "text" && !clip.fontId) {
+      context.addIssue({
+        code: "custom",
+        path: ["fontId"],
+        message: "Text clips require a font",
+      })
+    }
+    if (clip.loop && (clip.kind === "video" || clip.kind === "audio") && !(clip.sourceDurationMs && clip.sourceDurationMs > 0)) {
+      context.addIssue({
+        code: "custom",
+        path: ["loop"],
+        message: "A looped clip needs its file's length",
+      })
+    }
+    if (clip.kind === "shape" && !clip.shape) {
+      context.addIssue({
+        code: "custom",
+        path: ["shape"],
+        message: "Shape clips require a shape",
+      })
+    }
+  })
+
+export const MAX_TIMELINE_TRACKS = 50
+export const MAX_TRACK_CLIPS = 500
+
+export const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3"] as const
+export type AspectRatio = (typeof ASPECT_RATIOS)[number]
+
+export const timelineSchema = z
+  .object({
+    tracks: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(64),
+            muted: z.boolean(),
+            // When set, this track's audio is lowered under any overlapping
+            // audio on other tracks ("duck under voice").
+            duck: z.boolean().optional(),
+            // The lane the ads sit on, at the top so they cover the video
+            // (ads.ts). Absent on every other lane.
+            ads: z.boolean().optional(),
+            // A locked lane's clips are not dragged, cut or moved by an edit
+            // elsewhere. Only the Ads lane offers the lock.
+            locked: z.boolean().optional(),
+            clips: z.array(clipSchema).max(MAX_TRACK_CLIPS),
+          })
+          .strict()
+      )
+      .max(MAX_TIMELINE_TRACKS),
+    aspect: z.enum(ASPECT_RATIOS),
+    // The bar along one edge that fills as the video plays (progress-bar.ts).
+    // One per project, so it lives here rather than on a lane. Absent means
+    // none, which is how every project before it reads.
+    progressBar: progressBarSchema.optional(),
+    // Pins on the ruler (timeline-markers.ts). Absent means none, which is
+    // how every timeline before them reads.
+    markers: z.array(timelineMarkerSchema).max(MAX_TIMELINE_MARKERS).optional(),
+  })
+  .strict()
+
+export type ProjectTimeline = z.infer<typeof timelineSchema>
+
+export const SAVED_TIMELINE_INVALID_MESSAGE =
+  "Saved timeline is invalid. Recreate it with the current editor."
+
+// Thrown when a save is based on a version the project has since moved past
+// (another tab, or a second window). Shared so the editor can recognise the
+// rejection, stop saving and keep its work as a new project instead of
+// retrying forever.
+export const PROJECT_CONFLICT_MESSAGE =
+  "This project changed elsewhere - reload to continue"
+
+export function createEmptyTimeline(): ProjectTimeline {
+  return { tracks: [], aspect: "9:16" }
+}
+
+export function createTimelineSnapshot(
+  timeline: ProjectTimeline
+): ProjectTimeline {
+  return requireCanonicalTimeline({
+    tracks: timeline.tracks,
+    aspect: timeline.aspect,
+    ...(timeline.progressBar ? { progressBar: timeline.progressBar } : {}),
+    ...(timeline.markers?.length ? { markers: timeline.markers } : {}),
+  })
+}
+
+export function requireCanonicalTimeline(value: unknown): ProjectTimeline {
+  const parsed = timelineSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new Error(SAVED_TIMELINE_INVALID_MESSAGE)
+  }
+  return parsed.data
+}
+
+// Reading a stored timeline for the editor: a value the schema refuses opens as
+// an empty timeline carrying the reason, so a corrupt project is still openable
+// and can be saved back over rather than being a dead end.
+export function parseTimelineForReset(value: unknown): {
+  timeline: ProjectTimeline
+  error: string | null
+} {
+  try {
+    return {
+      timeline: requireCanonicalTimeline(value),
+      error: null,
+    }
+  } catch (error) {
+    return {
+      timeline: createEmptyTimeline(),
+      error:
+        error instanceof Error ? error.message : SAVED_TIMELINE_INVALID_MESSAGE,
+    }
+  }
+}
+
+/** Clip count and length, derived from the timeline rather than stored twice. */
+export function summarizeTimeline(timeline: ProjectTimeline) {
+  let clipCount = 0
+  let durationMs = 0
+  for (const track of timeline.tracks) {
+    for (const clip of track.clips) {
+      clipCount += 1
+      durationMs = Math.max(durationMs, clip.startMs + clip.durationMs)
+    }
+  }
+  return { clipCount, durationMs }
+}

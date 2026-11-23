@@ -1,3 +1,6 @@
+import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises"
+import path from "node:path"
+
 import {
   DeleteObjectCommand,
   HeadObjectCommand,
@@ -7,7 +10,7 @@ import {
 } from "@aws-sdk/client-s3"
 import { and, eq, isNull, or, sql } from "drizzle-orm"
 
-import { db } from "@/server/db"
+import { db, type PomoderDb } from "@/server/db"
 import { getEntitlements } from "@/server/entitlements"
 import {
   mediaAssets,
@@ -93,14 +96,7 @@ export async function uploadUserMedia(
   })
   const id = crypto.randomUUID()
   const storageKey = `users/${userId}/${id}/original.${detected.extension}`
-  await r2().send(
-    new PutObjectCommand({
-      Bucket: bucket(),
-      Key: storageKey,
-      Body: bytes,
-      ContentType: file.type,
-    })
-  )
+  await putMediaObject(storageKey, bytes, file.type)
   const [asset] = await db
     .insert(mediaAssets)
     .values({
@@ -166,14 +162,31 @@ export async function getViewableMedia(userId: string, mediaId: string) {
   return asset
 }
 
-export async function getMediaObject(storageKey: string, range: string | null) {
-  return r2().send(
+// The route reads the stream to the client and the worker reads it to bytes, so
+// both R2 responses and the local fallback expose these two readers.
+type StoredObjectBody = {
+  transformToWebStream: () => ReadableStream
+  transformToByteArray: () => Promise<Uint8Array>
+}
+type StoredObject = {
+  Body?: StoredObjectBody
+  ContentLength?: number
+  ContentRange?: string
+}
+
+export async function getMediaObject(
+  storageKey: string,
+  range: string | null
+): Promise<StoredObject> {
+  if (localMediaFallbackActive()) return localGetObject(storageKey, range)
+  const output = await r2().send(
     new GetObjectCommand({
       Bucket: bucket(),
       Key: storageKey,
       Range: range || undefined,
     })
   )
+  return output as unknown as StoredObject
 }
 
 export async function putMediaObject(
@@ -181,6 +194,12 @@ export async function putMediaObject(
   body: Uint8Array,
   contentType: string
 ) {
+  if (localMediaFallbackActive()) {
+    const target = localStoragePath(storageKey)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, body)
+    return
+  }
   await r2().send(
     new PutObjectCommand({
       Bucket: bucket(),
@@ -192,12 +211,21 @@ export async function putMediaObject(
 }
 
 export async function deleteMediaObject(storageKey: string) {
+  if (localMediaFallbackActive()) {
+    await unlink(localStoragePath(storageKey)).catch(() => undefined)
+    return
+  }
   await r2().send(
     new DeleteObjectCommand({ Bucket: bucket(), Key: storageKey })
   )
 }
 
 export async function mediaObjectExists(storageKey: string) {
+  if (localMediaFallbackActive()) {
+    return stat(localStoragePath(storageKey))
+      .then(() => true)
+      .catch(() => false)
+  }
   try {
     await r2().send(
       new HeadObjectCommand({ Bucket: bucket(), Key: storageKey })
@@ -206,6 +234,74 @@ export async function mediaObjectExists(storageKey: string) {
   } catch {
     return false
   }
+}
+
+// Local-disk fallback for development, used only outside production when R2 is
+// not configured. In production this never runs: a missing R2 config still
+// fails loudly via r2() rather than silently writing to ephemeral local disk.
+function localMediaFallbackActive() {
+  return process.env.NODE_ENV !== "production" && !r2Configured()
+}
+
+function localStorageRoot() {
+  return process.env.POMODER_LOCAL_STORAGE_DIR || path.join(process.cwd(), ".local-media")
+}
+
+function localStoragePath(storageKey: string) {
+  // Storage keys are always generated server-side (users/<uuid>/…). Reject
+  // anything that could escape the storage root as defense in depth.
+  if (!/^[A-Za-z0-9/_.-]+$/.test(storageKey) || storageKey.includes(".."))
+    throw new Error("INVALID_STORAGE_KEY")
+  return path.join(localStorageRoot(), storageKey)
+}
+
+function bufferToWebStream(bytes: Uint8Array): ReadableStream {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(bytes)
+      controller.close()
+    },
+  })
+}
+
+async function localGetObject(
+  storageKey: string,
+  range: string | null
+): Promise<StoredObject> {
+  const bytes = new Uint8Array(await readFile(localStoragePath(storageKey)))
+  const asObject = (slice: Uint8Array, contentRange?: string): StoredObject => ({
+    Body: {
+      transformToWebStream: () => bufferToWebStream(slice),
+      transformToByteArray: async () => slice,
+    },
+    ContentLength: slice.length,
+    ContentRange: contentRange,
+  })
+  const match = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null
+  if (!match) return asObject(bytes)
+  const total = bytes.length
+  let start: number
+  let end = total - 1
+  if (match[1] === "" && match[2] !== "") {
+    // Suffix range: the last N bytes (e.g. "bytes=-500").
+    start = Math.max(0, total - Number.parseInt(match[2], 10))
+  } else {
+    start = match[1] ? Number.parseInt(match[1], 10) : 0
+    if (match[2]) end = Number.parseInt(match[2], 10)
+  }
+  if (!Number.isFinite(start) || start < 0) start = 0
+  if (!Number.isFinite(end) || end >= total) end = total - 1
+  if (start > end) return asObject(bytes)
+  return asObject(bytes.subarray(start, end + 1), `bytes ${start}-${end}/${total}`)
+}
+
+function r2Configured() {
+  return Boolean(
+    process.env.POMODER_R2_ACCOUNT_ID &&
+      process.env.POMODER_R2_ACCESS_KEY_ID &&
+      process.env.POMODER_R2_SECRET_ACCESS_KEY &&
+      process.env.POMODER_R2_BUCKET_NAME
+  )
 }
 
 function detectMedia(

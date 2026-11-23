@@ -1,0 +1,104 @@
+/**
+ * The app's own entries in the guard test's two exception lists.
+ *
+ * `src/server/guards.test.ts` insists every server function either carries a
+ * guard or is written down here with a reason. Its own lists cover the shell's
+ * endpoints — but an app adds endpoints of its own, and some of them have to be
+ * reachable by somebody who is not signed in: a public page that loads
+ * anything at all needs a door the open internet may knock on. That entry
+ * cannot go in the shell's lists, because the test is a shell file and an app
+ * never edits one.
+ *
+ * So it goes here. Same rules as the shell's own lists, checked by the same
+ * tests: the reason must be a real sentence over thirty characters, an entry
+ * whose function no longer exists fails, and an entry whose function has since
+ * grown a guard fails too.
+ *
+ * Keys are `file:functionName`, named the way the walker names them — the path
+ * under `src/lib/api` and the constant, like
+ * `"directory/listings.ts:readPublicListingFn"`.
+ *
+ * This file belongs to the app, not the shell. **In custom-shell itself it
+ * stays empty forever.** The moment the shell puts an entry here, every app
+ * ever copied from it conflicts on this file on every future merge — which is
+ * the exact problem the file exists to avoid.
+ */
+
+/**
+ * Reachable without being signed in, on purpose. The reason says why the thing
+ * behind the door is safe for anyone to read.
+ */
+export const appOpenEndpoints: Record<string, string> = {
+  "shell.ts:loadAppFrontPageRowsFn":
+    "A site's front page is the most public thing this app has, and the rows the app adds to it have to be readable by somebody with no account. It takes nothing from the browser at all: there is no input to send, the site is the one whose address was visited, and every row reader scopes its queries to that site and returns published records only. Each reader also asks the page's own on/off and members-only switch first, through eventsAccessFor, dealsAccessFor and postsAccessFor, so a row for a page a site keeps for members returns nothing to a signed-out reader.",
+  "directory/public.ts:readDirectoryBrowseFn":
+    "The directory a site publishes is a public page, so its list of published listings has to be readable by somebody with no account.",
+  "directory/public.ts:readDirectoryMapFn":
+    "The map is the same public browse list drawn as pins, so it answers with published listings on the visited site only, and only when that site has switched its map on. A pin also carries the headline of the listing's deal on now, and the map can be narrowed to those listings, both of which ask the Deals page's own on/off and members-only switch first through dealsAccessFor, so a site that keeps its deals for members tells a signed-out reader nothing about them.",
+  "directory/public.ts:readDirectoryListingFn":
+    "A listing's own page is public. It answers with published listings on the visited site only, so a draft is missing rather than merely hidden.",
+  "directory/public.ts:readDirectoryCategoryFn":
+    "A category page is public, and it reads the same published listings the browse page does, scoped to the site whose address was typed.",
+  "directory/public.ts:readDirectoryFrontPageFn":
+    "A site's optional listings home page is public, and it returns published cards only for the site whose address the visitor typed. A row drawn as a map also carries that site's browser map key, which is a value its own admin chose to publish and is only sent when a map row exists.",
+  "directory/public.ts:readDirectorySuggestionsFn":
+    "The search box on the public directory offers a few matches as a visitor types, so it has to answer without an account. It reads published listings and non-empty categories on the visited site only, returns names and addresses that are already on the public pages, and is rate limited per address.",
+  "directory/public.ts:readRecentlyViewedFn":
+    "The Recently viewed row on the public directory asks for fresh cards for up to eight listing ids the visitor's own browser remembers. It answers with published listings on the visited site only, in the shape the browse page already shows, and nothing at all while the directory is switched off or kept for members and the reader is signed out.",
+  "directory/old-addresses.ts:findCurrentAddressFn":
+    "An address a listing, event, post, deal or guide used to have has to keep working for anyone holding the old link, signed in or not. It answers for the visited site only, follows the kind's own page switch (nothing while the page is off, or kept for members and the reader is signed out), and returns an address only when a record with a public page sits there now.",
+  "directory/public.ts:readGuideFn":
+    "A guide's own page is public. It answers with a published guide on the visited site only, so a draft is missing rather than hidden, and returns nothing while the Guides page is switched off, or kept for members and the reader is signed out. The listings in it are the published cards the browse page already shows.",
+  "directory/public.ts:readGuidesFn":
+    "The Guides page is a public page, so its list of published guides has to be readable without an account. It answers for the visited site only, and returns nothing while the Guides page is switched off, or kept for members and the reader is signed out.",
+  "directory/public.ts:geocodeDirectoryPlaceFn":
+    "A visitor may type a town when browser location is unavailable; this lookup is rate limited, cached, and returns no private site data.",
+  "posts/public.ts:readPostsFn":
+    "The Posts page is a public page, so its list of published posts has to be readable without an account. It answers for the visited site only, and returns nothing while the site has the Posts page switched off or kept for members and the reader is signed out.",
+  "posts/public.ts:readPostFn":
+    "A post's own page is public. It answers with a published post on the visited site only, so a draft is missing rather than hidden, and it follows the Posts page's on/off switch before reading anything.",
+  "events/public.ts:readEventsPageFn":
+    "The Events page is a public page, so its list and month of published events have to be readable without an account. It answers for the visited site only, and returns nothing while the site has the Events page switched off or kept for members and the reader is signed out.",
+  "events/public.ts:readEventFn":
+    "An event's own page is public. It answers with a published event on the visited site only, so a draft is missing rather than hidden, and it follows the Events page's on/off switch before reading anything.",
+  "promotions/public.ts:readDealsPageFn":
+    "The Deals page is a public page, so its list of published deals has to be readable without an account. It answers for the visited site only, leaves out drafts and deals at draft listings, and returns nothing while the site has the Deals page switched off or kept for members and the reader is signed out.",
+  "promotions/public.ts:readDealFn":
+    "A deal's own page is public. It answers with a published deal at a published listing on the visited site only, so a draft is missing rather than hidden, follows the Deals page's on/off switch before reading anything, and never carries the deal's code, which only Show code hands over.",
+  "promotions/public.ts:countDealViewFn":
+    "Counts one view of a deal's page, which is opened by visitors with no account. It answers nothing, checks the request came from this app's own pages and that the Deals page is open to them, finds the deal the same way its page does, and counts the way the traffic beacon does: never a bot, a prefetch or an admin, at most 240 counts in ten minutes from one person, and once per person per deal per day.",
+  "promotions/public.ts:showDealCodeFn":
+    "Show code is the deal page's button, tapped by visitors with no account. It checks the request came from this app's own pages and that the Deals page is open to them, hands over the code only for a published deal at a published listing on the visited site that has not ended and does not give each visitor their own code, and counts the tap once per person per deal per day the way the traffic beacon counts.",
+  "directory/public-profile.ts:readPublicSavedProfileFn":
+    "A person can share the saved lists they explicitly made public, and this returns only those lists and published listings on the visited site.",
+  "directory/submissions.ts:readSubmissionFormFn":
+    "The add-your-listing form is for people with no account, so the site's name and its list of categories have to be readable without one.",
+  "directory/submissions.ts:submitListingFn":
+    "Anybody may suggest a listing, which is the whole feature — it still checks the request came from this app's own pages, is rate limited per site and per address, and produces nothing an admin sees until the address is confirmed by email.",
+  "directory/submissions.ts:resendSubmissionEmailFn":
+    "Somebody whose confirmation link expired has no account to sign in to, so asking for a fresh one cannot require one — it is rate limited and answers the same way whether or not a submission is waiting.",
+  "events/submissions.ts:readEventSubmissionFormFn":
+    "The Suggest an event page is for people with no account, so the site's name, its today and whether photos are taken have to be readable without one. It answers nothing while the page or the Events page is switched off.",
+  "events/submissions.ts:submitEventFn":
+    "Anybody may suggest an event, which is the whole feature. It still checks the request came from this app's own pages and that the page is switched on, runs the same required-field check as the form, takes five an hour from one address per site, and writes a row only an admin can read.",
+  "events/reports.ts:reportEventProblemFn":
+    "Anybody may say an event is wrong, which is the whole feature: the visitor who turned up to find nothing happening has no account. It still checks the request came from this app's own pages and that the Events page is open to them, shares the listing reports' limits per page, per address and per site, writes a row no visitor can ever read back, and changes nothing on the event it is about.",
+  "events/sign-ups.ts:signUpFn":
+    "Anybody may sign up for a free event with a name and an email, or join its waiting list once it is full, which is the whole feature: the visitor has no account. It still checks the request came from this app's own pages and that the Events page is open to them, takes eight sign-ups an hour from one address per site, and only ever answers with words and the answerer's own place in the queue, never with who else is on the list.",
+  "promotions/reports.ts:reportDealProblemFn":
+    "Anybody may say a deal is wrong, which is the whole feature: the visitor told at the counter that the deal ended last week has no account. It still checks the request came from this app's own pages and that the Deals page is open to them, shares the listing and event reports' limits per page, per address and per site, writes a row no visitor can ever read back, and changes nothing on the deal it is about.",
+  "promotions/claims.ts:claimFn":
+    "Anybody may claim a deal with a name and an email, which is the whole feature: the visitor has no account. It still checks the request came from this app's own pages and that the Deals page is open to them, takes eight claims an hour from one address per site, counts places under a row lock, and never shows a code for an email that has already claimed, so typing someone else's email gets nobody their code.",
+  "promotions/claims.ts:claimPassFn":
+    "The page a customer shows at the counter is found by their code alone, and the person holding that code has no account, so the door cannot ask for one. It reads the visited site only, follows the Deals page's on/off and members-only switch, answers with a published deal at a published listing, and returns the claimer's name and code but never their email. A code is eight characters out of 850 billion, and a wrong one costs one of thirty tries an hour from that address while a real one clears the count, so the code cannot be found by guessing. Marking it used is a different door that does require an account.",
+  "directory/owner-messages.ts:messageOwnerFn":
+    "The \"Message the owner\" form on a listing's page is for visitors, who have no account. It checks the request came from this app's own pages, runs the human check when the site has its keys, follows the directory's on/off and members-only switch, is limited per address, per email and per listing, and only sends when the site has the form switched on and the listing is published here with an approved owner. It answers \"sent\" and nothing else, so the owner's address never reaches the visitor.",
+  "directory/reports.ts:reportListingProblemFn":
+    "Anybody may say a listing is wrong, which is the whole feature — the visitor who found the shop shut has no account. It still checks the request came from this app's own pages, is rate limited per listing, per address and per site, writes a row no visitor can ever read back, and changes nothing on the listing it is about.",
+}
+
+/**
+ * The handler does no checking because the thing it calls does it instead. The
+ * reason names that function, so the claim can be checked.
+ */
+export const appGuardedDeeper: Record<string, string> = {}

@@ -1,0 +1,236 @@
+import * as React from "react"
+import { Link } from "@tanstack/react-router"
+import { XIcon } from "lucide-react"
+
+import type { AppHeaderLeftContentProps } from "@/lib/app-options"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  marketChartHref,
+  marketSymbol,
+  parseMarketKey,
+} from "@/lib/protocols/contracts"
+import { formatChange } from "@/lib/trade/format"
+import { moneyTone } from "@/lib/trade/money-tone"
+import { usePinnedMarkets } from "@/lib/trade/use-pinned-markets"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
+import { useHidePnlSync } from "@/lib/trade/use-hide-pnl-sync"
+import { PublicProfileDialogHost } from "@/components/social/public-profile-setting"
+
+export default function PinnedMarketsHeader({
+  fallback,
+}: AppHeaderLeftContentProps) {
+  const { pins, failed, store } = usePinnedMarkets()
+  // The chips leave this row on a phone and are drawn in the header's
+  // three-dot dropdown instead, by `pinned-markets-menu.tsx`. Everything else
+  // in here stays mounted at every width: the reading clock below, the saved
+  // Hide profit and loss choice, and the settings cog's own window.
+  const phone = useIsMobile()
+  // Not about pinned markets at all. This is the app's own control on the
+  // signed-in header, so it is the one component drawn on every screen — and
+  // the saved Hide profit and loss choice has to reach the page before any
+  // figure is painted, whether or not anybody opens the settings cog.
+  useHidePnlSync()
+  React.useEffect(() => {
+    let running = false
+    const refresh = () => {
+      if (document.visibilityState !== "visible" || running) return
+      running = true
+      void store.refresh().finally(() => {
+        running = false
+      })
+    }
+    // Coming back to the tab reads again at once, and the old figure stays
+    // until the new one replaces it. Blanking here made every chip lose its
+    // figure for a second or more each time the tab came back (Tyler, 25 Sep
+    // 2026: "New price should update in place of the old price").
+    refresh()
+    const timer = window.setInterval(refresh, 15_000)
+    document.addEventListener("visibilitychange", refresh)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", refresh)
+    }
+  }, [store])
+
+  /*
+    Pins sit BESIDE the normal navigation, never instead of it, and at the far
+    right of the header.
+
+    They used to replace it: pinning a market took the section's links out of
+    the header, so the way to the other protocols vanished the moment somebody
+    used the pin. The header's own row is a flex line with a gap, so returning
+    both puts the links first and the chips after them, and the links keep
+    their own overflow menu.
+
+    `ml-auto` is what carries the chips across to the right, against the
+    equity figure and the bell. The links then start at the same place on
+    every screen and the chips end at the same place, so neither moves when
+    the other changes length — pinning another market, or a section with more
+    links, no longer slides everything else along the row.
+
+    `mr-2` is the gap the header keeps between its own controls. Nothing sets
+    one between the two halves of the row, so without it the last chip's
+    unpin cross would touch the equity figure.
+  */
+  return (
+    <>
+      {/* The settings cog's Public profile window, drawn here because the
+          cog's panel closes as the window opens. See the component. */}
+      <PublicProfileDialogHost />
+      {fallback}
+      {pins.length && !phone ? (
+        <PinnedMarketChips className="mr-2 ml-auto max-w-full min-w-0" />
+      ) : null}
+      {failed ? (
+        <Button variant="ghost" size="sm" onClick={() => void store.refresh()}>
+          Retry header pins
+        </Button>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * The pinned markets themselves, wherever they are drawn: along the header on
+ * a wide window, inside its three-dot dropdown on a phone.
+ */
+export function PinnedMarketChips({
+  className,
+  alwaysShowChange = false,
+  spread = false,
+}: {
+  className?: string
+  /**
+   * The day's change on every chip. Off along the header, where the row only
+   * has room for it above 1280px, and on inside the three-dot dropdown, which
+   * is a list rather than a row and has the width to spare.
+   */
+  alwaysShowChange?: boolean
+  /**
+   * Separate pills with room between them, and the row fading out under the
+   * right edge where it carries on. For the three-dot dropdown, which has a
+   * line of its own to give the pins rather than a tray in a crowded header.
+   */
+  spread?: boolean
+}) {
+  const { pins, quotes, busy, store } = usePinnedMarkets()
+  if (!pins.length) return null
+  return (
+    <ScrollArea
+      className={cn(
+        className,
+        spread &&
+          "[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)]"
+      )}
+    >
+      {/*
+            The chips sit on their own light ground, so the pins read as one
+            thing rather than as more navigation links that happen to be
+            further along the row. Same shape as the chart's timeframe picker:
+            an `h-8` tray on `bg-muted/60` with `p-0.5`, holding `h-7`
+            controls. A chip's own hover is the full-strength `bg-muted`, a
+            step darker than the tray it sits in.
+          */}
+      <nav
+        aria-label="Pinned markets"
+        className={cn(
+          "flex w-max items-center",
+          // The space after the last pin is what the fade covers, so the last
+          // one reads in full once the row is slid to its end.
+          spread
+            ? "gap-2 pr-10"
+            : "h-8 gap-0.5 rounded-lg bg-muted/60 p-0.5"
+        )}
+      >
+        {pins.map((key) => {
+          const quote = quotes.find((item) => item.key === key)
+          const symbol = quote?.symbol ?? marketSymbol(key)
+          const ref = parseMarketKey(key)!
+          const label = `${symbol}, ${ref.protocol}, ${ref.network}`
+          const change = quote?.change24h ?? null
+          return (
+            /*
+                  ONE hovered surface for the whole chip, filling the tray it
+                  sits in.
+
+                  The market and the unpin cross used to be two buttons, each
+                  shading only itself: hovering the name lit a short pill that
+                  stopped before the cross, and the cross lit a second one. The
+                  hover now belongs to this wrapper — `rounded-md hover:bg-muted`,
+                  the same pair the top-left links use — and the two controls
+                  inside paint no background of their own.
+                */
+            <div
+              key={key}
+              className={cn(
+                "inline-flex min-w-0 items-center gap-1 text-sm font-medium transition-all hover:bg-muted",
+                spread
+                  ? "h-9 rounded-lg bg-muted/60 pr-2 pl-3"
+                  : "h-7 rounded-md pr-1 pl-2.5"
+              )}
+            >
+              {/*
+                    No tooltip on the chip.
+
+                    It named the protocol, the network and the price, and it
+                    covered the row under the header every time the pointer
+                    crossed a pin on its way somewhere else. The chip already
+                    says the two things worth knowing, and the chart it opens
+                    says the rest. `aria-label` still carries the full
+                    description for a screen reader.
+                  */}
+              <Link
+                to={marketChartHref(key)!}
+                aria-label={`Open ${label} chart`}
+                className="inline-flex min-w-0 items-center gap-1 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <span className="max-w-16 truncate">{symbol}</span>
+                {/*
+                      The day's change, and no price anywhere. The price was
+                      the longest thing on the chip and the least looked at,
+                      and the chart this opens is where it is read now.
+
+                      The figure sits right after the symbol, sized to what it
+                      says. It had a fixed-width column for a while, which
+                      right-aligned a short percentage and left a visible hole
+                      between the two. `tabular-nums` is what actually holds
+                      the row steady: every digit is the same width, so a
+                      figure ticking from -2.15% to -2.17% moves nothing.
+                    */}
+                <span
+                  className={`font-mono tabular-nums ${alwaysShowChange ? "" : "hidden xl:inline"} ${change === null ? "text-muted-foreground" : moneyTone(change)}`}
+                >
+                  {change === null ? "—" : formatChange(change)}
+                </span>
+              </Link>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    aria-label={`Unpin ${label} from header`}
+                    onClick={() => void store.setPin(key, false)}
+                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {busy ? "Saving header pins" : `Unpin ${symbol} from header`}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )
+        })}
+      </nav>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
+  )
+}

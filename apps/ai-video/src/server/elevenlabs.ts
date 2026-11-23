@@ -15,7 +15,7 @@ import { requireAppOrigin } from "@/server/origin"
 import { requireUser } from "@/server/security"
 import {
   getOrCreateCurrentWorkspace,
-  parseWorkspaceSettingsForReset,
+  parseWorkspaceSettings,
   updateUserWorkspace,
 } from "@/server/workspaces"
 
@@ -83,8 +83,7 @@ export async function listVoicesForCurrentUser(): Promise<{
       }
     ),
   ])
-  const defaults = parseWorkspaceSettingsForReset(workspace.settings).settings
-    .voiceDefaults
+  const defaults = parseWorkspaceSettings(workspace.settings).voiceDefaults
   if (!response.ok) {
     throw await elevenLabsError("Voice list failed", response)
   }

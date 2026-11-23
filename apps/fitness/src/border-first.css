@@ -1,0 +1,51 @@
+/*
+ * The colour every border is drawn in, parsed before anything else.
+ *
+ * Tailwind's preflight resets every element to `border: 0 solid` and names no
+ * colour, so an element with `border-b` and nothing else is drawn in
+ * `currentColor` — the text colour, which is near-black. The rule that fixes
+ * that is `* { border-color: var(--border) }`. It used to sit at the bottom of
+ * `theme.css`, which put it 169,737 bytes into a 187,805-byte stylesheet,
+ * because everything written after `@import "tailwindcss"` is emitted after
+ * every utility Tailwind generates.
+ *
+ * The browser paints while it parses. In development the stylesheet arrives
+ * through a script rather than a render-blocking `<link>`, so nothing holds the
+ * first paint back and the dividers are drawn as solid black lines until the
+ * parser is 90% of the way down. That is the black line under the navigation on
+ * a fresh load. In production the stylesheet is an ordinary `<link>`, the page
+ * is not painted until it is parsed, and the line never appears.
+ *
+ * `styles.css` imports this file first, so the rule is parsed in the first few
+ * hundred bytes instead of the last few thousand.
+ *
+ * **It is in the components layer, not base.** Preflight's `border: 0 solid` is
+ * a shorthand, so it resets the colour too, and preflight is in `base`. A rule
+ * parsed before preflight but sitting in the same layer would lose to it. The
+ * layer order is declared before either file is read, so `components` beats
+ * preflight whichever order the two are parsed in, and still loses to
+ * `utilities` — `border-red-500` wins here exactly as it did before.
+ *
+ * The literal fallback is the light `--border` default, repeated because
+ * `:root` is near the bottom of `theme.css` too: for the frames before the
+ * variable exists the lines are drawn in the colour they are about to become
+ * rather than in black. Once `:root` is parsed the variable wins and the
+ * fallback is never read again, in either colour mode.
+ *
+ * Two fixes that were tried and must not be tried again:
+ *
+ * - **A React-rendered `<style>` tag in the root `<head>`** (9 Aug 2026).
+ *   React redraws it on every navigation, the browser then restyles every
+ *   element on the page, and Tyler reported the whole app visibly juddering on
+ *   every click.
+ * - **Splitting `@import "tailwindcss"` into its theme, preflight and utilities
+ *   parts** so this rule could sit between preflight and utilities
+ *   (5 Oct 2026). Vite then serves those three as separate modules, and on a
+ *   throttled fresh load the public page stayed unstyled — mobile header at
+ *   desktop width, pricing cards overlapping their own headings — for more than
+ *   four seconds, against under 400ms before the change. Far worse than the
+ *   black line it was fixing. Leave `@import "tailwindcss"` whole.
+ */
+* {
+  border-color: var(--border, oklch(0.922 0 0));
+}

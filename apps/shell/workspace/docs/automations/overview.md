@@ -1,0 +1,230 @@
+# Automations
+
+Automations live on one dashboard at `/admin/automations`, described in
+[The Automations dashboard](dashboard.md): the flows table, every run, and
+the runs waiting on you, with a flow's canvas opening in the middle. From
+there an admin can:
+
+- Create a flow from a blank canvas or template.
+- Search, duplicate, rename, and delete flows.
+- Test a flow against one contact.
+- Turn a flow live or take it offline.
+
+A flow's canvas saves 700 milliseconds after the last change. The editor
+compiles and validates the graph before a run can start. It saves with
+`src/lib/hooks/use-auto-save.ts`.
+
+A Send email step's "Open email builder" opens the same email page a
+newsletter is written on in the CRM (`send-email-editor.tsx`, on
+`src/components/crm/email-page.tsx`; Tyler, 7 Nov 2026, chose to move it
+over). It takes the dashboard's middle until Back to flow. The subject, the
+preview line and Rich text are typed in place, and each block's options are
+behind the cog in its bar. The header holds Back to flow, which saves first,
+and the email's ⋮: General (subject, preview line, From name), Who gets it,
+and Runs, this flow's runs. The step's settings are stored as before. The automation editor still refuses to save a flow with no name and
+says so in the top bar.
+
+Every step that picks a segment, the Audience step included, uses the same
+segment dropdown. While the segments load the dropdown says "Loading
+segments…", and a failed load shows Try again under it.
+
+## Nodes and app ownership
+
+The node registry defines how each step appears and which settings it needs.
+The matching executor runs on the server. Apps can register their own node
+descriptors, executors, and result views without editing the shared editor.
+
+Built-in starts include:
+
+- Member events.
+- Billing events.
+- Schedules.
+- Segment changes, with or without the people already in the segment (below).
+- Manual starts for flows that allow them.
+
+Templates are ordinary flow definitions that can be copied and then edited.
+
+## Templates
+
+Templates live in the Templates tab of an open flow's step list, after Fav
+and All nodes. They have no dashboard of their own (Tyler, 8 Nov
+2026: "No need to have template its own dashboard").
+
+- **A card opens that template's canvas** in the dashboard's middle, at
+  `/admin/automations?tab=automations&template=<key>`, and the card is outlined
+  while it is open. Automations in the Dashboards block goes back to the
+  table.
+- **The card's ⋮ holds Edit details and Reset to built-in.** Edit details
+  changes the name and description the New automation picker shows. Reset
+  appears only on a template that has been changed.
+- **A card follows the canvas.** Each save of a template's canvas updates its
+  card's "Customized" and "Has a step to fix" lines, because the editor keeps
+  the list and not the tab.
+- **Resetting or renaming the template that is open** saves its canvas first,
+  then the canvas takes what the server holds. Without that order an edit
+  still waiting to save could land on top of the reset.
+- **The old addresses `/admin/automations/templates` and
+  `/admin/automations/templates/<key>` are gone**, not forwarded.
+
+The cards are `src/components/automations/automation-template-cards.tsx`, and
+the tab is in `automation-palette.tsx`.
+
+## Runs
+
+The engine creates a run, advances ready steps, records summaries, and closes
+the run when the graph has finished. A step can:
+
+- Complete or fail.
+- Wait for an approval.
+- Sleep until a set time (the Wait step, below).
+- Retry.
+- Create a delivery record for later work.
+
+The Runs and Waiting on you sections, and an open flow's Runs tab, show the
+saved history; the open run shows its step details on the right. Runs and
+delivery histories use the same Load more button and block a repeated click
+until the next page returns. A failed load stays in place with Try again. A saved step failure uses the shared inline error text, so it remains
+beside the step that produced it without opening a second alert box.
+
+The global pause switch stops automation work without deleting flows or runs.
+The system records who paused it and when. Turning the switch back on lets the
+background pass continue eligible work.
+
+See [Automation run refresh](run-refresh.md) for live history updates and
+[App-owned automation run results](app-owned-run-results.md) for app-specific
+reports inside a completed step.
+
+## Who a flow reaches
+
+The Audience step picks one of two lists that never mix (Tyler, 9 Nov 2026:
+"users and subscribers are also seperate"):
+
+- **Subscribers:** Every subscriber, or the subscribers in a segment, read
+  from `contacts`; nobody opted out, bouncing or reported as spam.
+- **Accounts:** Every account, accounts that confirmed their email, paying
+  accounts, one plan, or a member tag, read from `users` and emailed at
+  their own address; never a suspended or closing account, or one that
+  turned automated mail off with its email's unsubscribe link.
+
+A step with no Audience before it emails the run's own person: the
+subscriber a segment trigger was about, or the account a member or billing
+event was about. The audience code is `src/server/automations/audience.ts`.
+
+## Testing with one person
+
+"Test with one person…" walks a flow as if it were about one real person.
+
+- **Who can be picked.** A subscriber a real send could reach (subscribed or
+  cold), or an active member account of this site that has not turned
+  automated mail off, each labelled with its kind. An admin's or an app
+  role's account is never offered. Test a subscriber flow on a subscriber
+  and an account flow on an account.
+- **Where the emails go.** Every email goes to the admin who started the test,
+  with "[TEST for their address]" in front of the subject. The contact gets
+  nothing.
+- **The same checks as a real send.** The email is skipped when the person
+  is not in the email's audience, or is an account whose email is not
+  confirmed. A subscriber has nothing to confirm.
+- **Tags, waits and webhooks are skipped.** The history says what they would
+  have done, such as "Would have called https://… Skipped in this test." A step
+  an app adds is skipped unless the app marks it safe for tests.
+- **A step that needs an account.** On a subscriber, the tag step says it
+  would stop a real run there, then the test carries on.
+
+The picker reads from `src/server/automations/test-contacts.ts`. Apps can hide
+the button on flows with nobody in them through the `memberTest` option, which
+keeps its older name so no app breaks.
+
+## Sequences: a whole segment a few at a time, and Wait
+
+These two steps exist so a flow can send a run of emails days apart, such as
+seven emails every other day.
+
+**The "Segment" start, with its switch off, keeps a list of who was in the segment at its last
+look,** checked every 15 seconds. A row on that list is written only when a
+person first appears or their segment changes. A 5,000-person segment used to
+rewrite 5,000 rows on every look, about 28.8 million writes a day for one flow.
+The row's `last_seen_at` therefore says when the row was written, not when the
+person was last seen. Nothing reads that column.
+
+**The "Segment" start has a switch, "Also send to people already in this
+segment".** Tyler, 16 Nov 2026: "merge them into one card with the switch".
+Before, the two ways were two cards, "Joined a segment" and "Segment, a few at
+a time". The card was then renamed "Segment", because "Joined a segment" only
+described one of its two ways (Tyler: "join a segment only tells one thing").
+
+- **Off, for a welcome email:** only people who join from now on start the
+  flow, straight away. The flow stops when more than 100 join at once, in case
+  the segment changed by mistake.
+- **On, for a sequence to a list:** everyone already there is let in one batch
+  at a time, then anyone who joins later. The rest of this list is about this
+  way.
+- **Why off is not paced too:** a paced flow only sends in the sending hours,
+  so a welcome for someone who signs up at 11pm would wait until morning.
+- **The switch changes the step's stored kind:** `joinedSegment` when off,
+  `segmentDrip` when on. Both kinds stay, so every flow saved before the merge
+  runs as it did. Only `joinedSegment` is in the step menu
+  (`src/lib/automations/nodes/segment-drip.ts`, `palette: null`), and both
+  kinds draw `src/components/automations/nodes/joined-segment-panel.tsx`.
+- **Switching it on a live flow:** on lets in everyone in the segment not let
+  in before. Off goes back to watching for new joiners, taking whoever is there
+  at that moment as already there.
+
+- **The pace is the drip rules in Settings > Email**: people per batch, minutes
+  between batches, sending hours, weekdays only, and the bounce limit. They
+  are read live, so changing them changes the pace of a flow already running.
+  The Drip sending switch there is about newsletters. This start always drips.
+- **Each person gets a run of their own.** So a Wait is two days from that
+  person's email, not from whenever the last batch went.
+- **Only reachable people are let in.** Opted out, bouncing and spam-marked
+  addresses never are. Somebody gone quiet is.
+- **Once per person, ever.** Switching the flow off and on, or leaving the
+  segment and coming back, never lets anyone in twice.
+- **Oldest contacts go first**, so the order is the same on every pass.
+- **The bounce limit switches the flow off.** Before each batch it counts the
+  people this flow has emailed whose address has since bounced. At 20 or more
+  emailed and over the limit (5 in 100 unless changed), the flow goes off with
+  the reason on it. Automation emails carry no bounce stamp of their own, so
+  the contact's Bouncing status is the record.
+- **Nothing new is stored for the pace.** The last batch time is the newest
+  enrollment row for the flow, and the gap after it is picked from the range
+  using that time as the seed, so every pass of the ticker gets the same gap.
+- **The step's panel shows progress** when the switch is on: how many people are let in, how many
+  are still to go, and when the next batch goes.
+
+**Wait holds a run for 1 hour to 60 days.** The engine records a "Waiting 2
+days, until ..." line, keeps the run pointed at the Wait, and moves its wake-up
+time. A sleeping run costs nothing. When it wakes, the Wait runs again, finds
+its own line, and decides whether to carry on.
+
+- **It keeps to the sending hours** when the flow starts with "Segment"
+  and its "Also send to people already in this segment" switch is on. A wait that ends outside them, or on a weekend when weekends are
+  skipped, carries on at the next allowed hour. Any other start wakes at the
+  exact time.
+- **"Stop for anyone who clicked a link"** is on by default. On waking, a person
+  who clicked a link in any email this flow sent them ends there, and the
+  history names the email. Resend does not say which link was clicked, so any
+  click counts.
+- **Switching the flow off stops everyone at their next wait.** Otherwise the
+  only way to stop a running sequence would be to delete it. A run somebody
+  started by hand is not stopped, because a flow that only runs by hand is
+  always off. Nor is a run of one of the CRM's sequences, which have no
+  switch.
+- **A test with one contact does not wait.** The step says "Would wait 2 days.
+  Skipped in this test." and the test carries straight on, so every email in
+  the sequence arrives within seconds.
+
+**Send sequence starts one of the CRM's sequences for the run's person.** A
+sequence is a set of emails and waits written in CRM, Broadcasts, Sequences,
+with no start of its own. The step starts it at email 1 on a run of the
+sequence's own and carries straight on. See
+[Sequences](../email/sequences.md).
+
+**What a sequence cannot do.**
+
+- **A run keeps the flow as it was when that person started.** Changing an
+  email's wording reaches only the people let in after the change.
+- **While automations are paused, sleeping runs hold.** Each one sends only its
+  next email when the pause lifts, never everything it missed.
+- **Seven unopened emails is the default gone-quiet run.** Somebody who opens
+  none of a seven-email sequence becomes Gone quiet, which is the rule working.

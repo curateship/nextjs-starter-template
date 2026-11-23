@@ -79,9 +79,9 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
   suggestion: "",
   bug_report: "",
   question:
-    "border-yellow-200 bg-yellow-100 text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200",
+    "border-yellow-200 bg-yellow-100 text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900/50 dark:bg-yellow-950/50 dark:text-yellow-200 dark:hover:bg-yellow-900/40",
   praise:
-    "border-green-200 bg-green-100 text-green-900 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
+    "border-green-200 bg-green-100 text-green-900 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200 dark:hover:bg-green-900/40",
 }
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -419,17 +419,17 @@ export function FeedbackModal({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-        <div className="rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+        <div className="space-y-2">
           <Textarea
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             placeholder="What's on your mind?"
-            className="min-h-32 resize-none border-0 text-base shadow-none focus-visible:border-transparent focus-visible:ring-0"
+            className="min-h-32 resize-none text-base"
             disabled={isSubmitting}
             autoFocus={!targetFeedbackId}
           />
 
-          <div className="flex flex-col gap-2 p-3 pt-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2">
               {feedbackTypes.map((item) => (
                   <Button

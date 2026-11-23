@@ -4,7 +4,7 @@ Guidance for agents working in Pomoder.
 
 ## Route First
 
-- Before building or changing UI, read and follow `workspace/docs/ui-rules.md`.
+- Before building or changing UI, read and follow `../../.agents/skills/Ui-standards/SKILL.md`.
 
 ## App Context
 

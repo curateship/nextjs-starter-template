@@ -20,6 +20,7 @@ describe("AutomationPalette", () => {
     expect(markup).toContain("Fav")
     expect(markup).toContain("All nodes")
     expect(markup).toContain("EMA Cross")
+    expect(markup).toContain("Market Scanner")
     expect(markup).toContain("Whale Wall")
     expect(markup).toContain("Take Profit")
     expect(markup).not.toContain("favorites")

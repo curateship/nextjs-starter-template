@@ -1,8 +1,8 @@
 import * as React from "react"
-import type { AccountSnapshot } from "@/lib/hl/hooks"
+import { useUserFills, type AccountSnapshot } from "@/lib/hl/hooks"
 import { Loader2Icon } from "lucide-react"
 
-import { formatPriceDisplay } from "@/components/trading/format"
+import { formatPrice, pct, signedPct, signedUsd, usd } from "@/lib/format"
 import {
   ClosedPnlCell,
   EmptyState,
@@ -14,6 +14,7 @@ import {
 } from "@/components/trading/table-bits"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import {
   Dialog,
   DialogBody,
@@ -31,9 +32,14 @@ import {
   getOrderErrorMessage,
   modifyOrder,
   placeOrder,
+  setPositionTpsl,
 } from "@/lib/api/orders"
-import { subscribeUserFills } from "@/lib/hl/ws"
+import { resolveTakeProfitPrice } from "@/lib/one-click-order"
 import type { TradingNetwork } from "@/lib/hl/network"
+import {
+  liquidationDistanceClass,
+  liquidationDistancePct,
+} from "@/lib/trading/liquidation-risk"
 import {
   describeOpenOrder,
   type FrontendOpenOrder,
@@ -45,25 +51,122 @@ type PositionAction = {
   szi: number
 }
 
+/** Resolved trigger price for a typed percent, so the number is never a guess. */
+function PricePreview({
+  label,
+  price,
+}: {
+  label: string
+  price: number | null
+}) {
+  if (price === null) return null
+  return (
+    <p className="text-[11px] text-muted-foreground">
+      {label}{" "}
+      <span className="font-mono">{formatPrice(String(price))}</span>
+    </p>
+  )
+}
+
 export function PositionsTable({
   account,
   walletId,
   mids,
   confirmationEnabled,
   onDone,
+  onSelectMarket,
 }: {
   account: AccountSnapshot | null
   walletId: string | null
   mids: Record<string, string>
   confirmationEnabled: boolean
   onDone: (message: string, tone: "ok" | "error") => void
+  /** Clicking a position row switches the workspace to that market. */
+  onSelectMarket?: (coin: string) => void
 }) {
   const [pending, setPending] = React.useState<PositionAction | null>(null)
   const [busy, setBusy] = React.useState(false)
+  // Stop-loss / take-profit editor for an already-open position.
+  const [protecting, setProtecting] = React.useState<{
+    coin: string
+    szi: number
+    entryPx: number
+  } | null>(null)
+  const [protectForm, setProtectForm] = React.useState({ sl: "", tp: "" })
+  const [protectBusy, setProtectBusy] = React.useState(false)
+  const [protectError, setProtectError] = React.useState<string | null>(null)
 
   const positions = (account?.clearinghouseState?.assetPositions ?? []).filter(
     ({ position }) => Number(position.szi) !== 0
   )
+
+  // Show where each percent actually lands, using the same math the server
+  // applies, so the price is never a surprise.
+  const protectPreview = React.useMemo(() => {
+    if (!protecting || !(protecting.entryPx > 0)) return { sl: null, tp: null }
+    const isLong = protecting.szi > 0
+    const markRaw = Number(mids[protecting.coin] ?? 0)
+    const mark = markRaw > 0 ? markRaw : protecting.entryPx
+    const slPct = Number(protectForm.sl)
+    const tpPct = Number(protectForm.tp)
+    return {
+      sl:
+        protectForm.sl.trim() !== "" && slPct > 0
+          ? protecting.entryPx *
+            (isLong ? 1 - slPct / 100 : 1 + slPct / 100)
+          : null,
+      tp:
+        protectForm.tp.trim() !== "" && tpPct > 0
+          ? resolveTakeProfitPrice({
+              entryPrice: protecting.entryPx,
+              currentPrice: mark,
+              side: isLong ? "buy" : "sell",
+              takeProfitPct: tpPct,
+            })
+          : null,
+    }
+  }, [protecting, protectForm, mids])
+
+  function openProtect(coin: string, szi: number, entryPx: number) {
+    setProtectForm({ sl: "", tp: "" })
+    setProtectError(null)
+    setProtecting({ coin, szi, entryPx })
+  }
+
+  async function submitProtect() {
+    if (!walletId || !protecting) return
+    const sl = Number(protectForm.sl.trim())
+    const tp = Number(protectForm.tp.trim())
+    const hasSl = protectForm.sl.trim() !== "" && sl > 0
+    const hasTp = protectForm.tp.trim() !== "" && tp > 0
+    if (!hasSl && !hasTp) {
+      setProtectError("Enter a stop-loss or take-profit percent.")
+      return
+    }
+    setProtectBusy(true)
+    setProtectError(null)
+    try {
+      const result = await setPositionTpsl({
+        walletId,
+        market: protecting.coin,
+        ...(hasSl ? { stopLossPct: sl } : {}),
+        ...(hasTp ? { takeProfitPct: tp } : {}),
+      })
+      const parts = [
+        result.stopLossPx ? `stop ${result.stopLossPx}` : null,
+        result.takeProfitPx ? `take-profit ${result.takeProfitPx}` : null,
+      ].filter(Boolean)
+      onDone(
+        `Protecting ${result.sz} ${protecting.coin} — ${parts.join(", ")}.`,
+        "ok"
+      )
+      setProtecting(null)
+    } catch (error) {
+      setProtectError(getOrderErrorMessage(error))
+    } finally {
+      setProtectBusy(false)
+    }
+  }
 
   async function submitAction(action: PositionAction) {
     if (!walletId) return
@@ -108,7 +211,10 @@ export function PositionsTable({
   }
 
   if (positions.length === 0) {
-    return <EmptyState text="No open positions." />
+    return <EmptyState
+        text="No open positions."
+        hint="Place an order from the ticket, or right-click a price on the chart."
+      />
   }
 
   return (
@@ -117,9 +223,7 @@ export function PositionsTable({
         headers={[
           "Market",
           "Size",
-          "Entry",
-          "Mark",
-          "Liq. price",
+          "Liq. distance",
           "uPnL (ROE)",
           "Margin",
           "Actions",
@@ -129,31 +233,47 @@ export function PositionsTable({
           const szi = Number(position.szi)
           const upnl = Number(position.unrealizedPnl)
           const roe = Number(position.returnOnEquity) * 100
+          // Gap between mark and forced liquidation, graded by how close it is.
+          const liqDistance = liquidationDistancePct({
+            szi,
+            markPx: Number(mids[position.coin] ?? 0),
+            liquidationPx: position.liquidationPx
+              ? Number(position.liquidationPx)
+              : null,
+          })
           return (
-            <TableRow key={position.coin}>
+            <TableRow
+              key={position.coin}
+              onClick={
+                onSelectMarket
+                  ? () => onSelectMarket(position.coin)
+                  : undefined
+              }
+            >
               <TableCell className="font-medium">
                 {position.coin}
                 <span className="ml-1 text-[10px] text-muted-foreground">
                   {position.leverage.value}x {position.leverage.type}
                 </span>
               </TableCell>
+              {/* Dollars, not coins: the exchange's own notional, signed so a
+                  short still reads as negative alongside the color. */}
               <MonoCell className={szi > 0 ? "text-emerald-600" : "text-red-500"}>
-                {position.szi}
+                {usd((szi < 0 ? -1 : 1) * Number(position.positionValue))}
               </MonoCell>
-              <MonoCell>{formatPriceDisplay(position.entryPx ?? "0")}</MonoCell>
-              <MonoCell>{formatPriceDisplay(mids[position.coin] ?? "0")}</MonoCell>
-              <MonoCell>
-                {position.liquidationPx
-                  ? formatPriceDisplay(position.liquidationPx)
-                  : "—"}
+              <MonoCell className={liquidationDistanceClass(liqDistance)}>
+                {liqDistance === null ? "—" : pct(liqDistance, 1)}
               </MonoCell>
               <MonoCell className={upnl >= 0 ? "text-emerald-600" : "text-red-500"}>
-                {upnl >= 0 ? "+" : ""}
-                {upnl.toFixed(2)} ({roe.toFixed(1)}%)
+                {signedUsd(upnl)} ({signedPct(roe, 1)})
               </MonoCell>
-              <MonoCell>${Number(position.marginUsed).toFixed(2)}</MonoCell>
+              <MonoCell>{usd(Number(position.marginUsed))}</MonoCell>
               <TableCell>
-                <div className="flex gap-1">
+                {/* Row actions must not also trigger the row's market switch. */}
+                <div
+                  className="flex gap-1"
+                  onClick={(event) => event.stopPropagation()}
+                >
                   <RowActionButton
                     disabled={!walletId || busy}
                     onClick={() =>
@@ -170,6 +290,18 @@ export function PositionsTable({
                   >
                     Reverse
                   </RowActionButton>
+                  <RowActionButton
+                    disabled={!walletId || busy}
+                    onClick={() =>
+                      openProtect(
+                        position.coin,
+                        szi,
+                        Number(position.entryPx ?? 0)
+                      )
+                    }
+                  >
+                    TP/SL
+                  </RowActionButton>
                 </div>
               </TableCell>
             </TableRow>
@@ -177,48 +309,121 @@ export function PositionsTable({
         })}
       </StickyTable>
 
-      <Dialog
+      <ConfirmActionDialog
         open={Boolean(pending)}
         onOpenChange={(open) => {
           if (!open) setPending(null)
+        }}
+        title={`${pending?.kind === "close" ? "Close" : "Reverse"} your ${
+          pending?.coin
+        } position?`}
+        consequence={
+          pending
+            ? pending.kind === "close"
+              ? `Places a market order right now to ${
+                  pending.szi > 0 ? "sell" : "buy back"
+                } your whole position of ${Math.abs(pending.szi)} ${
+                  pending.coin
+                } at the current price.`
+              : `Places a market order right now for twice your position size — it closes your ${Math.abs(
+                  pending.szi
+                )} ${pending.coin} ${
+                  pending.szi > 0 ? "long" : "short"
+                } and opens an equal ${
+                  pending.szi > 0 ? "short" : "long"
+                }, flipping your bet to the opposite direction.`
+            : ""
+        }
+        confirmLabel={
+          pending?.kind === "close" ? "Close position" : "Reverse position"
+        }
+        busy={busy}
+        onConfirm={() => pending && void submitAction(pending)}
+      />
+
+      <Dialog
+        open={Boolean(protecting)}
+        onOpenChange={(open) => {
+          if (!open && !protectBusy) setProtecting(null)
         }}
       >
         <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>
-              {pending?.kind === "close" ? "Close" : "Reverse"} {pending?.coin}{" "}
-              position
+              Stop-loss / take-profit for {protecting?.coin}
             </DialogTitle>
             <DialogDescription>
-              {pending?.kind === "close"
-                ? "Sends a reduce-only market order for the full position size."
-                : "Sends a market order for twice the position size, flipping the direction."}
+              Percent from your entry price ({
+                protecting ? formatPrice(String(protecting.entryPx)) : "—"
+              }). Protects your whole {protecting?.coin} position and keeps
+              covering it if you add to it later. Fill in one or both.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <p className="text-sm">
-              Position: <span className="font-mono">{pending?.szi}</span>{" "}
-              {pending?.coin}
-            </p>
+            <Card size="sm">
+              <CardContent>
+                <div className="grid gap-4">
+                  <div className="grid gap-1">
+                    <Label htmlFor="position-tp">Take-profit %</Label>
+                    <Input
+                      id="position-tp"
+                      inputMode="decimal"
+                      placeholder="Enter % for TP"
+                      value={protectForm.tp}
+                      onChange={(event) =>
+                        setProtectForm((current) => ({
+                          ...current,
+                          tp: event.target.value,
+                        }))
+                      }
+                    />
+                    <PricePreview
+                      label="Takes profit at"
+                      price={protectPreview.tp}
+                    />
+                  </div>
+                  <div className="grid gap-1">
+                    <Label htmlFor="position-sl">Stop-loss %</Label>
+                    <Input
+                      id="position-sl"
+                      inputMode="decimal"
+                      placeholder="Enter % for SL"
+                      value={protectForm.sl}
+                      onChange={(event) =>
+                        setProtectForm((current) => ({
+                          ...current,
+                          sl: event.target.value,
+                        }))
+                      }
+                    />
+                    <PricePreview label="Stops out at" price={protectPreview.sl} />
+                  </div>
+                  {protectError ? (
+                    <p className="text-xs text-destructive">{protectError}</p>
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
           </DialogBody>
           <DialogFooter variant="plain">
             <>
               <Button
                 type="button"
                 variant="outline"
-                disabled={busy}
-                onClick={() => setPending(null)}
+                disabled={protectBusy}
+                onClick={() => setProtecting(null)}
               >
                 Cancel
               </Button>
               <Button
                 type="button"
-                variant="destructive"
-                disabled={busy}
-                onClick={() => pending && void submitAction(pending)}
+                disabled={protectBusy}
+                onClick={() => void submitProtect()}
               >
-                {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                Confirm
+                {protectBusy ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : null}
+                Set protection
               </Button>
             </>
           </DialogFooter>
@@ -297,7 +502,10 @@ export function OpenOrdersTable({
   return (
     <>
       {orders.length === 0 ? (
-        <EmptyState text="No open orders." />
+        <EmptyState
+          text="No open orders."
+          hint="Resting limit orders wait here until they fill or are cancelled."
+        />
       ) : (
         <StickyTable
           headers={[
@@ -321,7 +529,7 @@ export function OpenOrdersTable({
                 <SideCell isBuy={order.side === "B"}>
                   {description.label}
                 </SideCell>
-                <MonoCell>{formatPriceDisplay(description.price)}</MonoCell>
+                <MonoCell>{formatPrice(description.price)}</MonoCell>
                 <MonoCell>{order.origSz}</MonoCell>
                 <MonoCell>{filled > 0 ? filled.toFixed(4) : "—"}</MonoCell>
                 <TableCell>{order.reduceOnly ? "Yes" : "No"}</TableCell>
@@ -415,18 +623,6 @@ export function OpenOrdersTable({
   )
 }
 
-type FillRow = {
-  tid: number
-  coin: string
-  side: "B" | "A"
-  px: string
-  sz: string
-  fee: string
-  closedPnl: string
-  dir: string
-  time: number
-}
-
 export function FillsTable({
   network,
   address,
@@ -434,42 +630,16 @@ export function FillsTable({
   network: TradingNetwork
   address: string | null
 }) {
-  const key = `${network}:${address ?? ""}`
-  const [state, setState] = React.useState<{
-    key: string
-    fills: FillRow[]
-  } | null>(null)
-
-  React.useEffect(() => {
-    if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) return
-    return subscribeUserFills(network, address as `0x${string}`, (event) => {
-      setState((prev) => {
-        const current =
-          prev?.key === key && !event.isSnapshot ? prev.fills : []
-        const merged = [...event.fills, ...current]
-        const seen = new Set<number>()
-        return {
-          key,
-          fills: merged
-            .filter((fill) => {
-              if (seen.has(fill.tid)) return false
-              seen.add(fill.tid)
-              return true
-            })
-            .sort((a, b) => b.time - a.time)
-            .slice(0, 100),
-        }
-      })
-    })
-  }, [network, address, key])
-
-  const fills = state?.key === key ? state.fills : []
+  const fills = useUserFills(network, address)
 
   if (!address) {
     return <EmptyState text="Select a wallet to see fills." />
   }
   if (fills.length === 0) {
-    return <EmptyState text="No fills yet." />
+    return <EmptyState
+        text="No fills yet."
+        hint="Every executed trade lands here with its price and fee."
+      />
   }
 
   return (
@@ -481,7 +651,7 @@ export function FillsTable({
           <TimeCell time={fill.time} full />
           <TableCell className="font-medium">{fill.coin}</TableCell>
           <SideCell isBuy={fill.side === "B"}>{fill.dir}</SideCell>
-          <MonoCell>{formatPriceDisplay(fill.px)}</MonoCell>
+          <MonoCell>{formatPrice(fill.px)}</MonoCell>
           <MonoCell>{fill.sz}</MonoCell>
           <MonoCell>{Number(fill.fee).toFixed(4)}</MonoCell>
           <ClosedPnlCell value={Number(fill.closedPnl)} />

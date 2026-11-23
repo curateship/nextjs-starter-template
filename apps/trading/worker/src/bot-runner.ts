@@ -1,6 +1,9 @@
 import { and, eq } from "drizzle-orm"
+import type { CandleWsEvent } from "@nktkas/hyperliquid"
 
+import { dcaHistoryBars } from "@/lib/automations/automation"
 import type { AutomationConfig } from "@/lib/strategies/strategy-config"
+import { fetchCandleHistory, INTERVAL_MS } from "@/server/backtest/history"
 import { db } from "@/server/db"
 import { buildCloid } from "@/server/hyperliquid/exchange"
 import { getAssetInfo, type AssetInfo } from "@/server/hyperliquid/info"
@@ -20,7 +23,11 @@ import { now, uuid } from "@/server/util"
 
 import { LiveBroker } from "./brokers/live"
 import { PaperBroker } from "./brokers/paper"
-import type { BotBroker, BrokerOrderUpdate } from "./brokers/types"
+import {
+  livePositionSnapshot,
+  type BotBroker,
+  type BrokerOrderUpdate,
+} from "./brokers/types"
 import { marketHub, type MarketHub } from "./market-hub"
 import { diffOrders, type ExistingOrder } from "./order-differ"
 import { resolveStrategy } from "./strategies/registry"
@@ -29,11 +36,17 @@ import type {
   DesiredOrder,
   Strategy,
   StrategyCtx,
+  SharedWalletPortfolioControl,
+  CandleInterval,
 } from "./strategies/contract"
 
 const EVALUATE_DEBOUNCE_MS = 250
 const TICK_THROTTLE_MS = 500
 const PERSIST_THROTTLE_MS = 2_000
+// How long after a bar boundary the close clock fires. Long enough for the
+// exchange's own final update of the finished bar (when it comes at all, it
+// arrives within ~1s) to land first, so the buffer holds the authoritative bar.
+const CANDLE_CLOSE_GRACE_MS = 2_000
 const DEFAULT_PAPER_EQUITY = 10_000
 
 type BotStatus = TradingBot["status"]
@@ -43,6 +56,7 @@ export class BotRunner {
   /** The single market this runner trades; a bot spawns one runner per market. */
   readonly market: string
   private readonly hub: MarketHub
+  private readonly sharedWalletPortfolio?: SharedWalletPortfolioControl
   private params!: AutomationConfig
   private strategy!: Strategy<never, unknown>
   private asset!: AssetInfo
@@ -56,6 +70,7 @@ export class BotRunner {
     peakEquity: 0,
   }
   private openOrders = new Map<string, ExistingOrder>()
+  private historicalCandles = new Map<CandleInterval, CandleWsEvent[]>()
   private unsubscribers: (() => void)[] = []
   private evaluating = false
   private evaluateQueued = false
@@ -64,11 +79,23 @@ export class BotRunner {
   private lastPersistAt = 0
   private paused = false
   private stopped = true
+  private candleCloseTimers = new Map<
+    CandleInterval,
+    ReturnType<typeof setTimeout>
+  >()
+  /** Newest bar-open time (t) already run through onCandleClose, per interval. */
+  private lastProcessedClose = new Map<CandleInterval, number>()
 
-  constructor(bot: TradingBot, market: string, hub: MarketHub = marketHub) {
+  constructor(
+    bot: TradingBot,
+    market: string,
+    hub: MarketHub = marketHub,
+    sharedWalletPortfolio?: SharedWalletPortfolioControl
+  ) {
     this.bot = bot
     this.market = market
     this.hub = hub
+    this.sharedWalletPortfolio = sharedWalletPortfolio
   }
 
   get network(): TradingNetwork {
@@ -93,6 +120,7 @@ export class BotRunner {
 
       this.asset = await getAssetInfo(this.botNetwork, this.market)
       await this.loadState()
+      await this.loadDcaHistory()
 
       if (this.bot.mode === "paper") {
         const broker = new PaperBroker({
@@ -145,10 +173,7 @@ export class BotRunner {
           this.botNetwork,
           this.market,
           interval,
-          (candle) => {
-            // Candle close: the event whose t differs from the running one.
-            if (candle.T <= Date.now()) this.onCandleClose(candle)
-          }
+          () => this.processPendingCandleClose(interval)
         )
         this.unsubscribers.push(unsubscribe)
       }
@@ -187,6 +212,12 @@ export class BotRunner {
         `Bot started in ${this.bot.mode} mode.`
       )
       this.scheduleEvaluate()
+      // Evaluate the newest already-closed bar right away (a runner usually
+      // starts mid-candle), then keep our own close clock per interval.
+      for (const interval of warmup.candleIntervals) {
+        this.processPendingCandleClose(interval)
+        this.scheduleCandleCloseTimer(interval)
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "start failed"
       await this.setStatus("error", message)
@@ -217,6 +248,10 @@ export class BotRunner {
   async resume() {
     this.paused = false
     this.runtime.cooldownUntil = null
+    // A bar boundary may have passed while paused; don't wait for the next one.
+    for (const interval of this.candleCloseTimers.keys()) {
+      this.processPendingCandleClose(interval)
+    }
     await this.setStatus("running")
     await this.event("info", "resumed", "Bot resumed.")
     this.scheduleEvaluate()
@@ -225,6 +260,9 @@ export class BotRunner {
   async flatten(reason = "Flatten requested") {
     await this.cancelAllOrders("flatten")
     await this.broker?.flatten()
+    if (!this.broker?.positionState()) {
+      this.strategy.onFlatten?.(this.ctx(), this.params as never)
+    }
     await this.persistState(true)
     await this.event("warn", "flatten", reason)
     this.scheduleEvaluate()
@@ -234,6 +272,9 @@ export class BotRunner {
     this.paused = true
     await this.cancelAllOrders("kill")
     await this.broker?.flatten()
+    if (!this.broker?.positionState()) {
+      this.strategy.onFlatten?.(this.ctx(), this.params as never)
+    }
     this.stopped = true
     this.teardown()
     await this.persistState(true)
@@ -255,6 +296,38 @@ export class BotRunner {
     if (this.stopped || this.paused) return
     this.strategy.onTick?.(this.ctx(), this.params as never)
     this.scheduleEvaluate()
+  }
+
+  /**
+   * Runs the strategy's close hook for the newest finished bar, exactly once
+   * per bar. The exchange stream cannot be trusted to announce a close: it
+   * sends the running candle on trades, and a final update of the finished
+   * candle arrives only sometimes (measured live: 1 in 3 closes, even on BTC
+   * 1m). So every stream event, a per-interval boundary timer, startup and
+   * resume all funnel here, and whichever sees the finished bar first wins.
+   */
+  private processPendingCandleClose(interval: CandleInterval) {
+    if (this.stopped || this.paused) return
+    const nowMs = Date.now()
+    const closed = this.candles(interval, 3)
+      .filter((candle) => candle.T <= nowMs)
+      .at(-1)
+    if (!closed) return
+    if ((this.lastProcessedClose.get(interval) ?? 0) >= closed.t) return
+    this.lastProcessedClose.set(interval, closed.t)
+    this.onCandleClose(closed)
+  }
+
+  private scheduleCandleCloseTimer(interval: CandleInterval) {
+    const intervalMs = INTERVAL_MS[interval]
+    if (!intervalMs) return
+    // Hyperliquid bars are epoch-aligned, so the next boundary is a modulus.
+    const delay = intervalMs - (Date.now() % intervalMs) + CANDLE_CLOSE_GRACE_MS
+    const timer = setTimeout(() => {
+      this.processPendingCandleClose(interval)
+      if (!this.stopped) this.scheduleCandleCloseTimer(interval)
+    }, delay)
+    this.candleCloseTimers.set(interval, timer)
   }
 
   private onCandleClose(candle: never | { t: number }) {
@@ -288,6 +361,9 @@ export class BotRunner {
     // the backtest runner attached until now.
     fill.purpose = purpose
     this.strategy.onFill?.(this.ctx(), this.params as never, fill)
+    // React to the new state before remote persistence finishes. A ladder may have
+    // completed a cycle and must cancel its still-resting deeper buys promptly.
+    this.scheduleEvaluate()
 
     await db
       .update(tradingBotOrders)
@@ -350,7 +426,6 @@ export class BotRunner {
     }
 
     await this.persistState(true)
-    this.scheduleEvaluate()
   }
 
   private async onOrderUpdate(update: BrokerOrderUpdate) {
@@ -573,19 +648,30 @@ export class BotRunner {
 
   private ctx(): StrategyCtx<unknown> {
     const mid = this.hub.mid(this.botNetwork, this.asset.dex, this.market)
+    const localEquity = this.broker?.equity(Number(mid)) ?? 0
+    const startingEquity =
+      Number(this.bot.paperStartingEquity) || DEFAULT_PAPER_EQUITY
+    if (this.bot.mode === "paper") {
+      this.sharedWalletPortfolio?.reportEquity?.(
+        this.market,
+        localEquity,
+        startingEquity
+      )
+    }
+    const sharedEquity =
+      this.bot.mode === "paper"
+        ? (this.sharedWalletPortfolio?.equity?.(localEquity) ?? localEquity)
+        : localEquity
     return {
       market: this.market,
       mid,
-      candles: (interval, n) =>
-        this.hub.getCandles(this.botNetwork, this.market, interval, n),
+      candles: (interval, n) => this.candles(interval, n),
       position: this.broker?.positionState() ?? null,
-      equity: String(this.broker?.equity(Number(mid)) ?? 0),
+      equity: String(sharedEquity),
       // Paper bots compound against their configured starting equity; live bots
       // have no tracked baseline, so compounding scaling is a no-op there.
-      startingEquity:
-        this.bot.mode === "paper"
-          ? String(Number(this.bot.paperStartingEquity) || DEFAULT_PAPER_EQUITY)
-          : "0",
+      startingEquity: this.bot.mode === "paper" ? String(startingEquity) : "0",
+      sharedWalletPortfolio: this.sharedWalletPortfolio,
       state: this.strategyState,
       setState: (next) => {
         this.strategyState = next
@@ -598,6 +684,72 @@ export class BotRunner {
         }),
       now: Date.now(),
     }
+  }
+
+  private candles(interval: CandleInterval, n: number): CandleWsEvent[] {
+    const history = this.historicalCandles.get(interval)
+    const live = this.hub.getCandles(this.botNetwork, this.market, interval, n)
+    if (!history?.length) return live
+    // Only the newest n items from either sorted source can survive the final
+    // slice. This keeps ordinary ladder checks small even when a long trend
+    // average has a big window of history cached behind it.
+    const historyTail =
+      history.length <= n ? history : history.slice(history.length - n)
+    const byTime = new Map(historyTail.map((candle) => [candle.t, candle]))
+    for (const candle of live) byTime.set(candle.t, candle)
+    const merged = [...byTime.values()].sort((a, b) => a.t - b.t)
+    return merged.length <= n ? merged : merged.slice(merged.length - n)
+  }
+
+  /** Prefetch `bars` closed candles into the warmup cache for one interval. */
+  private async loadHistoryBars(
+    interval: AutomationConfig["interval"],
+    bars: number,
+    warnType: string,
+    waitingLabel: string
+  ) {
+    const endMs = Date.now()
+    try {
+      const history = await fetchCandleHistory(
+        this.market,
+        interval,
+        endMs - bars * INTERVAL_MS[interval],
+        endMs
+      )
+      this.historicalCandles.set(
+        interval,
+        history.map((candle) => ({
+          t: candle.t,
+          T: candle.T,
+          s: this.market,
+          i: interval,
+          o: String(candle.o),
+          h: String(candle.h),
+          l: String(candle.l),
+          c: String(candle.c),
+          v: String(candle.v),
+          n: candle.n,
+        }))
+      )
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "history failed"
+      await this.event(
+        "warn",
+        warnType,
+        `${waitingLabel}: ${reason.slice(0, 220)}`
+      )
+    }
+  }
+
+  private async loadDcaHistory() {
+    const dca = this.params.dca
+    if (!dca) return
+    await this.loadHistoryBars(
+      this.params.interval,
+      dcaHistoryBars(dca),
+      "dca_history_warmup",
+      "DCA is waiting for enough history"
+    )
   }
 
   private async loadState() {
@@ -683,11 +835,16 @@ export class BotRunner {
     this.lastPersistAt = nowMs
 
     const snapshot = this.broker?.snapshot?.()
+    // Live brokers have no snapshot(); persist their exchange-refreshed
+    // position so the fleet pages can show what the bot holds.
+    const position = snapshot
+      ? (snapshot.position ?? null)
+      : livePositionSnapshot(this.broker?.positionState() ?? null)
     await db
       .update(tradingBotState)
       .set({
         strategyState: this.strategyState as Record<string, unknown>,
-        paperPosition: snapshot?.position ?? null,
+        paperPosition: position,
         paperCash: snapshot ? String(snapshot.cash) : null,
         dailyRealizedPnl: String(this.runtime.dailyRealizedPnl),
         dailyPnlDate: this.runtime.dailyPnlDate,
@@ -757,6 +914,8 @@ export class BotRunner {
   }
 
   private teardown() {
+    for (const timer of this.candleCloseTimers.values()) clearTimeout(timer)
+    this.candleCloseTimers.clear()
     for (const unsubscribe of this.unsubscribers) unsubscribe()
     this.unsubscribers = []
     this.broker?.stop()

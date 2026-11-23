@@ -1,7 +1,6 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
 
-import { formatPriceDisplay } from "@/components/trading/format"
+import { formatPrice, signedUsd, usd } from "@/lib/format"
 import {
   ClosedPnlCell,
   EmptyState,
@@ -11,15 +10,7 @@ import {
   StickyTable,
   TimeCell,
 } from "@/components/trading/table-bits"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ConfirmActionDialog } from "@/components/ui/confirm-action-dialog"
 import { TableCell, TableRow } from "@/components/ui/table"
 import {
   cancelPaperOrder,
@@ -32,10 +23,13 @@ export function PaperPositionsTable({
   account,
   confirmationEnabled,
   onDone,
+  onSelectMarket,
 }: {
   account: PaperAccountResponse | null
   confirmationEnabled: boolean
   onDone: (message: string, tone: "ok" | "error") => void
+  /** Clicking a position row switches the workspace to that market. */
+  onSelectMarket?: (coin: string) => void
 }) {
   const [closing, setClosing] = React.useState<string | null>(null)
   const [pending, setPending] = React.useState<{
@@ -75,26 +69,33 @@ export function PaperPositionsTable({
   }
 
   if (positions.length === 0) {
-    return <EmptyState text="No open paper positions." />
+    return <EmptyState
+        text="No open paper positions."
+        hint="Practice orders fill against live prices without risking money."
+      />
   }
 
   return (
     <>
-      <StickyTable
-        headers={["Market", "Size", "Entry", "Mark", "uPnL", "Actions"]}
-      >
+      <StickyTable headers={["Market", "Size", "uPnL", "Actions"]}>
         {positions.map((position) => {
           const szi = Number(position.szi)
           return (
-            <TableRow key={position.coin}>
+            <TableRow
+              key={position.coin}
+              onClick={
+                onSelectMarket
+                  ? () => onSelectMarket(position.coin)
+                  : undefined
+              }
+            >
               <TableCell className="font-medium">{position.coin}</TableCell>
+              {/* Dollars, matching the live positions table. */}
               <MonoCell
                 className={szi > 0 ? "text-emerald-600" : "text-red-500"}
               >
-                {position.szi}
+                {usd(szi * Number(position.mark_px))}
               </MonoCell>
-              <MonoCell>{formatPriceDisplay(position.entry_px)}</MonoCell>
-              <MonoCell>{formatPriceDisplay(position.mark_px)}</MonoCell>
               <MonoCell
                 className={
                   position.unrealized_pnl >= 0
@@ -102,10 +103,10 @@ export function PaperPositionsTable({
                     : "text-red-500"
                 }
               >
-                {position.unrealized_pnl >= 0 ? "+" : ""}
-                {position.unrealized_pnl.toFixed(2)}
+                {signedUsd(position.unrealized_pnl)}
               </MonoCell>
-              <TableCell>
+              {/* Row actions must not also trigger the row's market switch. */}
+              <TableCell onClick={(event) => event.stopPropagation()}>
                 <RowActionButton
                   busy={closing === position.coin}
                   disabled={closing !== null}
@@ -119,42 +120,28 @@ export function PaperPositionsTable({
         })}
       </StickyTable>
 
-      <Dialog
+      <ConfirmActionDialog
         open={Boolean(pending)}
         onOpenChange={(open) => {
           if (!open) setPending(null)
         }}
-      >
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>Close {pending?.coin} paper position?</DialogTitle>
-            <DialogDescription>
-              This sends a market order for the full position size.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter variant="plain">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={closing !== null}
-              onClick={() => setPending(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={!pending || closing !== null}
-              onClick={() =>
-                pending && void closePosition(pending.coin, pending.szi)
-              }
-            >
-              {closing ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title={`Close your ${pending?.coin} paper position?`}
+        consequence={
+          pending
+            ? `Places a practice market order right now to ${
+                pending.szi > 0 ? "sell" : "buy back"
+              } your whole position of ${Math.abs(pending.szi)} ${
+                pending.coin
+              } at the current price.`
+            : ""
+        }
+        confirmLabel="Close position"
+        busy={closing !== null}
+        confirmDisabled={!pending}
+        onConfirm={() =>
+          pending && void closePosition(pending.coin, pending.szi)
+        }
+      />
     </>
   )
 }
@@ -183,7 +170,10 @@ export function PaperOpenOrdersTable({
   }
 
   if (orders.length === 0) {
-    return <EmptyState text="No open paper orders." />
+    return <EmptyState
+        text="No open paper orders."
+        hint="Resting practice orders wait here until they fill or are cancelled."
+      />
   }
 
   return (
@@ -195,7 +185,7 @@ export function PaperOpenOrdersTable({
           <TimeCell time={order.created_at} />
           <TableCell className="font-medium">{order.coin}</TableCell>
           <SideCell isBuy={order.side === "buy"}>{order.side}</SideCell>
-          <MonoCell>{order.px ? formatPriceDisplay(order.px) : "market"}</MonoCell>
+          <MonoCell>{order.px ? formatPrice(order.px) : "market"}</MonoCell>
           <MonoCell>{order.sz}</MonoCell>
           <TableCell className="text-xs text-muted-foreground">
             {order.status}
@@ -222,7 +212,10 @@ export function PaperFillsTable({
 }) {
   const fills = account?.fills ?? []
   if (fills.length === 0) {
-    return <EmptyState text="No paper fills yet." />
+    return <EmptyState
+        text="No paper fills yet."
+        hint="Every executed practice trade lands here with its price and fee."
+      />
   }
 
   return (
@@ -234,7 +227,7 @@ export function PaperFillsTable({
           <TimeCell time={fill.fill_time} full />
           <TableCell className="font-medium">{fill.coin}</TableCell>
           <SideCell isBuy={fill.side === "buy"}>{fill.side}</SideCell>
-          <MonoCell>{formatPriceDisplay(fill.px)}</MonoCell>
+          <MonoCell>{formatPrice(fill.px)}</MonoCell>
           <MonoCell>{fill.sz}</MonoCell>
           <MonoCell>{Number(fill.fee).toFixed(4)}</MonoCell>
           <ClosedPnlCell value={Number(fill.closed_pnl)} />

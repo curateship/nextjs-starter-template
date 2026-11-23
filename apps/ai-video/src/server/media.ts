@@ -2,6 +2,7 @@ import sanitizeHtml from "sanitize-html"
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
+import { collectionIdsByMedia } from "@/server/media-collections"
 import {
   buildMediaListWhere,
   mediaListTotalPages,
@@ -40,6 +41,8 @@ export type MediaItem = {
   file_type: MediaFileType
   source: MediaSource
   project_id: string | null
+  // Ids of the collections this item belongs to (see @/server/media-collections).
+  collection_ids: string[]
   url: string
   proxy_status: MediaProxyStatus | null
   proxy_url: string | null
@@ -215,6 +218,7 @@ export async function listOwnedMedia({
   userId,
   page,
   pageSize,
+  collectionId,
   fileTypes,
   mimeType,
   projectId,
@@ -227,6 +231,7 @@ export async function listOwnedMedia({
   userId: string
   page: number
   pageSize: number
+  collectionId?: string | null
   fileTypes?: MediaFileType[]
   mimeType?: "image/svg+xml"
   projectId?: string | null
@@ -242,6 +247,7 @@ export async function listOwnedMedia({
   )
   const where = buildMediaListWhere({
     userId,
+    collectionId,
     fileTypes,
     mimeType,
     projectId,
@@ -263,8 +269,15 @@ export async function listOwnedMedia({
     .offset((normalizedPage - 1) * normalizedPageSize)
     .limit(normalizedPageSize)
 
+  // One extra round trip for the whole page rather than a per-row lookup.
+  const collectionsByMedia = await collectionIdsByMedia(
+    rows.map((row) => row.id)
+  )
+
   return {
-    media: rows.map(serializeMedia),
+    media: rows.map((row) =>
+      serializeMedia(row, collectionsByMedia.get(row.id) ?? [])
+    ),
     total,
     page: normalizedPage,
     page_size: normalizedPageSize,
@@ -426,7 +439,10 @@ export async function saveGeneratedVideoToProjectMedia(
   return row
 }
 
-export function serializeMedia(row: AiVideoMedia): MediaItem {
+export function serializeMedia(
+  row: AiVideoMedia,
+  collectionIds: string[] = []
+): MediaItem {
   return {
     id: row.id,
     filename: row.filename,
@@ -437,6 +453,7 @@ export function serializeMedia(row: AiVideoMedia): MediaItem {
     file_type: row.fileType as MediaFileType,
     source: row.source as MediaSource,
     project_id: row.projectId,
+    collection_ids: collectionIds,
     url: mediaFileUrl(row.id),
     proxy_status: row.proxyStatus as MediaProxyStatus | null,
     proxy_url:

@@ -1,0 +1,74 @@
+# Docs
+
+Everything written down about this repo that is not about one app in
+particular.
+
+An app's own documentation does not live here. It lives in that app's
+`workspace/docs/` folder, which is the folder the Personal IDE shows in its Docs
+tab. If a doc is true of only one app, it belongs there.
+
+## The repo
+
+- `how-we-work.md` — how a discussion with Tyler goes, when a plan is wanted,
+  and what counts as evidence. Read with the `unslop` skill.
+- `monorepo.md` — what is in the repo, which apps are live, how the workspaces
+  fit together.
+- `local-enviroment.md` — ports, dev servers, and why a running port belongs to
+  one worktree.
+- `deployment.md` — how the apps get to production.
+- `scalability.md` — what holds up as the load grows.
+
+## The shell, in `docs/shell/`
+
+Custom Shell is the template every app is copied from, so these files are true
+of Custom Shell, Trade, CMS and Video alike. They live here once. Copying them
+into an app is what caused the mess this folder replaced: the same five files
+sat in thirteen app folders, and nothing read them.
+
+- `shell-and-apps.md` — the rulebook. How an app is made from the shell, what an
+  app may edit, and how app options work.
+- `what-lives-where.md` — the folder map every app shares. Where a new file
+  goes.
+- `working-rules.md` — how to scope a change, run the tests and the type check,
+  and prove a screen works.
+- `architecture-overview.md` — the shell's layout, navigation and what it owns.
+- `saas-foundation.md` — accounts, roles, plans, entitlements and Stripe.
+- `security.md` — sessions, passwords, authorization, payments, uploads.
+- `user-interface.md` — the shell's own UI rules. The full standard is the
+  `Ui-standards` skill in `.agents/skills/`.
+- `page-blocks.md` — the page with "/" blocks every Admin 3 panel design
+  side panel holds: the editor, the block card, the tabbed ⋮ and its rows,
+  and how an app adds blocks of its own.
+- `admin-blocks-and-widgets.md` — how an app adds its own "/" blocks to the
+  Admin dashboard's pages and its own widgets to Overview, from its
+  `src/app/options.ts`, without editing the shell.
+- `settings-saving.md` — how the Settings screen saves: the 700ms auto-save,
+  the queue, and the two rules that stop one card's save undoing another
+  card's edit.
+- `public-files.md` — `robots.txt` and the sitemap, including what happens when
+  a site has more addresses than one sitemap file can hold.
+- `home-screen.md` — adding any app to a phone's home screen: the manifest,
+  the icons cut from the logo, and the `homeScreen` app option.
+- `document-editor.md` — the shell's document editor: what a document may
+  hold, and how an app adds kinds of content with its `clean` prop.
+- `offline-pages.md` — the worker that keeps an app's chosen pages to open
+  read only with no signal, `useOfflinePages` and `useOnline`, and when what
+  it keeps is emptied.
+- `big-uploads.md` — videos up to 5GB sent straight to the bucket in pieces,
+  the progress number, what cancelling leaves behind, and the CORS rule the
+  bucket needs once.
+- `contacts-and-sending.md` — the five contact statuses and who may set each,
+  who a send reaches, the rule that marks somebody as gone quiet, how the
+  contacts list fits its panel, and where segments live now.
+- `three-column-dashboards.md` — the shell's pieces for a three-column
+  dashboard: the layout, the side panel card, the search, Filter, New and mass
+  select, and which screens use them.
+- `folding-menu.md` — the one ⋮ and "+ Add" dropdown every app draws, its
+  pieces, and which screens use it.
+
+## Writing a doc
+
+Shell behaviour goes in `docs/shell/`. Repo behaviour goes here. Anything about
+one app goes in that app's `workspace/docs/`. Add the file's line to the index
+that covers it in the same turn, and write it the way
+`.agents/skills/unslop/SKILL.md` says.

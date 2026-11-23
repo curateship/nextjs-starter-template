@@ -172,6 +172,9 @@ export const adminUpdateActionSchema = z.object({
   id,
   record: adminUpdateRecordSchema,
 })
+export const reportStatuses = ["pending", "resolved", "dismissed"] as const
+export type PomoderReportStatus = (typeof reportStatuses)[number]
+
 export const adminActionSchema = z.discriminatedUnion("type", [
   adminCreateActionSchema,
   adminUpdateActionSchema,
@@ -181,6 +184,12 @@ export const adminActionSchema = z.discriminatedUnion("type", [
     resource: pomoderAdminSectionSchema,
     ids: z.array(id).min(1).max(100),
   }),
+  // Reviewing back to "pending" reopens the report and clears the reviewer.
+  z.object({
+    type: z.literal("review_report"),
+    id,
+    decision: z.enum(reportStatuses),
+  }),
 ])
 
 export const adminLoadSchema = z.object({
@@ -189,6 +198,7 @@ export const adminLoadSchema = z.object({
   pageSize: z.number().int().min(10).max(100).default(25),
   sortColumn: z.number().int().min(0).max(10).default(0),
   sortDirection: z.enum(["asc", "desc"]).default("asc"),
+  reportStatus: z.enum(["all", ...reportStatuses]).default("all"),
 })
 
 export type PomoderAdminCreateRecord = z.infer<typeof adminCreateRecordSchema>

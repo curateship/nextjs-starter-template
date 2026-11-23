@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  AlertCircleIcon,
   ImageIcon,
   Loader2Icon,
   MusicIcon,
@@ -15,6 +14,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -216,7 +216,10 @@ export function ReplaceMediaDialog({
                     setMediaType(value as "video" | "image")
                   }
                 >
-                  <SelectTrigger aria-label="Media type" className="w-auto">
+                  <SelectTrigger
+                    aria-label="Media type"
+                    className="w-full sm:w-fit"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -283,6 +286,11 @@ export function ReplaceMediaDialog({
               </Tooltip>
             </div>
           </div>
+          <DialogDescription>
+            {isAudioSlot
+              ? "Swap this audio slot for another track — it keeps its position and length."
+              : "Swap this clip for another video or image — it keeps its position and length."}
+          </DialogDescription>
           <input
             ref={fileInputRef}
             type="file"
@@ -300,13 +308,9 @@ export function ReplaceMediaDialog({
         <DialogBody className="pt-0">
           <div className="space-y-4">
             {error ? (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              >
-                <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
             ) : null}
 
             {items === null ? (

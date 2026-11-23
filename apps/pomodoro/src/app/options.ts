@@ -1,0 +1,380 @@
+import {
+  AtSignIcon,
+  AwardIcon,
+  CalendarClockIcon,
+  CalendarXIcon,
+  CircleCheckIcon,
+  ClockIcon,
+  CrownIcon,
+  DoorClosedIcon,
+  DoorOpenIcon,
+  EyeIcon,
+  EyeOffIcon,
+  FlagIcon,
+  FlameIcon,
+  FolderIcon,
+  FolderXIcon,
+  GaugeIcon,
+  HardDriveIcon,
+  HeartIcon,
+  MessageSquareIcon,
+  PartyPopperIcon,
+  SettingsIcon,
+  Share2Icon,
+  ShieldCheckIcon,
+  SmilePlusIcon,
+  TargetIcon,
+  TriangleAlertIcon,
+  TrophyIcon,
+  UserMinusIcon,
+  UserPlusIcon,
+  UsersIcon,
+} from "lucide-react"
+
+import * as React from "react"
+
+import { defineCatchAllPage, type AppNoticeDetail, type AppOptions } from "@/lib/app-options"
+import { loadWrittenPageForPomoder, type WrittenPageData } from "@/lib/pomodoro/written-page"
+import { POMODORO_SETTINGS_TABS } from "@/lib/pomodoro/app-settings"
+import { pomodoroLandingPage } from "@/components/pomodoro/landing-page"
+import {
+  POMODORO_ROW_HINTS,
+  POMODORO_ROW_KEYS,
+  POMODORO_ROW_LABELS,
+} from "@/lib/pomodoro/front-page-rows"
+import {
+  NOTICE_KIND_CATEGORY,
+  noticeKindFromWords,
+  POMODORO_NOTICE_CATEGORIES,
+  type PomodoroNoticeKind,
+} from "@/lib/pomodoro/notices"
+
+/**
+ * The written page's frame, loaded when such a page is first opened. Through
+ * `import.meta.glob` for the same reason as `settingsTab` below: the
+ * background worker's build must not follow it into the product shell.
+ */
+const WrittenPage = React.lazy(() =>
+  import.meta.glob<{ default: React.ComponentType<{ data: WrittenPageData }> }>(
+    "/src/components/pomodoro/written-page-frame.tsx"
+  )["/src/components/pomodoro/written-page-frame.tsx"]()
+)
+
+/** Which panel edits each of this app's row kinds, and which component draws it. */
+const ROW_PANELS = {
+  "focus-hours": "FocusHoursRowPanel",
+  "open-rooms": "OpenRoomsRowPanel",
+} as const
+
+const ROW_CONTENT = {
+  "focus-hours": "FocusHoursRowContent",
+  "open-rooms": "OpenRoomsRowContent",
+} as const
+
+/**
+ * How each of this app's notices is drawn in the bell: its tab and its tile.
+ *
+ * The tiles use the theme's own colours, so they are the Pomoder orange on a
+ * product screen and the workspace's colours in the admin's bell: primary for
+ * good news, destructive for a file that will not arrive, muted for news that
+ * is neither.
+ */
+const GOOD = "bg-primary/10 text-primary"
+const BAD = "bg-destructive/10 text-destructive"
+const PLAIN = "bg-muted text-muted-foreground"
+
+const NOTICE_LOOK: Record<PomodoroNoticeKind, AppNoticeDetail> = {
+  // The detail holds the first joiner's name for folding, and the heading
+  // already says it, so the line under the heading is left empty.
+  room_join: { icon: UserPlusIcon, toneClassName: GOOD, body: "" },
+  // The same: the detail holds the first leaver's name for folding.
+  room_leave: { icon: UserMinusIcon, toneClassName: PLAIN, body: "" },
+  room_chat: { icon: MessageSquareIcon, toneClassName: GOOD },
+  room_mention: { icon: AtSignIcon, toneClassName: GOOD },
+  room_reaction: { icon: SmilePlusIcon, toneClassName: GOOD },
+  room_invite: { icon: CalendarClockIcon, toneClassName: GOOD },
+  room_open: { icon: DoorOpenIcon, toneClassName: GOOD },
+  room_removed: { icon: DoorClosedIcon, toneClassName: PLAIN },
+  followed_room: { icon: UsersIcon, toneClassName: GOOD },
+  cheer: { icon: PartyPopperIcon, toneClassName: GOOD },
+  // The detail holds the first joiner's name for folding, and the heading
+  // already says it, so the line under the heading is left empty.
+  group_join: { icon: UserPlusIcon, toneClassName: GOOD, body: "" },
+  group_removed: { icon: UserMinusIcon, toneClassName: PLAIN },
+  followed_streak: { icon: FlameIcon, toneClassName: GOOD },
+  badge: { icon: AwardIcon, toneClassName: GOOD },
+  media_ready: { icon: CircleCheckIcon, toneClassName: GOOD },
+  media_failed: { icon: TriangleAlertIcon, toneClassName: BAD },
+  credits_low: { icon: GaugeIcon, toneClassName: PLAIN },
+  storage_low: { icon: HardDriveIcon, toneClassName: PLAIN },
+  report_new: { icon: FlagIcon, toneClassName: PLAIN },
+  report_reviewed: { icon: ShieldCheckIcon, toneClassName: PLAIN },
+  profile_hidden: { icon: EyeOffIcon, toneClassName: BAD },
+  streak_reminder: { icon: FlameIcon, toneClassName: GOOD },
+  room_changed: { icon: SettingsIcon, toneClassName: PLAIN },
+  admin_warning: { icon: TriangleAlertIcon, toneClassName: BAD },
+  rooms_suspended: { icon: DoorClosedIcon, toneClassName: BAD },
+  profile_restored: { icon: EyeIcon, toneClassName: GOOD },
+  profile_edited: { icon: SettingsIcon, toneClassName: PLAIN },
+  streak_restored: { icon: FlameIcon, toneClassName: GOOD },
+  group_deleted: { icon: UserMinusIcon, toneClassName: PLAIN },
+  project_changed: { icon: FolderIcon, toneClassName: PLAIN },
+  project_deleted: { icon: FolderXIcon, toneClassName: PLAIN },
+  followed_share: { icon: Share2Icon, toneClassName: GOOD },
+  share_weekly: { icon: HeartIcon, toneClassName: GOOD },
+  share_removed: { icon: EyeOffIcon, toneClassName: BAD },
+  share_waiting: { icon: ShieldCheckIcon, toneClassName: PLAIN },
+  room_not_opening: { icon: CalendarXIcon, toneClassName: PLAIN },
+  // Groups task 01. The detail of a request holds the first asker's name for
+  // folding, the same as a join, so the line under the heading is empty.
+  group_request: { icon: UserPlusIcon, toneClassName: GOOD, body: "" },
+  group_answer: { icon: UsersIcon, toneClassName: PLAIN },
+  group_invite: { icon: UserPlusIcon, toneClassName: GOOD },
+  group_owner: { icon: CrownIcon, toneClassName: GOOD },
+  group_room: { icon: DoorOpenIcon, toneClassName: GOOD },
+  group_winner: { icon: TrophyIcon, toneClassName: GOOD },
+  group_goal: { icon: TargetIcon, toneClassName: GOOD },
+  group_milestone: { icon: PartyPopperIcon, toneClassName: GOOD },
+}
+
+/** A kind's whole look: its tile and the tab it is filed under. */
+function noticeLook(kind: PomodoroNoticeKind): AppNoticeDetail {
+  return { ...NOTICE_LOOK[kind], categoryId: NOTICE_KIND_CATEGORY[kind] }
+}
+
+/** The picture on each kind's card in the shell's Add row window. */
+const ROW_ICONS = {
+  "focus-hours": ClockIcon,
+  "open-rooms": UsersIcon,
+} as const
+
+/**
+ * What this app changes about the shell.
+ *
+ * Open `src/lib/app-options.ts` for the full list of what can go in here and
+ * what each one does. Anything not offered there is a compile error, on
+ * purpose: the shell always knows every way an app can deviate from it.
+ *
+ * This file belongs to the app, not the shell. **In custom-shell itself it
+ * stays empty forever.** The moment the shell puts a value here, every app ever
+ * copied from it conflicts on this file on every future merge — which is the
+ * exact problem the file exists to avoid.
+ *
+ * The product (the member-facing frontend) lives under its own `_pomodoro`
+ * layout route with its own sidebar, header and settings page, like the old
+ * app — it borrows nothing from the shell's signed-in chrome. The one thing
+ * it does claim is the front door: `/` serves the timer itself, guests
+ * included, which is how the old app demoed itself.
+ *
+ * The type is written as an annotation rather than `satisfies` so that an empty
+ * object still reads as the full shape. Both catch a misspelled option.
+ */
+export const appOptions: AppOptions = {
+  /**
+   * The look the shell's own signed-out pages start from.
+   *
+   * Three addresses stay on the shell's public frame rather than the product
+   * shell, because their route files belong to the shell and an app that edits
+   * one has forked it: `/pricing`, `/search` and the missing-page screen. The
+   * sign-in pages get the product's frame through `signIn` below. These three
+   * cannot have the product's sidebar, hero or fonts, but they can at least
+   * share its colour, so buttons and focus rings are the same orange on both
+   * sides of the seam.
+   *
+   * `#ff5a3c` is the old app's accent, the dark palette's `--p-accent` in
+   * `src/components/pomodoro/theme.css`. Only these two fields are set: a
+   * saved value in Settings → Styling replaces whatever is named here, and
+   * everything left out keeps the shell's own look, so an admin is not fighting
+   * this file. The light or dark choice is deliberately not pinned, so a
+   * visitor keeps both.
+   */
+  publicTheme: {
+    brandColor: "#ff5a3c",
+    // The Pomoder tokens round at 0.8rem. The public scale stops at 24.
+    radius: 13,
+  },
+  landing: {
+    page: pomodoroLandingPage,
+  },
+  /**
+   * The sign-in pages in the product's own frame: sidebar, header and scene
+   * around the shell's own card, so a visitor who presses Log in does not land
+   * on a page that looks like a different site. The card, its forms and every
+   * redirect stay the shell's. Loaded on demand: the frame draws the product
+   * shell, which reaches server functions, and this file may not.
+   */
+  signIn: {
+    frame: () => import("@/components/pomodoro/sign-in-frame"),
+  },
+  pages: {
+    /**
+     * A page an admin wrote, drawn in Pomoder's own frame rather than the
+     * public site's. Tyler, 10 Oct 2026: "that page is still wired to the old
+     * layout (it should be wired to the _pomodoro layout". It claims only the
+     * addresses an admin actually wrote, read through the shell's own
+     * `loadWrittenPage`, so who may see a page is decided exactly as before;
+     * anything else answers null and the shell says not-found. The frame is
+     * loaded only when such a page is opened (`import.meta.glob`, as for the
+     * Settings tabs below).
+     */
+    catchAll: defineCatchAllPage<WrittenPageData>({
+      loader: ({ path }) => loadWrittenPageForPomoder(path),
+      head: ({ data }) => ({ meta: data.meta }),
+      Component: WrittenPage,
+    }),
+    /**
+     * The two live figures the front page builder can place: hours focused in
+     * the last seven days, and rooms open right now.
+     *
+     * They are the only thing in this app aimed at somebody who is not a member
+     * yet. A visitor who has never heard of it lands on a timer with no sign
+     * that anybody else uses it, and one true number fixes that.
+     *
+     * Each one is a label, a line saying what it shows, the panel that edits its
+     * floor and the component that draws it. What fills one is the other half
+     * and it is server-side, under the same key in `server-options.ts`, because
+     * both figures are a database read — and one that also decides whether the
+     * row is drawn at all, since a quiet week is left off the page.
+     *
+     * Both pointers are dynamic on purpose. These screens are not in the bundle
+     * of a page with no such row, and this file may not reach an endpoint module
+     * while it is still being read.
+     */
+    frontPageRowKinds: POMODORO_ROW_KEYS.map((key) => ({
+      key,
+      label: POMODORO_ROW_LABELS[key],
+      hint: POMODORO_ROW_HINTS[key],
+      icon: ROW_ICONS[key],
+      panel: () =>
+        import("@/components/pomodoro/front-page-row-panels").then((module) => ({
+          default: module[ROW_PANELS[key]],
+        })),
+      component: () =>
+        import("@/components/pomodoro/public/front-page-rows").then((module) => ({
+          default: module[ROW_CONTENT[key]],
+        })),
+    })),
+  },
+  settings: {
+    /**
+     * Pomoder's own settings, under App settings in the Settings rail. Tyler,
+     * 9 Oct 2026: "This settings page should be here and it has to be auto
+     * save." Each tab loads its own settings and saves every change by itself.
+     */
+    tabs: [
+      {
+        id: POMODORO_SETTINGS_TABS.safety,
+        label: "Emergency switches",
+        panel: () => settingsTab("SafetySettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.media,
+        label: "Backgrounds and sounds",
+        panel: () => settingsTab("MediaSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.seasons,
+        label: "Seasons",
+        panel: () => settingsTab("SeasonsSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.breaks,
+        label: "Breaks",
+        panel: () => settingsTab("BreaksSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.newAccounts,
+        label: "New accounts",
+        panel: () => settingsTab("NewAccountsSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.notionTimer,
+        label: "Notion timer",
+        panel: () => settingsTab("NotionTimerSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.aiGeneration,
+        label: "AI generation",
+        panel: () => settingsTab("AiGenerationSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.rooms,
+        label: "Rooms",
+        panel: () => settingsTab("RoomsSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.chat,
+        label: "Room chat",
+        panel: () => settingsTab("ChatSettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.pixabay,
+        label: "Pixabay",
+        panel: () => settingsTab("PixabaySettingsTab"),
+      },
+      {
+        id: POMODORO_SETTINGS_TABS.madeUpMembers,
+        label: "Made-up members",
+        panel: () => settingsTab("MadeUpMembersSettingsTab"),
+      },
+    ],
+  },
+  notifications: {
+    categories: POMODORO_NOTICE_CATEGORIES,
+    /**
+     * A row's look, from the notice's own words, so it is right on the first
+     * paint. The sentences are this app's (`src/lib/pomodoro/notices.ts`), so
+     * this is the app reading its own handwriting.
+     */
+    describe: (notice) => {
+      const kind = noticeKindFromWords(notice)
+      return kind ? noticeLook(kind) : null
+    },
+    /**
+     * Where each notice leads, which only the server can say: a cheer or a
+     * streak opens that person's public page while it opens for this reader,
+     * and the rest open the page saved with them.
+     *
+     * The saved kind decides the look here, so a notice whose words were not
+     * recognised above still lands under the right tab. A failed request costs
+     * the links and nothing else; the shell keeps what `describe` drew.
+     */
+    detailsFor: async (notices) => {
+      const mine = notices.filter((notice) => notice.type === "app_activity")
+      if (mine.length === 0) return {}
+      const { loadPomodoroNoticeDetails } = await import(
+        "@/lib/api/pomodoro/notices"
+      )
+      const found = await loadPomodoroNoticeDetails(
+        mine.map((notice) => notice.id)
+      )
+      return Object.fromEntries(
+        Object.entries(found).map(([id, detail]) => [
+          id,
+          { ...noticeLook(detail.kind), href: detail.href ?? undefined },
+        ])
+      )
+    },
+  },
+}
+
+type SettingsTabs = typeof import("@/components/pomodoro/admin-settings-tabs")
+
+/**
+ * A pointer to one of Pomoder's Settings tabs, never the component: this file
+ * is read on the server, and the tab's module builds server functions as it
+ * loads. See `AppSettingsTab` in `src/lib/settings-tab.ts`.
+ *
+ * Loaded through `import.meta.glob` rather than `import()`, called only when
+ * a tab opens. Vite splits it into its own chunk the same either way, but the
+ * background worker's esbuild build follows a plain `import()` into the tabs,
+ * on through the shell's layout to the image cropper, whose stylesheet Node
+ * cannot load: the worker died on boot on 10 Oct 2026. esbuild leaves
+ * `import.meta.glob` alone, and the worker never opens a Settings tab.
+ */
+function settingsTab(name: keyof SettingsTabs) {
+  const tabs = import.meta.glob<SettingsTabs>("/src/components/pomodoro/admin-settings-tabs.tsx")
+  return tabs["/src/components/pomodoro/admin-settings-tabs.tsx"]().then((module) => ({
+    default: module[name],
+  }))
+}

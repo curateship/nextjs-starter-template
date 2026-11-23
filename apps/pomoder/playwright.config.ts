@@ -12,5 +12,13 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 1100 } } },
     { name: "mobile", use: { ...devices["iPhone 13"] } },
   ],
-  webServer: { command: "npm run start", url: `${baseURL}/api/health/live`, reuseExistingServer: !process.env.CI, timeout: 30_000 },
+  webServer: {
+    command: "npm run start",
+    url: `${baseURL}/api/health/live`,
+    reuseExistingServer: !process.env.CI,
+    timeout: 30_000,
+    // The built server only trusts configured origins, so authenticated
+    // spec flows need the local origins allowed explicitly.
+    env: { ...process.env, POMODER_ALLOWED_ORIGINS: `${baseURL},http://localhost:${localAppPorts.pomoder}` },
+  },
 })

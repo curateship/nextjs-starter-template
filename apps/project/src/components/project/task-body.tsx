@@ -1,0 +1,1458 @@
+import * as React from "react"
+import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
+import { BellIcon, BellRingIcon, CheckIcon, ClipboardCheckIcon, HeartIcon, UndoIcon } from "lucide-react"
+
+import { ChatThread } from "@/components/project/task-chat"
+import { CommentsBox } from "@/components/project/notes/note-block-drawings"
+import type { NoteComments } from "@/components/project/notes/note-setup"
+import { TaskFilesCard } from "@/components/project/task-files-card"
+import { LiveTaskNotes, NoteVersionsList, type NotesHandle } from "@/components/project/task-notes"
+import { AskTimeCard, MoveTaskCard, ReminderCard, TaskMoreMenu } from "@/components/project/task-more-menu"
+import { setReminder } from "@/lib/api/project/planning"
+import { saveTaskMilestone } from "@/lib/api/project/projects"
+import { PickDayRow, PickGroup, PickMenuRow, PickRow } from "@/components/project/pick-rows"
+import { DueDayPicker } from "@/components/project/due-day-picker"
+import { TaskPlanCard } from "@/components/project/task-plan-card"
+import { TaskLinkButton, TaskLinkField } from "@/components/project/task-link"
+import { TaskFooter } from "@/components/project/task-footer"
+import {
+  DayOffNote,
+  DueMovesMark,
+  PersonAvatar,
+  PickedDaysBadge,
+  ReviewBadge,
+  RoomNote,
+  StatusBadge,
+  StatusDot,
+  WaitingBadge,
+} from "@/components/project/task-bits"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PanelNotice } from "@/components/project/panel-notice"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ErrorRow } from "@/components/ui/error-row"
+import { FieldLabel } from "@/components/ui/field-label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import {
+  acceptProjectTask,
+  answerMoreTaskTime,
+  assignProjectTask,
+  deleteProjectTask,
+  followProjectTask,
+  handBackProjectTask,
+  loadTask,
+  reviewProjectTask,
+  saveTask,
+  setStatus,
+  setTaskNeedsReview,
+  thankForProjectTask,
+  type TaskCard,
+  type TaskDetail,
+} from "@/lib/api/project/tasks"
+import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useSyncedDraft } from "@/lib/hooks/use-synced-draft"
+import type { NoteNode } from "@/lib/project/note-blocks"
+import { plural } from "@/lib/format/plural"
+import { localTimeOf, momentOnDay } from "@/lib/project/dates"
+import { clockLabel, dayLabel, shortDayLabel } from "@/lib/project/days"
+import { setProjectTaskLink } from "@/lib/api/project/linked-records"
+import { LINKED_APP_INFO } from "@/lib/project/linked-records"
+import { dayOffNote } from "@/lib/project/days-off"
+import { PROJECT_ERRORS, getProjectErrorMessage } from "@/lib/project/errors"
+import {
+  BIN_DAYS,
+  LIMITS,
+  TASK_PRIORITIES,
+  TASK_PRIORITY_LABEL,
+  TASK_STATUSES,
+  TASK_STATUS_LABEL,
+  type TaskPriority,
+  type TaskStatus,
+  isOpenStatus,
+} from "@/lib/project/rules"
+import { readTaskNotes, taskNotesAreEmpty } from "@/lib/project/notes"
+import { useEscapeCancels } from "@/lib/project/use-escape-cancels"
+import { useDaysOff } from "@/lib/project/use-days-off"
+import { usePeopleRoom } from "@/lib/project/use-people-room"
+import { useProjectLive } from "@/lib/project/use-project-live"
+import { showErrorToast } from "@/lib/toast/error-toast"
+
+const authenticatedRoute = getRouteApi("/_authenticated")
+const NOBODY = "nobody"
+
+/** The one question before deleting a task, in the window and in the right panel alike. */
+
+/** Nothing to close: the Versions tab stays open after a Bring back. */
+const NOTHING = () => undefined
+
+
+export const DELETE_TASK_QUESTION = "Delete this task?"
+export const DELETE_TASK_DETAIL = `It moves to the project's bin with its chat and files, and can be brought back for ${BIN_DAYS} days.`
+
+/**
+ * What a task shows, split into the pieces the right panel places
+ * (`task-side-panel.tsx`, on the project page, My dashboard and the Team
+ * dashboard): `side` once the task has loaded, and `body`, the whole task in
+ * one column, while it hasn't. Every piece is the same field with the same saving, so the task
+ * behaves the same wherever it opens.
+ */
+export type TaskParts = {
+  title: string
+  badges: React.ReactNode
+  /** The project, who handed it out, and whether it's archived. */
+  description: React.ReactNode
+  body: React.ReactNode
+  /** The pieces of the project page's panel. Null until the task has loaded. */
+  side: TaskSide | null
+  /** The Follow button, once the task has loaded. */
+  follow: React.ReactNode
+  /** Duplicate and Move to project, once the task has loaded and can change. */
+  more: React.ReactNode
+  /** Deletes the task and refreshes the page under it. Null when this person can't. */
+  remove: { busy: boolean; run: () => Promise<boolean> } | null
+}
+
+/**
+ * The project page's task panel: the status in its header, notices, Notes
+ * and Chat down the panel, the files behind the paperclip and the rest
+ * of the fields in the cog's dropdown.
+ */
+export type TaskSide = {
+  /** The title in the panel's header, edited where it is written (Tyler, 20 Oct 2026). */
+  title: React.ReactNode
+  /** The footer pinned to the panel's bottom: the status and Completed. */
+  footer: React.ReactNode
+  /** The button that opens the task's Video or Promo record, or who may open it. */
+  link: React.ReactNode
+  /** A hand-over to accept, a review, the Stuck reason row, and the Move and Remind me cards. */
+  notices: React.ReactNode
+  /**
+   * The notes, the panel's own body under the title, always open to type in
+   * (Misc 4, 28 Oct 2026). The header's ⋮ reaches Delete through `handle`.
+   */
+  notes: {
+    empty: boolean
+    field: (options: { handle: React.Ref<NotesHandle> }) => React.ReactNode
+  }
+  /** The ⋮'s Versions tab: the notes' earlier versions, with Bring back. */
+  versions: React.ReactNode
+  /** The comments' box under the notes while no Comments block shows them; null otherwise. */
+  commentsBelow: React.ReactNode
+  /** Follow task, or Stop following, a row in the ⋮'s General list under Needs review. */
+  followRow: React.ReactNode
+  /**
+   * The cog's Details tab as cards that fold open: Person, Dates, Priority,
+   * the Video or Promo link and the Plan.
+   */
+  settings: React.ReactNode
+  /**
+   * Needs review as a tick box, the first of the ⋮ menu's rows under the
+   * fields (Tyler, 2 Nov 2026: "put need review checkbox here"). Null when
+   * there's nothing to tick or read.
+   */
+  review: React.ReactNode
+    detail: TaskDetail
+  readOnly: boolean
+  /** The ⋮'s Lock the notes row; null when the task can't change. */
+  notesLock: { locked: boolean; toggle: () => void } | null
+  /** Opens the Move to project card at the top of the panel. */
+  move: () => void
+  /** Opens the Ask for more time card at the top of the panel (Seven features, part 2). */
+  askTime: () => void
+}
+
+type Loaded =
+  | { state: "loading" }
+  | { state: "error"; message: string }
+  | { state: "ready"; detail: TaskDetail }
+
+/**
+ * The tasks already opened since the page loaded, so opening one again draws
+ * it at once from the last copy while a fresh copy loads behind it (Tyler,
+ * 26 Oct 2026: "the task panel should not load every time"). Capped so a long
+ * session doesn't keep every task it ever opened.
+ */
+const openedTasks = new Map<string, TaskDetail>()
+const OPENED_TASKS_KEPT = 50
+
+function rememberTask(taskId: string, detail: TaskDetail) {
+  openedTasks.delete(taskId)
+  openedTasks.set(taskId, detail)
+  if (openedTasks.size > OPENED_TASKS_KEPT) {
+    const oldest = openedTasks.keys().next().value
+    if (oldest !== undefined) openedTasks.delete(oldest)
+  }
+}
+
+/**
+ * Loads one task and hands its pieces to `children`. Every field saves on its
+ * own as it is changed. Reasons for Stuck and for handing back are typed in
+ * the task itself, never in a window on top of it.
+ */
+export function TaskView({
+  taskId,
+  onLoaded,
+  children,
+}: {
+  taskId: string
+  /** Once the task has first loaded, which marks its chat read. */
+  onLoaded?: (taskId: string) => void
+  children: (parts: TaskParts) => React.ReactNode
+}) {
+  const router = useRouter()
+  const navigate = useNavigate()
+  const me = authenticatedRoute.useLoaderData().user
+  const [loaded, setLoaded] = React.useState<Loaded>(() => {
+    const kept = openedTasks.get(taskId)
+    return kept ? { state: "ready", detail: kept } : { state: "loading" }
+  })
+  const [reloads, setReloads] = React.useState(0)
+  const onLoadedRef = React.useRef(onLoaded)
+  React.useEffect(() => {
+    onLoadedRef.current = onLoaded
+  }, [onLoaded])
+  const firstLoad = React.useRef(true)
+
+  React.useEffect(() => {
+    let live = true
+    loadTask(taskId).then(
+      (detail) => {
+        rememberTask(taskId, detail)
+        if (!live) return
+        setLoaded({ state: "ready", detail })
+        if (firstLoad.current) {
+          firstLoad.current = false
+          onLoadedRef.current?.(taskId)
+        }
+      },
+      (error: unknown) => {
+        openedTasks.delete(taskId)
+        if (live) setLoaded({ state: "error", message: getProjectErrorMessage(error) })
+      }
+    )
+    return () => {
+      live = false
+    }
+  }, [taskId, reloads])
+
+  /** After a change: this task's copy and the page under it both refresh. */
+  const refresh = React.useCallback(async () => {
+    setReloads((n) => n + 1)
+    await router.invalidate()
+  }, [router])
+
+  // Someone else's message, reaction or change to this task shows as it happens.
+  useProjectLive(
+    loaded.state === "ready" ? loaded.detail.task.projectId : undefined,
+    (change) => change === `task:${taskId}`,
+    () => setReloads((n) => n + 1)
+  )
+
+  if (loaded.state === "ready") {
+    return (
+      <TaskForm detail={loaded.detail} myUserId={me.id} refresh={refresh}>
+        {children}
+      </TaskForm>
+    )
+  }
+  return children({
+    title: "Task",
+    badges: null,
+    description: null,
+    // A task opened for the first time shows nothing for the moment it takes
+    // to arrive, with no spinner (Tyler, 26 Oct 2026).
+    body:
+      loaded.state === "loading" ? null : GONE.has(loaded.message) ? (
+        // Trying again can't bring it back, so this offers the way out instead.
+        <div className="grid justify-items-center gap-3 px-4 py-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            {loaded.message === PROJECT_ERRORS.taskInBin
+              ? loaded.message
+              : "That task is gone or you can't see it."}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              void navigate({
+                to: ".",
+                search: (previous: Record<string, unknown>) => ({ ...previous, task: undefined }),
+              })
+            }
+          >
+            Close
+          </Button>
+        </div>
+      ) : (
+        <ErrorRow message={loaded.message} onRetry={() => setReloads((n) => n + 1)} />
+      ),
+    side: null,
+    follow: null,
+    more: null,
+    remove: null,
+  })
+}
+
+/**
+ * An open ask for more time (Seven features, part 2): who asked, for which
+ * day and why. Whoever answers gets Yes, which moves the date, and No, with
+ * an optional line of why; everyone else reads who will answer.
+ */
+function MoreTimeCard({
+  ask,
+  dueDate,
+  busy,
+  keeping,
+  keepReason,
+  onKeepReason,
+  onYes,
+  onNo,
+  onKeep,
+  onCancelKeep,
+}: {
+  ask: NonNullable<TaskDetail["moreTime"]>
+  dueDate: string | null
+  busy: boolean
+  keeping: boolean
+  keepReason: string
+  onKeepReason: (reason: string) => void
+  onYes: () => void
+  onNo: () => void
+  onKeep: () => Promise<void>
+  onCancelKeep: () => void
+}) {
+  return (
+    <PanelNotice title={<>Asked for {shortDayLabel(ask.day)}</>}>
+        <p className="text-sm break-words">
+          {ask.askedByName} asks to move the due date{dueDate ? ` from ${shortDayLabel(dueDate)}` : ""} to{" "}
+          {shortDayLabel(ask.day)}: {ask.reason}
+        </p>
+        {ask.canAnswer ? (
+          keeping ? (
+            <ReasonRow
+              id="keep-date-reason"
+              label={`Why does it stay ${dueDate ? shortDayLabel(dueDate) : "as it is"}? (optional)`}
+              value={keepReason}
+              onChange={onKeepReason}
+              confirmLabel="Keep the date"
+              busy={busy}
+              optional
+              onConfirm={() => void onKeep()}
+              onCancel={onCancelKeep}
+            />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" disabled={busy} onClick={onYes}>
+                <CheckIcon className="size-4" />
+                Yes, move it
+              </Button>
+              <Button type="button" variant="outline" disabled={busy} onClick={onNo}>
+                No, keep the date
+              </Button>
+            </div>
+          )
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Waiting for {ask.answererName ?? "the site admin"} to answer.
+          </p>
+        )}
+    </PanelNotice>
+  )
+}
+
+/** Answers that no retry can change. */
+const GONE = new Set<string>([PROJECT_ERRORS.taskNotFound, PROJECT_ERRORS.taskInBin])
+
+export type Change = (work: () => Promise<unknown>) => Promise<boolean>
+
+function TaskForm({
+  detail,
+  myUserId,
+  refresh,
+  children,
+}: {
+  detail: TaskDetail
+  myUserId: string
+  refresh: () => Promise<void>
+  children: (parts: TaskParts) => React.ReactNode
+}) {
+  const router = useRouter()
+  const { task } = detail
+  const readOnly = detail.archived
+  const [run, busy] = useAsyncAction(getProjectErrorMessage)
+  const [title, setTitle] = useSyncedDraft(task.title)
+  const [pendingStuck, setPendingStuck] = React.useState(false)
+  const [stuckReason, setStuckReason] = React.useState("")
+  const [handingBack, setHandingBack] = React.useState(false)
+  const [handBackReason, setHandBackReason] = React.useState("")
+  const [moving, setMoving] = React.useState(false)
+  const [reminding, setReminding] = React.useState(false)
+  const [askingTime, setAskingTime] = React.useState(false)
+  const [keepingDate, setKeepingDate] = React.useState(false)
+  const [keepReason, setKeepReason] = React.useState("")
+  // Handing to someone else asks for an optional note before it goes.
+  const [handingTo, setHandingTo] = React.useState<{ id: string; name: string } | null>(null)
+  const [handoverNote, setHandoverNote] = React.useState("")
+  const [sendingBack, setSendingBack] = React.useState(false)
+  const [sendBackReason, setSendBackReason] = React.useState("")
+  const room = usePeopleRoom()
+  // A due date on the person's day off or a team holiday says so (Seven features, part 1).
+  const daysOff = useDaysOff()
+
+  const isMine = task.assignee?.id === myUserId
+  const canHandBack = isMine && Boolean(task.assignedBy) && task.assignedBy?.id !== myUserId
+
+  const change: Change = async (work) => {
+    const ok = await run(work)
+    if (ok) await refresh()
+    return ok
+  }
+
+  function commitTitle() {
+    const next = title.trim()
+    if (next === task.title) return
+    if (!next) {
+      setTitle(task.title)
+      showErrorToast("The task title can't be empty.")
+      return
+    }
+    void change(() => saveTask({ taskId: task.id, title: next }))
+  }
+
+  function pickStatus(status: TaskStatus) {
+    if (status === task.status) return
+    if (status === "stuck") {
+      setPendingStuck(true)
+      return
+    }
+    setPendingStuck(false)
+    void change(() => setStatus({ taskId: task.id, status, stuckReason: null }))
+  }
+
+  async function markStuck() {
+    if (!stuckReason.trim()) {
+      showErrorToast("Say in a line why the task is stuck.")
+      return
+    }
+    const ok = await change(
+      () => setStatus({ taskId: task.id, status: "stuck", stuckReason: stuckReason.trim() })
+    )
+    if (ok) {
+      setPendingStuck(false)
+      setStuckReason("")
+    }
+  }
+
+  async function handBack() {
+    if (!handBackReason.trim()) {
+      showErrorToast("Say in a line why you're handing it back.")
+      return
+    }
+    const ok = await change(
+      () => handBackProjectTask(task.id, handBackReason.trim())
+    )
+    if (ok) {
+      setHandingBack(false)
+      setHandBackReason("")
+    }
+  }
+
+  function pickAssignee(value: string) {
+    if (value === (task.assignee?.id ?? NOBODY)) return
+    const person = detail.assignable.find((p) => p.id === value)
+    if (value !== NOBODY && value !== myUserId && person) {
+      setHandingTo({ id: person.id, name: person.name })
+      return
+    }
+    void change(() => assignProjectTask({ taskId: task.id, assigneeUserId: value === NOBODY ? null : value }))
+  }
+
+  async function handOver() {
+    if (!handingTo) return
+    const ok = await change(
+      () =>
+        assignProjectTask({
+          taskId: task.id,
+          assigneeUserId: handingTo.id,
+          note: handoverNote.trim() || null,
+        })
+    )
+    if (ok) {
+      setHandingTo(null)
+      setHandoverNote("")
+    }
+  }
+
+  async function sendBack() {
+    if (!sendBackReason.trim()) {
+      showErrorToast("Say in a line what still needs doing.")
+      return
+    }
+    const ok = await change(
+      () => reviewProjectTask({ taskId: task.id, action: "send_back", reason: sendBackReason.trim() })
+    )
+    if (ok) {
+      setSendingBack(false)
+      setSendBackReason("")
+    }
+  }
+
+  async function remove() {
+    const ok = await run(() => deleteProjectTask(task.id))
+    if (!ok) return false
+    await router.invalidate()
+    return true
+  }
+
+  // What a task tells whoever opens it, above everything else: a hand-over
+  // to accept, a review, thanks, a reason it is stuck, and the Move and
+  // Remind me cards.
+  const notices = (
+    <>
+      {moving && !readOnly ? <MoveTaskCard detail={detail} onDone={() => setMoving(false)} /> : null}
+      {askingTime && detail.canAskForTime ? (
+        <AskTimeCard detail={detail} change={change} onDone={() => setAskingTime(false)} />
+      ) : null}
+      {detail.moreTime ? (
+        <MoreTimeCard
+          ask={detail.moreTime}
+          dueDate={task.dueDate}
+          busy={busy}
+          keeping={keepingDate}
+          keepReason={keepReason}
+          onKeepReason={setKeepReason}
+          onYes={() =>
+            void change(
+              () => answerMoreTaskTime({ taskId: task.id, answer: "yes" })
+            )
+          }
+          onNo={() => setKeepingDate(true)}
+          onKeep={async () => {
+            const ok = await change(
+              () => answerMoreTaskTime({ taskId: task.id, answer: "no", reason: keepReason.trim() || null })
+            )
+            if (ok) {
+              setKeepingDate(false)
+              setKeepReason("")
+            }
+          }}
+          onCancelKeep={() => {
+            setKeepingDate(false)
+            setKeepReason("")
+          }}
+        />
+      ) : null}
+      {reminding && !readOnly ? (
+        <ReminderCard detail={detail} change={change} onDone={() => setReminding(false)} />
+      ) : null}
+      {task.waiting && isMine && !readOnly ? (
+        <PanelNotice title={<>{task.assignedBy?.name ?? "Someone"} handed you this task</>}>
+            {task.handoverNote ? (
+              <p className="text-sm break-words">
+                <span className="text-muted-foreground">Note: </span>
+                {task.handoverNote}
+              </p>
+            ) : null}
+            <p className="text-sm text-muted-foreground">
+              Accept it to take it on, or hand it back with a reason.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => void change(() => acceptProjectTask(task.id))}
+              >
+                Accept task
+              </Button>
+              <Button type="button" variant="outline" disabled={busy} onClick={() => setHandingBack(true)}>
+                <UndoIcon className="size-4" />
+                Hand back
+              </Button>
+            </div>
+        </PanelNotice>
+      ) : null}
+
+      {handingBack ? (
+        <ReasonRow
+          id="hand-back-reason"
+          label={`Why are you handing it back to ${task.assignedBy?.name ?? "them"}?`}
+          value={handBackReason}
+          onChange={setHandBackReason}
+          confirmLabel="Hand back"
+          busy={busy}
+          onConfirm={() => void handBack()}
+          onCancel={() => {
+            setHandingBack(false)
+            setHandBackReason("")
+          }}
+        />
+      ) : null}
+
+      {task.waiting && !isMine && task.handoverNote ? (
+        <p className="rounded-lg border px-3 py-2 text-sm break-words">
+          Note from {task.assignedBy?.name ?? "whoever handed it out"}: {task.handoverNote}
+        </p>
+      ) : null}
+
+      {task.review.waiting ? (
+        <PanelNotice title="Waiting for review">
+            <p className="text-sm text-muted-foreground">
+              {detail.canReview
+                ? "It's Done and counts as Done. Confirm it, or send it back to Doing with what still needs doing."
+                : `It's Done. ${task.review.reviewer?.name ?? "The reviewer"} checks it before it's confirmed.`}
+            </p>
+            {detail.canReview && !readOnly && !sendingBack ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void change(() => reviewProjectTask({ taskId: task.id, action: "confirm" }))
+                  }
+                >
+                  <ClipboardCheckIcon className="size-4" />
+                  Confirm
+                </Button>
+                <Button type="button" variant="outline" disabled={busy} onClick={() => setSendingBack(true)}>
+                  <UndoIcon className="size-4" />
+                  Send back
+                </Button>
+              </div>
+            ) : null}
+            {sendingBack ? (
+              <ReasonRow
+                id="send-back-reason"
+                label="What still needs doing?"
+                value={sendBackReason}
+                onChange={setSendBackReason}
+                confirmLabel="Send back"
+                busy={busy}
+                onConfirm={() => void sendBack()}
+                onCancel={() => {
+                  setSendingBack(false)
+                  setSendBackReason("")
+                }}
+              />
+            ) : null}
+        </PanelNotice>
+      ) : null}
+
+      {task.status === "done" && task.assignee && task.assignee.id !== myUserId ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+          <span>
+            {detail.thanked
+              ? `You thanked ${task.assignee.name}.`
+              : `${task.assignee.name} finished this.`}
+          </span>
+          {detail.thanked ? null : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                void change(() => thankForProjectTask(task.id))
+              }
+            >
+              <HeartIcon className="size-4" />
+              Thanks
+            </Button>
+          )}
+        </div>
+      ) : null}
+
+      {task.handedBack ? (
+        <p className="rounded-lg border px-3 py-2 text-sm">
+          <UndoIcon className="mr-1 inline size-4 align-text-bottom" aria-hidden />
+          {task.handedBack.byName} handed this back: {task.handedBack.reason}
+        </p>
+      ) : null}
+      {task.status === "stuck" && task.stuckReason ? (
+        <p className="rounded-lg border border-destructive/40 px-3 py-2 text-sm text-destructive">
+          Stuck: {task.stuckReason}
+        </p>
+      ) : null}
+    </>
+  )
+
+  const titleField = (
+    <div className="grid gap-2">
+      <Label htmlFor="task-title">Title</Label>
+      <Input
+        id="task-title"
+        value={title}
+        maxLength={LIMITS.taskTitle}
+        disabled={readOnly}
+        onChange={(event) => setTitle(event.target.value)}
+        onBlur={commitTitle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur()
+        }}
+      />
+    </div>
+  )
+
+  const statusField = (
+    <div className="grid gap-2">
+      <Label htmlFor="task-status">Status</Label>
+      <Select
+        value={pendingStuck ? "stuck" : task.status}
+        onValueChange={(value) => pickStatus(value as TaskStatus)}
+        disabled={readOnly || busy}
+      >
+        <SelectTrigger id="task-status" className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {TASK_STATUSES.map((status) => (
+            <SelectItem key={status} value={status}>
+              {TASK_STATUS_LABEL[status]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+
+  // The panel puts the status in its footer, a small pill with the status's
+  // own dot, the same as the Board's column headings.
+  const statusPill = (
+    <Select
+      value={pendingStuck ? "stuck" : task.status}
+      onValueChange={(value) => pickStatus(value as TaskStatus)}
+      disabled={readOnly || busy}
+    >
+      {/* No border or background, as it had in the header (Tyler, 14 Oct 2026). */}
+      <SelectTrigger
+        aria-label="Status"
+        className="w-fit border-transparent bg-transparent shadow-none hover:bg-muted dark:bg-transparent dark:hover:bg-muted/50"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {TASK_STATUSES.map((status) => (
+          <SelectItem key={status} value={status}>
+            <StatusDot status={status} />
+            {TASK_STATUS_LABEL[status]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+
+  const assigneeField = (
+    <div className="grid gap-2">
+      <Label htmlFor="task-assignee">Assigned to</Label>
+      <Select
+        value={handingTo?.id ?? task.assignee?.id ?? NOBODY}
+        onValueChange={pickAssignee}
+        disabled={readOnly || busy}
+      >
+        <SelectTrigger id="task-assignee" className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NOBODY}>Nobody</SelectItem>
+          {detail.assignable.map((person) => (
+            <SelectItem key={person.id} value={person.id}>
+              <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} />
+              {person.id === myUserId ? `${person.name} (you)` : person.name}
+              {person.title ? (
+                <span className="text-muted-foreground"> · {person.title}</span>
+              ) : null}
+              <RoomNote room={room[person.id]} />
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {!task.assignee && task.formerAssigneeName ? (
+        <p className="text-xs text-muted-foreground">
+          Was assigned to {task.formerAssigneeName}, who is no longer on the project.
+        </p>
+      ) : null}
+    </div>
+  )
+
+  const handoverRow = handingTo ? (
+    <>
+      <DayOffNote note={dayOffNote(daysOff, task.dueDate, handingTo)} />
+      <ReasonRow
+        id="handover-note"
+        label={`Note for ${handingTo.name} (optional)`}
+        value={handoverNote}
+        onChange={setHandoverNote}
+        confirmLabel="Hand over"
+        busy={busy}
+        optional
+        maxLength={LIMITS.handoverNote}
+        placeholder="Client wants it by Thursday"
+        onConfirm={() => void handOver()}
+        onCancel={() => {
+          setHandingTo(null)
+          setHandoverNote("")
+        }}
+      />
+    </>
+  ) : null
+
+  const stuckRow = pendingStuck ? (
+    <ReasonRow
+      id="stuck-reason"
+      label="Why is it stuck?"
+      value={stuckReason}
+      onChange={setStuckReason}
+      confirmLabel="Mark Stuck"
+      busy={busy}
+      onConfirm={() => void markStuck()}
+      onCancel={() => {
+        setPendingStuck(false)
+        setStuckReason("")
+      }}
+    />
+  ) : null
+
+  const startField = (
+    <div className="grid content-start gap-2">
+      <Label htmlFor="task-start">Start day</Label>
+      <DueDayPicker
+        id="task-start"
+        value={task.startDate}
+        placeholder="No start day"
+        disabled={readOnly || busy}
+        clearLabel="Clear the start day"
+        onChange={(startDate) => {
+          if (startDate !== task.startDate) void change(() => saveTask({ taskId: task.id, startDate }))
+        }}
+      />
+    </div>
+  )
+
+  const dueField = (
+    <div className="grid content-start gap-2">
+      <Label htmlFor="task-due">Due date</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <DueDayPicker
+          id="task-due"
+          value={task.dueDate}
+          placeholder="No due date"
+          disabled={readOnly || busy}
+          clearLabel="Clear the due date"
+          onChange={(dueDate) => {
+            if (dueDate !== task.dueDate) void change(() => saveTask({ taskId: task.id, dueDate }))
+          }}
+        />
+        <DueMovesMark moves={task.dueMoves} status={task.status} />
+      </div>
+      {!isOpenStatus(task.status) ? null : <DayOffNote note={dayOffNote(daysOff, task.dueDate, task.assignee)} />}
+    </div>
+  )
+
+  const dueByField = task.dueDate ? (
+    <DueByField
+      task={task}
+      disabled={readOnly || busy}
+      onSave={(dueAt) => void change(() => saveTask({ taskId: task.id, dueAt }))}
+    />
+  ) : null
+
+  const priorityField = (
+    <div className="grid content-start gap-2">
+      <Label htmlFor="task-priority">Priority</Label>
+      <Select
+        value={task.priority}
+        onValueChange={(value) =>
+          void change(() => saveTask({ taskId: task.id, priority: value as TaskPriority }))
+        }
+        disabled={readOnly || busy}
+      >
+        <SelectTrigger id="task-priority" className="w-full sm:w-fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {TASK_PRIORITIES.map((priority) => (
+            <SelectItem key={priority} value={priority}>
+              {TASK_PRIORITY_LABEL[priority]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+
+  const datesAndPriority = (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {startField}
+      {dueField}
+      {dueByField}
+      {priorityField}
+    </div>
+  )
+
+  const reviewField = detail.canAskForReview ? (
+    <div className="flex items-center justify-between gap-4">
+      <FieldLabel
+        htmlFor="task-needs-review"
+        hint="When it's marked Done, you get a notice and check it. It still counts as Done meanwhile."
+      >
+        Needs review
+      </FieldLabel>
+      <Switch
+        id="task-needs-review"
+        checked={task.review.needed}
+        disabled={readOnly || busy}
+        onCheckedChange={(on) =>
+          void change(
+            () => setTaskNeedsReview(task.id, on)
+          )
+        }
+      />
+    </div>
+  ) : task.review.needed && task.review.reviewer ? (
+    <p className="text-sm text-muted-foreground">
+      Needs review: {task.review.reviewer.name} checks it once it's Done.
+    </p>
+  ) : null
+
+  const saveNotes = (notes: NoteNode, notesSession: string) =>
+    change(() => saveTask({ taskId: task.id, notes, notesSession }))
+  // Locked notes read only, for everyone, until they're unlocked from the ⋮ (Tyler, 5 Nov 2026:
+  // "add lock page for task too"). Locking or unlocking draws them again from what was saved.
+  const notesReadOnly = readOnly || task.notesLocked
+  const notesKey = `${task.id}:${task.notesLocked}`
+  // The comments are a "/" block in the notes (Tyler, 6 Nov 2026: "Make comments a block"). A
+  // drawn block says so through `placed`; with none showing, they show under the notes instead,
+  // once there are any (or the notes aren't there to place a block in).
+  const [commentBlocks, setCommentBlocks] = React.useState(0)
+  const placeComments = React.useCallback(() => {
+    setCommentBlocks((count) => count + 1)
+    return () => setCommentBlocks((count) => count - 1)
+  }, [])
+  // A deleted message isn't one to count, so a chat holding only those is still empty.
+  const commentCount = detail.comments.filter((message) => !message.deleted).length
+  const comments: NoteComments = {
+    count: commentCount,
+    placed: placeComments,
+    thread: (
+      <ChatThread
+        chat={{ taskId: task.id }}
+        messages={detail.comments}
+        people={detail.assignable}
+        myUserId={myUserId}
+        readOnly={readOnly}
+        change={change}
+        room={room}
+        fileRoom={LIMITS.filesPerTask - detail.files.length}
+        emptyText={`No comments yet.${readOnly ? "" : " Type @ to ask someone on the project about this task."}`}
+        listClassName="max-h-96"
+      />
+    ),
+  }
+  // Not while a saved block is on its way to being drawn, so the box doesn't flash under the notes.
+  const blockSaved = task.notes.includes('"noteComments"')
+  // Locked notes take no new block, so there the box to write in shows under them from the start.
+  const commentsBelow =
+    commentBlocks === 0 && !blockSaved && (commentCount > 0 || (notesReadOnly && !readOnly)) ? (
+      <CommentsBox taskId={task.id} count={commentCount}>{comments.thread}</CommentsBox>
+    ) : null
+  const noteLinks = { id: task.id, links: detail.noteLinks, change, files: detail.files, link: detail.link, refresh, comments }
+
+  const handBackButton =
+    canHandBack && !task.waiting && !handingBack && !readOnly ? (
+      <div>
+        <Button type="button" variant="outline" onClick={() => setHandingBack(true)}>
+          <UndoIcon className="size-4" />
+          Hand back to {task.assignedBy?.name}
+        </Button>
+      </div>
+    ) : null
+
+  const linkButton = <TaskLinkButton taskId={detail.task.id} link={detail.link} />
+  const linkField = detail.canSetLink ? (
+    <TaskLinkField
+      detail={detail}
+      onSave={(address) =>
+        change(
+          () => setProjectTaskLink(task.id, address)
+        )
+      }
+    />
+  ) : null
+  const planCard = <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} />
+  const menuPlanCard = <TaskPlanCard detail={detail} readOnly={readOnly} busy={busy} change={change} withMilestone={false} />
+
+  const body = (
+    <>
+      {notices}
+      {linkButton}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Task</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {titleField}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {statusField}
+            {assigneeField}
+          </div>
+          {handoverRow}
+          {stuckRow}
+          {datesAndPriority}
+          {reviewField}
+          {linkField}
+          <LiveTaskNotes key={notesKey} notes={task.notes} readOnly={notesReadOnly} onSave={saveNotes} task={noteLinks} />
+          {handBackButton}
+        </CardContent>
+      </Card>
+
+      {planCard}
+      <TaskFilesCard detail={detail} readOnly={readOnly} refresh={refresh} change={change} />
+      {commentsBelow}
+    </>
+  )
+
+  const side: TaskSide = {
+    // In the header where the status was (Tyler, 20 Oct 2026), edited in place.
+    // Enter saves rather than starting a new line, as the Title field did. A
+    // long title wraps and the header grows with it.
+    title: readOnly ? (
+      <h2 className="text-sm font-semibold break-words">{task.title}</h2>
+    ) : (
+      <Textarea
+        aria-label="Task title"
+        rows={1}
+        value={title}
+        maxLength={LIMITS.taskTitle}
+        onChange={(event) => setTitle(event.target.value.replace(/\n/g, " "))}
+        onBlur={commitTitle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            event.currentTarget.blur()
+          }
+        }}
+        className="min-h-8 resize-none border-transparent px-2 py-1 text-sm font-semibold shadow-none hover:border-input dark:bg-transparent"
+      />
+    ),
+    footer: <TaskFooter detail={detail} status={statusPill} change={change} busy={busy} readOnly={readOnly} />,
+    link: linkButton,
+    notices: (
+      <>
+        {stuckRow}
+        {notices}
+      </>
+    ),
+    notes: {
+      empty: taskNotesAreEmpty(readTaskNotes(task.notes)),
+      field: ({ handle }) => (
+        <LiveTaskNotes
+          key={notesKey}
+          notes={task.notes}
+          readOnly={notesReadOnly}
+          onSave={saveNotes}
+          task={noteLinks}
+          panel
+          handle={handle}
+        />
+      ),
+    },
+    versions: <NoteVersionsList taskId={task.id} readOnly={notesReadOnly} change={change} onClose={NOTHING} bare />,
+    commentsBelow,
+    // Each group a card that folds open, with its answer on the right (Tyler, 14 Oct 2026).
+    review: detail.canAskForReview ? (
+      <div className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 hover:bg-muted [&_label]:font-normal">
+        <Checkbox
+          id="task-needs-review"
+          checked={task.review.needed}
+          disabled={readOnly || busy}
+          onCheckedChange={(on) =>
+            void change(() => setTaskNeedsReview(task.id, on === true))
+          }
+        />
+        <FieldLabel
+          htmlFor="task-needs-review"
+          className="flex-1"
+          hint="When it's marked Done, you get a notice and check it. It still counts as Done meanwhile."
+        >
+          Needs review
+        </FieldLabel>
+      </div>
+    ) : task.review.needed && task.review.reviewer ? (
+      <p className="px-2.5 py-1.5 text-sm text-muted-foreground">
+        Needs review: {task.review.reviewer.name} checks it once it's Done.
+      </p>
+    ) : null,
+    // Grouped lists, as Tyler drew the ⋮'s General tab (6 Nov 2026,
+    // `assets/pasted-image-1793985847218883000.png`): each row its name and value,
+    // opening its own field. Plan, not in the drawing, is the last row of Details.
+    settings: (
+      <div className="grid gap-5">
+        {/* One press picks (Tyler, 6 Nov 2026: "It doesnt need 2 steps to select"): a
+            list or a calendar opens straight from the row. Only a typed address and the
+            Plan card open a box. */}
+        <PickGroup
+          title="Person"
+          after={
+            <>
+              {handoverRow}
+              {handBackButton}
+              {!task.assignee && task.formerAssigneeName ? (
+                <p className="px-0.5 text-xs text-muted-foreground">
+                  Was assigned to {task.formerAssigneeName}, who is no longer on the project.
+                </p>
+              ) : null}
+            </>
+          }
+        >
+          <PickMenuRow
+            label="Assigned to"
+            disabled={readOnly || busy}
+            empty={!task.assignee}
+            selected={handingTo?.id ?? task.assignee?.id ?? NOBODY}
+            onPick={pickAssignee}
+            options={[
+              { value: NOBODY, label: "Nobody" },
+              ...detail.assignable.map((person) => ({
+                value: person.id,
+                label: (
+                  <>
+                    <PersonAvatar name={person.name} avatarUrl={person.avatarUrl} size="sm" />
+                    {person.id === myUserId ? `${person.name} (you)` : person.name}
+                  </>
+                ),
+              })),
+            ]}
+            value={
+              task.assignee ? (
+                <>
+                  <PersonAvatar name={task.assignee.name} avatarUrl={task.assignee.avatarUrl} size="sm" />
+                  <span className="truncate">
+                    {task.assignee.name}
+                    {task.assignee.id === myUserId ? " (you)" : ""}
+                    {task.waiting ? " · waiting" : ""}
+                  </span>
+                </>
+              ) : (
+                "Nobody"
+              )
+            }
+          />
+        </PickGroup>
+        <PickGroup
+          title="Dates"
+          after={
+            <>
+              {task.dueMoves ? (
+                <div className="px-0.5">
+                  <DueMovesMark moves={task.dueMoves} status={task.status} />
+                </div>
+              ) : null}
+              {!isOpenStatus(task.status) ? null : <DayOffNote note={dayOffNote(daysOff, task.dueDate, task.assignee)} />}
+            </>
+          }
+        >
+          <PickDayRow
+            label="Start day"
+            disabled={readOnly || busy}
+            empty={!task.startDate}
+            value={task.startDate ? dayLabel(task.startDate) : "None"}
+            day={task.startDate}
+            clearLabel="Clear the start day"
+            onPick={(startDate) => void change(() => saveTask({ taskId: task.id, startDate }))}
+          />
+          <PickDayRow
+            label="Due date"
+            disabled={readOnly || busy}
+            empty={!task.dueDate}
+            value={task.dueDate ? dayLabel(task.dueDate) : "None"}
+            day={task.dueDate}
+            clearLabel="Clear the due date"
+            onPick={(dueDate) => void change(() => saveTask({ taskId: task.id, dueDate }))}
+          />
+          {/* A time on the due day, typed, so it keeps a box of its own. */}
+          {task.dueDate ? (
+            <PickRow
+              label="Due by"
+              disabled={readOnly || busy}
+              empty={!task.dueAt}
+              value={task.dueAt ? clockLabel(localTimeOf(task.dueAt)) : "None"}
+            >
+              {dueByField}
+            </PickRow>
+          ) : null}
+          {/* Under the dates (Tyler, 6 Nov 2026: "put reminds me under here"); it was a tab. */}
+          {readOnly ? null : (
+            <PickDayRow
+              label="Remind me"
+              disabled={busy}
+              empty={!detail.myReminder}
+              value={detail.myReminder ? dayLabel(detail.myReminder) : "None"}
+              day={detail.myReminder}
+              clearLabel="No reminder"
+              onPick={(day) =>
+                void change(
+                  () => setReminder(task.id, day)
+                )
+              }
+            />
+          )}
+        </PickGroup>
+        <PickGroup title="Details">
+          <PickMenuRow
+            label="Priority"
+            disabled={readOnly || busy}
+            value={TASK_PRIORITY_LABEL[task.priority]}
+            selected={task.priority}
+            onPick={(value) => void change(() => saveTask({ taskId: task.id, priority: value as TaskPriority }))}
+            options={TASK_PRIORITIES.map((priority) => ({ value: priority, label: TASK_PRIORITY_LABEL[priority] }))}
+          />
+          {linkField ? (
+            <PickRow label="Video or Promo" empty={!detail.link} value={detail.link ? LINKED_APP_INFO[detail.link.app].record : "None"}>
+              {linkField}
+            </PickRow>
+          ) : null}
+          {/* The milestone it counts toward, a row of its own so the link shows at a glance
+              (Tyler, 16 Nov 2026: "theres no connections in tasks from milestone"). It was a
+              field inside Plan. Shown once the project has milestones. */}
+          {detail.milestones.length ? (
+            <PickMenuRow
+              label="Milestone"
+              disabled={readOnly || busy}
+              empty={!detail.milestoneId}
+              value={detail.milestones.find((one) => one.id === detail.milestoneId)?.name ?? "None"}
+              selected={detail.milestoneId ?? NO_MILESTONE}
+              onPick={(value) => void change(() => saveTaskMilestone(task.id, value === NO_MILESTONE ? null : value))}
+              options={[
+                { value: NO_MILESTONE, label: "No milestone" },
+                ...detail.milestones.map((milestone) => ({
+                  value: milestone.id,
+                  label: milestone.dueDate ? `${milestone.name} · ${dayLabel(milestone.dueDate)}` : milestone.name,
+                })),
+              ]}
+            />
+          ) : null}
+          <PickRow label="Plan" empty={planSummary(detail) === "Nothing set"} value={planSummary(detail)}>
+            <div className={INNER_CARD}>{menuPlanCard}</div>
+          </PickRow>
+        </PickGroup>
+      </div>
+    ),
+    // A row in the ⋮'s General list, between Needs review and Lock the notes
+    // (Tyler, 11 Nov 2026: "Move follow task here"); it was a bell beside the ⋮
+    // from 6 Nov 2026. The bell rings while the task is followed.
+    followRow: (
+      <Button
+        type="button"
+        variant="ghost"
+        className="w-full justify-start font-normal"
+        aria-pressed={detail.following}
+        disabled={busy}
+        onClick={() =>
+          void change(
+            () => followProjectTask(task.id, !detail.following)
+          )
+        }
+      >
+        {detail.following ? <BellRingIcon className="size-4" /> : <BellIcon className="size-4" />}
+        {detail.following ? "Stop following" : "Follow task"}
+      </Button>
+    ),
+    detail,
+    readOnly,
+    notesLock: readOnly
+      ? null
+      : {
+          locked: task.notesLocked,
+          toggle: () =>
+            void change(
+              () => saveTask({ taskId: task.id, notesLocked: !task.notesLocked })
+            ),
+        },
+    move: () => setMoving(true),
+    askTime: () => setAskingTime(true),
+  }
+
+  return children({
+    title: task.title,
+    badges: (
+      <>
+        <StatusBadge status={task.status} />
+        {task.waiting ? <WaitingBadge /> : null}
+        <ReviewBadge review={task.review} />
+        <PickedDaysBadge pickedDays={task.pickedDays} status={task.status} />
+      </>
+    ),
+    description: (
+      <>
+        {task.projectName}
+        {task.assignedBy ? ` · Handed out by ${task.assignedBy.name}` : ""}
+        {readOnly ? " · The project is archived, so this task can't change." : ""}
+      </>
+    ),
+    body,
+    side,
+    follow: (
+      <Button
+        type="button"
+        variant="outline"
+        aria-pressed={detail.following}
+        disabled={busy}
+        onClick={() =>
+          void change(
+            () => followProjectTask(task.id, !detail.following)
+          )
+        }
+      >
+        {detail.following ? <CheckIcon className="size-4" /> : <BellIcon className="size-4" />}
+        {detail.following ? "Following" : "Follow"}
+      </Button>
+    ),
+    more: readOnly ? null : (
+      <TaskMoreMenu
+        detail={detail}
+        onMove={() => setMoving(true)}
+        onRemind={() => setReminding(true)}
+        onAskTime={() => setAskingTime(true)}
+      />
+    ),
+    remove: detail.canDelete && !readOnly ? { busy, run: remove } : null,
+  })
+}
+
+/** A card's own frame and heading, dropped inside a row's box that already names it. */
+const INNER_CARD =
+  "[&_[data-slot=card]]:rounded-none [&_[data-slot=card]]:bg-transparent [&_[data-slot=card]]:py-0 [&_[data-slot=card]]:ring-0 [&_[data-slot=card-content]]:!px-0 [&_[data-slot=card-header]]:hidden"
+
+/** What the Plan holds, in a few words, or "Nothing set". */
+/** What the Plan row reads; the milestone has its own row. */
+/** The Milestone row's "No milestone". */
+const NO_MILESTONE = "none"
+
+function planSummary(detail: TaskDetail) {
+  const parts = [
+    detail.task.repeat ? "Repeats" : null,
+    detail.task.snoozedUntil ? `Snoozed to ${dayLabel(detail.task.snoozedUntil)}` : null,
+    detail.waitingOn.length ? `Waits on ${detail.waitingOn.length} ${plural(detail.waitingOn.length, "task")}` : null,
+    detail.myReminder ? "Reminder set" : null,
+  ].filter(Boolean)
+  return parts.length ? parts.join(" · ") : "Nothing set"
+}
+
+/**
+ * One line typed in the task itself, never in a window over it: a reason, or
+ * with `optional` a hand-over's note that may stay empty.
+ */
+function ReasonRow({
+  id,
+  label,
+  value,
+  onChange,
+  confirmLabel,
+  busy,
+  onConfirm,
+  onCancel,
+  optional = false,
+  maxLength = LIMITS.reason,
+  placeholder,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  confirmLabel: string
+  busy: boolean
+  onConfirm: () => void
+  onCancel: () => void
+  optional?: boolean
+  maxLength?: number
+  placeholder?: string
+}) {
+  const frame = React.useRef<HTMLDivElement>(null)
+  useEscapeCancels(frame, onCancel)
+  return (
+    <div ref={frame} className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          id={id}
+          value={value}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          aria-required={!optional || undefined}
+          autoFocus
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              onConfirm()
+            }
+          }}
+        />
+        <div className="flex shrink-0 gap-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={busy} onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The optional time a task is due by on its due date, on the reader's own
+ * clock. It saves when the field is left or Enter is pressed, the same as the
+ * other fields here, and Clear makes the task due all day again.
+ */
+function DueByField({
+  task,
+  disabled,
+  onSave,
+}: {
+  task: TaskCard
+  disabled: boolean
+  onSave: (dueAt: string | null) => void
+}) {
+  const saved = task.dueAt ? localTimeOf(task.dueAt) : ""
+  const [time, setTime] = useSyncedDraft(saved)
+  function save() {
+    if (time === saved) return
+    onSave(time ? momentOnDay(task.dueDate!, time) : null)
+  }
+
+  return (
+    <div className="grid content-start gap-2">
+      <Label htmlFor="task-due-by">Due by</Label>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          id="task-due-by"
+          type="time"
+          className="w-32"
+          value={time}
+          disabled={disabled}
+          onChange={(event) => setTime(event.target.value)}
+          onBlur={save}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") save()
+          }}
+        />
+        {task.dueAt && !disabled ? (
+          <Button type="button" variant="ghost" size="sm" onClick={() => onSave(null)}>
+            Clear
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+}

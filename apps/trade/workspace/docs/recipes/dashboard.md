@@ -1,0 +1,204 @@
+# Recipes
+
+Recipes are the admin-only canvases for trading plans. Since 9 Nov 2026 they
+are the Recipes row of the Bots dashboard at `/bots?view=recipes`
+(`../screens/bots-dashboard.md`), and use their own saved records. The shell's
+Automations page holds only the general email, audience, billing and timing
+steps.
+
+## The table
+
+The table lists each recipe's name, its bot's status, its steps and its last
+update. Clicking a line picks it, and the right panel shows its Last result
+and Parameters cards with Open canvas in the footer; the line's cog opens the
+canvas too (Tyler, 11 Nov 2026). An
+admin can search (in the header's ⋮), sort, make a recipe from the header's
+New recipe dropdown, duplicate or delete one with a right-click on its line,
+and rename, duplicate or delete the open one from its ⋮ in the canvas header. A recipe with a live run
+cannot be deleted. A bulk deletion also stops if any selected recipe has a
+live run, so the admin can stop that recipe and make the choice again.
+Recipes belong to the workspace rather than the person who created them. Other
+admins in that workspace see the same recipe name, and the name remains if the
+creator's account is removed.
+
+## The canvas
+
+Each DCA rung percentage keeps the text being typed. Clearing the field leaves
+it empty so a replacement can be entered. Values below 0.01 or above 99 remain
+visible with an error explaining the range. Only valid values update the step.
+The last valid setting remains saved while the field is invalid. The error is
+linked to the field for screen readers, and the buy-size column stays beside it.
+Adding or removing rungs resets their unsaved text so a draft cannot move onto
+a different rung.
+
+An opened recipe fills the middle of the Bots dashboard. The right panel holds
+the picked step's settings. With no step picked it is the **Recipe** panel, its
+heading after the recipe icon, holding two folding cards (Tyler, 11 Nov 2026:
+"when theres no node selected. Show the panel with the last run result then
+show a summary of the currant parameter"):
+
+- **Last result** is the Result card of the recipe's newest backtest, archived
+  ones left out, with its name, when it ran and Open chart. While that
+  backtest is still running it is read again every 5 seconds.
+- **Parameters** lists each step on the canvas, left to right, with the same
+  one-line summary its canvas card shows. Pressing one picks that step.
+
+Before 11 Nov the right panel was shut until a step was picked. The middle's
+one header reads: the back arrow to the Recipes table, the recipe's name, then
+**Run recipe** (or the trading status), **Backtest** and the recipe's ⋮.
+
+**Run recipe** was called Switch on until 11 Nov 2026 (Tyler: "Rename the
+"Switched on" button to "Run recipe" and turn the button into ember color if
+its paused, green when its running and red if its not ready to run"). It shows
+only on a recipe whose Wallet step names a saved wallet. It is red while the
+recipe is not ready to run, and pointing at it says why. Once running, the
+same spot is the status button, green while trading and amber while paused,
+with its words saying which. Stopping stays plain.
+
+The Backtest window's own button reads **Run backtest** (Tyler, 11 Nov 2026). It has no tabs (Tyler, 10 Nov 2026: "Better to just remove the
+tabs so that theres no confusing"); the name and Result tabs are gone. A
+recipe's backtests are on the Backtests row, where Filter → Recipe shows one
+recipe's alone.
+
+**Backtest** ("put the backtest button here") opens and shuts the Backtest
+window over the canvas. The window starts shut and stays loaded while shut.
+
+There are five steps: Wallet, Markets, DCA, Signals and Grid. They are in a
+step list left of the canvas, drawn as the shell's Automations dashboard draws
+an open flow (Tyler, 10 Nov 2026: "In recipes, I want to put that back into
+the left panel, look at how automation dashboard does it and copy its design
+pattern"). So an open recipe is four panels: the dashboard's page, the step
+list, the canvas, and the picked step on the right. The page stays first,
+which keeps the 9 Nov rule that the left panel is always the page. The + Add
+step button that sat beside the zoom bar is gone, as it went on Automations.
+
+- Each step is a card: its icon, its name and one line of description. There
+  are no Fav or Templates tabs, because a recipe has five steps and no
+  templates.
+- Pressing a card shows the step on the right, "Not added yet", with Add step
+  and Cancel. The card's + and a drag onto the canvas add it at once.
+- A recipe takes one Wallet, one Markets and one strategy, so a step already on
+  the canvas says "On the canvas" instead of its description, and pressing it
+  picks that step rather than offering a copy the recipe would mark red.
+- The list opens at Settings → Styling → Side panels → Automation step list
+  width, in pixels, and holds that width while the right panel comes and goes.
+  "Hide the steps" at its top left shuts it; "Show the steps" then sits first
+  in the canvas header. A double-click on its blank space does the same.
+- Under 1280px the canvas is drawn alone, as on Automations.
+
+The canvas keeps the existing connection, zoom, keyboard and inspector
+behaviour.
+The picked step's settings start straight under its name, with no line
+describing the step, as on Automations (Tyler, 10 Nov 2026: "all these
+tooltips are not nesessary"). The step list's cards keep their description.
+One Wallet connects to one Markets step, which connects to one DCA, Signals or
+Grid strategy. Duplicate or disconnected Trade steps keep the recipe as a
+draft and cannot run.
+
+Recipe drafts save after an edit. The server checks the whole drawing again
+before it saves the copy used for a run. A half-filled or unsupported step stays
+visible on the draft, but it cannot run until the red problem is fixed.
+
+The Backtest window and trading status sit on the recipe canvas. The Backtest
+window stays usable while trading status loads and when a saved wallet is
+selected. Existing results remain readable. Starting a backtest requires
+pretend money on the Wallet step; the window explains that requirement. Recipes do not
+have schedules, member tests, templates or the shell's run history.
+
+## What the buttons run
+
+Backtest and Run recipe save pending canvas edits before doing anything else.
+The server then reads the saved recipe again. Browser settings are never
+trusted as the copy that spends money.
+
+A Wallet step using pretend money starts a backtest. One unique ID is made for
+each click, so a retried request cannot create the same backtest twice. A Wallet
+step naming a saved wallet switches the recipe on. Real-money wallets keep the
+existing confirmation window. Practice and real runs use the same trading
+engine as before, and Stop, Pause and Try again keep their existing behaviour.
+
+## Moving the saved drawings
+
+The database change first creates `trade_recipes`. The next change moves every
+Automations drawing that contains a Trade step, including an invalid draft with
+no compiled copy. Recipe IDs do not change. Saved backtests and live flow rows
+continue to point at the same ID, and a live flow keeps running while its name
+lookup moves to Recipes.
+
+The production database cutover has run. The matching app code still needs to
+be deployed. Until that deployment, the old production Automations screen
+cannot manage the seven moved recipes. The rest of the trading dashboard keeps
+using its existing tables, and no recipe was running or stopping during the
+cutover. Deploy the web app before the worker so both start against the new
+table, then add the admin-only Recipes sidebar link.
+
+## Naming and duplicating
+
+New recipe is a dropdown holding the name and Create recipe; the name typed
+stays for the next opening if it is closed. Rename is the Name row in the
+recipe's ⋮, saved when the field is left.
+
+Duplicating shows its spinner on the Duplicate row and allows one copy at a
+time.
+
+## Saved results
+
+The recipe's ⋮ has a second tab, **Saved results**, after General (Tyler,
+11 Nov 2026: "Add another tab here called "Saved results" this tab shows all
+the backtest results saved from this recipe"). It lists every backtest the
+recipe has, newest first, each with its name, what it made or lost and when
+it ran. Archived runs are left out, as in the Backtests table. Pressing one
+opens that backtest's chart. The list is read when the tab is opened, so the
+⋮ itself opens at once.
+
+## Status in the list
+
+Status sorts running recipes first, followed by paused, stopping, stopped and
+never-run recipes. Running and paused rows name the wallet.
+Stopping stays visible until cancellation finishes. Stopped rows show when the
+last run stopped. A recipe without a run says Never run.
+
+The recipe query also reads the current user's runs in one database statement.
+Workspace admins can see shared recipes, but never another user's wallet name
+or run link. If multiple active wallets become supported, the column says
+Running on 2 wallets and links to the first running run, newest first. Paused
+and stopping runs follow running runs. Renaming a recipe preserves its status.
+Reload the list to read changes made from another screen.
+
+## Controls on an opened bot
+
+An opened bot's Pause, Stop and Run again sit in the right panel's footer,
+under its Result and Trades cards.
+
+Pause and Resume use the shared `FlowPauseButton` and the `pauseFlow` server
+action. Pause
+stops the search for new coins and leaves placed orders alone. The button
+changes immediately and returns to its previous state if the server refuses.
+An opened bot reads again every five seconds while running or paused, so a
+change made in another browser tab reaches it too.
+
+Stop keeps the existing whole-run cancellation behavior. A stopped run offers
+Run again in the same footer, on its original wallet. The confirmation says that today's saved
+recipe runs, and shows the recipe's last change time if edited after the stop.
+The server reads the current recipe under its recipe lock, takes the wallet ID
+from the owner's stopped run, and runs the normal start checks. A busy wallet
+refuses the restart. The saved recipe's wallet choice is not changed. A
+successful restart opens the new bot in the middle.
+
+Each coin has Stop while its run is running or paused. Confirmation names the
+coin and explains what happens to a held position. Stopping remains visible
+until the engine confirms cancellation, then becomes Stopped by you. The coin
+stays visible in this run's report and cannot be restored by editing its folder.
+See `../orders/stopping-flow-ladders.md` for order ownership and cancellation.
+
+## Going back to the table
+
+The canvas has no tips line ("Scroll to zoom · Drag to pan"); it was taken
+out on 9 Nov 2026.
+
+The back arrow in the canvas header and the Recipes row of the Dashboards
+block both go back to the Recipes table. The shell's Dashboards rows ignore a
+press on the row already picked, so the Bots block hears that press itself
+while a record is open (Tyler, 9 Nov 2026: "if im in the canvas, clicking the
+sidebar link here doesnt work"). Backtests and Bots do the same from an opened
+chart.

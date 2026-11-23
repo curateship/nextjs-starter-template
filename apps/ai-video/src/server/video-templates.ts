@@ -433,14 +433,23 @@ export async function createTemplateFromViralVideoForCurrentUser(
 ): Promise<TemplateItem> {
   requireAppOrigin()
   const user = await requireUser()
+  return createTemplateFromViralVideo(user.id, videoId, name)
+}
 
+// Session-free core used by the request path above and by automation runs,
+// which execute on a timer without a request context.
+export async function createTemplateFromViralVideo(
+  userId: string,
+  videoId: string,
+  name: string
+): Promise<TemplateItem> {
   const [video] = await db
     .select()
     .from(aiVideoViralVideos)
     .where(
       and(
         eq(aiVideoViralVideos.id, videoId),
-        eq(aiVideoViralVideos.userId, user.id)
+        eq(aiVideoViralVideos.userId, userId)
       )
     )
     .limit(1)
@@ -457,7 +466,7 @@ export async function createTemplateFromViralVideoForCurrentUser(
     .select()
     .from(aiVideoMedia)
     .where(
-      and(eq(aiVideoMedia.id, video.mediaId), eq(aiVideoMedia.userId, user.id))
+      and(eq(aiVideoMedia.id, video.mediaId), eq(aiVideoMedia.userId, userId))
     )
     .limit(1)
   if (!media) {
@@ -467,10 +476,10 @@ export async function createTemplateFromViralVideoForCurrentUser(
   // Copy footage + thumbnail into template-owned storage before inserting, so
   // the template never depends on the source reel surviving.
   const templateId = uuid()
-  const copiedMedia = await copyMediaForTemplate(user.id, templateId, media)
+  const copiedMedia = await copyMediaForTemplate(userId, templateId, media)
   const thumbnailStoragePath = video.thumbnailStoragePath
     ? await copyTemplateThumbnail(
-        user.id,
+        userId,
         templateId,
         video.thumbnailStoragePath
       )
@@ -490,7 +499,7 @@ export async function createTemplateFromViralVideoForCurrentUser(
       .insert(aiVideoTemplates)
       .values({
         id: templateId,
-        userId: user.id,
+        userId,
         name: cleanTemplateName(name),
         sourceViralVideoId: video.id,
         thumbnailStoragePath,
@@ -616,14 +625,23 @@ export async function createProjectFromTemplateForCurrentUser(
 ): Promise<{ projectId: string }> {
   requireAppOrigin()
   const user = await requireUser()
-  const template = await getOwnedTemplate(user.id, templateId)
+  return createProjectFromTemplate(user.id, templateId, name)
+}
+
+// Session-free core shared with automation runs (no request context there).
+export async function createProjectFromTemplate(
+  userId: string,
+  templateId: string,
+  name: string
+): Promise<{ projectId: string }> {
+  const template = await getOwnedTemplate(userId, templateId)
   const createdAt = now()
 
   const [created] = await db
     .insert(aiVideoProjects)
     .values({
       id: uuid(),
-      userId: user.id,
+      userId,
       name: cleanProjectName(name),
       // Remembered so the script writer can reach the source reel's analysis.
       templateId: template.id,

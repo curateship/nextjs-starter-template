@@ -7,6 +7,7 @@ import {
   PanelLeftIcon,
   PanelRightIcon,
   SettingsIcon,
+  WorkflowIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -17,36 +18,45 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import {
+  SaveStatusIndicator,
+  type SaveStatus,
+} from "@/components/ui/save-status"
+import {
+  ViewSwitcher,
+  type AutomationView,
+} from "@/components/automations/automation-view-switcher"
+
+export type { AutomationView }
 
 export function AutomationToolbar({
   name,
-  runnable,
   backtestDisabledReason,
-  dirty,
-  saving,
+  view,
+  onViewChange,
+  saveStatus,
   onNameChange,
   onOpenSettings,
-  onSave,
+  onSaveRun,
   onOpenPalette,
   onOpenInspector,
-  onCreateBot,
-  onBacktest,
 }: {
   name: string
-  runnable: boolean
   backtestDisabledReason?: string
-  dirty: boolean
-  saving: boolean
+  /** Which editor surface is showing — the switcher renders it pressed. */
+  view: AutomationView
+  onViewChange: (view: AutomationView) => void
+  /** The canvas auto-saves, so this replaces the old Save button. */
+  saveStatus: SaveStatus
   onNameChange: (name: string) => void
   onOpenSettings: () => void
-  onSave: () => void
+  /** Backtest results only: opens the name-and-save-this-run modal. */
+  onSaveRun?: () => void
   onOpenPalette: () => void
   onOpenInspector: () => void
-  onCreateBot?: () => void
-  onBacktest?: () => void
 }) {
   return (
-    <div className="flex h-12 shrink-0 items-center gap-2 border-b bg-card px-2 sm:px-3">
+    <div className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-card px-2 sm:px-3">
       <Button asChild variant="ghost" size="icon-xs">
         <Link to="/automations" aria-label="Back to Automations">
           <ArrowLeftIcon className="size-4" />
@@ -72,39 +82,36 @@ export function AutomationToolbar({
         />
       </div>
       <div className="ml-auto" />
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="hidden h-8 xl:inline-flex"
-        disabled={!runnable || Boolean(backtestDisabledReason)}
-        title={backtestDisabledReason}
-        aria-label={
-          backtestDisabledReason
-            ? `Backtest unavailable: ${backtestDisabledReason}`
-            : "Backtest"
-        }
-        onClick={onBacktest}
-      >
-        <FlaskConicalIcon className="size-3.5" />
-        Backtest
-      </Button>
-      {backtestDisabledReason ? (
-        <span className="hidden max-w-48 text-[10px] leading-3 text-muted-foreground 2xl:inline">
-          Backtest unavailable: live order-book data has no historical replay.
-        </span>
-      ) : null}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="hidden h-8 xl:inline-flex"
-        disabled={!runnable}
-        onClick={onCreateBot}
-      >
-        <BotIcon className="size-3.5" />
-        Create Bot
-      </Button>
+
+      {/* Centered view switcher: canvas ↔ backtest ↔ bot. Opening a view never
+          requires a save — each mode's Run/Deploy button carries that gating
+          with its own reason. */}
+      <div className="absolute left-1/2 hidden -translate-x-1/2 xl:block">
+        <ViewSwitcher
+          segments={[
+            {
+              id: "canvas",
+              label: "Canvas",
+              active: view === "canvas",
+              onSelect: () => onViewChange("canvas"),
+            },
+            {
+              id: "backtest",
+              label: "Backtest",
+              active: view === "backtest",
+              onSelect: () => onViewChange("backtest"),
+              disabledReason: backtestDisabledReason,
+            },
+            {
+              id: "bot",
+              label: "Bot",
+              active: view === "bot",
+              onSelect: () => onViewChange("bot"),
+            },
+          ]}
+        />
+      </div>
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -118,20 +125,38 @@ export function AutomationToolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem onSelect={() => onViewChange("canvas")}>
+            <WorkflowIcon className="size-4" />
+            Canvas
+          </DropdownMenuItem>
           <DropdownMenuItem
-            disabled={!runnable || Boolean(backtestDisabledReason)}
-            onSelect={onBacktest}
+            disabled={Boolean(backtestDisabledReason)}
+            onSelect={() => onViewChange("backtest")}
             title={backtestDisabledReason}
           >
             <FlaskConicalIcon className="size-4" />
-            {backtestDisabledReason ? "Backtest unavailable" : "Backtest"}
+            Backtest
           </DropdownMenuItem>
-          <DropdownMenuItem disabled={!runnable} onSelect={onCreateBot}>
+          <DropdownMenuItem onSelect={() => onViewChange("bot")}>
             <BotIcon className="size-4" />
-            Create Bot
+            Bot
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* No Save button — the canvas saves itself. This is the only feedback,
+          and it sits where that button used to be. */}
+      <SaveStatusIndicator status={saveStatus} className="text-xs" />
+      {onSaveRun ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={onSaveRun}
+        >
+          Save run
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="outline"
@@ -141,15 +166,6 @@ export function AutomationToolbar({
       >
         <SettingsIcon className="size-3.5" />
         Settings
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        className="h-8"
-        disabled={saving || !dirty}
-        onClick={onSave}
-      >
-        {saving ? "Saving…" : dirty ? "Save" : "Saved"}
       </Button>
       <Button
         type="button"

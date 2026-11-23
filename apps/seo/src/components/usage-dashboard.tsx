@@ -146,7 +146,7 @@ export function UsageDashboard({
       <DashboardTable
         title="API Usage"
         icon={
-          <BarChart3Icon className="size-4 text-muted-foreground sm:size-[18px]" />
+          <BarChart3Icon className="text-muted-foreground" />
         }
         count={total}
         controls={
@@ -208,12 +208,8 @@ export function UsageDashboard({
             </TableRow>
           </TableHeader>
         }
-        isEmpty={loading || rows.length === 0}
-        emptyText={
-          loading
-            ? "Loading usage logs..."
-            : "No API usage logged yet. Run keyword research to see requests here."
-        }
+        isEmpty={!loading && rows.length === 0}
+        emptyText="No API usage logged yet. Run keyword research to see requests here."
         emptyColSpan={7}
         footer={{
           type: "pagination",

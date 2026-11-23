@@ -222,9 +222,9 @@ export default function ContactDashboardPage() {
   function getStatusBadge(status: string) {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300">Active</Badge>
       case "cold":
-        return <Badge className="bg-yellow-100 text-yellow-800">Cold</Badge>
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300">Cold</Badge>
       case "unsubscribed":
         return <Badge variant="secondary">Unsubscribed</Badge>
       case "bounced":
@@ -288,9 +288,9 @@ export default function ContactDashboardPage() {
           </Badge>
         )
       case "opened":
-        return <Badge className="bg-blue-100 text-blue-800 text-xs">Opened</Badge>
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300 text-xs">Opened</Badge>
       case "clicked":
-        return <Badge className="bg-green-100 text-green-800 text-xs">Clicked</Badge>
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-300 text-xs">Clicked</Badge>
       case "bounced":
         return (
           <Badge variant="destructive" className="text-xs">

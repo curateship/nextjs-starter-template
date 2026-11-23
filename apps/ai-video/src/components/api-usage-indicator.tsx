@@ -5,9 +5,16 @@ import { GaugeIcon, Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -128,75 +135,90 @@ export function ApiUsageIndicator() {
         <DialogContent variant="admin" className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>API Usage</DialogTitle>
+            <DialogDescription>
+              Track this billing period's credit usage and recent activity.
+            </DialogDescription>
           </DialogHeader>
-          <DialogBody className="gap-5">
-            {summary ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium">
-                      {monthFormatter.format(new Date(summary.period_start))}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {summary.remaining_credits} credits left
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">
-                      {summary.used_credits} / {summary.limit_credits}
-                    </p>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {summary.status}
-                    </p>
-                  </div>
-                </div>
-                <Progress value={percent} />
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2Icon className="size-4 animate-spin" />
-                Loading usage
-              </div>
-            )}
-
-            <div>
-              <h3 className="mb-2 text-sm font-medium">Recent usage</h3>
-              {events.length ? (
-                <div className="divide-y rounded-md border">
-                  {events.map((event) => (
-                    <div
-                      key={event.id}
-                      className="grid grid-cols-[1fr_auto] gap-3 px-3 py-2 text-sm"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">
-                          {formatApiUsageFeature(event.feature)}
+          <DialogBody>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>This period</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {summary ? (
+                  <div className="grid gap-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {monthFormatter.format(new Date(summary.period_start))}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {event.provider}
-                          {event.model ? ` · ${event.model}` : ""}
+                        <p className="text-sm text-muted-foreground">
+                          {summary.remaining_credits} credits left
                         </p>
                       </div>
-                      <div className="text-right text-xs text-muted-foreground">
-                        <p>{event.credits} credits</p>
-                        <p>
-                          {dateFormatter.format(new Date(event.created_at))}
+                      <div className="text-right">
+                        <p className="text-sm font-medium">
+                          {summary.used_credits} / {summary.limit_credits}
+                        </p>
+                        <p className="text-xs text-muted-foreground capitalize">
+                          {summary.status}
                         </p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-md border py-8 text-center text-sm text-muted-foreground">
-                  No usage yet
-                </div>
-              )}
-              {error ? (
-                <p role="alert" className="mt-3 text-sm text-destructive">
-                  {error}
-                </p>
-              ) : null}
-            </div>
+                    <Progress value={percent} />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2Icon className="size-4 animate-spin" />
+                    Loading usage
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Recent usage</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {events.length ? (
+                  <div className="divide-y rounded-md border">
+                    {events.map((event) => (
+                      <div
+                        key={event.id}
+                        className="grid grid-cols-[1fr_auto] gap-3 px-3 py-2 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">
+                            {formatApiUsageFeature(event.feature)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {event.provider}
+                            {event.model ? ` · ${event.model}` : ""}
+                          </p>
+                        </div>
+                        <div className="text-right text-xs text-muted-foreground">
+                          <p>{event.credits} credits</p>
+                          <p>
+                            {dateFormatter.format(new Date(event.created_at))}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-md border py-8 text-center text-sm text-muted-foreground">
+                    No usage yet
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {error ? (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
           </DialogBody>
           <DialogFooter>
             <Button

@@ -1,0 +1,388 @@
+import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+
+import { PROJECT_ERRORS } from "@/lib/project/errors"
+import { messageText, tagPeople } from "@/lib/project/mentions"
+import { readTaskNotes, storedTaskNotes } from "@/lib/project/notes"
+import { LIMITS } from "@/lib/project/rules"
+import type { CustomShellDb } from "@/server/db"
+import { addProjectMember, removeProjectMember } from "@/server/project/projects"
+import { projectNoticeLinks, projectProjects, projectTaskFiles } from "@/server/project/schema"
+import { deleteComment, editComment, sendMessage } from "@/server/project/task-chat"
+import {
+  addTaskFile,
+  deleteTaskFile,
+  loadTaskFileForDownload,
+  type FileStorage,
+} from "@/server/project/task-files"
+import { followTask, unfollowTask } from "@/server/project/task-followers"
+import {
+  createTask,
+  deleteTask,
+  listTaskCards,
+  loadTaskDetail,
+  setTaskStatus,
+  updateTask,
+} from "@/server/project/tasks"
+import { projectFor, startTeam } from "@/server/project/test-people"
+import { customShellNotifications, type CustomShellUser } from "@/server/schema"
+import { emptyProjectBin, loadProjectBin } from "@/server/project/planning"
+import { createTestDatabase, insertUser } from "@/server/test-support"
+
+let client: PGlite
+let database: CustomShellDb
+let anna: CustomShellUser
+let ben: CustomShellUser
+let leo: CustomShellUser
+let carla: CustomShellUser
+let admin: CustomShellUser
+
+beforeEach(async () => {
+  const testDb = await createTestDatabase()
+  client = testDb.client
+  database = testDb.db
+  anna = await insertUser(database, { name: "Anna", email: "anna@example.test" })
+  ben = await insertUser(database, { name: "Ben", email: "ben@example.test" })
+  leo = await insertUser(database, { name: "Leo Park", email: "leo@example.test" })
+  carla = await insertUser(database, { name: "Carla", email: "carla@example.test" })
+})
+
+afterEach(async () => {
+  await client.close()
+})
+
+/**
+ * Tyler, the site admin, runs the team. Anna, Ben, Leo and Carla are its
+ * employees. The project has Anna, Ben and Leo on it, not Carla. Anna hands
+ * Ben a task.
+ */
+async function setUp() {
+  admin = (await startTeam(database, [anna, ben, leo, carla])).admin
+  const { id: projectId } = await projectFor(
+    admin,
+    anna.id,
+    { name: "Site", color: "blue" },
+    database
+  )
+  // A project's members are the site admin's to change.
+  await addProjectMember(admin.id, projectId, ben.id, database)
+  await addProjectMember(admin.id, projectId, leo.id, database)
+  const { id: taskId } = await createTask(
+    anna,
+    {
+      projectId,
+      title: "Set up redirects",
+      notes: "",
+      assigneeUserId: ben.id,
+      dueDate: null,
+    },
+    database
+  )
+  await database.delete(customShellNotifications)
+  return { projectId, taskId }
+}
+
+async function noticesFor(userId: string) {
+  return database
+    .select({
+      message: customShellNotifications.message,
+      detail: customShellNotifications.detail,
+      kind: projectNoticeLinks.kind,
+    })
+    .from(customShellNotifications)
+    .innerJoin(projectNoticeLinks, eq(projectNoticeLinks.noticeId, customShellNotifications.id))
+    .where(eq(customShellNotifications.recipientUserId, userId))
+}
+
+const tag = (person: CustomShellUser) => `@[${person.name}](${person.id})`
+
+describe("the chat's @ tags", () => {
+  it("sends a tagged person one notice, and everyone else on the task the usual one", async () => {
+    const { taskId } = await setUp()
+    await sendMessage(anna, { chat: { taskId: taskId }, body: `${tag(leo)} did the old URLs come from the sitemap?`, replyToId: null }, database)
+
+    expect(await noticesFor(leo.id)).toEqual([
+      {
+        message: "Anna asked you about a task",
+        detail: "Set up redirects: @Leo Park did the old URLs come from the sitemap?",
+        kind: "task_mention",
+      },
+    ])
+    expect((await noticesFor(ben.id)).map((n) => n.kind)).toEqual(["task_comment"])
+    expect(await noticesFor(anna.id)).toEqual([])
+  })
+
+  it("tells the assignee once when they are also tagged", async () => {
+    const { taskId } = await setUp()
+    await sendMessage(anna, { chat: { taskId: taskId }, body: `${tag(ben)} any news?`, replyToId: null }, database)
+    expect((await noticesFor(ben.id)).map((n) => n.kind)).toEqual(["task_mention"])
+  })
+
+  it("refuses a tag of someone not on the project, and saves nothing", async () => {
+    const { taskId } = await setUp()
+    await expect(
+      sendMessage(anna, { chat: { taskId: taskId }, body: `${tag(carla)} can you look?`, replyToId: null }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.tagNotOnProject)
+    expect((await loadTaskDetail(anna.id, taskId, database)).comments).toEqual([])
+    expect(await noticesFor(carla.id)).toEqual([])
+  })
+
+  it("sends nothing for tagging yourself", async () => {
+    const { taskId } = await setUp()
+    await sendMessage(ben, { chat: { taskId: taskId }, body: `${tag(ben)} note to self`, replyToId: null }, database)
+    expect(await noticesFor(ben.id)).toEqual([])
+  })
+
+  it("reads a message from before tags exactly as written", async () => {
+    const { taskId } = await setUp()
+    await sendMessage(anna, { chat: { taskId: taskId }, body: "Plain words, an @ sign, and [brackets](too)", replyToId: null }, database)
+    const [comment] = (await loadTaskDetail(ben.id, taskId, database)).comments
+    expect(comment.body).toBe("Plain words, an @ sign, and [brackets](too)")
+    expect(messageText(comment.body)).toBe(comment.body)
+  })
+
+  it("turns a typed @Name into a tag, longest name first, and only at a word's end", () => {
+    const people = [
+      { id: "leo", name: "Leo" },
+      { id: "leo-park", name: "Leo Park" },
+    ]
+    expect(tagPeople("@Leo Park and @leo, not @Leonard", people)).toBe(
+      "@[Leo Park](leo-park) and @[Leo](leo), not @Leonard"
+    )
+  })
+})
+
+describe("editing and deleting messages", () => {
+  it("lets only the writer edit, marks it edited, and tells only people newly tagged", async () => {
+    const { taskId } = await setUp()
+    const { id } = await sendMessage(anna, { chat: { taskId: taskId }, body: `${tag(leo)} first`, replyToId: null }, database)
+    await database.delete(customShellNotifications)
+
+    await expect(
+      editComment(ben, { commentId: id, body: "hijacked" }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.notYourMessage)
+
+    await editComment(anna, { commentId: id, body: `${tag(leo)} ${tag(ben)} fixed` }, database)
+    expect(await noticesFor(leo.id)).toEqual([])
+    expect((await noticesFor(ben.id)).map((n) => n.kind)).toEqual(["task_mention"])
+
+    const [comment] = (await loadTaskDetail(anna.id, taskId, database)).comments
+    expect(comment.editedAt).not.toBeNull()
+    expect(comment).toMatchObject({ canEdit: true, canDelete: true })
+  })
+
+  it("lets the writer and the site admin delete, and leaves the message's place", async () => {
+    const { taskId } = await setUp()
+    const { id } = await sendMessage(ben, { chat: { taskId: taskId }, body: `${tag(leo)} question`, replyToId: null }, database)
+
+    // Anna made the task, but someone else's message is the site admin's alone.
+    for (const person of [leo, anna]) {
+      await expect(deleteComment(person, { commentId: id, keepFiles: true }, database)).rejects.toThrow(
+        PROJECT_ERRORS.cantDeleteMessage
+      )
+    }
+    await deleteComment(admin, { commentId: id, keepFiles: true }, database)
+
+    const [comment] = (await loadTaskDetail(leo.id, taskId, database)).comments
+    expect(comment).toMatchObject({ deleted: true, body: "", canEdit: false, canDelete: false })
+    const [card] = await listTaskCards(undefined, database)
+    expect(card.commentCount).toBe(0)
+
+    await database.delete(customShellNotifications)
+    await expect(
+      editComment(ben, { commentId: id, body: `${tag(leo)} again` }, database)
+    ).rejects.toThrow(PROJECT_ERRORS.messageNotFound)
+    expect(await noticesFor(leo.id)).toEqual([])
+  })
+})
+
+describe("following a task", () => {
+  it("sends a follower chat, Stuck and Done notices, and stops after unfollowing", async () => {
+    const { taskId } = await setUp()
+    await followTask(leo.id, taskId, database)
+    expect((await loadTaskDetail(leo.id, taskId, database)).following).toBe(true)
+
+    await sendMessage(ben, { chat: { taskId: taskId }, body: "Started", replyToId: null }, database)
+    await setTaskStatus(ben, { taskId, status: "stuck", stuckReason: "No sitemap" }, database)
+    await setTaskStatus(ben, { taskId, status: "done", stuckReason: null }, database)
+    // Already Done: no second notice.
+    await setTaskStatus(ben, { taskId, status: "done", stuckReason: null }, database)
+    expect((await noticesFor(leo.id)).map((n) => n.message)).toEqual([
+      "Ben commented on a task",
+      "Ben marked a task Stuck",
+      "Ben marked a task Done",
+    ])
+
+    await unfollowTask(leo.id, taskId, database)
+    await database.delete(customShellNotifications)
+    await sendMessage(ben, { chat: { taskId: taskId }, body: "One more thing", replyToId: null }, database)
+    expect(await noticesFor(leo.id)).toEqual([])
+  })
+
+  it("sends a follower who is also tagged one notice", async () => {
+    const { taskId } = await setUp()
+    await followTask(leo.id, taskId, database)
+    await sendMessage(ben, { chat: { taskId: taskId }, body: `${tag(leo)} quick one`, replyToId: null }, database)
+    expect((await noticesFor(leo.id)).map((n) => n.kind)).toEqual(["task_mention"])
+  })
+
+  it("stops telling a follower removed from the project", async () => {
+    const { projectId, taskId } = await setUp()
+    await followTask(leo.id, taskId, database)
+    await removeProjectMember(admin.id, projectId, leo.id, database)
+    await sendMessage(ben, { chat: { taskId: taskId }, body: "Started", replyToId: null }, database)
+    await setTaskStatus(ben, { taskId, status: "done", stuckReason: null }, database)
+    expect(await noticesFor(leo.id)).toEqual([])
+  })
+})
+
+describe("files on a task", () => {
+  function memoryStorage() {
+    const stored = new Map<string, Uint8Array>()
+    const storage: FileStorage = {
+      put: async (path, data) => {
+        stored.set(path, data)
+      },
+      remove: async (path) => {
+        stored.delete(path)
+      },
+    }
+    return { stored, storage }
+  }
+  const bytes = (size: number) => new Uint8Array(size).fill(1)
+
+  it("adds a file only people who can see the task can download", async () => {
+    const { taskId } = await setUp()
+    const { stored, storage } = memoryStorage()
+    const { id } = await addTaskFile(
+      ben,
+      { taskId, name: "shot.png", mimeType: "image/png", data: bytes(10) },
+      database,
+      storage
+    )
+    expect(stored.size).toBe(1)
+    expect((await loadTaskDetail(leo.id, taskId, database)).files).toEqual([
+      expect.objectContaining({ id, name: "shot.png", sizeBytes: 10, picture: true }),
+    ])
+    expect(await loadTaskFileForDownload(leo.id, id, database)).toMatchObject({ name: "shot.png" })
+    expect(await loadTaskFileForDownload(carla.id, id, database)).toBeNull()
+  })
+
+  it("refuses an empty file, one over 10 MB, and an eleventh file", async () => {
+    const { taskId } = await setUp()
+    const { stored, storage } = memoryStorage()
+    const add = (size: number) =>
+      addTaskFile(ben, { taskId, name: "a.pdf", mimeType: "application/pdf", data: bytes(size) }, database, storage)
+
+    await expect(add(0)).rejects.toThrow(PROJECT_ERRORS.fileEmpty)
+    await expect(add(LIMITS.fileBytes + 1)).rejects.toThrow(PROJECT_ERRORS.fileTooBig)
+    for (let n = 0; n < LIMITS.filesPerTask; n += 1) await add(1)
+    await expect(add(1)).rejects.toThrow(PROJECT_ERRORS.tooManyFiles)
+    expect(stored.size).toBe(LIMITS.filesPerTask)
+  })
+
+  it("refuses a file that would take the team past 5 GB", async () => {
+    const { taskId } = await setUp()
+    const { storage } = memoryStorage()
+    const [project] = await database.select().from(projectProjects)
+    // Made-up files that leave the team 5 bytes short of 5 GB.
+    const sizes = [2_000_000_000, 2_000_000_000, LIMITS.teamFileBytes - 4_000_000_005]
+    for (const [n, sizeBytes] of sizes.entries()) {
+      await database.insert(projectTaskFiles).values({
+        id: `big-${n}`,
+        taskId,
+        teamId: project.teamId,
+        uploadedByUserId: anna.id,
+        originalName: "film.mov",
+        mimeType: "video/quicktime",
+        sizeBytes,
+        storagePath: `big-${n}`,
+        createdAt: new Date(),
+      })
+    }
+    const add = (size: number) =>
+      addTaskFile(ben, { taskId, name: "a.pdf", mimeType: "application/pdf", data: bytes(size) }, database, storage)
+    await expect(add(6)).rejects.toThrow(PROJECT_ERRORS.teamFilesFull)
+    await add(5)
+  })
+
+  it("lets the uploader and the site admin delete a file, from storage too", async () => {
+    const { taskId } = await setUp()
+    const { stored, storage } = memoryStorage()
+    const { id } = await addTaskFile(
+      ben,
+      { taskId, name: "notes.txt", mimeType: "text/plain", data: bytes(5) },
+      database,
+      storage
+    )
+    for (const person of [leo, anna]) {
+      await expect(deleteTaskFile(person, id, database, storage)).rejects.toThrow(
+        PROJECT_ERRORS.cantDeleteFile
+      )
+    }
+    await deleteTaskFile(admin, id, database, storage)
+    expect(stored.size).toBe(0)
+    expect((await loadTaskDetail(ben.id, taskId, database)).files).toEqual([])
+  })
+
+  it("keeps a binned task's files, and takes them out of storage when the bin is emptied", async () => {
+    const { taskId } = await setUp()
+    const { stored, storage } = memoryStorage()
+    await addTaskFile(ben, { taskId, name: "a.txt", mimeType: "text/plain", data: bytes(1) }, database, storage)
+    const projectId = (await loadTaskDetail(anna.id, taskId, database)).task.projectId
+
+    await deleteTask(anna, taskId, database)
+    expect(stored.size).toBe(1)
+
+    // Emptying the bin is the site admin's. Storage that can't remove the
+    // file leaves the task in the bin.
+    const broken: FileStorage = { ...storage, remove: () => Promise.reject(new Error("down")) }
+    await expect(emptyProjectBin(admin.id, projectId, database, broken)).rejects.toThrow(
+      PROJECT_ERRORS.fileNotRemoved
+    )
+    expect((await loadProjectBin(anna.id, projectId, database)).entries.map((e) => e.id)).toEqual([taskId])
+
+    await emptyProjectBin(admin.id, projectId, database, storage)
+    expect(stored.size).toBe(0)
+    expect((await loadProjectBin(anna.id, projectId, database)).entries).toEqual([])
+  })
+})
+
+describe("formatted notes", () => {
+  it("saves the editor's document cleaned, and reads old plain notes as they were", async () => {
+    const { taskId } = await setUp()
+    await updateTask(
+      anna,
+      {
+        taskId,
+        notes: storedTaskNotes({
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "See ", marks: [] },
+                {
+                  type: "text",
+                  text: "the sitemap",
+                  marks: [{ type: "link", attrs: { href: "javascript:alert(1)" } }],
+                },
+              ],
+            },
+          ],
+        }),
+      },
+      database
+    )
+    const notes = readTaskNotes((await loadTaskDetail(anna.id, taskId, database)).task.notes)
+    expect(notes.kind).toBe("doc")
+    expect(JSON.stringify(notes)).not.toContain("javascript")
+
+    expect(readTaskNotes("Line one\n  indented")).toEqual({
+      kind: "text",
+      text: "Line one\n  indented",
+    })
+    expect(storedTaskNotes({ type: "doc", content: [{ type: "paragraph" }] })).toBe("")
+  })
+})

@@ -150,6 +150,22 @@ export function inferPreMarkerRiskUsd(
   return Number.isFinite(riskUsd) && riskUsd > 0 ? riskUsd : null
 }
 
+/**
+ * A resting limit dragged through the mark — a buy above it or a sell below it
+ * — can only ever fill instantly. Callers fill these at market instead of
+ * resting them. This is the exact condition `assertPassiveLimitPrice` rejects.
+ */
+export function isMarketableDragPrice(
+  nextPrice: string | number,
+  mark: number,
+  isBuy: boolean
+): boolean {
+  if (!Number.isFinite(mark) || mark <= 0) return false
+  const price = Number(nextPrice)
+  if (!Number.isFinite(price)) return false
+  return isBuy ? price > mark : price < mark
+}
+
 export function assertPassiveLimitPrice(
   nextPrice: string,
   mark: number,

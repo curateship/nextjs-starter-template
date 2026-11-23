@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  EMA_TOGGLES,
+  EMA_LINES,
   INDICATOR_LABELS,
   INDICATOR_PARAM_FIELDS,
   PRICE_ACTION_PATTERNS,
@@ -64,6 +64,7 @@ export function OverlaySettingsDialog({
   const [params, setParams] = React.useState<Record<string, string>>({})
   const [session, setSession] = React.useState<SessionKey>("nyse")
   const [color, setColor] = React.useState<string | undefined>(undefined)
+  const [colors, setColors] = React.useState<Record<string, string>>({})
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const positionRef = React.useRef({ x: 0, y: 0 })
@@ -89,13 +90,14 @@ export function OverlaySettingsDialog({
               ? PRICE_ACTION_PATTERNS.map((pattern) => pattern.key)
               : []),
             ...(seed.type === "ema"
-              ? EMA_TOGGLES.map((toggle) => toggle.key)
+              ? EMA_LINES.flatMap((line) => [line.periodKey, line.toggleKey])
               : []),
           ].map((key) => [key, String(seed.params[key] ?? "")])
         )
       )
       setSession(seed.session ?? "nyse")
       setColor(seed.color)
+      setColors(seed.colors ?? {})
       setBusy(false)
       setError(null)
     }
@@ -118,8 +120,15 @@ export function OverlaySettingsDialog({
       }
     }
     if (indicator.type === "ema") {
-      for (const toggle of EMA_TOGGLES) {
-        nextParams[toggle.key] = Number(params[toggle.key] ?? 1) !== 0 ? 1 : 0
+      for (const line of EMA_LINES) {
+        nextParams[line.toggleKey] =
+          (params[line.toggleKey] || "1") !== "0" ? 1 : 0
+        const period = Number(params[line.periodKey])
+        if (!Number.isFinite(period) || period < 2) {
+          setError(`${line.label} period must be 2 or more.`)
+          return
+        }
+        nextParams[line.periodKey] = period
       }
     }
     for (const field of fields) {
@@ -145,6 +154,9 @@ export function OverlaySettingsDialog({
       name: name.trim() || undefined,
       params: nextParams,
       color: indicator.type === "priceAction" ? undefined : color,
+    }
+    if (indicator.type === "ema") {
+      next.colors = Object.keys(colors).length > 0 ? colors : undefined
     }
     if (indicator.type === "session") next.session = session
     setBusy(true)
@@ -287,27 +299,6 @@ export function OverlaySettingsDialog({
                   onChange={(event) => setName(event.target.value)}
                 />
               </div>
-              {indicator.type === "ema" ? (
-                <div className="grid gap-3">
-                  {EMA_TOGGLES.map((toggle) => (
-                    <label
-                      key={toggle.key}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      <Checkbox
-                        checked={Number(params[toggle.key] ?? 1) !== 0}
-                        onCheckedChange={(checked) =>
-                          setParams((prev) => ({
-                            ...prev,
-                            [toggle.key]: checked === true ? "1" : "0",
-                          }))
-                        }
-                      />
-                      {toggle.label} on
-                    </label>
-                  ))}
-                </div>
-              ) : null}
               {indicator.type !== "priceAction"
                 ? fields.map((field) =>
                     field.kind === "boolean" ? (
@@ -407,7 +398,7 @@ export function OverlaySettingsDialog({
                   </Select>
                 </div>
               ) : null}
-              {indicator.type !== "priceAction" ? (
+              {indicator.type !== "priceAction" && indicator.type !== "ema" ? (
                 <div className="grid gap-2">
                   <Label htmlFor="indicator-color">Color</Label>
                   <input
@@ -424,6 +415,68 @@ export function OverlaySettingsDialog({
               ) : null}
             </CardContent>
           </Card>
+          {indicator.type === "ema"
+            ? EMA_LINES.map((line) => (
+                <Card key={line.key} size="sm">
+                  <CardHeader>
+                    <CardTitle>{line.label}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={(params[line.toggleKey] || "1") !== "0"}
+                        onCheckedChange={(checked) =>
+                          setParams((prev) => ({
+                            ...prev,
+                            [line.toggleKey]: checked === true ? "1" : "0",
+                          }))
+                        }
+                      />
+                      Show on chart
+                    </label>
+                    <div className="grid gap-2">
+                      <Label htmlFor={`indicator-param-${line.periodKey}`}>
+                        Period
+                      </Label>
+                      <Input
+                        id={`indicator-param-${line.periodKey}`}
+                        type="number"
+                        step={1}
+                        min={2}
+                        value={params[line.periodKey] ?? ""}
+                        onChange={(event) =>
+                          setParams((prev) => ({
+                            ...prev,
+                            [line.periodKey]: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor={`indicator-color-${line.key}`}>
+                        Color
+                      </Label>
+                      <input
+                        id={`indicator-color-${line.key}`}
+                        type="color"
+                        className="h-8 w-16 cursor-pointer rounded border-0 bg-transparent p-0"
+                        value={
+                          colors[line.key] ??
+                          (line.key === "fast" ? color : undefined) ??
+                          indicatorColor(line.slot, isDark)
+                        }
+                        onChange={(event) =>
+                          setColors((prev) => ({
+                            ...prev,
+                            [line.key]: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            : null}
           {indicator.type === "priceAction"
             ? [
                 {

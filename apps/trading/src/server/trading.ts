@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
 import { loadTradingAccountState } from "@/lib/hl/account-balance"
+import { isMarketableLimit } from "@/lib/trading/marketable-limit"
 import {
   describeOpenOrder,
   type FrontendOpenOrder,
@@ -21,6 +22,7 @@ import {
   modifyOrders,
   placeBracketOrder,
   placeOrder,
+  placePositionTpsl,
   RISK_SIZING_CLOID_PURPOSE,
   updateLeverage,
   writeRiskRejection,
@@ -44,6 +46,7 @@ import {
   buildModifiedOrder,
   buildRiskBracketModifications,
   inferPreMarkerRiskUsd,
+  isMarketableDragPrice,
 } from "@/server/trading-order-modification"
 
 export type ManualOrderInput = {
@@ -59,6 +62,10 @@ export type ManualOrderInput = {
   tif: "Gtc" | "Ioc" | "Alo"
   /** Leverage currently applied for this market (for risk checks). */
   leverage: number
+  /** Optional protective stop-loss trigger price. */
+  stopLossPx?: string
+  /** Optional protective take-profit trigger price. */
+  takeProfitPx?: string
 }
 
 export type ManualOrderResult = {
@@ -126,8 +133,14 @@ export async function submitManualOrder(
   }
 
   const markPx = ctx.markPx
+  // A limit priced through the market (buy above / sell below the mark) can
+  // only ever fill instantly, so send it as a market order instead of resting
+  // it or letting a post-only flag bounce it.
+  const orderType = isMarketableLimit(input, markPx)
+    ? "market"
+    : input.orderType
   const executionPxRaw =
-    input.orderType === "limit" && input.px
+    orderType === "limit" && input.px
       ? input.px
       : applySlippage(markPx, input.side)
   const px = roundPrice(executionPxRaw, asset.szDecimals)
@@ -143,8 +156,8 @@ export async function submitManualOrder(
   const intent = {
     market: input.market,
     side: input.side,
-    orderType: input.orderType,
-    px: input.orderType === "limit" ? px : null,
+    orderType,
+    px: orderType === "limit" ? px : null,
     sz,
     reduceOnly: input.reduceOnly,
     leverage: effectiveLeverage,
@@ -177,21 +190,73 @@ export async function submitManualOrder(
     throw new Error(reason)
   }
 
-  const status = await placeOrder(
+  const entry = {
+    assetId: asset.assetId,
+    coin: input.market,
+    isBuy: input.side === "buy",
+    px,
+    sz,
+    reduceOnly: input.reduceOnly,
+    tif: orderType === "market" ? ("FrontendMarket" as const) : input.tif,
+    cloid: buildCloid(MANUAL_CLOID_PREFIX),
+  }
+
+  const stopLossPx = input.stopLossPx
+    ? roundPrice(input.stopLossPx, asset.szDecimals)
+    : null
+  const takeProfitPx = input.takeProfitPx
+    ? roundPrice(input.takeProfitPx, asset.szDecimals)
+    : null
+
+  if (!stopLossPx && !takeProfitPx) {
+    const status = await placeOrder(
+      wallet,
+      { actor: "user", userId },
+      entry,
+      database
+    )
+    return { status, px, sz }
+  }
+
+  const status = await placeBracketOrder(
     wallet,
     { actor: "user", userId },
     {
-      assetId: asset.assetId,
-      coin: input.market,
-      isBuy: input.side === "buy",
-      px,
-      sz,
-      reduceOnly: input.reduceOnly,
-      tif: input.orderType === "market" ? "FrontendMarket" : input.tif,
-      cloid: buildCloid(MANUAL_CLOID_PREFIX),
+      entry,
+      ...(takeProfitPx
+        ? {
+            takeProfit: {
+              triggerPx: takeProfitPx,
+              cloid: buildCloid(MANUAL_CLOID_PREFIX),
+            },
+          }
+        : {}),
+      ...(stopLossPx
+        ? {
+            stopLoss: {
+              triggerPx: stopLossPx,
+              cloid: buildCloid(MANUAL_CLOID_PREFIX),
+            },
+          }
+        : {}),
     },
     database
-  )
+  ).catch((error: unknown) => {
+    if (!(error instanceof BracketOrderError)) {
+      throw error
+    }
+    if (error.entryStatus === "accepted") {
+      throw new Error(
+        "Entry order was accepted, but its stop-loss or take-profit was rejected. Check positions and open orders before retrying."
+      )
+    }
+    if (error.entryStatus === "rejected") {
+      throw new Error("Entry order was rejected. No position was opened.")
+    }
+    throw new Error(
+      "Order status could not be confirmed. Check positions and open orders before retrying."
+    )
+  })
 
   return { status, px, sz }
 }
@@ -371,6 +436,8 @@ export type ModifyManualOrderInput = {
   oid: number
   px: string
   sz?: string
+  /** User confirmed filling a marketable drag at market. Required to convert. */
+  fillAtMarket?: boolean
 }
 
 /** Re-prices a resting order (used by chart line dragging). */
@@ -378,7 +445,7 @@ export async function modifyManualOrder(
   userId: string,
   input: ModifyManualOrderInput,
   database: CustomShellDb = db
-): Promise<{ px: string; sz: string }> {
+): Promise<{ px: string; sz: string; filledAtMarket?: boolean }> {
   const wallet = await requireActiveWallet(userId, input.walletId, database)
   const network = wallet.network as TradingNetwork
   assertNetworkEnabled(network)
@@ -406,8 +473,122 @@ export async function modifyManualOrder(
   const [, assetCtxs] = assetData
   const ctx = assetCtxs[asset.assetIndex]
   const mark = Number(ctx?.markPx)
+  const isBuy = order.side === "B"
+
+  // Dragging a plain resting limit through the mark (a buy above it or a sell
+  // below it) can only ever fill instantly. When the user has confirmed the
+  // "fill at market" prompt, fill it now — the same "marketable limit becomes a
+  // market order" behaviour the new-order path already has. Without that
+  // explicit opt-in a crossing price falls through to the reject below, so a
+  // real market order never fires unconfirmed. The size was risk-checked when
+  // the order was placed, so this changes when it fills, not how much.
+  if (
+    input.fillAtMarket &&
+    !order.isTrigger &&
+    input.sz === undefined &&
+    isMarketableDragPrice(px, mark, isBuy)
+  ) {
+    const execPx = roundPrice(
+      applySlippage(String(mark), isBuy ? "buy" : "sell"),
+      asset.szDecimals
+    )
+    // Cancelling the entry drops any take-profit / stop-loss linked to it, so
+    // capture their trigger prices now to re-attach them to the market order.
+    let takeProfitPx: string | undefined
+    let stopLossPx: string | undefined
+    for (const child of order.children) {
+      let modification
+      try {
+        modification = describeOpenOrder(child).modification
+      } catch {
+        continue
+      }
+      if (modification.kind !== "trigger") continue
+      if (modification.tpsl === "tp") takeProfitPx = child.triggerPx
+      else stopLossPx = child.triggerPx
+    }
+
+    // Hyperliquid's modify can't turn a resting order into a taking order (it
+    // rejects with "invalid new order"), so cancel the resting limit and place
+    // a fresh market order for the same side and size. Cancel first: if it
+    // fails nothing is placed, and a placement failure can never leave both the
+    // resting order and a new fill.
+    await cancelOrder(
+      wallet,
+      { actor: "user", userId },
+      { assetId: asset.assetId, coin: order.coin, oid: input.oid },
+      database
+    )
+    const marketEntry = {
+      assetId: asset.assetId,
+      coin: order.coin,
+      isBuy,
+      px: execPx,
+      sz,
+      reduceOnly: order.reduceOnly,
+      tif: "FrontendMarket" as const,
+      cloid: buildCloid(MANUAL_CLOID_PREFIX),
+    }
+    try {
+      if (takeProfitPx || stopLossPx) {
+        // Re-attach the original stop-loss and take-profit so the position the
+        // market order opens is never left unprotected.
+        await placeBracketOrder(
+          wallet,
+          { actor: "user", userId },
+          {
+            entry: marketEntry,
+            ...(takeProfitPx
+              ? {
+                  takeProfit: {
+                    triggerPx: takeProfitPx,
+                    cloid: buildCloid(MANUAL_CLOID_PREFIX),
+                  },
+                }
+              : {}),
+            ...(stopLossPx
+              ? {
+                  stopLoss: {
+                    triggerPx: stopLossPx,
+                    cloid: buildCloid(MANUAL_CLOID_PREFIX),
+                  },
+                }
+              : {}),
+          },
+          database
+        )
+      } else {
+        await placeOrder(
+          wallet,
+          { actor: "user", userId },
+          marketEntry,
+          database
+        )
+      }
+    } catch (error) {
+      if (error instanceof BracketOrderError) {
+        if (error.entryStatus === "accepted") {
+          throw new Error(
+            "The market order filled, but re-attaching its stop-loss or take-profit was rejected. Set them again from the position."
+          )
+        }
+        if (error.entryStatus === "rejected") {
+          throw new Error(
+            "The resting order was cancelled, but the market order was rejected. No position was opened."
+          )
+        }
+      }
+      throw new Error(
+        `The resting order was cancelled, but the market order failed: ${
+          error instanceof Error ? error.message : "unknown error"
+        }. Check your positions and open orders before retrying.`
+      )
+    }
+    return { px: execPx, sz, filledAtMarket: true }
+  }
+
   if (!order.isTrigger) {
-    assertPassiveLimitPrice(px, mark, order.side === "B")
+    assertPassiveLimitPrice(px, mark, isBuy)
   }
 
   const entry = openOrders.find(
@@ -615,6 +796,134 @@ export async function cancelManualOrder(
     { assetId: asset.assetId, coin: input.market, oid: input.oid },
     database
   )
+}
+
+/**
+ * Attaches a stop-loss and/or take-profit to an already-open position.
+ *
+ * Sized to the whole position and sent as position-level triggers, so the
+ * protection covers everything you hold in that market — and keeps covering it
+ * if you add to the position later.
+ */
+export async function setPositionTpsl(
+  userId: string,
+  input: {
+    walletId: string
+    market: string
+    /** Percent away from the position's entry price. */
+    stopLossPct?: number
+    takeProfitPct?: number
+  },
+  database: CustomShellDb = db
+): Promise<{ sz: string; stopLossPx: string | null; takeProfitPx: string | null }> {
+  const wallet = await requireActiveWallet(userId, input.walletId, database)
+  const network = wallet.network as TradingNetwork
+  assertNetworkEnabled(network)
+  const asset = await getAssetInfo(network, input.market)
+  const info = getInfoClient(network)
+  const accountAddress = (wallet.vaultAddress ??
+    wallet.accountAddress) as `0x${string}`
+
+  const [assetData, accountState] = await Promise.all([
+    info.metaAndAssetCtxs({ dex: asset.dex }),
+    loadTradingAccountState(info, accountAddress, asset),
+  ])
+  const ctx = assetData[1][asset.assetIndex]
+  if (!ctx) {
+    throw new Error(`No market data for ${input.market}`)
+  }
+
+  const position = accountState.clearinghouseState.assetPositions.find(
+    ({ position }) => position.coin === input.market
+  )?.position
+  const szi = Number(position?.szi ?? 0)
+  if (!position || szi === 0) {
+    throw new Error(`No open ${input.market} position to protect.`)
+  }
+
+  if (!input.stopLossPct && !input.takeProfitPct) {
+    throw new Error("Set a stop-loss or take-profit percent.")
+  }
+
+  const markPx = Number(ctx.markPx)
+  const isLong = szi > 0
+  // Percentages are measured from the position's entry price, so "2%" means
+  // 2% of what you paid — the same convention order templates use.
+  const entryPx = Number(position.entryPx ?? markPx)
+  if (!(entryPx > 0)) {
+    throw new Error(`No entry price available for ${input.market}.`)
+  }
+
+  const stopLossPx = input.stopLossPct
+    ? roundPrice(
+        entryPx *
+          (isLong ? 1 - input.stopLossPct / 100 : 1 + input.stopLossPct / 100),
+        asset.szDecimals
+      )
+    : null
+  const takeProfitPx = input.takeProfitPct
+    ? roundPrice(
+        resolveTakeProfitPrice({
+          entryPrice: entryPx,
+          currentPrice: markPx,
+          side: isLong ? "buy" : "sell",
+          takeProfitPct: input.takeProfitPct,
+        }),
+        asset.szDecimals
+      )
+    : null
+
+  // A trigger on the wrong side of the market fires the moment it is placed,
+  // which would close the position instantly instead of protecting it.
+  if (stopLossPx) {
+    const sl = Number(stopLossPx)
+    if ((isLong && sl >= markPx) || (!isLong && sl <= markPx)) {
+      throw new Error(
+        `A ${input.stopLossPct}% stop sits at ${stopLossPx}, which the price has already passed (now ${ctx.markPx}). Use a wider percent.`
+      )
+    }
+  }
+  if (takeProfitPx) {
+    const tp = Number(takeProfitPx)
+    if ((isLong && tp <= markPx) || (!isLong && tp >= markPx)) {
+      throw new Error(
+        `A ${input.takeProfitPct}% take-profit sits at ${takeProfitPx}, which the price has already passed (now ${ctx.markPx}). Use a wider percent.`
+      )
+    }
+  }
+
+  const sz = roundSize(String(Math.abs(szi)), asset.szDecimals)
+
+  await placePositionTpsl(
+    wallet,
+    { actor: "user", userId },
+    {
+      assetId: asset.assetId,
+      coin: input.market,
+      // Closing side is the opposite of the position's direction.
+      isBuy: !isLong,
+      sz,
+      ...(takeProfitPx
+        ? {
+            takeProfit: {
+              triggerPx: takeProfitPx,
+              cloid: buildCloid(MANUAL_CLOID_PREFIX),
+            },
+          }
+        : {}),
+      ...(stopLossPx
+        ? {
+            stopLoss: {
+              triggerPx: stopLossPx,
+              cloid: buildCloid(MANUAL_CLOID_PREFIX),
+            },
+          }
+        : {}),
+    },
+    database
+  )
+
+  return { sz, stopLossPx, takeProfitPx }
 }
 
 export async function updateManualLeverage(

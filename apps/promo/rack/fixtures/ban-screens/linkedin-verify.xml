@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" resource-id="" class="android.widget.FrameLayout" package="com.linkedin.android" content-desc="" bounds="[0,0][1080,2400]">
+    <node index="0" text="Verify your identity" resource-id="" class="android.widget.TextView" package="com.linkedin.android" content-desc="" bounds="[48,400][1032,500]" />
+    <node index="1" text="To get your account back, upload a photo of a government ID." resource-id="" class="android.widget.TextView" package="com.linkedin.android" content-desc="" bounds="[48,520][1032,620]" />
+    <node index="2" text="Start verification" resource-id="" class="android.widget.TextView" package="com.linkedin.android" content-desc="" bounds="[48,640][1032,740]" />
+  </node>
+  <node index="1" text="12:04" resource-id="com.android.systemui:id/clock" class="android.widget.TextView" package="com.android.systemui" content-desc="" bounds="[40,0][160,80]" />
+</hierarchy>

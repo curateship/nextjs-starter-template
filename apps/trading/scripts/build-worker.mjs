@@ -7,6 +7,7 @@ const entries = {
   bot: "index.ts",
   "whale-scanner": "whale-scanner-worker.ts",
   "market-scanner": "market-scanner-worker.ts",
+  alert: "alert-worker.ts",
   backtest: "backtest-worker.ts",
 }
 const requested = process.argv[2]

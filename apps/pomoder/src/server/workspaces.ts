@@ -3,9 +3,10 @@ import { and, asc, eq } from "drizzle-orm"
 import {
   createDefaultTopRightNavigation,
   iconMeta,
+  normalizeStyling,
   type IconKey,
   type ShellSection,
-  type ShellTopNavigationItem,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
@@ -21,9 +22,10 @@ const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -311,15 +313,13 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
-      topNavigation: Array.isArray(settings.topNavigation)
-        ? settings.topNavigation
-        : fallback.topNavigation,
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
       sections: Array.isArray(settings.sections)
         ? settings.sections
         : fallback.sections,
+      styling: normalizeStyling(settings.styling),
     }
   }
 
@@ -336,15 +336,13 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    styling: normalizeStyling(settings.styling),
   }
 }
 
@@ -352,9 +350,9 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    styling: normalizeStyling(undefined),
   }
 }
 

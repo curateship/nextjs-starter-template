@@ -1,0 +1,497 @@
+/**
+ * Deploy one app's Coolify resources, then check the live health address.
+ *
+ *   npm run deploy                     inside apps/<app>, same as --push
+ *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --push
+ *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --dry-run
+ *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --only worker
+ *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --force
+ *   node .agents/skills/deploy-app/scripts/deploy.mjs pomodoro --skip-menu
+ *
+ * `--push` first pushes this branch to `develop` (fast-forward only), because
+ * every resource builds whatever `develop` is when its button is pressed.
+ * Without it, the script refuses to start when this branch and `develop`
+ * differ.
+ *
+ * The resources build one at a time, in `apps.json` order: the website first,
+ * because it applies the migrations on its way in, then the worker once the
+ * website is healthy. Two builds side by side ran the German server out of
+ * memory and npm timed out the website's build (29 Oct 2026; Tyler: "change
+ * the deploy script so that it deploy one by one").
+ *
+ * After a healthy website deploy it copies the live left menu down to this
+ * laptop's database with `copy-menu.mjs`, so the laptop follows the menu Tyler
+ * edits on the live site (2 Nov 2026; until then local was copied over live,
+ * which reset his live edits on every deploy). It never writes the menu to
+ * live. `--skip-menu` leaves the laptop's menu as it is. A failed copy is
+ * reported but does not undo the deploy.
+ *
+ * It never writes the AI keys. They go in once, at an app's launch, with
+ * `copy-ai-keys.mjs` (Tyler, 31 Oct 2026: "The script kept readding the api
+ * keys. The api keys are only for app launch only").
+ *
+ * Each app's resources, order, Coolify server and health address are in
+ * `apps.json` beside this folder. The Coolify address and token come from
+ * `~/.config/deploy-app/secrets.env` (`COOLIFY_<SERVER>_URL`,
+ * `COOLIFY_<SERVER>_TOKEN`), or from the same names in the environment, which
+ * win. The token is never printed.
+ *
+ * Before building, it looks for a deploy of the same resources Coolify still
+ * has as queued or in progress. One that started more than STUCK_AFTER_MS ago
+ * is dead and is cancelled, since a new deploy waits behind it forever: on 30
+ * Oct 2026 a Project build died at 22:50 and Coolify kept it "in progress"
+ * for 14 hours, and the next deploy answered "Deployment not found" (Tyler:
+ * "should we add something to the deploy script that cancels any stuck
+ * deploy?"). A younger one may be another session's live build, so the script
+ * stops instead of cancelling it. A dry run only says what it would do.
+ *
+ * Nothing here runs on its own. It is a button: somebody types the command.
+ */
+
+import { execFileSync } from "node:child_process"
+import { readFile } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+/** Git runs here, not where the command was typed: `npm run deploy` starts in apps/<app>. */
+const repoRoot = path.resolve(here, "..", "..", "..", "..")
+
+const POLL_EVERY_MS = 10_000
+/** A long build says it is still going once a minute, so a wait never looks like a hang. */
+const STILL_GOING_EVERY_MS = 60_000
+const GIVE_UP_AFTER_MS = 25 * 60_000
+/** Past this, a queued or running deploy is dead: a build takes 2 to 5 minutes, and this script gives up at 25. */
+export const STUCK_AFTER_MS = 30 * 60_000
+/**
+ * How long Coolify may stay unreachable while a build is watched. On 24 Oct
+ * 2026 the German Coolify answered 500 to everything for a few minutes in the
+ * middle of a Project deploy, and the script quit on the first one.
+ */
+const OUTAGE_LIMIT_MS = 10 * 60_000
+const HEALTH_TRIES = 12
+const HEALTH_GAP_MS = 10_000
+
+/**
+ * `npm run deploy` inside an app passes no app name, so npm's own
+ * `npm_package_name` (the app's folder name, see the root Dockerfile) fills it.
+ */
+export function readFlags(argv, packageName = null) {
+  const flags = { app: null, only: null, force: false, dryRun: false, push: false, skipMenu: false }
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+    if (arg === "--force") flags.force = true
+    else if (arg === "--dry-run") flags.dryRun = true
+    else if (arg === "--push") flags.push = true
+    else if (arg === "--skip-menu") flags.skipMenu = true
+    else if (arg === "--only") flags.only = argv[++i] ?? ""
+    else if (arg.startsWith("--only=")) flags.only = arg.slice(7)
+    else if (arg.startsWith("--")) throw new Error(`Unknown option ${arg}`)
+    else if (!flags.app) flags.app = arg
+    else throw new Error(`One app at a time; also got "${arg}".`)
+  }
+  flags.app ||= packageName
+  if (!flags.app) throw new Error("Name the app, for example: deploy.mjs pomodoro, or run npm run deploy inside it")
+  if (flags.only === "") throw new Error("--only needs a list, for example --only web")
+  return flags
+}
+
+/** The resources to deploy, in the app's fixed order, narrowed by `--only`. */
+export function resourcesToDeploy(app, only) {
+  const order = app.resources.map((one) => one.role)
+  if (!only) return app.resources
+  const wanted = only.split(",").map((one) => one.trim()).filter(Boolean)
+  const unknown = wanted.filter((one) => !order.includes(one))
+  if (unknown.length) {
+    throw new Error(`Unknown resource ${unknown.join(", ")}. Choose from ${order.join(", ")}.`)
+  }
+  return app.resources.filter((one) => wanted.includes(one.role))
+}
+
+/** The menu copy runs when the website was deployed and the app has a live database to copy from. */
+export function copiesMenu(app, resources, skipMenu) {
+  return !skipMenu && Boolean(app.database?.uuid) && resources.some((one) => one.role === "web")
+}
+
+/**
+ * Whether a failed status check is worth trying again: Coolify answered 500 or
+ * higher, or never answered at all. A 4xx, such as a wrong token, is not.
+ */
+export function coolifyMayRecover(error) {
+  return error?.status === undefined || error.status >= 500
+}
+
+/** Finished, failed or cancelled means Coolify has stopped working on it. */
+export function deploymentOver(status) {
+  return ["finished", "failed", "cancelled", "cancelled-by-user"].includes(status)
+}
+
+/**
+ * A resource's deploys Coolify has not finished, split by age: `stuck` started
+ * more than STUCK_AFTER_MS ago and can be cancelled, `running` may still be
+ * someone's real build. Age is counted from when the deploy started.
+ */
+export function unfinishedDeployments(list, now = Date.now()) {
+  const unfinished = list.filter((one) => ["queued", "in_progress"].includes(one.status))
+  const ageOf = (one) => now - Date.parse(one.created_at)
+  return {
+    stuck: unfinished.filter((one) => ageOf(one) > STUCK_AFTER_MS),
+    running: unfinished.filter((one) => !(ageOf(one) > STUCK_AFTER_MS)),
+  }
+}
+
+/** "14h", "3m": how long ago a deploy started. */
+export function startedAgo(createdAt, now = Date.now()) {
+  const minutes = Math.max(0, Math.round((now - Date.parse(createdAt)) / 60_000))
+  return minutes >= 60 ? `${Math.floor(minutes / 60)}h` : `${minutes}m`
+}
+
+/** The last visible lines Coolify wrote for a build. Its log is a JSON list. */
+export function buildLogTail(logs, count = 30) {
+  if (typeof logs !== "string" || !logs.trim()) return []
+  let entries
+  try {
+    entries = JSON.parse(logs)
+  } catch {
+    return logs.split("\n").slice(-count)
+  }
+  if (!Array.isArray(entries)) return []
+  return entries
+    .filter((entry) => entry && !entry.hidden && typeof entry.output === "string")
+    .map((entry) => entry.output.replace(/\s+$/, ""))
+    .filter(Boolean)
+    .slice(-count)
+}
+
+/** `NAME=value` lines; blank lines and `#` comments skipped, quotes removed. */
+/**
+ * The commit a Coolify app is locked to, or null when it builds the newest
+ * commit on its branch ("HEAD"). A locked app rebuilds, or just restarts, the
+ * same old code on every deploy. The 1 Nov 2026 server move left 20 apps
+ * locked to the commit each had on the old box, and deploys reported success
+ * while shipping nothing until 2 Nov 2026.
+ */
+export function lockedCommit(app) {
+  const sha = typeof app?.git_commit_sha === "string" ? app.git_commit_sha.trim() : ""
+  return sha && sha !== "HEAD" ? sha : null
+}
+
+/** Why a finished deployment isn't the commit asked for, or null when it is. */
+export function wrongBuild(built, expected) {
+  if (typeof built !== "string" || built.length < 7) return "Coolify did not say which commit it built"
+  return expected.startsWith(built) || built.startsWith(expected)
+    ? null
+    : `Coolify built ${built.slice(0, 9)}, not develop's ${expected.slice(0, 9)}`
+}
+
+export function parseEnvText(text) {
+  const values = {}
+  for (const raw of text.split("\n")) {
+    const line = raw.trim()
+    if (!line || line.startsWith("#")) continue
+    const at = line.indexOf("=")
+    if (at < 1) continue
+    let value = line.slice(at + 1).trim()
+    if (/^(["']).*\1$/.test(value)) value = value.slice(1, -1)
+    values[line.slice(0, at).trim()] = value
+  }
+  return values
+}
+
+export const SECRETS_FILE = path.join(os.homedir(), ".config", "deploy-app", "secrets.env")
+
+async function coolifySettings(server) {
+  let saved = {}
+  try {
+    saved = parseEnvText(await readFile(SECRETS_FILE, "utf8"))
+  } catch {
+    // No file yet: the environment may still carry the values.
+  }
+  const name = (part) => `COOLIFY_${server.toUpperCase()}_${part}`
+  const url = process.env[name("URL")] || saved[name("URL")]
+  const token = process.env[name("TOKEN")] || saved[name("TOKEN")]
+  if (!token || !url) {
+    throw new Error(`No ${name("URL")} and ${name("TOKEN")} in ${SECRETS_FILE}. See the deploy-app skill's one-time setup.`)
+  }
+  return { url: url.replace(/\/+$/, ""), token }
+}
+
+async function coolify(settings, method, route) {
+  const response = await fetch(`${settings.url}/api/v1${route}`, {
+    method,
+    headers: { Authorization: `Bearer ${settings.token}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(60_000),
+  })
+  const text = await response.text()
+  let body = text
+  try {
+    body = text ? JSON.parse(text) : null
+  } catch {
+    // Keep the text as it came.
+  }
+  if (!response.ok) {
+    throw Object.assign(
+      new Error(`Coolify answered ${response.status} to ${method} ${route}: ${typeof body === "string" ? body : JSON.stringify(body)}`),
+      { status: response.status }
+    )
+  }
+  return body
+}
+
+function git(...args) {
+  return execFileSync("git", args, { encoding: "utf8", cwd: repoRoot }).trim()
+}
+
+/** The migration files an app gained between two commits. */
+export function migrationsBetween(from, to, app) {
+  return git("diff", "--name-only", `${from}..${to}`, "--", `apps/${app}/drizzle/`)
+    .split("\n")
+    .filter((file) => file.endsWith(".sql"))
+    .map((file) => path.basename(file))
+}
+
+/**
+ * What Coolify will build: `develop` on GitHub. `mismatch` says so when this
+ * branch is somewhere else, which a real deploy refuses and a dry run reports.
+ */
+function developCommit() {
+  git("fetch", "--quiet", "origin", "develop")
+  const develop = git("rev-parse", "origin/develop")
+  const head = git("rev-parse", "HEAD")
+  return {
+    line: `${develop.slice(0, 9)} ${git("log", "-1", "--format=%s", develop).slice(0, 90)}`,
+    mismatch:
+      develop === head
+        ? null
+        : `origin/develop is ${develop.slice(0, 9)} but this branch is ${head.slice(0, 9)}. Push first: git push origin HEAD:develop (fast-forward only).`,
+  }
+}
+
+async function waitForDeployment(settings, label, deploymentUuid) {
+  const startedAt = Date.now()
+  let said = null
+  let saidAt = startedAt
+  let downSince = null
+  let saidDown = false
+  while (Date.now() - startedAt < GIVE_UP_AFTER_MS) {
+    let record
+    try {
+      record = await coolify(settings, "GET", `/deployments/${deploymentUuid}`)
+    } catch (error) {
+      if (!coolifyMayRecover(error)) throw error
+      downSince ??= Date.now()
+      if (Date.now() - downSince >= OUTAGE_LIMIT_MS) {
+        throw new Error(`${label}: Coolify has not answered for ${OUTAGE_LIMIT_MS / 60_000} minutes. Last: ${error.message}`)
+      }
+      if (!saidDown) console.log(`  ${label}: Coolify isn't answering (${error.message}). Still trying.`)
+      saidDown = true
+      await new Promise((done) => setTimeout(done, POLL_EVERY_MS))
+      continue
+    }
+    if (saidDown) console.log(`  ${label}: Coolify is answering again.`)
+    downSince = null
+    saidDown = false
+    const status = record?.status ?? "unknown"
+    const line = `${label}: ${status} after ${Math.round((Date.now() - startedAt) / 1000)}s`
+    if (status !== said) {
+      console.log(`  ${line}`)
+      said = status
+      saidAt = Date.now()
+    } else if (Date.now() - saidAt >= STILL_GOING_EVERY_MS) {
+      // With Coolify's latest step, such as "Building docker image started."
+      const [step] = buildLogTail(record?.logs, 1)
+      console.log(`  ${line}${step ? `: ${step}` : ""}`)
+      saidAt = Date.now()
+    }
+    if (deploymentOver(status)) {
+      const tail = buildLogTail(record?.logs, status === "finished" ? 4 : 30)
+      for (const one of tail) console.log(`  | ${one}`)
+      return status
+    }
+    await new Promise((done) => setTimeout(done, POLL_EVERY_MS))
+  }
+  throw new Error(`${label}: still building after ${GIVE_UP_AFTER_MS / 60_000} minutes. Look at Coolify.`)
+}
+
+async function checkHealth(url) {
+  for (let i = 1; i <= HEALTH_TRIES; i++) {
+    try {
+      const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15_000) })
+      const text = (await response.text()).slice(0, 120)
+      if (response.ok) return `${response.status} ${text}`
+      console.log(`  health try ${i}: ${response.status}`)
+    } catch (error) {
+      console.log(`  health try ${i}: ${error instanceof Error ? error.message : error}`)
+    }
+    await new Promise((done) => setTimeout(done, HEALTH_GAP_MS))
+  }
+  throw new Error(`${url} never answered 200.`)
+}
+
+/** The commit of the newest finished deployment of a resource, if any. */
+async function liveCommit(settings, uuid) {
+  const answer = await coolify(settings, "GET", `/deployments/applications/${uuid}?skip=0&take=10`)
+  const list = Array.isArray(answer) ? answer : answer?.deployments ?? []
+  const done = list.find((one) => one.status === "finished" && typeof one.commit === "string" && one.commit.length >= 7)
+  return done?.commit ?? null
+}
+
+/**
+ * Cancels each resource's dead deploys and refuses to start behind a live one,
+ * before anything is built. A dry run only reports.
+ */
+async function clearStuckDeployments(settings, resources, dryRun) {
+  for (const resource of resources) {
+    const answer = await coolify(settings, "GET", `/deployments/applications/${resource.uuid}?skip=0&take=10`)
+    const { stuck, running } = unfinishedDeployments(Array.isArray(answer) ? answer : answer?.deployments ?? [])
+    if (running.length) {
+      const [one] = running
+      const line = `A deploy of ${resource.role} started ${startedAgo(one.created_at)} ago is still ${one.status === "queued" ? "queued" : "running"} (${one.deployment_uuid}).`
+      if (dryRun) {
+        console.log(`${line} A real deploy would stop here.`)
+        continue
+      }
+      throw new Error(`${line} Nothing was deployed. Wait for it, or cancel it in Coolify if it is dead.`)
+    }
+    for (const one of stuck) {
+      const what = `${resource.role}: a deploy started ${startedAgo(one.created_at)} ago and still ${one.status === "queued" ? "queued" : "running"} (${one.deployment_uuid})`
+      if (dryRun) {
+        console.log(`${what} is stuck and would be cancelled.`)
+        continue
+      }
+      // 400 means it ended on its own since the list was read, which clears it too.
+      const ended = await coolify(settings, "POST", `/deployments/${one.deployment_uuid}/cancel`).then(
+        () => false,
+        (error) => {
+          if (error.status !== 400) throw error
+          return true
+        }
+      )
+      console.log(`${what} was stuck. ${ended ? "It ended on its own just now." : "Cancelled it."}`)
+    }
+  }
+}
+
+async function deployOne(settings, resource, force) {
+  const route = `/deploy?uuid=${encodeURIComponent(resource.uuid)}&force=${force ? "true" : "false"}`
+  // Coolify 4.2 made this a POST and answers a GET with 405. The US box takes
+  // the GET; the German one, on 4.4, only the POST (18 Oct 2026).
+  const started = await coolify(settings, "GET", route).catch((error) => {
+    if (error.status !== 405) throw error
+    return coolify(settings, "POST", route)
+  })
+  const deployment = started?.deployments?.find((one) => one.resource_uuid === resource.uuid) ?? started?.deployments?.[0]
+  if (!deployment?.deployment_uuid) throw new Error(`Coolify did not start ${resource.role}: ${JSON.stringify(started)}`)
+  console.log(`  ${resource.role}: deployment ${deployment.deployment_uuid}`)
+  return deployment.deployment_uuid
+}
+
+async function main() {
+  const flags = readFlags(process.argv.slice(2), process.env.npm_package_name || null)
+  const apps = JSON.parse(await readFile(path.join(here, "..", "apps.json"), "utf8"))
+  const app = apps[flags.app]
+  if (!app) throw new Error(`No app "${flags.app}" in apps.json. Known: ${Object.keys(apps).join(", ")}.`)
+  if (app.ownScript) throw new Error(`${flags.app} deploys with its own script: ${app.ownScript}`)
+
+  const settings = await coolifySettings(app.server)
+  const resources = resourcesToDeploy(app, flags.only)
+
+  const dirty = git("status", "--porcelain")
+  if (dirty) console.log("Note: uncommitted changes here do not ship. Coolify builds what is on GitHub.")
+  if (flags.push && !flags.dryRun) {
+    console.log("Pushing this branch to develop (fast-forward only)...")
+    try {
+      execFileSync("git", ["push", "origin", "HEAD:develop"], { stdio: "inherit", cwd: repoRoot })
+    } catch {
+      throw new Error("The push was refused: develop has commits this branch lacks. Nothing was deployed.")
+    }
+  }
+  const commit = developCommit()
+  console.log(`Building: ${commit.line}`)
+  if (commit.mismatch && !flags.dryRun) throw new Error(commit.mismatch)
+  if (commit.mismatch) console.log(`Warning: ${commit.mismatch}`)
+
+  // Name every resource from Coolify's own list first, so a wrong uuid is
+  // caught before anything is rebuilt.
+  const listed = await coolify(settings, "GET", "/applications")
+  const byUuid = new Map((Array.isArray(listed) ? listed : []).map((one) => [one.uuid, one]))
+  for (const resource of resources) {
+    const found = byUuid.get(resource.uuid)
+    if (!found) throw new Error(`No Coolify app ${resource.uuid} (${resource.role}) on ${settings.url}.`)
+    const locked = lockedCommit(found)
+    if (locked) {
+      throw new Error(
+        `"${found.name}" is locked to commit ${locked.slice(0, 9)} in Coolify, so a deploy would ship old code. ` +
+          `Set its Git Commit SHA back to HEAD (PATCH /applications/${resource.uuid} {"git_commit_sha":"HEAD"}). Nothing was deployed.`
+      )
+    }
+    console.log(`${resource.role}: "${found.name}" (${resource.uuid}), now ${found.status}`)
+  }
+
+  const live = await liveCommit(settings, app.resources[0].uuid)
+  if (live) {
+    // A dry run has not pushed, so it measures what the push would ship.
+    const target = git("rev-parse", commit.mismatch && flags.dryRun ? "HEAD" : "origin/develop")
+    const shipping = git("rev-list", "--count", `${live}..${target}`)
+    const migrations = migrationsBetween(live, target, flags.app)
+    console.log(
+      `Live now: ${live.slice(0, 9)}. Shipping ${shipping} commit${shipping === "1" ? "" : "s"}` +
+        `${migrations.length ? ` and ${migrations.length} migration${migrations.length === 1 ? "" : "s"} (${migrations.slice(0, 3).join(", ")})` : ""}.`
+    )
+  }
+  console.log(`Plan: ${resources.map((one) => one.role).join(", then ")}, one at a time.`)
+  const menu = copiesMenu(app, resources, flags.skipMenu)
+  console.log(`Left menu: ${menu ? "copied from live to this laptop after the deploy" : "not copied"}.`)
+
+  await clearStuckDeployments(settings, resources, flags.dryRun)
+
+  if (flags.dryRun) {
+    console.log("\nDry run: nothing deployed.")
+    return
+  }
+
+  const expected = git("rev-parse", "origin/develop")
+  for (const resource of resources) {
+    console.log(`\nDeploying ${resource.role}${flags.force ? " without cache" : ""}...`)
+    const deploymentUuid = await deployOne(settings, resource, flags.force)
+    const status = await waitForDeployment(settings, resource.role, deploymentUuid)
+    if (status !== "finished") throw new Error(`${resource.role} ${status}. Stopped, so the rest keep the build they have.`)
+    // A healthy restart of old code still says "finished", so the commit is checked too.
+    const built = (await coolify(settings, "GET", `/deployments/${deploymentUuid}`))?.commit
+    const wrong = wrongBuild(built, expected)
+    if (wrong) throw new Error(`${resource.role}: ${wrong}. Stopped, so the rest keep the build they have.`)
+  }
+
+  if (app.healthUrl) console.log(`\nHealth ${app.healthUrl}: ${await checkHealth(app.healthUrl)}`)
+  if (menu) {
+    // A failed copy is reported and never undoes the deploy.
+    const notCopied = (error) => {
+      process.exitCode = 1
+      console.error(`Could not copy the live left menu to this laptop: ${error instanceof Error ? error.message : error}`)
+      console.error(`The deploy itself finished. Copy it by hand: node .agents/skills/deploy-app/scripts/copy-menu.mjs ${flags.app}`)
+    }
+    const { withLiveDatabase } = await import("./live-db.mjs")
+    let tried = false
+    try {
+      await withLiveDatabase(flags.app, async () => {
+        tried = true
+        console.log("\nCopying the live left menu to this laptop...")
+        await (await import("./copy-menu.mjs")).copyMenu(flags.app).catch(notCopied)
+      })
+    } catch (error) {
+      // Opening or closing the port failed. A copy that already ran said how it went.
+      process.exitCode = 1
+      console.error(`The live database port: ${error instanceof Error ? error.message : error}. Check in Coolify that it is closed.`)
+      if (!tried) notCopied(error)
+    }
+  }
+  console.log(`\nDone: ${resources.map((one) => one.role).join(", ")} deployed.`)
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error)
+    process.exit(1)
+  })
+}

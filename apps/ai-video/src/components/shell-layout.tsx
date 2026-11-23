@@ -13,13 +13,17 @@ import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
   createDefaultShellConfig,
+  getModalStyleVars,
   isShellItem,
+  MODAL_STYLE_VAR_NAMES,
   renderShellIcon,
+  resolveBackground,
   type ShellConfig,
   type ShellItem,
+  type ShellModalStyling,
 } from "@/lib/ai-video"
 import type { AuthUser } from "@/lib/api/auth"
-import { loadCurrentUser, logout } from "@/lib/api/auth"
+import { logout } from "@/lib/api/auth"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
@@ -64,6 +68,7 @@ export function ShellLayout({
   const lastSettingsRef = React.useRef(settings)
 
   useShellFavicon(config.favicon)
+  useModalStyleVars(config.styling.modal)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -78,31 +83,12 @@ export function ShellLayout({
     setSaveStatus("idle")
   }, [initialSettingsError, settings])
 
-  React.useEffect(() => {
-    let active = true
-
-    const redirectIfSignedOut = async () => {
-      const currentUser = await loadCurrentUser().catch(() => null)
-      if (active && !currentUser) {
-        window.location.href = "/login"
-      }
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void redirectIfSignedOut()
-      }
-    }
-
-    window.addEventListener("focus", redirectIfSignedOut)
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-
-    return () => {
-      active = false
-      window.removeEventListener("focus", redirectIfSignedOut)
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-    }
-  }, [])
+  // NOTE: no focus/visibilitychange auto-redirect. A client-side "am I still
+  // signed in?" check on every tab focus was bouncing the user to /login
+  // whenever the client-side loadCurrentUser call didn't see the session cookie
+  // (which happens intermittently in the IDE's embedded preview). Route auth is
+  // guarded server-side by the _authenticated loader on navigation, which reads
+  // the cookie from the request directly — that's the reliable gate.
 
   const handleConfigChange = React.useCallback((nextConfig: ShellConfig) => {
     setConfig(nextConfig)
@@ -179,7 +165,8 @@ export function ShellLayout({
   // projects dashboard at the bare path renders as a normal padded page.
   const isVideoEditorPath =
     currentPath.startsWith("/admin/video-editor/") ||
-    currentPath.startsWith("/admin/carousels/")
+    currentPath.startsWith("/admin/carousels/") ||
+    currentPath.startsWith("/admin/automations/")
 
   const runtime = React.useMemo<ShellRuntime>(
     () => ({
@@ -203,9 +190,27 @@ export function ShellLayout({
     ]
   )
 
+  // Recolors both the sidebar rail and the sticky header (both use bg-sidebar).
+  // Opaque so the two render the same color regardless of what sits behind them.
+  const chromeBackground = resolveBackground(config.styling.chrome, {
+    opaque: true,
+  })
+  // Divider lines resolve to the theme --border token; overriding it (and the
+  // sidebar edge) on this wrapper recolors the rules inside cards and tables plus
+  // the sidebar border across the whole shell at once.
+  const dividerColor = resolveBackground(config.styling.dividerColor, {
+    base: "--muted-foreground",
+  })
+  const rootStyle = {
+    ...(chromeBackground ? { "--sidebar": chromeBackground } : {}),
+    ...(dividerColor
+      ? { "--border": dividerColor, "--sidebar-border": dividerColor }
+      : {}),
+  } as React.CSSProperties
+
   return (
     <ShellRuntimeContext.Provider value={runtime}>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-muted/60" style={rootStyle}>
         <SidebarProvider
           className="h-screen"
           sidebarWidth={config.sidebarWidth}
@@ -224,12 +229,13 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
+            {/* Full-bleed workspaces still receive the styling contract so they
+                track the content-spacing setting and go flat at 0; DashboardContent
+                just skips the outer gutter padding/gap for them (they pad
+                themselves from --shell-gutter). */}
             <DashboardContent
-              className={
-                isVideoEditorPath
-                  ? "space-y-0 overflow-hidden p-0 sm:space-y-0 sm:p-0 md:p-0"
-                  : undefined
-              }
+              styling={config.styling}
+              fullBleed={isVideoEditorPath}
             >
               <Outlet />
             </DashboardContent>
@@ -252,6 +258,28 @@ function resolveConfig(settings: ShellConfig | null) {
   }
 
   return requireCanonicalShellConfig(settings)
+}
+
+// The dialog portals to document.body, outside the shell subtree, so modal
+// styling is applied as CSS variables on the document root where it can reach.
+function useModalStyleVars(modal: ShellModalStyling) {
+  React.useEffect(() => {
+    const root = document.documentElement
+    const vars = getModalStyleVars(modal)
+    for (const name of MODAL_STYLE_VAR_NAMES) {
+      const value = vars[name]
+      if (value === undefined) {
+        root.style.removeProperty(name)
+      } else {
+        root.style.setProperty(name, value)
+      }
+    }
+    return () => {
+      for (const name of MODAL_STYLE_VAR_NAMES) {
+        root.style.removeProperty(name)
+      }
+    }
+  }, [modal])
 }
 
 function useShellFavicon(favicon: string) {

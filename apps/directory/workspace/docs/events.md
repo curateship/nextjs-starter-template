@@ -1,0 +1,1982 @@
+# Events
+
+Each site can list events. An admin writes them in Admin → Events, and each
+published event has its own page at `/events/<address>`.
+
+## Rules Tyler set
+
+- **Every site starts on Toronto time.** Chosen on 23 Sep 2026. Old sites and
+  new ones both get `America/Toronto` until an admin changes it in
+  Settings → Directory → Events and deals pages.
+- **The end time is optional.** With no end time, the page shows only the start
+  time, and the event counts as over once its day is over in the site's time
+  zone.
+- **No automatic sidebar link**, the same as posts. Add Events to the sidebar
+  in Settings the same way the Listings and Posts links were added.
+- **Real columns, not a JSON blob.** The old Directory app kept the date, time
+  and place inside one JSON field. Here each is its own column.
+- **No page templates.** The event page layout is fixed, the same way posts
+  are.
+- **A past event stays in the sitemap for 30 days after it ends.** Chosen on
+  23 Sep 2026. The page itself keeps working after that.
+- **The feed places an event by the day it was published**, not the day it
+  happens. Chosen on 23 Sep 2026, so the feed stays "what is new on the site".
+- **The search box's suggestions offer only events that are not over yet.**
+  Chosen on 23 Sep 2026. The full search page still finds past events.
+- **No place, no Google block.** Chosen on 23 Sep 2026. Google refuses an
+  event without a place, so an event with neither a place name nor a street
+  address gets no event markup at all.
+- **A repeating event is one row in Admin → Events.** Chosen on 23 Sep 2026,
+  so a weekly trivia night does not add 52 rows a year. Its dates open from
+  the main event's record.
+- **Deleting the main event deletes every date.** Chosen on 23 Sep 2026.
+  Setting the repeat to "Does not repeat" is how an admin stops a series and
+  keeps the dates that have been.
+- **A suggested event goes straight to the queue.** Chosen on 24 Sep 2026.
+  There is no email to confirm first, unlike Add your listing. The hidden box
+  and five an hour from one address keep spam down.
+- **The Suggest an event form has a fixed list of required boxes**: the name,
+  the day, the start time and the email. Chosen on 24 Sep 2026, over a setting
+  where the admin picks. The server checks the same list as the browser.
+- **The photo comes with the form**, and is filed in the Media library only
+  when the suggestion is approved. Chosen on 24 Sep 2026.
+- **The Events page has a "Suggest an event" button** while the Suggest an
+  event page is on. Chosen on 24 Sep 2026. The page starts on for every site.
+- **That button opens a window, not a page.** Tyler asked for this on 25 Sep
+  2026. `/add-event` is still a page of its own for anyone who follows a link
+  to it.
+- **Approving a listing owner's event publishes it.** Chosen on 24 Sep 2026,
+  because the owner wrote it for their own place. A public suggestion still
+  becomes a draft.
+- **Every owner's event is reviewed,** however many were approved before.
+  Chosen on 24 Sep 2026. No owner is trusted to skip the queue.
+- **An owner sends one date at a time.** Chosen on 24 Sep 2026. An admin can
+  make an owner's event repeat in the event's record after approving it.
+- **An AI-written event is always a draft.** No setting changes that. An event
+  the Draft events automation step wrote never reaches a visitor before a
+  person has looked at it.
+- **Each AI draft keeps the page it came from**, in its own field, shown in the
+  event's record and never to a visitor. Chosen on 24 Sep 2026.
+- **An event the page gives no start time for is skipped, not guessed.** Chosen
+  on 24 Sep 2026. The run history names it and says why.
+- **The Draft events step has the same provider and model choice as the AI
+  step.** Chosen on 24 Sep 2026.
+- **An admin features an event for free, and a listing's owner pays.** Chosen
+  on 24 Sep 2026.
+- **An event plan is one price per event**, like "$25 to feature an event",
+  with no number of days. Chosen on 24 Sep 2026. The spot runs from the payment
+  to the end of the event, whether that is 2 days or 3 weeks away.
+- **An owner can pay to feature only an event they sent in** from My listings.
+  Chosen on 24 Sep 2026. An event an admin wrote at their place has no Feature
+  button for them.
+- **A featured repeating event puts only its next date on top.** Chosen on
+  24 Sep 2026. The later dates keep their place in the list and still carry
+  the badge.
+- **Signing up needs no account.** Chosen on 24 Sep 2026. A name and an email
+  are enough, the same as the old Directory app.
+- **Who's coming lives in the event's record**, in the Sign-ups tab of its ⋮
+  in Admin → Events.
+  Chosen on 24 Sep 2026, over a window of its own. The Events dashboard's
+  Sign-ups row lists everyone across events too.
+- **Signing up twice says the same thing as signing up once.** Chosen on
+  24 Sep 2026, so nobody can type an email into the box to find out whether
+  that person is going.
+- **A removed person can sign up again while a seat is free.** Chosen on
+  24 Sep 2026.
+- **A listing's owner sees who is coming to an event they sent: the count,
+  the names and the emails.** Tyler chose "Count, names and emails" on 19 Nov
+  2026. The sign-up box on such an event says "The host sees your name and
+  email."
+- **The early cut-off for sign-ups is set on each event.** Tyler: "On each
+  event", 19 Nov 2026, over one setting for the whole site.
+- **The admin picks per event whether the sign-up question must be
+  answered.** Tyler: "Admin picks per event", 19 Nov 2026.
+- **Adding a person by hand needs a name and an email.** Tyler: "Name and
+  email", 19 Nov 2026, so one email is still one place on the list.
+- **Past events sit behind "Upcoming | Past" chips** on the Events page.
+  Tyler: "Upcoming | Past chips", 19 Nov 2026.
+- **Only "an event was suggested" starts an automation.** Tyler: "Event
+  suggested", 19 Nov 2026. `directory-automations.md` has the rest.
+- **Event fields are a list of their own, on a row of the Events
+  dashboard.** Tyler: "Own row on Events", 19 Nov 2026, over sharing the
+  listing fields, so "Cuisine" never shows on an event.
+- **Postponed means there is no new date yet.** Tyler: "New date unknown",
+  19 Nov 2026. Setting the new date puts the event back to Scheduled with a
+  "Rescheduled from" note, and everyone on its list is emailed the new date.
+- **Everyone on the list hears about a cancel or a postpone**: the people
+  signed up, the people holding an offered seat, and the waiting list.
+  Tyler: "Signed up + waiting", 19 Nov 2026.
+- **The cancel window says nothing about refunds yet.** Tyler: "Nothing
+  yet", 19 Nov 2026. Task 35 adds a line once paid tickets exist.
+
+## What an event is
+
+- **The table:** `events`, from `drizzle/0083_cms_events.sql`. An event has a
+  title, an address, a cover image, a summary, a body, a status, a start day
+  and time, an optional end day and time, a place name and a street address.
+  `drizzle/0084_cms_events_visibility.sql` adds `visibility`, which is
+  `public` or `private`. Every event made before it is public.
+  `drizzle/0085_cms_event_repeats.sql` adds the repeat columns that
+  "Repeating events" below describes. `drizzle/0086_cms_event_listing.sql`
+  adds `listing_id`, for "The place is a listing" below.
+  `drizzle/0087_cms_event_position.sql` adds `latitude`, `longitude` and
+  `located_for`, for "The map on the event page" below.
+  `drizzle/0094_cms_event_sign_ups.sql` adds `takes_sign_ups` and `seats`,
+  for "Sign-ups" below. `drizzle/0156_cms_event_features.sql` adds
+  `tickets_url`, `sign_ups_close_hours`, `sign_up_question` and
+  `sign_up_question_required` on the event, `answer` on a sign-up, and
+  `changes_event_id` on a suggestion, for the sections below that name them.
+  `drizzle/0158_cms_event_custom_fields.sql` adds `custom_values`, for "The
+  site's own event fields" below. `drizzle/0159_cms_event_schedule_status.sql`
+  adds `schedule_status`, `rescheduled_from_date`, `rescheduled_from_time`,
+  `notice` and `notice_number`, and `told_notice` on a sign-up, for
+  "Cancelled or postponed" below.
+- **The body:** the same writing box as a post, listing cards included. The
+  rules for it live in `src/lib/posts/post-body.ts`.
+- **The address:** unique on its own site. A title typed on a new event writes
+  the address until the address is typed in directly, and a clash is numbered,
+  like `night-market-2`.
+- **Draft or published:** a new event is a draft. A draft is never readable by
+  a visitor. Unpublishing is setting it back to Draft.
+- **Public or private:** a new event is public. "Private events" below covers
+  the other kind.
+- **The published date:** set the first time an event is published and kept
+  after that. It is not shown anywhere yet.
+- **Categories:** events use the same categories as listings and posts, filed
+  in `category_relationships` with the content type `event`.
+- **Deleting a site** deletes its events. Deleting an event removes its
+  category tags too. Deleting a category removes it from its events, and the
+  warning before the delete counts events separately from listings and posts.
+
+## The time zone rule
+
+- **An event stores a day and a clock time**, like 26 Sep 2026 and 6:00 PM.
+  It never stores one moment in time.
+- **The site stores the time zone**, in `directory_settings.time_zone`.
+- **Why:** "Saturday 6pm" stays Saturday 6pm when the clocks change in
+  November. Changing the site's time zone keeps every event's day and clock
+  time as written and reads them in the new zone.
+- **Where the zone is used:** deciding whether an event is over, and naming the
+  zone on the event page, as in "6:00 PM to 11:00 PM, Eastern Time".
+- **The rules live in one file**, `src/lib/events/event-time.ts`. Whether an
+  event is over compares the event's end with what a wall clock in the site's
+  zone reads now, so the server's own clock never decides it.
+
+## When an event ends
+
+- **With an end time:** it ends at that time on its end day.
+- **With no end time:** it ends at midnight at the end of its last day.
+- **Past midnight:** an event from 10pm to 2am needs the next day as its end
+  day. Admin → Events refuses an end that comes before the start and says so.
+- **Several days:** an end day can be later than the start day, like a food
+  festival from Friday to Sunday. It is still one event, with one page. "An
+  event over several days" below says where it shows.
+
+## Writing an event
+
+- **Where:** Admin → Events, at `/admin/events`, which is one three-panel
+  dashboard. `events-dashboard.md` describes its rows, its left page and its
+  Overview.
+- **The list:** the Events row, behind Upcoming, Past and Draft tabs. Search
+  by title, address or place, sort by title, status, event date, views or last
+  change. It opens on the latest event date first, and the Date column shows
+  the event's own start, not when it was edited.
+- **The record:** a row opens the event on the right, and every field saves
+  itself 700ms after the last change, as the Listings dashboard's records do.
+  The panel shows the Body. Every other field is a row in its ⋮: The event
+  (title, address, summary, cover image, tickets link, categories), When and
+  where (start day, start time, end day, end time, place, repeat) and
+  Publishing (status, who can find it, featured), with Sign-ups and Later
+  dates as tabs of their own. Publish or Unpublish is in its footer. An event with no title, day or
+  start time says so in the footer and waits to save.
+- **A new event** starts from New event's dropdown: a title, a day and a start
+  time. It is made a draft and opens under Draft.
+
+## Duplicating an event
+
+Each row in Admin → Events has a Duplicate button before the cog. It is for an
+event that happens again on no fixed pattern, like a trivia night most
+Thursdays. An event on a fixed pattern is a repeating event instead.
+
+- **One click:** the copy is made and opens on the right under Draft, so the
+  admin can change the date.
+- **What comes across:** the summary, cover image, body, start and end, place,
+  street address, categories and the public or private setting.
+- **The new title and address:** " (copy)" goes on the end of the title, so
+  "Trivia night" becomes "Trivia night (copy)". The address comes from that
+  title, like `trivia-night-copy`, and `trivia-night-copy-2` when that is taken.
+- **Always a draft:** the copy has no published date, so nothing new is public
+  until the admin publishes it.
+- **The original is not touched.** The copy stays a draft until it is
+  published. Delete it from the list if it is not wanted.
+- **A copy never repeats.** Copying a repeating event copies the event and not
+  its repeat or its dates.
+- **Where it lives:** `duplicateEvent` in `src/server/events/events.ts`.
+
+## Repeating events
+
+An event can repeat every week on chosen days, or every month on a day like
+"the first Tuesday" or "the last Friday", with an optional end day. It is for
+something like a trivia night every Thursday: the admin sets it up once, and
+the coming Thursdays are always on the calendar.
+
+- **The main event is the first date.** It holds the repeat, in the Repeat
+  row of its record's ⋮. Every later date is its own event, with its own page and
+  its own address, like `/events/trivia-night-2026-10-08`.
+- **The Repeat row:** "Does not repeat", "Every week" with the days ticked, or
+  "Every month" with the week and the day, plus an Until day. It starts from
+  the event's own weekday. Under it is the plain sentence, like "Every Tuesday
+  and Thursday", and the first four dates, worked out by the same code that
+  makes them.
+- **The repeat has to fall on the start day.** An event starting on a Thursday
+  cannot repeat "Every Tuesday", because the sentence would then describe dates
+  that are not the ones made. The Repeat box says so, and saving is refused in the
+  same words.
+- **How far ahead:** the next 8 dates, counting the main event while it is to
+  come, and never more than 3 months past today. A weekly event has its next 8
+  weeks; a monthly one has its next 3 months.
+- **Topping up:** a background job checks every 15 minutes and makes the
+  dates that are now due. Saving the main event makes them at once.
+- **Never twice:** each date is made for one day of the repeat, and the
+  database refuses a second date for the same day, so two runs at once never
+  make a date twice. A date the admin deleted is not made again. The next day
+  of the repeat takes its place instead.
+- **What a date copies:** the title, summary, cover image, body, status, who
+  can find it, times, place, street address and categories. An event over
+  several days keeps its length on every date.
+
+### Editing a repeating event
+
+- **Editing the main event** changes every future date that was not changed on
+  its own. Each keeps its own day and its own address. Past dates are left as
+  they were.
+- **Editing one date** changes that date only. The date is marked "Changed on
+  its own", and later changes to the main event skip it.
+- **Changing the repeat or the start day** deletes the future dates that were
+  not changed on their own and makes them again from the new repeat. A future
+  date that was changed on its own is kept, and a message after saving names
+  it, like "Thu, Oct 29 was changed on its own, so it was kept as it is."
+- **Stopping:** "Does not repeat" deletes the future dates that were not
+  changed on their own and makes no more. The past dates stay, and so does any
+  future date changed on its own.
+- **Deleting the main event** deletes every date with it, and the warning
+  counts them: "Trivia night and its 7 later dates go for good." Deleting one
+  date deletes only that date.
+- **A date somebody signed up for is never deleted by a repeat change.**
+  Changing the repeat, the start day, or stopping the repeat keeps that date,
+  and a message after saving names it, like "Thu, Oct 15 has people signed
+  up, so it was kept." The admin deletes it by hand if it really is off.
+
+### In Admin → Events
+
+- **One row per repeating event.** The dates are not rows. The main event's row
+  says "Repeats" beside its status, and under its title "Every Thursday · 7
+  more dates coming". After the repeat is stopped it says "No longer repeats ·
+  12 later dates". The Date column is the main event's own day.
+- **Later dates:** the main event's record lists every later date, soonest
+  first, marked "Past", "Draft" or "Changed on its own" where that is true.
+  Clicking one opens that date on the right; whatever was typed is saved
+  first.
+- **One date's record** has no repeat of its own. Its Repeat row says whose
+  date it is and has an "Open main event" button.
+
+### On the site
+
+Every date is an ordinary event to a visitor. Each shows in the Events page's
+list and month, search, the sitemap, the feed and the calendar subscription,
+and each has its own page, calendar file and Google markup.
+
+### Where it lives
+
+- **The rules:** `src/lib/events/event-repeat.ts`, copied from the old
+  Directory app with its tests. "The last Friday" in a month with five Fridays
+  is the fifth one.
+- **Making, copying and clearing dates:** `src/server/events/repeats.ts`.
+  `saveEventAndDates` saves an event and its dates in one transaction, so a
+  refused repeat leaves nothing half saved. `runRepeatTopUps` is the background
+  job, listed in `src/app/server-options.ts`.
+- **The columns:** `repeat_rule` and `repeat_made_until` on the main event;
+  `series_id`, `series_date` and `edited_alone` on each date.
+- **The background job needs a restart to start.** The shell's loop keeps the
+  list of jobs it had when the server started, so a server running before this
+  change never tops up until it restarts. Saving the main event still makes
+  its dates.
+
+## The place is a listing
+
+When the event is at a place that is already a listing on the site, like a bar
+hosting a jazz night, the admin picks the listing instead of typing a name and
+address. Typing a place by hand still works for places that are not listed.
+
+- **Picking:** "Pick a listing" under the place boxes, in When and where. It
+  searches the site's listings by name as you type, the same picker the post
+  editor's "Listing card" uses, and marks a draft listing "Draft". Picking one
+  fills the Place and Street address boxes with the listing's and greys them
+  out.
+- **Unpicking:** "Type a place instead" takes the listing off and leaves its
+  name and address in the boxes, to change by hand.
+- **Always the listing as it is now.** The event page, the Events page's list
+  and month, the calendar subscription, a calendar file, Google's event markup,
+  search and Admin → Events all read the listing's current name and address.
+  Renaming the listing changes all of them at once.
+- **The link:** the place's name on the event page links to the listing's
+  page. There is no link when the listing is a draft, or while the directory is
+  switched off or kept for members, the same rule as a listing card in the
+  body. The name and address still show.
+- **The listing is deleted:** its last name and address are written onto the
+  event just before it goes, so the event page keeps saying where it is, as
+  plain text with no link.
+- **A copy and a repeating event's dates** keep the same listing.
+- **The listing's pin** is the event's map pin, as "The map on the event page"
+  below says.
+- **Only this site's listings:** saving a listing from another site is
+  refused with "That listing is not on this site any more."
+- **Where it lives:** `listing_id` on `events`; `livePlaceName` and
+  `livePlaceAddress` in `src/server/events/events.ts` are the one rule every
+  read uses; `keepListingPlaceOnEvents` runs inside the listings delete. The
+  picker is `src/components/directory/listing-picker.tsx`.
+- **Not built:** listings have no "permanently closed" state, so there is
+  nothing yet to warn an admin about. That question from task 10 waits until
+  listings can be marked closed.
+
+## What's on at a listing
+
+A listing's page has a "What's on here" box with the next 3 events held there,
+so a visitor looking at a bar sees trivia on Thursday and jazz on Saturday.
+
+- **Which events:** published, public, not over yet, and held at that listing,
+  which means picked as the place in the event's record. A typed place with the
+  same name does not count. A date of a repeating event that was changed on
+  its own to another place is not there either.
+- **Where:** the wide column, after the write-up and the site's own fields and
+  above "Related listings". Tyler chose this on 23 Sep 2026. On a phone it
+  comes after the listing card and hours, like the rest of the wide column.
+- **What a row shows:** the day in a small square, the title and the day and
+  time, the same as a row on the Events page. The place is left out, because
+  it is the page the visitor is on. "All times are Eastern Time." sits under
+  the heading.
+- **See all:** with more than 3 coming up, "See all 8 events here" opens the
+  Events page narrowed to that place.
+- **No box** when nothing is coming up, and none when the Events page is
+  switched off, or kept for members and the visitor is signed out.
+- **How fresh:** the listing's own part of the page is cached for up to two
+  minutes, but the events are read after that cache, by the site's clock, so a
+  new or finished event shows within a minute.
+- **Where it lives:** the endpoint for the listing page in
+  `src/lib/api/directory/public.ts` adds the box's events, read with
+  `readUpcomingEvents` and a listing's id. The box is
+  `src/components/directory/public/listing-events.tsx`.
+
+## Events on category pages and the home page
+
+### A category page
+
+A category page lists its upcoming events under its listings, above the posts,
+headed "Upcoming events in Live music" with "All times are Eastern Time."
+under it.
+
+- **Which events:** published, public, not over yet, and filed under that
+  category in the event's record. Its own events only, never its subcategories',
+  the same rule its listings follow.
+- **How many:** the soonest 6, in the Events page's list rows. With more to
+  come, "All upcoming events in Food" opens the Events page narrowed to that
+  category.
+- **No events, no section.** A category holding only events skips its "There
+  is nothing in Food yet" card, the same as one holding only posts.
+- **Read after the cache** and only when the visitor may see the Events page,
+  the same as a listing's "What's on here".
+
+### A home page row
+
+A home page row can be a third kind, "Upcoming events", next to Listings and
+Category cards, in Settings → Public pages → Front page.
+
+- **Its settings:** a heading, an introduction, a category or "Every event",
+  and how many, 1 to 12. Order and arrangement do not apply: it is always the
+  soonest first, the same cards as the Events page.
+- **On the page:** the row's heading, its introduction, "All times are Eastern
+  Time.", the events and a "See all events" button to the Events page. A row
+  with a category opens the Events page narrowed to it.
+- **Left off the page** while nothing is coming up, and while the visitor may
+  not see the Events page. A home page left with no rows at all is the
+  platform's own front page, as before.
+- **Always current.** The home page's rows are cached until the admin saves a
+  row, but a row of events is filled after that cache by the site's clock, so
+  a finished event is gone within a minute.
+- **The saved kind:** `drizzle/0088_cms_front_page_events_row.sql` adds
+  `events` to the kinds a row may be. Rows saved before keep theirs. Only the
+  heading, introduction, category and count mean anything on a row of events;
+  the order and arrangement are stored but not used.
+- **Where it lives:** `fillFrontPageEvents` in
+  `src/server/directory/front-page.ts`, the kind in
+  `src/lib/directory/front-page.ts`, and the "Which events" card in
+  `src/components/directory/front-page-section-dialog.tsx`. Both lists read
+  `readUpcomingEvents` with a category.
+
+## The map on the event page
+
+An event page shows a small map of where the event is, with one pin, and a
+"Directions" button that opens Google Maps with the place as the destination.
+On a phone that opens the maps app, ready for walking directions.
+
+- **Where the pin comes from:** a listing picked as the place brings its own
+  pin, and nothing is looked up. A typed street address is looked up with
+  Google once, when the event is saved.
+- **Only when the address changes.** The address last looked up is kept in
+  `located_for`, so saving again without changing the address makes no
+  lookup. Each lookup counts against the site's Google allowance, so this is
+  the rule that keeps the cost down.
+- **Only the street address is looked up**, never the place name alone. A name
+  like "The Local" could match a bar in another city, and a pin in the wrong
+  place is worse than none.
+- **Google finds nothing:** the event has no map, and the same address is not
+  asked about again until it is changed.
+- **Google cannot be reached, or the site has no lookup key:** the event has no
+  map, and the next save tries again.
+- **No map is still a working page.** The place is written out above where the
+  map would be, and Directions works from the name and address instead of a
+  pin.
+- **Which keys:** both are in Settings → Directory. The lookup uses "Google
+  Maps API key" on the Near me search card, and drawing the map uses "Map
+  display key" on the Map view card. They are the same two keys the
+  directory's place search and map use. With no display key there is no map,
+  only Directions.
+- **The record says where it stands.** Under a typed street address, the event
+  record says "On the map on the event page", "Google could not find this
+  address…", "The address is looked up for the map when it saves" or "No map:
+  this site has no Google Maps API key under Near me search".
+- **Directions hides once the event is over,** with "Add to calendar". The map
+  stays, as a record of where it was.
+- **A deleted listing** leaves its pin on the event with its address, so the
+  map stays and nothing is looked up.
+- **A copy and a repeating event's dates** keep the pin, with no new lookup.
+- **Where it lives:** `positionForSave` in `src/server/events/events.ts`
+  decides whether a save looks anything up, and runs before the save's
+  database transaction so a slow answer never holds the database.
+  `locateAddress` in `src/server/directory/geocode.ts` asks Google. The map is
+  `src/components/events/public/event-place-map.tsx`, and the link is
+  `src/lib/events/directions.ts`.
+- **One rule for the pin:** `livePlaceLatitude` and `livePlaceLongitude` in
+  `src/server/events/place.ts` decide it for the event page's map and for
+  "Events near a place" on the Events page.
+- **Not built:** a map of all events. An online event (task 29) will have no
+  map.
+
+## Private events
+
+A private event has a page anyone with the link can open, and no list on the
+site shows it. It is for something like a members' dinner whose link goes out
+by email. It is not a password.
+
+- **The switch:** "Who can find it" in the event's record, Public or "Private,
+  link only". It can be changed at any time, on a draft or a published event.
+- **Left out of:** the Events page's list, the month, one day's list, the
+  whole-site search, the search box's suggestions, the sitemap, the feed and
+  the calendar subscription.
+- **Still working:** the event's own page, its "Add to calendar" file and its
+  drawn share card. The share card is the preview of the very link the event
+  is sent by, so it stays.
+- **Search engines:** a private event's page carries
+  `<meta name="robots" content="noindex">`, which asks them not to list it.
+  Switching the event back to Public removes the tag.
+- **The Events page's switch still counts.** With the Events page off, a
+  private event's page is not found either, the same as every event page.
+- **One filter for every list:** every public list of events filters through
+  `listedEventsOnSite` in `src/server/events/public.ts`. Only reading one event
+  by its address skips it. The old Directory app let each list check for
+  itself, and only search remembered.
+- **The test that keeps it that way:** `src/server/events/private.test.ts`
+  runs every function `public.ts` exports and fails if one shows a private
+  event, or if a new export is missing from its list. It also fails if any
+  file besides the admin code, `public.ts` and the share card reads the events
+  table, so a new list has to be written in `public.ts`.
+
+## The event page
+
+- **`/events/<address>`** shows the cover image, title, category links,
+  summary, when, where and the body. Its tab title, description and share image
+  come from the event.
+- **"This event has ended"** shows at the top once the event is over by the
+  site's clock. The page works this out on every visit, after the page cache,
+  so a cached page never says an event is still on.
+- **A draft, another site's event and a made-up address** all answer the same
+  not-found page.
+- **"Report a problem"** is a small link at the foot of the event's card.
+  "Reporting a problem on an event" below covers it.
+
+### The tickets link
+
+An event can say where its tickets are sold, like Eventbrite or the venue's
+own page. A night market with tickets on Eventbrite shows "Get tickets" on its
+page, first in the row with Add to calendar and Directions, and the button
+opens Eventbrite in a new tab.
+
+- **Where:** the "Tickets link" row in the event's ⋮, under The event. Empty
+  means no button.
+- **Only a full `https://` address.** The record marks anything else and
+  says so, and the server refuses it the same way, so the button never opens
+  a plain-text page or a `javascript:` one. The rule is
+  `src/lib/events/tickets-url.ts`.
+- **The label is fixed**: "Get tickets". It is not a box to fill in.
+- **Google is told too.** The page's event markup carries the link as its
+  offer's address. There is no price, because the site does not know one.
+- **Gone once the event is over**, with the other buttons in that row.
+- **Copied** by Duplicate and to every date of a repeat.
+- **Paid tickets later.** When task 32 lets the site sell its own tickets, an
+  event selling them hides this button.
+
+### Also on and Also at
+
+Two short lists at the foot of an event's page, each left out when it has
+nothing in it.
+
+- **Also on:** the next five dates of the same repeating event, by day and
+  time, each a link to that date's page. A weekly trivia night's page shows
+  the next Tuesdays. It shows on a date that has ended too, so somebody who
+  missed last week finds next week.
+- **Also at The Rex:** the next three events at the same listing, then "All
+  events at The Rex", which opens the Events page narrowed to that place. Only
+  for a place that is a published listing open to visitors, the same rule as
+  the place's link. The event's own repeat dates are Also on's, so they are
+  left out here.
+- **Only listed events:** published, public and not over, soonest first. A
+  private event or a draft is in neither list.
+- **Where it lives:** `readEventNeighbours` in `src/server/events/public.ts`,
+  read with the page in `src/lib/api/events/public.ts`, drawn by
+  `src/components/events/public/event-neighbours.tsx`. It is cached like the
+  Events page's list, a minute at most.
+
+## The site's own event fields
+
+A site can add fields of its own to every event, like "Age limit", "Dress
+code" or "Wheelchair access". A nightlife site makes "Age limit" a choice of
+"All ages" or "19+", picks 19+ on its late shows, and each of those pages
+shows "Age limit: 19+" in a box of its own.
+
+- **Where they are made:** the Custom fields row of the Events dashboard. It
+  is the Listings dashboard's Custom fields row, the same screen and the same
+  kinds of field, holding the events' own list. A section is a heading, like
+  "Good to know", with up to 20 fields under it, and a site can have 12 event
+  sections besides its 12 listing sections.
+- **Never a filter.** An event field has no "Use as a filter" box, and the
+  server refuses the tick if it is sent. Whether the Events page filters on
+  them is task 14's question, and it is not built.
+- **Where they are filled in:** in the event's ⋮, one grey list per section
+  under When and where, named after the section. Each row shows the answer,
+  or "None", and opens a small box with the field. They save with the rest of
+  the record. A section with no fields yet shows nothing there.
+- **On the page:** one box per section, under the event's card, the way a
+  listing's page shows its own. Only what is filled in shows. An empty field
+  is left out, and a section with nothing filled in has no box at all. A "Yes
+  or no" field shows only when it is a yes, by its name alone.
+- **Copied** by Duplicate and to every date of a repeat, like everything else
+  a repeat's dates share. A date changed on its own keeps its own answers.
+- **Removing a field asks first** when events have filled it in: "Removing
+  Age limit takes away what 9 events typed in for it." A repeat's dates count
+  one each. Deleting a section says how many events lose their answers, then
+  takes them off every event in the same step.
+- **The answers are cleaned against the site's fields** on the way in and
+  out, so a deleted field's old answers never reach a page, and a choice that
+  is not one of the field's choices is not kept.
+- **Names:** an event section is filed under its own key, which the site's
+  listing sections share. One named like a listing section gets a number on
+  the end, like `details-2`. Nobody sees that key.
+- **Where it lives:** the fields are rows of `directory_custom_sections`
+  with `kind` 'event' (listing ones are 'listing'), and each event's answers
+  are `events.custom_values`, both from
+  `drizzle/0158_cms_event_custom_fields.sql`. The rules are
+  `src/server/directory/custom-sections.ts` and
+  `src/lib/directory/custom-fields.ts`, shared with listings. The row is
+  `FieldsSection` in
+  `src/components/directory/listings-dashboard/sections/fields-section.tsx`
+  with `kind="event"`. The ⋮ lists are
+  `src/components/events/event-custom-fields.tsx`. The page reads them in
+  `readPublicEvent` in `src/server/events/public.ts`. The tests are the
+  "event fields" part of `src/server/directory/custom-sections.test.ts` and
+  two in `src/server/events/public.test.ts`.
+
+## Cancelled or postponed
+
+An admin can call an event off. A storm cancels an outdoor concert: the admin
+picks Cancelled, confirms, and within a minute or two the 200 people signed up
+each get an email. The page says "This event is cancelled.", the event stays on
+the Events page and in the month with a Cancelled label, and Google is told.
+
+### The three states
+
+- **Scheduled:** going ahead. Every event starts here, and a duplicate of a
+  cancelled event starts here too.
+- **Cancelled:** it will not go ahead.
+- **Postponed:** it will go ahead, but there is no new date yet.
+- **Separate from Draft and Published.** A published event can be
+  cancelled and stays on the site. A draft can be too, and nobody sees it.
+
+### Changing it
+
+- **Where:** the Schedule row in the event's ⋮, under Publishing. It saves
+  only after a confirm window, never with the rest of the record.
+- **The confirm window** names the event, says what visitors will see, and
+  counts who gets an email: "The 12 people signed up and the 3 on the waiting
+  list get an email within a minute or two.", or "Nobody is signed up, so no
+  email goes out." Cancelling is the red button, "Cancel the event", beside
+  "Keep it". The other two windows close with "Not now", never "Cancel",
+  which beside Postpone would read as cancelling the event.
+- **Going back to Scheduled** asks for the day and start time, filled in with
+  the ones the event has. A new day or time moves the event there and keeps
+  where it was: the page says "Rescheduled from Tue, Dec 15, 7:00 PM." The
+  same day and time just puts it back on. The event keeps its length: a 7 to
+  10 PM concert moved to 8:30 PM ends at 11:30 PM, one moved to 11 PM ends at
+  2 AM the next day, and a three-day festival stays three days.
+- **Picking the status it already has** does nothing, so it never sends a
+  second email.
+- **A repeating event:** each date is its own, the same as its seats and its
+  list, so cancelling the main event cancels that one date. A date changed
+  this way stops following the main event, so a later change to the repeat
+  neither undoes it nor deletes it. The main event goes back on its own day
+  only, because its day is what the repeat counts from; its day changes in
+  When and where.
+
+### What visitors see
+
+- **The banner** at the top of the page: "This event is cancelled.", "This
+  event is postponed. A new date has not been set yet.", or "Rescheduled from
+  …" once it has a new date. A cancelled or postponed page says that rather
+  than "This event has ended".
+- **No buttons to go:** Get tickets, Add to calendar and Directions are gone
+  while it is off.
+- **Sign-ups close.** The box says "Sign-ups have closed.", and the server
+  refuses a sign-up with "This event is cancelled, so it is not taking
+  sign-ups." Everybody already on the list stays on it. The waiting list
+  offers no seats. A seat already being offered goes back to the waiting list,
+  still at the front, so its hold can't run out and take the person off the
+  list; their claim link answers "That event is cancelled" or "That event is
+  postponed". Putting the event back on opens sign-ups again, and the waiting
+  list offers the seat again.
+- **A label, not a disappearance.** The card on the Events page, a home page
+  row and a category page carries a Cancelled or Postponed badge in place of
+  RSVP and the going count. The month shows "Cancelled:" before the time.
+  Admin → Events shows it first in the row's line, and in the record's header
+  line.
+- **Google** is told `EventCancelled` or `EventPostponed`, and after a new
+  date `EventRescheduled` with the old start. A postponed event keeps its old
+  date in the markup, as Google asks while no new one is known. The Rich
+  Results Test can only check this on the live site, because it can't reach a
+  site on this computer.
+
+### The emails
+
+- **Who:** everybody on the list. The people signed up, the people holding a
+  seat offered from the waiting list, and the people waiting. Somebody an
+  admin removed is not told.
+- **Once per change.** Each real change raises the event's `notice_number`
+  by one. Every person whose `told_notice` is behind it gets one email, and
+  their number moves up before the email goes, so two passes at once never
+  send it twice. Saving the same status twice changes nothing, so it sends
+  nothing.
+- **Only the latest news.** Somebody not yet told about a postpone when it
+  becomes a cancel gets the cancel alone.
+- **Somebody who signs up after a change** starts at that change's number, so
+  they are never told about something they already saw on the page.
+- **The four emails**, each with a "See the event" button on a published
+  event:
+  - "Cancelled: Park concert": it has been cancelled, and there is nothing
+    to do.
+  - "Postponed: Park concert": no new date yet, their place is kept, and
+    another email comes with the new date.
+  - "New date: Park concert": the new day and time, the old ones, and that
+    their place is kept.
+  - "Going ahead: Park concert": back on, on the same day.
+  A person on the waiting list reads "You keep your place on the waiting
+  list." where a person with a seat reads "Your place on the list is kept."
+- **When:** the shell's background pass every fifteen seconds, 100 emails a
+  pass, so 200 people are told in under a minute. A failed email puts their
+  number back and the next pass tries again. A local dev server only starts
+  the pass when it is restarted, so a change made locally before then waits.
+- **No refund line** in the confirm window or the email. Task 35 adds one
+  once paid tickets exist.
+
+### Where it lives
+
+- **The rules:** `src/server/events/schedule.ts`. `changeEventSchedule` makes
+  the change, `runEventNoticePass` sends the emails, and `noticeEmail` writes
+  them. The words both sides share, the banner included, are
+  `src/lib/events/schedule-status.ts`.
+- **The door:** `setEventSchedule` in `src/lib/api/events/events.ts`, admin
+  only and the site's own.
+- **The pass is registered** in `src/app/server-options.ts`, beside the
+  waiting list.
+- **The screens:** the Schedule row is
+  `src/components/events/event-schedule-row.tsx`. The page is
+  `src/routes/events_.$slug.tsx`, the card
+  `src/components/events/public/event-card.tsx`, the month
+  `src/components/events/public/event-month.tsx`.
+- **Sign-ups closing:** `signUpBoxFor` and `signUpForEvent` in
+  `src/server/events/sign-ups.ts`, `offerContext` and `claimOfferedSeat` in
+  `src/server/events/waiting-list.ts`.
+- **The tests:** `src/server/events/schedule.test.ts`, and one in
+  `src/components/events/public/event-card.test.tsx`.
+
+## The Events page
+
+`/events` is what is on. It opens on the list, and a switch above it changes to
+the month. The view, the month, a chosen day and the filters all live in the
+address, so a shared link opens the same view.
+
+- **Private events** are in none of these views.
+- **The list:** events that are not over yet, soonest first, 12 to a page, as
+  a grid of cards. An event that ended an hour ago is gone. One still running,
+  or with no end time on today, stays until it is over. A festival stays until
+  its last day ends.
+- **Previous and Next** under the list move a page without reloading the
+  site. They are the same buttons as the Directory, a category and Posts, in
+  `src/components/directory/public/directory-pagination.tsx`. Each is still a
+  real link, so a search engine can follow it and a middle click opens a new
+  tab.
+- **One place:** `?place=the-rex` narrows the list to the events held at that
+  listing, headed "At The Rex" with a link back to the listing and "All
+  upcoming events" to clear it. The name is plain text while the directory is
+  switched off or kept for members, the same rule as an event page's place. Paging keeps the place. Only a published
+  listing on this site is found this way; any other address shows every
+  event. Switching to the month drops the place.
+- **The month:** `?view=month&month=2026-10`. Previous and next move a month,
+  Today goes back to the site's current month, and the site's today has a ring.
+  Each day shows up to three events and "+2 more". Events that are over still
+  show, because a month is a record of what happened.
+- **One day:** `?day=2026-10-03`, reached from "+2 more" or a day on a phone.
+  It shows every event on that day, soonest first, festivals that started on
+  an earlier day included. Ones that are over are
+  marked "Ended", so a past day is never an empty page. It is not paged.
+- **On a phone** the month is a small grid of day numbers with a dot on days
+  that have events. Tapping a day with a dot opens that day.
+- **Whose today:** "today" and "now" are the site's own clock, read in its time
+  zone by the server on every visit and handed to the page. The visitor's clock
+  is never asked, so a visitor in Vancouver sees the same today as one in
+  Toronto.
+- **The zone** is named once under the heading: "All times are Eastern Time."
+- **The helpers** for the grid are copied from the old Directory app with their
+  tests, in `src/lib/events/calendar-grid.ts`.
+
+### The band at the top of the Events page
+
+The page opens with a band across the whole window, the same one the directory
+browse page has. It holds where the page sits, its name, the time zone line,
+the buttons, and one bar a visitor searches with. Tyler asked for this shape on
+25 Sep 2026 from a picture of the directory's band.
+
+- **What is in it, top to bottom:** the breadcrumbs, then "Events" with "All
+  times are Eastern Time." under it and "Suggest an event" and "Subscribe"
+  opposite, then the search bar.
+- **The bar, left to right:** the words to look for, the category, a town or
+  postcode, "Use my location", Within a distance, and the Search button. The
+  same four questions the directory's bar asks, in the same order, so the two
+  pages are one page to a visitor.
+- **The band is shared, not copied.** `PublicHeroBand` and `PublicHeroBar` in
+  `src/components/shared/public-hero-band.tsx` draw the band, its width, its
+  dots and the bar; the directory's hero and the Events page's both sit inside
+  them. Changing the look changes both.
+- **The buttons are not filters,** so they sit with the title rather than in
+  the bar. The category box has no icon of its own and no line to its left,
+  which Tyler asked for on 25 Sep 2026. "Suggest an event" opens the form in a
+  window over the list and
+  shows while that page is open to the visitor; "Subscribe" shows while the
+  Events page is open to everyone, as before.
+- **The band takes the page's own spacing and palette** from Settings →
+  Styling. Nothing in it names a colour, and it adds no margin of its own under
+  itself, so the gap to the date chips is the site's spacing rather than that
+  plus 24px.
+
+### Filters on the Events page
+
+A visitor narrows the page by words, category, date and distance. Somebody
+after food this weekend types nothing, picks "Food" in the bar, then taps "This
+weekend" under it. Every filter sits in the address, like
+`/events?category=food&when=weekend`, so a reload keeps it and a shared link
+opens the same list.
+
+- **The search box** matches an event's title, the line under it, and the name
+  of the place it is at. The body is left out on purpose: a match a visitor
+  cannot see on the card reads as a wrong result. It is `?q=jazz`.
+- **Typing narrows the upcoming list**, so searching from the month opens the
+  list, the same as picking a distance does.
+- **The category box** offers "All categories" and then one line per category
+  with at least one published public event filed under it, in the order set on
+  the Categories screen. A category holding only drafts or private events is
+  not offered, so the box never gives either away. Past events count, because
+  the month shows them. It is a box rather than a row of chips because a site
+  with twenty categories wrapped the chips over three lines and pushed the
+  events off the screen.
+- **A category's own events only,** never its subcategories', the same rule a
+  category page follows.
+- **The category follows every view.** The list, the month, one day, the
+  months either side, Today, a day opened from the month, and the List and
+  Month switch all keep it.
+- **The date chips,** on the upcoming list only, in one segmented group under
+  the band: "Any time", "Today", "This weekend" and "Next 7 days". The List and
+  Month switch sits opposite them in the same shape, because both are one
+  choice out of a few.
+- **Each chip carries its own number**, which is how many events it would show
+  with the rest of the filters left as they are, so nobody presses a chip to
+  find nothing behind it. The numbers are counted in one query beside the list,
+  and they follow the words typed, the category, the place and the distance.
+  A screen reader hears "Today, 1 event".
+- **There is no picker for a pair of days.** Tyler had it taken off on 25 Sep
+  2026. A `?from=` and `?to=` in the address still narrow the list, so a link
+  made before that still works: the line under the row then says which days,
+  with "Clear dates" beside it. One end alone works too, From alone being that
+  day onwards.
+- **What each date chip covers,** by the site's calendar, never the visitor's:
+  - Today is the rest of today.
+  - Next 7 days is today and the six days after it.
+  - This weekend is Saturday and Sunday. From Monday to Friday that is the
+    coming Saturday and Sunday. On Saturday it is today and tomorrow. On
+    Sunday it is the rest of Sunday, never the weekend after, as task 14
+    suggested.
+- **Which events a date filter keeps:** any event with a day inside the
+  dates, so a festival running from Friday to Monday is in "This weekend".
+  The list still holds only events that are not over, so an event that ended
+  an hour ago is gone even from "Today".
+- **The date filter stays with the list.** Switching to the month drops it, and
+  so does opening one day, because both already are a stretch of dates.
+  Picking a category keeps the date filter, and picking a date keeps the
+  category, the typed words and the place. Either one goes back to page 1.
+- **The empty card says what was asked:** "Nothing is on this weekend in
+  Chinese.", "Nothing is coming up matching "jazz"." or "Nothing is coming up
+  at The Rex."
+- **An odd address shows the page, not an error.** A category that is not
+  here shows every event, a date word it does not know is dropped, a range
+  typed backwards is read the right way round, and "Today" wins over a range
+  when both are in the address.
+- **A category page's link** under its events reads "All upcoming events in
+  Food" and opens the Events page on that category. A home page row of events
+  with a category does the same with its "See all events" button.
+- **Not built:** free or paid, which waits for paid tickets (task 32), and the
+  site's extra fields (task 07) as filters, which is Tyler's call once task 07
+  exists.
+- **Where it lives:** the address and the date rules in
+  `src/lib/events/events-page.ts` (`readEventsSearch`, `eventDateWindow`), the
+  band and its bar in `src/components/events/public/events-hero.tsx`, the date
+  chips in `src/components/events/public/event-filters.tsx`, and the reads in
+  `src/server/events/public.ts` (`readEventCategories`, `readEventDateCounts`,
+  and a category, dates and typed words on `readUpcomingEvents`). "This
+  weekend" has a test for each day of the week in
+  `src/lib/events/events-page.test.ts`, and `private.test.ts` proves a private
+  event is never counted behind a chip.
+
+### Events near a place
+
+A visitor on a phone can ask for what is on near them tonight. The search bar
+in the band holds the same place controls the directory's bar does: a town or
+postcode, "Use my location", and Within 5, 10, 25 or 50 km, with Search running
+them. Tapping "Today" after that gives tonight's events within 10 km.
+
+- **The same lookup as listings.** `useNearPlace` in
+  `src/components/directory/public/use-near-place.ts` is what both bars call,
+  so Within stays disabled with "Pick a location first." until a place is
+  found, on both, and a refused permission says the same thing on both.
+  `directory-radius.md` has that rule.
+- **In the address:** `?near=43.653,-79.384&radius=5&area=Toronto`. The point
+  is rounded to about 110 metres, the same as the directory's, so a shared link
+  never gives away a doorstep. `area` names the place for the page's words;
+  `place` already means a listing on this page, so it needed another word.
+- **Where an event is:** the pin on its event page. A listing picked as the
+  place brings the listing's pin, and a typed street address brings the one
+  Google found for it, as "The map on the event page" above says.
+- **No position, not listed.** An event with no pin, like one with only a place
+  name, one Google could not find, or one at a listing with no pin, is left out
+  while the filter is on. The band says so under the bar: "Within 5 km of
+  Toronto, ON, Canada. Events with no place on the map are left out."
+- **Still soonest first.** The distance narrows the list and does not reorder
+  it, because the question is what is on soon nearby. Each row adds how far
+  away it is beside the place, like "The Rex · 2.3 km away".
+- **Measured the same as listings.** `distanceKmFrom` in
+  `src/server/directory/distance.ts` is the one formula for both, so 5 km on
+  the Events page is 5 km in the directory.
+- **It stays with the list.** Picking a category, a date chip or a From and To
+  day keeps the distance, and picking a place keeps the dates. Paging keeps it
+  too. Switching to the month or opening one day drops it, the same as the
+  date filter. "Clear location" drops only the distance.
+- **The empty card says it:** "Nothing is on today within 5 km of your
+  location."
+- **An odd address shows the page.** A point that is not a real latitude and
+  longitude drops the filter. A distance the picker does not offer, like
+  `radius=7`, is read as 10 km.
+- **Place search needs the site's key.** "Search place" uses "Google Maps API
+  key" under Search by town or postcode, on the Directory page card in
+  Settings → Directory, the same key the
+  directory uses. Without it the page says "Place search is not available on
+  this site yet. Use your location instead." "Use my location" works either
+  way.
+- **Where it lives:** the address in `readEventNear` and `eventNearText` in
+  `src/lib/events/events-page.ts`, the read in `readUpcomingEvents` in
+  `src/server/events/public.ts`, and the live pin in `livePlaceLatitude` and
+  `livePlaceLongitude` in `src/server/events/place.ts`, which the event page's
+  map reads too.
+
+### Upcoming and Past
+
+Two chips before the date chips, "Upcoming" and "Past", each with its number.
+Past lists the events that are over, newest first, 12 to a page. Somebody
+looking for last month's food festival presses Past and types "food".
+
+- **The address:** `/events?list=past`. Paging keeps it.
+- **What Past keeps:** the typed words, the category and the place. The date
+  chips and the distance belong to the upcoming list, so Past hides the date
+  chips and drops both. Typing in the bar keeps Past; picking a distance goes
+  back to Upcoming.
+- **The numbers:** Upcoming's is the same as "Any time". Past's counts with
+  the typed words, the category and the place.
+- **Its empty card:** "Nothing has happened here yet."
+- **Only listed events,** the same as every other list: no drafts, no private
+  events.
+- **Where it lives:** `readEventsSearch` and `eventsListHref` in
+  `src/lib/events/events-page.ts`, `past` on `readUpcomingEvents` and the past
+  count in `readEventDateCounts` in `src/server/events/public.ts`, and the
+  chips are `EventTimeChips` in
+  `src/components/events/public/event-filters.tsx`.
+
+### The map
+
+A third view beside List and Month: the upcoming list's events as pins on a
+map, with a small card behind each pin naming the event, when it is on and
+where. A visitor after something near them this weekend presses This weekend,
+then Map.
+
+- **The address:** `/events?view=map`. The map keeps the list's filters: the
+  typed words, the category, the date chips, the place and the distance.
+  Switching between List and Map keeps them; the month drops them, as before.
+- **Up to 200 pins**, soonest first. More than that says "Showing 200 of 340
+  events on the map. Pick a category or a date to narrow it down."
+- **Events with no place on the map** are not drawn, and the line under the
+  map counts them: "3 events have no place on the map." A place is on the map
+  when it is a listing with a pin, or a typed address Google found.
+- **No key, no map.** A site with no Google Maps key in Settings → Directory
+  says "This site has no map set up yet. Switch back to the list to see every
+  event."
+- **The same map as the directory's.** The map is `PinMap` in
+  `src/components/directory/public/pin-map.tsx`, which the directory's own map
+  (`listing-map.tsx`) is built on too, each handing it its own card, words
+  and marker. Pins, the card's keyboard buttons and the focus rules are the
+  directory's.
+- **Where it lives:** `readEventPins` in `src/server/events/public.ts`, read
+  in `src/lib/api/events/public.ts`, drawn by
+  `src/components/events/public/event-map.tsx`.
+
+## The event card
+
+Every public list of events draws the same card, from
+`src/components/events/public/event-card.tsx`: the Events page, a single day,
+a category page and a home page row. One component, so the four cannot drift
+apart.
+
+- **Over the photo:** the month over the day in a block on the left, and the
+  category in a pill on the right. Both sit 16px in, which is the card's own
+  content padding, so the date lines up with the title under it.
+- **Under the photo:** the title, two lines of the summary, the times beside a
+  clock, and the place beside a pin. A list narrowed to a distance adds "2.3 km
+  away" after the place.
+- **The times leave the day out** when an event is on one day, because the day
+  is already in the block over the photo. An event over several days keeps its
+  whole span, or a card would say a festival runs 12:00 PM to 8:00 PM and not
+  say it runs for three of them.
+- **The bottom strip is only for an event taking sign-ups:** how many are going
+  on the left and an RSVP button on the right, which opens the event's page
+  where the sign-up form is. An event that takes no sign-ups has no strip and no
+  dividing line.
+- **A full event says "Full"** where the RSVP button goes. Every seat is
+  taken, a seat held for somebody on the waiting list included. The card
+  still opens the event's page, where the waiting list is. It is read with the
+  number going, in the same query, so it can be up to two minutes behind too.
+- **How many are going** counts confirmed sign-ups only, a cancelled one being
+  a record rather than a seat. It is left off entirely until somebody has
+  signed up, because "0 going" argues against itself. It is read for a whole
+  page of cards in one query, not one query per card, and it can be up to two
+  minutes behind, which is the public cache's window.
+- **A card with no photo** keeps its date block and its category in the row
+  above the title, rather than losing both.
+- **"What's on here" on a listing page is not this card.** It stays a short
+  list of rows, because it sits in a column beside the write-up where a grid of
+  cards would not fit.
+
+## Featured events
+
+A featured event sits at the top of the Events page's list and is marked in
+the calendar, until it ends. A festival two weeks out sits above tonight's
+quiz for those two weeks.
+
+- **The admin's switch:** "Featured" in the event's record in Admin → Events,
+  under "Who can find it". It is free. Admin → Events marks the row
+  "Featured" while either kind of spot is on.
+- **A repeating event:** the switch is on the main event only, and a date's
+  record has none. The next date that is not over sits on top. Once it is
+  over, the date after it takes its place.
+- **The owner's button:** each of an owner's approved, published events on My
+  listings has "Feature this event", until its day has been. It opens the
+  site's event plans, and a plan goes straight to Stripe. It says "Featured
+  now" once the event is featured, by either kind of spot. It explains itself
+  instead of offering plans when the event is private, back to draft, over,
+  or the site's Events page is off.
+- **Only the owner's own event.** The event is found through the owner's own
+  suggestion and their approved claim on the listing it was sent for. Another
+  owner's event, or one an admin wrote, is refused with "That event is not
+  one you sent in." A paid spot stops counting if the owner stops looking
+  after the listing, the same as a featured listing.
+- **The plans:** the Featured plans row of the Listings dashboard
+  (`/admin/listings?section=plans`) has a "For" choice on a new plan, Listings or Events. It is fixed once the plan is made, so a
+  plan never changes what somebody already paid for. An event plan has a price
+  and no days or priority, and the table's Period column says "Until the event
+  ends". An event is only ever offered event plans.
+- **When a paid spot ends:** at the moment the event ends, worked out in the
+  site's time zone, the same moment the event counts as over. When an admin
+  moves the event, the end moves with it. Changing the site's time zone does
+  not move a spot's end that was already worked out.
+- **The placements table** lists event spots beside listing ones, marked
+  "Event", and the search finds an event's title. Revoking one takes the badge
+  off at once.
+- **Where it shows:** the Events page's upcoming list, soonest first among the
+  featured events and then the rest soonest first, with the same "Featured"
+  badge as a featured listing. One day's list keeps soonest first and shows
+  the badge. The month marks a featured event with the badge's sparkle. A
+  category page, the home page row, a listing's "What's on here" and the list
+  for other websites never put one on top or mark it, because a spot is only
+  sold for the Events page.
+- **Once the event is over** it loses the badge everywhere, including the
+  month, even with the admin's switch still on.
+- **Deleting an event** while its owner is partway through paying is refused
+  until the checkout finishes or expires. Deleting an event with a paid spot
+  deletes the spot and its row in the placements table, the same as deleting
+  a featured listing.
+- **Not built:** a reminder email before an event's spot ends, which a listing's
+  spot sends, because an event's spot cannot be bought again once it is over.
+- **Where it lives:** `drizzle/0093_cms_featured_events.sql` adds `featured` to
+  `events`, `kind` to `directory_featured_plans`, and `event_id` to the checkout
+  and placement tables. The rules are in `src/server/directory/featured.ts`
+  (`eventIsFeatured`, `eventFeaturedPurchaseState`,
+  `createEventFeaturedCheckout`, `moveEventSpotEnd`). The list order is
+  `pinnedToTop` in `src/server/events/public.ts`. The owner's button is
+  `src/components/directory/featured-plans-popover.tsx`, shared with the
+  listing's. The tests are `src/server/events/featured.test.ts`.
+
+## An event over several days
+
+A festival from Fri 30 Oct to Sun 1 Nov is entered once and has one page. It
+is not different hours on each day. A festival with different hours each day
+is three events, or a repeating event.
+
+- **The event page:** the day line names both days, "Friday, October 30 to
+  Sunday, November 1, 2026", with the year said once when both days share it.
+  The time line reads "Starts 12:00 PM, ends 8:00 PM, Eastern Time". A one-day
+  event still reads as one day.
+- **A row in the list:** each time sits beside its own day, "Fri, Oct 30,
+  12:00 PM to Sun, Nov 1, 8:00 PM", because the times are when the festival
+  starts and ends, not its hours on each day. A one-day row still reads
+  "Sat, Sep 26 · 6:00 PM to 11:00 PM". The date square on the left is the
+  first day.
+- **The month:** the festival is on every day it covers. The start time shows
+  on its first day only. A festival across a month's end shows in both months,
+  so 30 and 31 Oct are in October and 1 Nov is in November. On a phone each of
+  those days gets a dot.
+- **Order within a day:** a festival that started on an earlier day sits above
+  the events that start on the day, because it is already running.
+- **Leaving the lists:** it stays in the upcoming list, the calendar
+  subscription and the search box's suggestions until its last day ends. The
+  sitemap counts its 30 days from the last day too.
+- **The calendar file and Google:** both carry the real start and the real end,
+  so a calendar app shows one block from noon Friday to 8pm Sunday.
+- **Where the rules live:** `daysCovered` in `src/lib/events/calendar-grid.ts`
+  lists the days an event covers inside one grid. `readEventsBetween` in
+  `src/server/events/public.ts` finds every event with any day inside the grid,
+  not only the ones that start in it. `eventRowText` and `eventWhenLines` in
+  `src/lib/events/event-time.ts` write the words.
+- **Sign-ups:** once sign-ups exist (task 24), one sign-up covers the whole
+  festival. A ticket for one day would be a ticket type (task 33).
+
+## The Events page's on/off switch
+
+`/events` is a page on the Pages screen, so it can be switched off or kept for
+members like any other page. Every event's page follows the same switch.
+
+- **Switched off:** `/events` and every event page are not found.
+- **Members only:** a signed-out visitor is sent to sign in, then back to
+  `/events`.
+- **How fast:** the pages follow a switch change at once, and saving an event
+  clears the public page cache, so an edit shows at once too. The upcoming list
+  is read again at least once a minute, which is how an event drops off as it
+  ends.
+
+## Where events appear
+
+A published public event appears in all of these. A draft or a private event
+appears in none of them. All of them also need the Events page open to
+everyone. Switched off or kept for members, events leave search, the suggestions, the sitemap, the feed and the
+drawn share card, the same rule posts follow.
+
+- **Whole-site search at `/search`:** matches the title, summary, place name
+  and body words, labelled "Event". Past events are found too.
+- **The directory's search box:** from two letters, up to 3 events that are not
+  over yet, soonest first, matched on title and summary. They come after the
+  categories and listings, with the start day on the right, like
+  "Sat, Sep 26". The arrows, Enter and Escape work on them the same as on a
+  listing. `directory-search-suggestions.md` covers the box.
+- **The sitemap:** every published public event, in numbered files at
+  `/event-sitemaps/0`, `/event-sitemaps/1` and so on, until 30 days after its
+  last day by the site's calendar. An event on 27 Aug is still there on 26 Sep
+  and gone on 27 Sep. Each date of a repeating event is its own page and its
+  own address. `sitemap-files.md` covers the files.
+- **The feed at `/feed.xml`:** mixed in with listings, posts and guides by the
+  day it was published, 20 entries in all. The feed is called "New listings,
+  posts, events and guides".
+- **How fast the switch reaches them:** search, the suggestions and the
+  sitemap follow a Pages switch change at once. The feed and the share card
+  can take up to two minutes, because the public page cache holds them that
+  long and the Pages screen belongs to the shell, which does not clear it.
+
+## Google's event markup
+
+Each event page carries a block Google reads to show the event in its event
+listings. It is written by `eventJsonLd` in `src/lib/directory/public-seo.ts`.
+
+- **What it says:** the name, the address of the page, the start, the end, the
+  place, the summary, a picture, and the site as the organiser.
+- **Times carry the site's offset on that day.** 6pm on 26 Sep 2026 in Toronto
+  goes out as `2026-09-26T18:00:00-04:00`, and 6pm on 7 Nov as `-05:00`,
+  because the clocks go back on 1 Nov. The helper is `eventMomentText` in
+  `src/lib/events/event-time.ts`.
+- **The end:** an end day and time go out as one moment. An end day with no
+  time goes out as the day alone. No end at all means no end in the block.
+- **The place:** the place name and the street address. With a place name and
+  no street address, the name is sent as the address too, because Google needs
+  an address and that is the only one the admin gave.
+- **No price yet.** Events have no price until paid tickets (task 32) exist.
+  A tickets link goes out as the offer's address alone.
+- **Whether it is going ahead:** "scheduled", "cancelled", "postponed", or
+  "rescheduled" with the start it moved from as `previousStartDate`.
+  "Cancelled or postponed" below says when each is sent.
+- **It always says "in person".** Online events (task 29) change that later.
+- **The picture** is the cover photo, or the drawn share card when there is
+  none.
+
+## The share card
+
+An event with no cover photo is shared with a drawn card, the same card a
+listing gets, with the date where a listing shows its category, like
+"SAT, SEP 26 · 6:00 PM". An event over several days shows "SAT, SEP 26 TO MON,
+SEP 28" instead, because the time would not fit.
+
+- **Where:** `/events/share-image/<address>?v=<version>`. The version changes
+  whenever the title, date, site name, site colour or the event changes, so a
+  link preview never keeps an old card.
+- **An old or missing version** is sent on to the current one.
+- **A draft, another site's event, or an Events page not open to everyone**
+  answers not found.
+- **One visitor may ask 120 times a minute**, the same limit as listing cards.
+
+## Adding an event to a calendar
+
+Each event page has an "Add to calendar" button, and the Events page has a
+"Subscribe" button. Both open a short menu with Google Calendar and "Apple
+Calendar or Outlook". The builders live in `src/lib/events/calendar-file.ts`.
+
+- **One event:** Google opens its new-event form filled in, in a new tab. The
+  other choice downloads `/events/<address>/calendar.ics`, which a phone or a
+  computer opens in its own calendar app.
+- **Once an event is over,** the page has no "Add to calendar" button, and
+  neither has a cancelled or postponed one.
+- **A cancelled event says so in the file** (`STATUS:CANCELLED`), so a
+  subscribed calendar marks it cancelled at its next check. A postponed one
+  stays as it was, because there is no new date to give it.
+- **Subscribe:** Google opens its "Add calendar" prompt. The other choice is a
+  `webcal://` link to `/events.ics`, which hands the address to the phone's or
+  computer's calendar app. After that, every event the site publishes shows up
+  in the visitor's calendar by itself.
+- **What the subscription holds:** every published public event that is not
+  over yet, soonest first, 500 at most. An event drops out of it once it is over, so it
+  also leaves the subscriber's calendar at the next check.
+- **How fast a new event arrives:** Apple Calendar and Outlook are asked to
+  check every 6 hours. Google checks on its own timetable, usually within a
+  day, and ignores the request.
+- **Google's subscribe choice needs a real address.** Google fetches the file
+  from its own servers, so it cannot reach a site running on this computer.
+
+### Times in a calendar
+
+- **Every time goes out as one exact moment**, worked out from the event's day
+  and clock time in the site's time zone on that day. 6pm on 26 Sep in
+  Toronto goes out as 10pm UTC, and 6pm on 7 Nov as 11pm UTC, because the
+  clocks go back on 1 Nov. The visitor's calendar then shows it at their own
+  local time, which is 6pm for somebody in Toronto.
+- **The end is the event's real end.** With no end time, it runs to midnight
+  at the end of its last day, the same moment the site counts it as over. A
+  6pm event with no end time is 6pm to midnight in the calendar.
+- **Google's form** is also told the site's zone, so it shows the times the
+  way the event page does.
+- **Each event keeps the same id in every file**, so adding it a second time
+  updates it instead of making a copy.
+
+### Who can get the files
+
+- **One event's file** follows the event page's rule. With the Events page
+  kept for members, a signed-in member can download it and a signed-out
+  visitor gets not found.
+- **The subscription** exists only while the Events page is open to everyone,
+  because a calendar app asking for it is never signed in. Switched off or kept
+  for members, `/events.ics` is not found and the Events page has no Subscribe
+  button.
+- **A draft, another site's event and a made-up address** all get not found,
+  the same as the page.
+
+## Suggested events
+
+Anybody can suggest an event at `/add-event`, like a band that used to email
+the site owner about every gig. The suggestion waits in Admin → Event
+suggestions, at `/admin/event-submissions`, until an admin says yes or no.
+Yes makes a draft event. The person is emailed either way.
+
+The queue has no sidebar link of its own, the same rule as Events. Add it to
+the sidebar in Settings, or open it from the link in the email admins get
+about each new suggestion.
+
+### The form
+
+- **Where:** two places, with one set of boxes behind both. "Suggest an event"
+  on the Events page opens a window over the list, and `/add-event` is the same
+  form as a page of its own, for a link or a bookmark. The button shows only
+  while the Suggest an event page is open to the visitor.
+- **The window is the app's standard form window,** which is what everything
+  from Admin → Accounts to the deal editor uses: `DialogContent variant="admin"`
+  with a header, a scrolling body of `Card size="sm"` sections a window-padding
+  apart, and a footer of Cancel then the action. The boxes sit in a form of
+  their own, so Enter sends it from whichever box the visitor is in, and the
+  footer's Send button submits that form by name.
+- **A window, so the list is not lost.** Somebody who has just read what is on
+  and found their own event missing keeps the page, the filters and their place
+  in it; closing the window puts them back. The window asks before throwing
+  away a half-filled form, which is `FormDialog` doing its usual job.
+- **Asked for when it is opened.** The site's name, its time zone, its today
+  and whether photos are allowed are fetched when the button is pressed, not
+  with the Events page, so a visitor who never suggests anything never pays for
+  it. The window says "Opening the form." while that is on its way.
+- **Two switches:** the page follows its own switch on the Pages screen and
+  the Events page's. With either off, the page is not found and its endpoint
+  refuses a send, so a direct call cannot get round it.
+- **The boxes:** the name of the event, a description, a photo, the day, a
+  start and an end time, the place, the street address, and the person's name
+  and email. The name, the day, the start time and the email are required.
+- **The place can be one of the site's listings.** While the directory is
+  open to everyone, typing two letters in the place box lists the site's own
+  published listings under it, from the same lookup the directory's search
+  box uses. Picking one makes the place that listing: the street address box
+  goes, because the listing has one, and "Type a place instead" lets go of
+  the pick. A place that is not in the directory is typed as before. The
+  server checks the pick again, and a draft listing or another site's is
+  dropped and the typed name kept. An approved suggestion keeps the listing as
+  its place, so its page links to the listing and uses its pin.
+- **The day:** the same date picker as Admin → Events. A day before the site's
+  today is refused with "That day has already been. Pick today or a later
+  day." Today itself is fine. "Today" is the site's calendar, never the
+  visitor's.
+- **Past midnight:** an end time earlier than the start time means the next
+  day, so a gig from 9:00 PM to 1:00 AM is typed as it is said. The hint on
+  Ends says so. An end time equal to the start time is refused.
+- **The photo:** one JPG, PNG or WebP up to 5 MB. The box is the form's own,
+  drawn like the shared image box, because that one needs an account. The
+  photo stays in the browser until Send. It shows only while the site has file
+  storage set up in Settings → Storage.
+- **The check is shared.** `eventSubmissionProblems` in
+  `src/lib/events/event-submission-fields.ts` is what the form shows under each
+  box and what the server refuses with. The old Directory app checked its
+  required boxes in the browser only.
+- **Nothing moves as you fill it in.** A problem is drawn in the 16px gap
+  under its box rather than in the column of fields, so a message appearing
+  when a box is left never shifts the boxes below and never spreads the form
+  out. It used to shift them, and a press that started on the Day picker landed
+  somewhere else by the time it was let go, so the first press on it did
+  nothing at all.
+- **After Send:** "Thank you", naming the event and the email the answer goes
+  to, with "Suggest another event", which keeps the name and email. The page
+  adds "Back to events"; the window has "Done", which closes it.
+- **Where it lives:** the answers and the sending in
+  `src/components/events/public/use-event-submission.ts`, the boxes in
+  `event-submission-form.tsx` (`EventSubmissionFields`), the page around them
+  in `src/routes/add-event.tsx`, and the window in `suggest-event-button.tsx`.
+
+### Spam
+
+- **A hidden box:** the form has a box no person sees or reaches. A bot fills
+  every box, and a send with that one filled is told it worked and is thrown
+  away.
+- **Five an hour:** one internet address may send five suggestions an hour to
+  one site. The sixth is refused with "You have sent 5 events in the last hour,
+  which is as many as this site takes. Please try again in an hour." Another
+  site, or another address, has its own five.
+- **A refused answer does not count.** A day that has been, or a missing email,
+  is refused before the five are counted, so fixing a typo costs nothing.
+- **A double click is one suggestion.** The same title from the same email
+  inside a day, while the first is still waiting, writes nothing new and says
+  it arrived.
+- **Admins are emailed** about each new suggestion, with a link to the queue,
+  the same way as a new listing. A failed email to them never fails the send.
+
+### The queue
+
+- **Three tabs:** Pending, which it opens on and which shows how many are
+  waiting, Approved and Rejected, with a search over the event's name, the
+  email, the person's name and the place, so an owner's events are found by
+  their listing's name. The tab, the search and an open suggestion all
+  live in the address.
+- **No selection column,** the same as Listing submissions: approving in bulk
+  would make events nobody read.
+- **The window** shows everything that was sent, the photo included, and a
+  note back. Pending ones end with Cancel, Reject and "Approve as a draft", or
+  "Approve and publish" for a listing owner's. Decided ones open read-only
+  with Done, the note that was sent, and "Open the event" for an approved one.
+  The row's "The event" does the same.
+- **A listing owner's event** is marked "From the owner" on its row, with the
+  listing under its name, and the window says who sent it and that approving
+  publishes it. "Events from a listing's owner" below covers them.
+- **Already on the site?** A waiting suggestion with the same name as an
+  event the site already has on the same day, capitals and spacing aside, is
+  marked "Already on the site?" on its row. Its window opens with a card
+  saying so and a link to that event. It is a warning: approving still works.
+  It is the same rule the AI step uses to skip a duplicate, in
+  `src/lib/events/same-event.ts`, and it covers owners' events too.
+- **A change from an owner** is marked "Change from the owner". Its window
+  starts with "Before and after": each field the owner changed, what the event
+  says now struck through, and what they asked for under it. "Approve the
+  change" writes it onto the event and its dates still to come, which stay published; Reject keeps the
+  event as it is. The owner is emailed either way.
+
+### Approving and rejecting
+
+- **Approving a public suggestion makes a draft event with every field
+  filled:** the title, the day and times, the place, the street address, the
+  description as the body, its first paragraph as the summary, and the photo
+  as the cover. Nothing is public until an admin publishes it. A listing
+  owner's is published instead, as "Events from a listing's owner" says.
+- **The photo joins the Media library** on approval, under the admin who
+  approved it. Until then it waits in the site's storage under
+  `event-submissions/`, which the Media screen's orphan scan leaves alone
+  because it is not a person's folder. The person who sent it is never told
+  where it is kept.
+- **No map lookup on approval.** The street address is looked up the first time
+  the admin saves the draft in the event's record, as "The map on the event page"
+  says.
+- **Once only.** Approving twice, or two admins at the same moment, makes one
+  event. The second is told "Somebody has already dealt with this one."
+- **Rejecting** keeps the suggestion as a record with its note, makes nothing,
+  and deletes the photo from storage.
+- **Only this site's.** A suggestion sent to one site is never in another
+  site's queue and cannot be decided from it.
+
+### The email back
+
+The same rule as a listing's, in `submission-review-email.md`: the decision is
+saved first, and a failed email never undoes it.
+
+- **Approved:** "<title> has been accepted", saying it will be on the Events
+  page once it is published, with the admin's note if there is one.
+- **Rejected:** "About your event, <title>", with the admin's note, or "If you
+  think this is a mistake, reply to this email." when there is none.
+- **The admin is told which happened:** "Approved. The event is saved as a
+  draft and the sender has been emailed." in green, or "…but the email to the
+  sender could not be sent." in amber. A local site with no Resend key always
+  shows the amber one.
+
+### Events from a listing's owner
+
+The owner of a claimed listing adds events at their own place from My
+listings, like a café adding its Friday open mic, without emailing anyone.
+They go into the same queue, and every one is read by an admin.
+
+- **Where:** each listing on My listings has an "Events at Café Luna" card
+  under it, with "Add event". The card lists the events that account sent for
+  that listing, newest first, 20 at most.
+- **The window:** the name of the event, a description, a photo, the day, and
+  a start and an end time, with the same check and the same past-midnight rule
+  as the Suggest an event page. The place is not a box: it says "Café Luna.
+  Your events are always at your listing." The name and email are the
+  account's.
+- **The photo** is the shared image box, because an owner has an account. It
+  goes into their own Media library, and the server refuses a picture that is
+  not one of theirs.
+- **Only their own listing.** The listing comes from the owner's approved
+  claim, found by the claim and the account together, so another owner's
+  claim, or a claim still waiting, is refused with "You do not look after that
+  listing."
+- **The Events page's switch counts.** While the site has its Events page off,
+  the card says so and has no "Add event", and the server refuses a send.
+- **Twenty an hour** from one owner, more than the public's five, because
+  filling in a month of nights is ordinary and each one still waits for an
+  admin.
+- **Admins are emailed** with "New event from the owner of Café Luna" and a
+  link to the queue.
+- **Approving publishes it,** with the listing as the place, so the event page
+  links to the listing and uses its pin, and it is on the Events page at once.
+  The owner is emailed "<title> is on the Events page". Rejecting emails the
+  note, the same as a public suggestion.
+- **What the owner sees:** each event with "Waiting for approval", "Approved"
+  with "See its page", or "Not approved" with the admin's note. A published
+  event also shows its views, as "12 views in 30 days · 48 all time".
+  "View counts" below says where those numbers come from.
+- **Only their own.** An owner sees the events their own account sent, never
+  another owner's. A listing that changes hands shows its new owner none of
+  the old owner's events.
+- **Change:** every event the owner sent that was not turned down has a
+  Change button, which opens the same window filled in with what they sent.
+  A waiting one is changed where it is and keeps its place in the queue. A
+  published one becomes a change request in the same queue, because every
+  owner's event is reviewed: the event stays as it is, the row says "Change
+  waiting for approval", and the admins are emailed. A second change while
+  the first waits replaces it, so the admin reads one. Once approved, the
+  owner's own record takes the change too, so My listings shows what is live.
+  A withdrawn event cannot be changed until an admin publishes it again.
+- **Withdraw:** asks first. A waiting one leaves the queue at once. A
+  published one goes back to Draft at once and is marked "Withdrawn", and any
+  change still waiting for it goes too. If an admin has made it repeat, its
+  dates still to come go down with it, and dates already past stay as a
+  record, the same rule as any edit to a repeating event. An admin can
+  publish it again.
+- **Who's coming:** a published event of theirs that takes sign-ups lists
+  "12 of 20 seats taken", then each person's name and email, and their answer
+  to the event's question when it asks one. Read only: removing somebody
+  stays with the site's admins. Only events this account sent, read on the
+  server for those events alone. For a repeating event it is everyone across
+  its dates, as "N signed up" with no seat count, because each date has its
+  own seats.
+- **Only people the box told.** A sign-up made while the box said "The host
+  sees your name and email." is marked so (`host_told`, from
+  `drizzle/0157_cms_event_pages.sql`), and only those reach the owner's list.
+  A sign-up from before the notice, or one an admin added by hand, never
+  does. This is a default chosen in the build of 19 Nov 2026, not one of
+  Tyler's rules; he can choose to show owners everyone instead.
+- **The event page says so.** The sign-up box of an event a listing's owner
+  sent says "The host sees your name and email." under the button. An event an
+  admin wrote at the owner's place says nothing, because the owner does not
+  see its list.
+- **Only their own, still.** Change and Withdraw are refused for somebody
+  else's event and for an event whose listing has since changed hands.
+- **Where it lives:** `drizzle/0090_cms_owner_event_submissions.sql` adds
+  `from_owner`, `owner_user_id`, `listing_id` and `cover_image` to
+  `event_submissions`, and `drizzle/0156_cms_event_features.sql` adds
+  `changes_event_id` for a change request. `sendOwnerEvent`,
+  `changeOwnerEvent`, `withdrawOwnerEvent` and `ownerEventsFor` are in
+  `src/server/events/owner-submissions.ts`, a change is approved in
+  `reviewEventSubmission` in `src/server/events/submissions.ts`, and the card
+  and window are `src/components/events/owner-events.tsx`.
+
+### Where it lives
+
+- **The table:** `event_submissions`, from
+  `drizzle/0089_cms_event_submissions.sql`.
+- **The rules:** `src/server/events/submissions.ts` (`createEventSubmission`,
+  `reviewEventSubmission`, and `decideEventSubmission` for the decision and the
+  email together). The boxes and the check:
+  `src/lib/events/event-submission-fields.ts`.
+- **The doors:** `src/lib/api/events/submissions.ts`, with the two public ones
+  written down in `src/app/open-endpoints.ts`.
+- **The screens:** `src/routes/add-event.tsx` with
+  `src/components/events/public/event-submission-form.tsx`, and
+  `src/routes/_authenticated/admin/event-submissions.tsx` with
+  `src/components/events/event-submissions-dashboard.tsx` and
+  `event-submission-dialog.tsx`.
+- **Not built:** a member of the public cannot change or withdraw a
+  suggestion after sending it, and has no account, as task 16 said; a
+  listing's owner can. A site deleted with suggestions still waiting leaves
+  their photos in storage.
+
+## Events drafted by an automation
+
+The automation palette has a **Draft events** step, under AI. A flow reaches
+it, and it reads one web page or feed, asks an AI which events are on it, and
+writes each new one as a draft event on the flow's site. The use it was built
+for is a weekly flow that reads a venue's gigs page, so the admin only approves.
+
+### Its settings
+
+- **Page address:** the page or feed to read. It must start with `https://`.
+  An address inside the server's own network is refused when it is typed and
+  again when the step runs, after every DNS answer and every redirect is
+  checked.
+- **Category:** every draft from the page is filed under it, or under none.
+  If the category is deleted, the step stops before reading the page and says
+  so.
+- **Notes for the AI:** optional, for anything the AI should know about the
+  page, like "every show is at The Horseshoe".
+- **Provider and model:** the same choice as the AI step. The call runs with
+  the key saved in Settings → AI, counts against the flow author's monthly AI
+  allowance, and shows on the AI usage page as "draft-events". When that
+  allowance is used up, the step stops and says so.
+- **An answer that was cut off still counts.** A page with too many events can
+  run the AI out of room. The step then stops and says so, and the usage page
+  still shows what that answer cost, because the provider charged for it.
+
+### What it writes
+
+- **Always a draft,** with the title, start day and time, end time, place name
+  and address, a summary from the first paragraph and the description as the
+  body. The page address is saved as the event's source.
+- **The event's window says where it came from:** "An automation drafted this
+  from <page>. Check the day and time against that page before publishing."
+- **An end time earlier than the start runs into the next day**, the same as a
+  suggested event, so a 10pm to 2am set ends at 2am the next morning.
+
+### What it leaves out
+
+Each one is named in the run history with the reason.
+
+- **No exact day.** "Every Friday" or "this spring" is not a day.
+- **No start time.**
+- **Already over.** An event whose start day is before today on the site's
+  clock.
+- **Already on the site.** Same title, ignoring capitals and spacing, on the
+  same start day, as any event on the site, draft or published. A page that
+  lists the same event twice gives one draft. This is why running the step
+  twice on the same page makes no new drafts.
+- **Past the cap.** One run drafts at most 25. The cap counts only new events,
+  after duplicates are skipped, so a page with 40 new events gives 25 on the
+  first run and the other 15 on the next. The run history says how many were
+  left.
+
+### Choices made while building it
+
+These were not asked for in the task. Each can be changed.
+
+- **A page that leaves out the year** is read as the first matching day on or
+  after today. The AI is told today's date on the site's clock.
+- **A past event is skipped.** A venue page often still lists last month's
+  shows, and a draft of those is only noise.
+- **Only `https://` addresses.** A plain `http://` page cannot be read.
+- **The page is cut at 120,000 characters** before the AI sees it, which is
+  far more than any events page. The event markup a site writes for Google is
+  kept, because it holds the most exact dates on the page.
+
+### The run history
+
+A finished step shows "Drafted 2 events. Skipped 1." with the page it read,
+each draft's day and title, and a list headed "Left out" with each reason.
+Each title links to Admin → Events with the Draft filter on and that event's
+window open. A step that fails, like one with no AI key, shows the reason,
+for example "No Anthropic key is saved, so the AI could not read the page. Add
+one in Settings → AI." The engine tries a failed step three times before the
+run stops.
+
+### Where it lives
+
+- **The step:** `src/lib/events/draft-events-step.ts` (the palette card and
+  settings rules), `src/components/events/draft-events-step-panel.tsx` (the
+  settings) and `src/components/events/draft-events-step-result.tsx` (the run
+  history view). Registered in `src/app/options.ts`.
+- **What it does:** `src/server/events/ai-drafts.ts`, registered under the same
+  kind, `draftEvents`, in `src/app/server-options.ts`. The page reader is
+  `src/server/events/source-page.ts` and the AI call is
+  `src/server/events/ai-json.ts`.
+- **The source column:** `source_url` on `events`, from
+  `drizzle/0091_cms_event_source_link.sql`. A duplicated event starts with none.
+
+## Reporting a problem on an event
+
+A visitor who turns up and finds nothing happening can tell the site. They pick
+what is wrong, add a line, and it lands in the same admin queue as problems
+reported on listings. The event does not change, and nothing the visitor wrote
+is ever shown on the site. `listing-problem-reports.md` has the rules both kinds
+share: the queue, the admin email, and two admins closing the same report.
+
+### What a visitor sees
+
+- **Where:** "Report a problem" is the last line of the event's card, under the
+  body. It stays there after the event is over, because an event that says it
+  ended yesterday when it is really next week is exactly what somebody needs to
+  report.
+- **The reasons:** wrong date or time, cancelled, wrong place, something else.
+  They are an event's own list, separate from a listing's list, which offers
+  wrong opening hours, wrong phone or address, and closed for good.
+- **The note:** up to 1000 characters. It is needed only for "Something else",
+  and sending that without one is refused with "Tell us in a line or two what
+  is wrong."
+- **Their email:** optional. It is there so an admin can ask a follow-up
+  question by hand, and nothing is ever sent to it automatically.
+- **No account needed.** Once it is sent, the link is replaced by "Thank you.
+  Somebody who looks after this site will read it."
+- **A private event** can be reported too, because anybody with its link can
+  open its page.
+
+### What stops it being used for spam
+
+- **The Events page's switch:** the form is refused while the Events page is
+  switched off, or kept for members and the visitor is signed out. That is the
+  same rule the event page follows.
+- **One report per event per hour, per visitor.** A second one is refused with
+  "You have already sent a report about this event. Give it a while before
+  sending another."
+- **Ten an hour per visitor, fifty an hour per site.** These two limits are
+  shared with listing reports, so ten reports on listings use up a visitor's
+  hour for events too. The site limit exists because every report emails the
+  admins, whatever it is about.
+- **Words are checked before counting.** A forgotten note is refused before any
+  limit is counted, so fixing it costs nothing.
+- **Only a published event on this site** can be reported. A draft answers
+  "That event is no longer on this site", the same as an event that does not
+  exist, so a report can never confirm that a draft's id is real.
+
+### In the queue
+
+The Reports row of the Listings dashboard, at
+`/admin/listings?section=reports`.
+
+- **The Kind column** says Listing or Event on every row.
+- **The Kind filter** picks between "Listings and events", which it opens on,
+  "Listings" and "Events". It lives in the address as `?kind=event`.
+- **The search** matches the event's title as well as the note.
+- **The report on the right** links to "Edit the event", which opens it in Admin → Events,
+  and "See the page", which opens the event's public page.
+- **Mark fixed and Dismiss** only close the report. The event is corrected in
+  its own editor.
+
+### Where it lives
+
+- **The reasons:** `src/lib/directory/report-reasons.ts`, beside the listing
+  reasons.
+- **The form:** `src/components/directory/public/report-problem-button.tsx`,
+  shared with listings, on `src/routes/events_.$slug.tsx`.
+- **The door:** `src/lib/api/events/reports.ts`. The listing's door is
+  `src/lib/api/directory/reports.ts`, and both count through
+  `countReportAttempt` in `src/server/directory/reports.ts`.
+- **The table:** a report is a row in `directory_listing_reports`, with
+  `event_id` set instead of `listing_id`, from
+  `drizzle/0092_cms_event_reports.sql`. A check in the database makes sure
+  exactly one of the two is set, and that the reason comes from that kind's
+  list. Deleting an event deletes its reports.
+
+## Sign-ups
+
+An event can take free sign-ups. A visitor types a name and an email on the
+event's page to take a seat. It is for something like a cooking class with 20
+places: twenty people sign up, the twenty-first sees "Full", and the host has
+the list of names on the day.
+
+A full event takes names for a waiting list, which "The waiting list" below
+describes. There is no payment and no confirmation email yet. Those are tasks
+32 and 25.
+
+### Switching it on
+
+- **Where:** the Sign-ups tab of the event's ⋮ in Admin → Events. "Take
+  sign-ups" is off on every event until an admin switches it on.
+- **Seats:** a whole number, or empty for no limit. 100,000 is the most.
+- **Lowering the seats** below the number already signed up takes nobody off
+  the list. The page says "Full" until enough people are removed.
+- **Switching sign-ups off** hides the box on the page. Everybody already on
+  the list stays on it, and the card still shows them. The seats stay as last
+  saved, so switching back on brings them back.
+- **A duplicated event** copies the switch and the seats, never the people.
+  It copies the closing time and the question too, never the answers.
+- **Close sign-ups:** "When it starts", which every event starts on, or 1
+  hour, 3 hours, 1 day, 2 days, 3 days or 1 week before. A cooking class that
+  buys its ingredients two days ahead picks "2 days before". It is worked on
+  the site's clock as written, so "2 days before" a 2:00 PM class is 2:00 PM
+  two days earlier whatever the clocks do. After it the box says "Sign-ups
+  have closed.", a sign-up is refused with "Sign-ups for this event have
+  closed.", and the waiting list offers no more seats. Each date of a repeat
+  closes the same time before its own start.
+- **Question:** one question of the event's own, like "Any allergies?", up to
+  200 characters. Empty asks nothing more than a name and an email.
+- **Answer required:** shows once there is a question. On, Sign up is refused
+  with 'Answer "Any allergies?" to sign up.' until it is answered, on the page
+  and on the server. Off, the box says "(optional)" after the question.
+
+### What a visitor sees
+
+The box sits in the event's card, under the Add to calendar and Directions
+buttons and above the body. Its four states:
+
+- **Open with seats:** "12 of 20 seats left", then a Name box, an Email box and
+  "Sign up".
+- **Open with no limit:** "Free. Add your name to the list." and the same form.
+- **Full:** headed "Full", saying "Every seat is taken. Join the waiting list
+  and we'll email you if one frees up.", with the same two boxes and a "Join
+  the waiting list" button.
+- **Closed:** "Sign-ups have closed." once the event's start time has come by
+  the site's clock, and while it is cancelled or postponed. It stays that way
+  after the event is over.
+
+After signing up, the box says "You're on the list, Sam." The seats left are
+read on every visit, after the page cache, so the count is never stale.
+
+- **The question** sits under the Name and Email boxes, as wide as the two.
+  An answer up to 500 characters is kept on one line.
+- **An early closing time** shows as "Sign-ups close Thu, Nov 20, 2:00 PM."
+  under the seats line while the box is still taking names.
+- **An event a listing's owner sent** says "The host sees your name and
+  email." under the button, because that owner sees the list.
+
+- **No account needed.** The name and email are all it asks for.
+- **A private event** takes sign-ups too, because anyone with its link can open
+  its page.
+- **A draft** takes none, because its page is not found.
+
+### The rules behind the box
+
+- **Two people racing for the last seat can't both get it.** A sign-up locks
+  the event's row before it counts the seats, so the second waits for the
+  first to finish, counts again, and joins the waiting list instead.
+- **One live sign-up per email per event.** The email is stored in lower case,
+  and the database refuses a second live row for the same email. Signing up
+  again writes nothing and answers "You're on the list", the same as the first
+  time.
+- **Sign-ups close when the event starts.** "Starts" is the start day and time
+  read on the site's clock, the same way "This event has ended" is worked out.
+- **Eight an hour from one internet address, per site.** The ninth is refused
+  with "You have signed up 8 times in the last hour, which is as many as this
+  site takes. Please try again in an hour." A missing name or a broken email
+  is refused before the count, so a typo costs nothing.
+- **The name is kept on one line**, with tabs, line breaks and invisible
+  characters taken out. A name made only of those is refused as missing, and
+  an email with one in it is refused as not an email address.
+- **The hidden box.** The form has a box no person sees. A bot that fills it
+  is told it worked, and nothing is kept.
+- **The Events page's switch still counts.** With the Events page off, or kept
+  for members and the visitor signed out, the box is refused like the page.
+
+### Who's coming
+
+- **Where:** under the switch and seats in the Sign-ups tab of the event's ⋮, as "Who's
+  coming" with "3 of 20 seats taken", or "3 signed up" with no limit. A seat
+  under offer counts as taken and the line says so: "4 of 20 seats taken,
+  1 held".
+- **Each person:** their name, their email and when they signed up, first to
+  sign up first, and their answer under it when the event asks a question.
+- **Remove:** the bin button asks first, then takes the person off at once,
+  without saving the window. Their seat is free straight away, and the same
+  email can sign up again.
+- **A removed row is kept** in the table as cancelled, with the time it was
+  removed. It is not shown anywhere yet.
+- **The site's own admins** see and manage the list. The old Directory app
+  kept it for super admins only.
+- **Add a person:** a button under the list opens a Name and an Email box,
+  and the question's box when there is one, for a booking taken by phone.
+  Both are required, and they are checked the way the public box checks them.
+  The same email twice is refused with "sam@example.com is already on this
+  event's list." It takes a seat under the same lock as a visitor, so the
+  count is right. On a full event it says "Every seat is taken." and offers
+  "Add anyway", over the limit, or "Put on the waiting list", at the back of
+  the queue. It works after sign-ups have closed, on a draft, and on a
+  cancelled or postponed event, because only the site's admins can reach it.
+  Somebody added that way is never emailed about a change made before they
+  were added.
+
+### Repeating events
+
+Each date of a repeat is its own event, so each has its own seats and its own
+list. The main event's switch and seats copy to its dates like everything else
+it shares, and a date changed on its own keeps its own. A date with anybody
+signed up is never deleted by a change to the repeat; "Repeating events" above
+says how.
+
+### Deleting
+
+Deleting an event deletes its sign-ups with it.
+
+### Where it lives
+
+- **The rules:** `src/server/events/sign-ups.ts`. The box's state is
+  `signUpBoxFor`, a sign-up is `signUpForEvent`, adding somebody by hand is
+  `addSignUpByHand`, and the admin list and removal are `listSignUps` and
+  `removeSignUp`. When sign-ups close is `signUpsCloseAt` and
+  `signUpsHaveClosed` in `src/lib/events/event-time.ts`.
+- **The words and limits** both sides share: `src/lib/events/sign-up-fields.ts`,
+  the closing choices (`SIGN_UPS_CLOSE_CHOICES`) and the question's limits
+  included.
+- **The doors:** `src/lib/api/events/sign-ups.ts`. The box's counts ride on the
+  event page's own load in `src/lib/api/events/public.ts`, and the list rides
+  on the event's record's load in `src/lib/api/events/events.ts`.
+- **The screens:** `src/components/events/public/sign-up-box.tsx` on the event
+  page and `src/components/events/event-sign-ups-card.tsx` in the event record.
+- **The table:** `event_sign_ups`, from `drizzle/0094_cms_event_sign_ups.sql`.
+- **The tests:** `src/server/events/sign-ups.test.ts`. The test database runs
+  one transaction at a time, so its race test shows the outcome but cannot
+  show the lock at work. The lock was also checked against the real local
+  Postgres with ten sign-ups sent at once for one seat.
+
+## The waiting list
+
+When every seat is taken, a visitor joins a queue instead of being turned
+away. When a seat frees up, the person at the front is emailed a link that
+claims it, and the seat is held for them until the link runs out. A popular
+class fills in an hour, two people drop out, and the first two on the list get
+their seats.
+
+The seat is offered, never given. Nobody is put into an event they did not
+click for.
+
+### Joining
+
+- **When it appears:** the sign-up box turns into the waiting list the moment
+  the event is full, and only then. An event with no seat limit is never full,
+  so it never has one.
+- **What the visitor sees:** the heading stays "Full", the words become "Every
+  seat is taken. Join the waiting list and we'll email you if one frees up.",
+  and the button says "Join the waiting list".
+- **After joining:** "You're 3rd on the waiting list, Sam. We'll email you if a
+  seat frees up."
+- **Once the event has started** there is no waiting list, only "Sign-ups have
+  closed."
+- **The same name and email** as a sign-up, and the same hidden box, the same
+  eight an hour from one address, and the same one live row per email.
+- **Joining twice** writes nothing and answers with the place they already
+  have, so the number a person is told is always the number of offers that
+  have to happen before theirs.
+- **The trade-off in that.** A sign-up for a seat answers the same whether or
+  not that email was already on the list, so nobody can find out who is going.
+  A waiting-list answer carries a number, so typing somebody else's address on
+  a full event does say they are on the queue. Telling a real person a made-up
+  place would send them to an event they have no seat at, which is worse.
+- **Somebody whose seat is already being offered** is told "A seat has already
+  come free for you. The link to claim it is in your email." rather than being
+  queued again.
+
+### Offering a freed seat
+
+- **How long a seat is held:** a day, or until two hours before the event
+  starts, whichever comes first. Tyler chose that on 29 Sep 2026.
+- **Inside the last two hours** nothing is offered at all. A seat that frees
+  then goes straight back on the event page for anybody to take, because a
+  hold nobody has time to answer would leave the seat empty on the night.
+- **A held seat counts as taken.** The page still says "Full" while an offer is
+  open, which is the point: the next visitor cannot take the seat out from
+  under the person who was just emailed.
+- **Two seats freed at once go to two different people.** Each offer is
+  written inside the same locked pass that counted the free seats, so the
+  second offer already sees the first one's seat as gone.
+- **What frees a seat:** an admin removing somebody who was coming, an admin
+  raising the seat count, or a hold running out. All three end the same way,
+  because the background pass asks "which events have somebody waiting and a
+  free seat" rather than being told.
+- **Sign-ups switched off, or the event unpublished, deleted, cancelled or postponed:** no offers.
+  Everybody stays on the list, so switching sign-ups back on picks the queue
+  up where it was.
+- **An email that fails** puts the person back at their old place in the
+  queue and the next pass tries again. Nobody loses their turn to a mail
+  problem.
+
+### The email and the claim link
+
+- **The email** says a seat has come free, names the event, says when the hold
+  runs out on the site's clock, and carries one "Claim your seat" button. It
+  is the directory's plain message, the same one a "confirm your email" link
+  arrives in.
+- **The link** is `/api/event-seat?token=…`. It is not signed in and not
+  origin-checked: the unguessable token is what proves the link is one this
+  app sent to that address, exactly as the directory's confirmation link
+  works.
+- **Why a GET is safe here.** Claiming is the one thing the person opening the
+  link wanted, so a mail client that fetches links early does the harmless
+  half. There is no link that gives a seat up, which is the one that would
+  have made an early fetch a problem.
+- **The page it lands on** is a plain self-contained page that renders with no
+  JavaScript and no session, with five answers: the seat is yours, you already
+  have your seat, that offer is no longer open, that event has already started,
+  and we do not recognise that link.
+- **The token is kept** after the offer is claimed or runs out, so a second
+  click, a late click, and a click by somebody an admin removed each get a
+  sentence saying what happened rather than the shrug an invented token gets.
+  Only a row that is still offered can be claimed, so a kept token opens
+  nothing.
+
+### A hold that runs out
+
+- **The person comes off the list**, and the seat goes to the next one. Tyler
+  chose that on 29 Sep 2026: an offer nobody answers is an answer.
+- **They can sign up again** from the event page while a seat is free, because
+  a run-out row is not a live one.
+- **There is no way to leave the list yourself.** Only the site's admins take
+  somebody off. Tyler chose that on 29 Sep 2026.
+
+### In Admin → Events
+
+- **Where:** a "Waiting list" section under "Who's coming" in the Sign-ups
+  tab of the event's ⋮, front of the queue first.
+- **Each person:** their name, their email, and either "2nd in line" or "Seat
+  held until Oct 2, 6:00 PM".
+- **Remove:** the bin button asks first. Removing somebody who is holding an
+  offer frees that seat, and it is offered to the next person within fifteen
+  seconds.
+- **The count** beside "Who's coming" includes held seats, so it never reads
+  lower than the number of seats a visitor cannot have.
+
+### The background pass
+
+The waiting list has no visitor-facing trigger. The shell's background pass
+calls `runWaitingListPass` every fifteen seconds and it does two things in
+order: clear the holds that have run out, then offer every free seat on every
+event that has somebody waiting. One broken event never stops the rest, and a
+server that died mid-pass changes nothing, because the next pass asks the same
+question again.
+
+### Repeating events
+
+Each date of a repeat has its own queue, the same way each has its own seats.
+A date with anybody waiting is never deleted by a change to the repeat, the
+same as a date with somebody signed up.
+
+### Where it lives
+
+- **The rules:** `src/server/events/waiting-list.ts`. The two ways in are
+  `runWaitingListPass`, which the background pass calls, and
+  `claimOfferedSeat`, which the link calls. Inside them, `offerFreeSeats`
+  takes the seats, `holdUntil` says how long a hold lasts, and `expireHolds`
+  clears the ones that ran out.
+- **Joining** is still `signUpForEvent` in `src/server/events/sign-ups.ts`,
+  which writes a waiting row when the event is full.
+- **The link's page:** `src/server/events/seat-link.ts`, behind the route
+  `src/routes/api/event-seat.ts`. It draws itself with
+  `src/server/directory/plain-page.ts`, which the directory's confirmation
+  link uses too.
+- **The pass is registered** in `src/app/server-options.ts`, beside the
+  repeating-events top-up.
+- **The columns:** `status` gains 'waiting', 'offered' and 'expired', plus
+  `offer_token_hash` and `offer_expires_at`, from
+  `drizzle/0109_cms_event_waiting_list.sql`.
+- **The tests:** `src/server/events/waiting-list.test.ts`.
+
+## View counts
+
+Admin → Events has a Views column, and an owner sees the same numbers under
+each of their published events on My listings. Both read the traffic the site
+already keeps, so nothing new is recorded and no visitor is identified.
+
+- **What is counted:** visits to the event's own page, `/events/<address>`, in
+  the site's daily traffic facts. That is the same source and the same rule as
+  the Listings Views column, which `workspace/docs/listing-view-counts.md`
+  describes.
+- **The two ranges:** "Views counted over" in the Events row's Filter offers "All time" and
+  "Last 30 days", and the column's heading follows it: "Views" or "30-day
+  views". All time is the default and stays out of the address.
+- **The column sorts,** biggest first, and it sorts the whole filtered list on
+  the server before it is cut into pages. The address carries `sort=views` and
+  `days=30`.
+- **Inside one site.** A count only ever uses the traffic of the site the admin
+  has open. Two sites can hold the same event address and each shows its own
+  number.
+- **Renaming an event loses its old views.** The count is matched on the
+  address the event has now, so views recorded under the old address stay
+  there and the renamed event starts from 0. Listings work the same way.
+- **An owner sees only their own events.** The card lists the events that
+  account sent, so the counts beside them are for those pages and no others. A
+  pending or rejected event has no page, so it shows no number at all.
+- **A page nobody has opened reads as 0** in the admin column and as "0 views
+  in 30 days" for the owner.
+- **No chart and no daily breakdown.** The Traffic screen stays the place for
+  that.
+- **Where it lives:** `src/server/events/views.ts` holds `eventViewTotals`, the
+  grouped totals the list joins on, and `eventViewsForPages`, which reads both
+  counts for a set of pages across sites. `listEvents` in
+  `src/server/events/events.ts` joins the first and puts `views` on each row;
+  `ownerEventsFor` in `src/server/events/owner-submissions.ts` uses the second.
+  The ranges and the sort columns are `src/lib/events/event-sort.ts`. The
+  screens are `src/components/events/events-dashboard/sections/events-section.tsx` and
+  `src/components/events/owner-events.tsx`. The tests are
+  `src/server/events/views.test.ts`.
+
+## Not built yet
+
+These are later tasks in `workspace/tasks/events/`: confirmation and reminder
+emails for sign-ups, and a free or paid filter once paid tickets exist.

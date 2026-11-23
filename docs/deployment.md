@@ -1,0 +1,339 @@
+# Deploying an app
+
+Every app built on Custom Shell deploys the same way: **two Coolify resources
+for one app**, built from the same commit.
+
+- **The web resource** — the site people visit. It brings the database up to
+  date on the way in, then serves pages.
+- **The worker resource** — the background program. Automations, scheduled
+  newsletters, and any jobs the app registered itself.
+
+Both are built from the root `Dockerfile`, which takes the app's folder name as
+its one argument.
+
+**Where a deploy's time goes** (Trade's website, 4 Nov 2026, 25 minutes in
+all, 22 of them building): installing packages twice, about 340 seconds each,
+once for the build and once without the build tools; copying the installed
+packages between stages, about 250 seconds each time; Trade's own build, 141
+seconds; then about 2 minutes to start the new container and pass its health
+check. Small steps take 10 to 20 seconds on the German server, so its disk is
+slow too.
+
+- **Downloaded packages are kept between builds** in a BuildKit cache on the
+  server (`/pnpm/store`), shared by every app, so a deploy downloads only what
+  changed. The first deploy after the cache is emptied (a server prune) still
+  downloads everything.
+- **The build runs on top of the install** instead of copying the installed
+  packages into a fresh stage first, which removes one of the two copies.
+- **The finished image still carries the full package folder.** The built
+  website imports packages from it at run time (`dukascopy-node`, for one),
+  and the database update on the way in needs `pg`; started without it on 7
+  Nov 2026, the server stopped with "Cannot find module".
+
+## Apps never share anything
+
+This is the rule the rest of the page is arranged around, and it is not a
+preference:
+
+**Two apps never share a database, and never share settings.** Not the
+database, not the storage bucket, not the email account, not the AI keys, not
+the Stripe keys, not the session secret. An app's web container and its worker
+container share those with each other and with nothing else.
+
+The code enforces the important half. Outside development, an app with no
+`CUSTOM_SHELL_DATABASE_URL` refuses to start rather than reaching for a local
+database — because on a host running several of these, "a local database" could
+easily be another app's.
+
+## Building the two images
+
+From the repository root, not the app folder — this is a pnpm workspace and the
+lockfile lives at the top.
+
+```sh
+docker build --target web    --build-arg APP=shell -t shell-web .
+docker build --target worker --build-arg APP=shell -t shell-worker .
+```
+
+`APP` is the app's folder under `apps/`, which is also its name in
+`package.json`. For a new app copied from Custom Shell, that one word is the
+only thing that changes.
+
+### Extra programs in the worker
+
+The worker image has Node and nothing else, unless the app asks. An app whose
+worker shells out to another program lists it in `WORKER_PACKAGES`, by its
+Alpine package name, space-separated:
+
+```sh
+docker build --target worker --build-arg APP=pomodoro \
+  --build-arg WORKER_PACKAGES=ffmpeg -t pomodoro-worker .
+```
+
+Empty is the default, and an empty one installs nothing, so an app that does
+not set it gets the same image it always did. Only the worker takes it, because
+no website calls these programs.
+
+| App | `WORKER_PACKAGES` | Why |
+| --- | --- | --- |
+| Pomodoro | `ffmpeg yt-dlp` | Uploaded sounds and clips, and every AI background and soundscape, are re-encoded by the `pomodoro-media-uploads` and `pomodoro-generations` workers. Without FFmpeg each card says "Sound and video cannot be prepared yet." The `pomodoro-youtube-imports` worker calls `yt-dlp` to fetch 5 seconds of a YouTube video for a theme; without it the row says "yt-dlp is not installed on this server". Alpine 3.24's `yt-dlp` was 2026.08.19 on 10 Oct 2026 and fetched a clip inside the worker image. |
+| Video | `ffmpeg yt-dlp` | Its workers call `ffmpeg`, `ffprobe` and `yt-dlp` (`apps/video/src/server/video/media-workers.ts`, `viral/download.ts`). Alpine's `ffmpeg` package brings `ffprobe` with it. On 18 Oct 2026 the Video worker image had FFmpeg 8.1.2, ffprobe 8.1.2 and yt-dlp 2026.08.19. |
+| Note | `ffmpeg yt-dlp` | The `note-imports` worker downloads a video with `yt-dlp` and takes its cover with `ffmpeg` (`apps/note/src/server/note/download.ts`, `ffmpeg.ts`). It also needs `curl_cffi` from `WORKER_PIP_PACKAGES` below. |
+| Custom Shell, Trade, CMS | not set | Nothing in their workers calls an outside program. |
+
+A Python package Alpine does not carry goes in `WORKER_PIP_PACKAGES`, by its
+pip name, space-separated. The worker installs it with pip after the Alpine
+packages, then removes pip. Empty is the default and installs nothing.
+
+| App | `WORKER_PIP_PACKAGES` | Why |
+| --- | --- | --- |
+| Note | `curl_cffi` | Note runs `yt-dlp --impersonate chrome`, and yt-dlp can only pretend to be Chrome with curl_cffi. Alpine 3.24 has no package for it. Without it every download stops with `Impersonate target "chrome" is not available`. On 20 Oct 2026 pip put in curl_cffi 0.16.3 and a YouTube download test then worked inside the worker image. |
+
+### No stylesheets in the worker
+
+The worker build (`scripts/build-worker.mjs`) bundles only the app's own code
+and leaves every package as a plain import, which Node loads at run time. Node
+can't open a stylesheet. So when server code reaches a screen file that imports
+a package's `.css`, the worker dies on its first line with
+`ERR_UNKNOWN_FILE_EXTENSION` and never passes its health check. Server code
+does reach screen files on purpose. The email sender reads the app's options,
+the options name each Settings tab's panel, and a panel reaches the image
+cropper, which imports `ReactCrop.css`.
+
+`scripts/worker-drop-css.mjs` turns every `.css`, `.scss`, `.sass` and `.less`
+import into an empty file at build time. The worker draws nothing, so nothing
+is lost. Trade's engine was down ten hours on 26 Sep 2026 from this, and
+Video's first worker image died the same way on 18 Oct 2026. The fix moved into
+the shell that day, so every app gets it on its next shell merge. Trade has had
+its own copy since 26 Sep.
+
+**No secret is ever a build argument.** Build arguments are recorded in the
+image's history and can be read by anyone who can pull the image. Everything an
+app needs is supplied at run time.
+
+## Setting up the two resources in Coolify
+
+Make two resources pointing at the same repository and the same commit.
+
+| | Web | Worker |
+| --- | --- | --- |
+| Dockerfile | root `Dockerfile` | root `Dockerfile` |
+| Build target | `web` | `worker` |
+| Build argument | `APP=<app folder>` | `APP=<app folder>` |
+| Port | 3000 | none — it serves nothing |
+| Health check | built into the image | built into the image |
+
+Give both resources the same runtime values. The worker needs them too: a
+newsletter step in an automation sends real email from the worker, so the
+worker needs the email settings just as much as the website does. A worker
+missing a key fails the job rather than the container, which is a quiet way to
+lose work.
+
+### The values
+
+Only one of these actually stops the app. The other two fail quietly, which is
+worse, so what goes wrong is written next to each.
+
+- `CUSTOM_SHELL_DATABASE_URL` — this app's own database. **Nothing starts
+  without it**, on purpose. **The URL carries
+  `?uselibpqcompat=true&sslmode=require`** so every connection is encrypted.
+  Without the suffix, node-postgres sends everything — the password, session
+  tokens, stored keys — across the wire readable. A bare `sslmode=require` is
+  not the same thing: node-postgres treats it as full certificate
+  verification and refuses a self-signed server certificate, where the
+  `uselibpqcompat` form encrypts without verifying, which is what these
+  self-signed database servers need. The database server itself must have
+  `ssl = on` first; Trade's went on 29 Aug 2026
+  (`apps/trade/workspace/docs/app/database-link-encryption.md` records how).
+- `CUSTOM_SHELL_APP_URL` — the public address. Set it. Without it the app falls
+  back to its local development address and starts perfectly happily, and then
+  every link it emails — verify your email, reset your password, return from
+  checkout — points at `localhost` on the recipient's own machine.
+- `CUSTOM_SHELL_SECRET_ENCRYPTION_KEY` — encrypts the keys held in the
+  database. Without it, no key can be saved at all: `encryptSecret` in
+  `src/server/auth/encryption.ts` refuses with `ENCRYPTION_NOT_CONFIGURED`
+  rather than store one as plain text. The worker needs the same value as the
+  website whenever its jobs read a saved key. Changing it later makes every
+  stored key unreadable, and the recovery is pasting each one in again — there
+  is no decrypting them.
+
+As the app uses them:
+
+- `CUSTOM_SHELL_RESEND_API_KEY`, `CUSTOM_SHELL_EMAIL_FROM` — sending email.
+- `CUSTOM_SHELL_GOOGLE_CLIENT_ID`, `CUSTOM_SHELL_GOOGLE_CLIENT_SECRET` — signing
+  in with Google.
+- `CUSTOM_SHELL_TURNSTILE_SITE_KEY`, `CUSTOM_SHELL_TURNSTILE_SECRET_KEY` — the
+  "are you a human" check.
+- `CUSTOM_SHELL_R2_PUBLIC_URL` — where uploaded media is read from.
+- `CUSTOM_SHELL_BILLING_ENABLED` — whether payment screens appear.
+- `CUSTOM_SHELL_APP_ORIGINS`, `CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN` — extra
+  addresses this app answers on, for apps serving more than one site.
+
+## Releasing, in order
+
+For an app already live, `npm run deploy` in the app's folder does all of this
+in one command. It pushes the branch to `develop`, then builds the website and,
+once it is healthy, the worker, never both at once: two builds side by side ran
+the German server out of memory (29 Oct 2026). It ends with the live health
+check. The script and its rules are the
+`deploy-app` skill in `.agents/skills/deploy-app/`. Trade keeps its own
+`deploy` script, which runs engine, then worker, then web. The steps below are
+what it automates, and what to do by hand.
+
+1. **Back up the database first.** A migration is applied once and recorded;
+   there is no undo built into it. This is the only rollback there is.
+2. **Deploy the web resource.** It runs the database update, then starts. If
+   the update fails, the server never starts, the health check never passes,
+   and the container already serving keeps serving. A broken release does not
+   take the site down.
+3. **Wait for the web resource to be healthy.**
+4. **Deploy the worker resource.** It never changes database structure, so it
+   is deployed second, against a database the web resource has already brought
+   up to date.
+
+### Why that order matters
+
+Coolify can keep the old web container alive while the replacement starts, so
+for a minute or two the old code and the new database exist together. **A
+migration must not break the release before it.** Add columns and tables; do
+not rename or drop something the previous release still reads. If a column has
+to go, that is two releases: stop using it, then remove it.
+
+## Health checks
+
+Both images carry their own, so Coolify needs no configuring.
+
+- **Web** — `GET /api/health`. It answers `200` only when the server is up
+  *and* its database answers a query. A server whose database is unreachable
+  serves a confident home page and then fails on every screen that loads
+  anything, which is exactly what this catches.
+- **Worker** — `node worker/dist/health.mjs`. It answers well only when the
+  loop is still going round *and* its database answers. The worker writes a
+  heartbeat after every pass; a missing or old one means the loop has stopped
+  even though the process is still technically alive.
+
+Neither prints the database address, the connection string, or the underlying
+error. Container health output is widely readable. The real error goes to the
+container's own log.
+
+The worker build writes external JavaScript source maps for local debugging.
+Those maps contain file names and line mappings, but not `sourcesContent`, so
+they never contain a readable copy of the server source. Each app's Dockerfile
+decides whether the map itself belongs in its running image. Trade copies only
+the three `.mjs` programs and leaves every map in the build stage.
+
+The worker uses esbuild instead of Vite. `scripts/worker-page-registry.mjs`
+expands the page registry's eager `import.meta.glob` into static imports during
+`npm run build:worker`. The original registry still validates the declarations.
+A changed discovery expression fails the build so an unsupported Vite call
+cannot silently reach Node. Run `node --test scripts/worker-page-registry.test.mjs`
+from the app to check the real registry without starting background jobs.
+
+A server file that reaches a file beside it with
+`new URL("../assets", import.meta.url)` needs one more step. In the bundle,
+`import.meta.url` is the bundle's own address, so the file would be looked for
+in the wrong place. `scripts/worker-file-urls.mjs` copies each such file or
+folder into `worker/dist`, at the path it has under the app, and rewrites the
+address to point at the copy. The copy has to live inside `worker/dist` because
+that folder is all the worker image ships. Video's exporter finds its font this
+way. An address pointing at something inside `src/` that is not there fails the
+build. Addresses that point outside `src/` are left as written. Run
+`node --test scripts/worker-file-urls.test.mjs` from the app to check it.
+
+The banner that gives the bundle a `require` imports `createRequire` under the
+name `__bannerCreateRequire`. The banner is outside esbuild's view, so a source
+file importing `createRequire` under its own name would declare it twice. Node
+then refuses to load the bundle, and the worker stops the moment it starts.
+
+If a worker logs `glob is not a function`, its bundle missed that transform.
+Keep the heartbeat healthcheck enabled and rebuild with the corrected worker
+build script. A successful build alone does not prove container health; check
+that background passes resume and Coolify accepts the replacement container.
+
+## Rolling back
+
+1. Redeploy the previous commit's web resource.
+2. Then the previous commit's worker resource.
+3. **The database does not roll back with them.** That is why migrations only
+   add. If a release has to be undone and its migration genuinely cannot be
+   left in place, restore the backup from step 1 of the release.
+
+## Nightly database backups
+
+Every live database on server1.barelycompany.com is backed up once a night and
+sent to Cloudflare R2, so a dead server doesn't take the data with it. Tyler,
+2 Nov 2026: "set up the backups to R2".
+
+- **Where:** R2 bucket `server1-backups`, under
+  `data/coolify/backups/databases/`. Coolify knows it as the S3 storage
+  "R2 server1-backups". Its key can read and write that one bucket and
+  nothing else. Cloudflare lists it as the API token "server1 Coolify database
+  backups".
+- **When:** from 03:00 UTC, ten minutes apart so two dumps never fight over
+  the slow disk. Trade DB goes first at 03:00, then Pomoder, Video, Project,
+  Note, Fitness, Date, Course, Course SE, and System Everything at 04:30.
+- **How long they're kept:** 30 days in R2, and the last 3 on the server.
+- **Core:** not backed up nightly, because Core isn't used any more. Its
+  database was copied to R2 once on 2 Nov 2026, 11,232 rows, under
+  `core-db-egnksrgf76imfdg7amy9rvpv/`, so the US server could be cancelled.
+  That copy is kept with no expiry, and Core DB on server1 is stopped.
+- **A new app's database** gets the same schedule in Coolify, under the
+  database's Backups tab, with "R2 server1-backups" picked as the S3 storage.
+- **Restoring:** download the `.dmp` from R2 and run `pg_restore` into the
+  database. Each file is a whole `pg_dump` in custom format.
+
+## Restarting and overlapping
+
+Both background jobs claim their work in the database before doing it, so an
+old worker and its replacement running together during a deploy cannot both
+process the same automation run or the same newsletter batch. Stopping a worker
+lets the pass in flight finish first.
+
+Anything claimed but not finished when a container is killed outright is picked
+up again by the existing stale-claim rules.
+
+**This is not a substitute for a job that genuinely must be single.** Trade's
+trading engine takes an exclusive database lock because two copies would mean
+twice the position, and it stays its own program with its own deployment.
+
+## What runs where
+
+- **In development**, one process does everything. The dev server ticks its own
+  background loop, started by the first request. Nothing changes: `pnpm dev`
+  is still all you need.
+- **In production**, the web container serves requests and nothing else, and
+  the worker does every background pass. That is deliberate — otherwise "is
+  background work running" would depend on how many web containers happen to
+  be up.
+
+## Checking it before you trust it
+
+The whole path can be run on a laptop against a throwaway database:
+
+```sh
+docker network create shell-check
+docker run -d --name check-db --network shell-check \
+  -e POSTGRES_PASSWORD=localdev -e POSTGRES_DB=shellcheck postgres:18
+
+docker build --target web    --build-arg APP=shell -t shell-web .
+docker build --target worker --build-arg APP=shell -t shell-worker .
+
+URL=postgresql://postgres:localdev@check-db:5432/shellcheck
+docker run -d --name check-web --network shell-check -p 3999:3000 \
+  -e CUSTOM_SHELL_DATABASE_URL=$URL shell-web
+docker run -d --name check-worker --network shell-check \
+  -e CUSTOM_SHELL_DATABASE_URL=$URL shell-worker
+
+curl http://127.0.0.1:3999/api/health
+docker inspect --format '{{.State.Health.Status}}' check-web check-worker
+```
+
+Tear it down with `docker rm -f check-web check-worker check-db` and
+`docker network rm shell-check`.
+
+## Checks before a release
+
+`.github/workflows/shell-ci.yml` runs on every pull request touching the
+app: lint, typecheck, tests, the web build, the worker build, and then both
+Docker images. The images are built and thrown away — nothing there pushes,
+tags, or deploys.

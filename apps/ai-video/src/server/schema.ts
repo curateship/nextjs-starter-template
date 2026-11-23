@@ -7,6 +7,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -20,6 +21,9 @@ export const aiVideoUsers = pgTable("users", {
   name: varchar("name", { length: 255 }).notNull(),
   role: varchar("role", { length: 50 }).notNull(),
   passwordHash: text("password_hash").notNull(),
+  // Per-type bell notification toggles as { [notificationType]: boolean }.
+  // Null / missing key = the default (on); see @/server/notification-preferences.
+  notificationPreferences: jsonb("notification_preferences"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
@@ -274,6 +278,14 @@ export const aiVideoNotifications = pgTable(
       { onDelete: "cascade" }
     ),
     creatorNewVideoCount: integer("creator_new_video_count"),
+    // Automation run parked at (or auto-rejected by) an approval checkpoint.
+    automationRunId: varchar("automation_run_id", { length: 36 }).references(
+      () => aiVideoAutomationRuns.id,
+      { onDelete: "cascade" }
+    ),
+    automationApprovalState: varchar("automation_approval_state", {
+      length: 20,
+    }),
     apiUsageLevel: varchar("api_usage_level", { length: 20 }),
     apiUsagePeriodStart: timestamp("api_usage_period_start", {
       withTimezone: true,
@@ -286,7 +298,11 @@ export const aiVideoNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'creator_watch', 'api_usage_alert')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'creator_watch', 'api_usage_alert', 'automation_approval')`
+    ),
+    check(
+      "notifications_automation_approval_state_check",
+      sql`${table.automationApprovalState} is null or ${table.automationApprovalState} in ('pending', 'timed_out')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -296,6 +312,7 @@ export const aiVideoNotifications = pgTable(
     index("ix_notifications_vote_id").on(table.feedbackVoteId),
     index("ix_notifications_comment_id").on(table.feedbackCommentId),
     index("ix_notifications_creator_id").on(table.creatorId),
+    index("ix_notifications_automation_run_id").on(table.automationRunId),
   ]
 )
 
@@ -420,6 +437,48 @@ export const aiVideoMedia = pgTable(
       table.filmstripStatus,
       table.createdAt
     ),
+  ]
+)
+
+// Named manual groupings of library media. A media item can belong to any
+// number of them, so membership lives in the join table below.
+export const aiVideoMediaCollections = pgTable(
+  "media_collections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_media_collections_user_id").on(table.userId),
+    // Case-insensitive, so one library cannot hold both "Logos" and "logos".
+    uniqueIndex("ux_media_collections_user_name").on(
+      table.userId,
+      sql`lower(${table.name})`
+    ),
+  ]
+)
+
+// Both foreign keys cascade: deleting a collection detaches its items without
+// touching the media, and deleting media drops its memberships.
+export const aiVideoMediaCollectionItems = pgTable(
+  "media_collection_items",
+  {
+    collectionId: varchar("collection_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoMediaCollections.id, { onDelete: "cascade" }),
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoMedia.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.collectionId, table.mediaId] }),
+    index("ix_media_collection_items_media_id").on(table.mediaId),
   ]
 )
 
@@ -582,6 +641,10 @@ export const aiVideoProjects = pgTable(
     ),
     // Serialized editor timeline: { tracks: EditorTrack[], aspect: AspectRatio }
     timeline: jsonb("timeline").notNull(),
+    // Bumped by every timeline write. Savers send the version they loaded and
+    // the write only lands if it still matches, so a second tab or a
+    // server-side writer can't silently overwrite newer work.
+    version: integer("version").notNull().default(1),
     // Latest export: rendering → ready/error; the MP4 lives at renderStoragePath.
     renderStatus: varchar("render_status", { length: 20 }),
     renderError: text("render_error"),
@@ -787,12 +850,149 @@ export const aiVideoTemplates = pgTable(
   ]
 )
 
+// Automation canvas: user-built node graphs chaining pipeline steps. The
+// graph lives verbatim on the automation row (AutomationGraph jsonb) and is
+// snapshotted onto every run so later edits never corrupt run history.
+export const aiVideoAutomations = pgTable(
+  "automations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    // { nodes, edges, viewport } — see src/lib/automations/automation.ts.
+    graph: jsonb("graph").notNull(),
+    // Master switch for the schedule + creator-posted triggers. Manual runs
+    // work regardless so a disabled automation can still be tested.
+    enabled: boolean("enabled").notNull().default(false),
+    // Denormalized from the graph's Schedule trigger on save/toggle; the
+    // scheduler claims automations where enabled and next_run_at <= now().
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_automations_user_id").on(table.userId),
+    index("ix_automations_next_run").on(table.nextRunAt),
+  ]
+)
+
+// One execution of an automation — the durable queue unit, modeled on
+// render_jobs: leases + attempts + orphan reclaim survive process restarts.
+export const aiVideoAutomationRuns = pgTable(
+  "automation_runs",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    automationId: varchar("automation_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoAutomations.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 20 }).notNull(),
+    triggerType: varchar("trigger_type", { length: 20 }).notNull(),
+    // Trigger context, e.g. { creatorId, videoIds } for creator_posted runs.
+    triggerPayload: jsonb("trigger_payload"),
+    // Graph snapshot at enqueue time.
+    nodes: jsonb("nodes").notNull(),
+    edges: jsonb("edges").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    // Running runs hold a lease the worker keeps extending; a lease that
+    // expires marks the run as orphaned (crashed process) for reclaim.
+    leaseToken: varchar("lease_token", { length: 36 }),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "automation_runs_status_check",
+      sql`${table.status} in ('queued', 'running', 'waiting_approval', 'completed', 'failed', 'canceled')`
+    ),
+    check(
+      "automation_runs_trigger_type_check",
+      sql`${table.triggerType} in ('manual', 'schedule', 'creator_posted')`
+    ),
+    // One active run per automation — duplicate enqueues become no-op
+    // conflicts. A run parked at an approval checkpoint still counts as active.
+    uniqueIndex("ux_automation_runs_automation_active")
+      .on(table.automationId)
+      .where(sql`${table.status} in ('queued', 'running', 'waiting_approval')`),
+    index("ix_automation_runs_status_created").on(
+      table.status,
+      table.createdAt
+    ),
+    index("ix_automation_runs_automation_created").on(
+      table.automationId,
+      table.createdAt
+    ),
+    index("ix_automation_runs_user_id").on(table.userId),
+  ]
+)
+
+// One row per graph node a run will execute; the per-node status/output the
+// runs panel shows. unique(run_id, node_id) keeps step creation idempotent.
+export const aiVideoAutomationRunSteps = pgTable(
+  "automation_run_steps",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    runId: varchar("run_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoAutomationRuns.id, { onDelete: "cascade" }),
+    nodeId: varchar("node_id", { length: 64 }).notNull(),
+    nodeKind: varchar("node_kind", { length: 40 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    // Executor result, e.g. { videoIds: [...], summary: "..." }.
+    output: jsonb("output"),
+    error: text("error"),
+    // Approval checkpoint bookkeeping, only set on waitForApproval steps: when
+    // the auto-reject fires and what the decision ended up being.
+    approvalDeadlineAt: timestamp("approval_deadline_at", {
+      withTimezone: true,
+    }),
+    approvalDecision: varchar("approval_decision", { length: 20 }),
+    approvalDecidedAt: timestamp("approval_decided_at", { withTimezone: true }),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "automation_run_steps_status_check",
+      sql`${table.status} in ('pending', 'running', 'waiting_approval', 'completed', 'failed', 'skipped')`
+    ),
+    check(
+      "automation_run_steps_approval_decision_check",
+      sql`${table.approvalDecision} is null or ${table.approvalDecision} in ('approved', 'rejected', 'timed_out')`
+    ),
+    unique("automation_run_steps_run_node_unique").on(
+      table.runId,
+      table.nodeId
+    ),
+    index("ix_automation_run_steps_run_status").on(table.runId, table.status),
+    index("ix_automation_run_steps_approval_deadline")
+      .on(table.approvalDeadlineAt)
+      .where(sql`${table.status} = 'waiting_approval'`),
+  ]
+)
+
 export type AiVideoUser = typeof aiVideoUsers.$inferSelect
 export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
 export type AiVideoApiUsageLimit = typeof aiVideoApiUsageLimits.$inferSelect
 export type AiVideoApiUsageEvent = typeof aiVideoApiUsageEvents.$inferSelect
 export type AiVideoApiUsageAlert = typeof aiVideoApiUsageAlerts.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
+export type AiVideoMediaCollection =
+  typeof aiVideoMediaCollections.$inferSelect
 export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoFirstFrame = typeof aiVideoFirstFrames.$inferSelect
 export type AiVideoGeneration = typeof aiVideoGenerations.$inferSelect
@@ -805,3 +1005,7 @@ export type AiVideoTemplate = typeof aiVideoTemplates.$inferSelect
 export type AiVideoFeedback = typeof aiVideoFeedback.$inferSelect
 export type AiVideoFeedbackComment = typeof aiVideoFeedbackComments.$inferSelect
 export type AiVideoNotification = typeof aiVideoNotifications.$inferSelect
+export type AiVideoAutomation = typeof aiVideoAutomations.$inferSelect
+export type AiVideoAutomationRun = typeof aiVideoAutomationRuns.$inferSelect
+export type AiVideoAutomationRunStep =
+  typeof aiVideoAutomationRunSteps.$inferSelect

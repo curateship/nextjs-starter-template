@@ -14,6 +14,18 @@ import {
   MAX_CANDLES_LIMIT,
   MIN_CANDLES,
 } from "@/lib/backtest/types"
+import { HYPERLIQUID_MARKET_NAME_MAX_LENGTH } from "@/lib/hl/market-symbol"
+import {
+  clampLiquidationAlertThreshold,
+  DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT,
+  MAX_LIQUIDATION_ALERT_THRESHOLD_PCT,
+} from "@/lib/trading/liquidation-risk"
+import {
+  DEFAULT_ORDER_DEFAULTS,
+  MAX_DEFAULT_LEVERAGE,
+  MIN_DEFAULT_LEVERAGE,
+  normalizeOrderDefaults,
+} from "@/lib/trading/order-defaults"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import { customShellSettings, customShellWorkspaces } from "@/server/schema"
@@ -47,6 +59,33 @@ const shellEntrySchema = z.discriminatedUnion("type", [
   }),
 ])
 
+const shellBackgroundSchema = z.object({
+  mode: z.enum(["default", "muted", "custom"]),
+  strength: z.number().int().min(0).max(100),
+  color: z.string(),
+})
+
+const shellModalStylingSchema = z.object({
+  background: shellBackgroundSchema,
+  borderWidth: z.number().int().min(0).max(3),
+  borderColor: shellBackgroundSchema,
+  padding: z.number().int().min(0).max(48),
+  overlayOpacity: z.number().int().min(0).max(100),
+  cardBackground: shellBackgroundSchema,
+  cardBorderWidth: z.number().int().min(0).max(3),
+  cardBorderColor: shellBackgroundSchema,
+})
+
+const shellStylingSchema = z.object({
+  gutter: z.number().int().min(0).max(48),
+  cardBorderWidth: z.number().int().min(0).max(3),
+  cardBorderColor: shellBackgroundSchema,
+  dividerColor: shellBackgroundSchema,
+  content: shellBackgroundSchema,
+  chrome: shellBackgroundSchema,
+  modal: shellModalStylingSchema,
+})
+
 const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
@@ -68,16 +107,27 @@ const shellConfigSchema = z.object({
     .catch(MAX_CANDLES_LIMIT),
   adminRoute: z.string().catch(""),
   orderConfirmation: z.boolean(),
-  favicon: z.string(),
-  topNavigation: z.array(
-    z.object({
-      id: z.string().min(1),
-      label: z.string(),
-      href: z.string(),
-      icon: shellIconSchema.optional(),
-      visible: z.boolean(),
+  // Lenient: settings saved before the liquidation alert existed fall back
+  // to the default instead of failing to parse.
+  liquidationAlertThresholdPct: z
+    .number()
+    .min(0)
+    .max(MAX_LIQUIDATION_ALERT_THRESHOLD_PCT)
+    .catch(DEFAULT_LIQUIDATION_ALERT_THRESHOLD_PCT),
+  // Lenient for the same reason: rows saved before this card existed.
+  orderDefaults: z
+    .object({
+      leverage: z
+        .number()
+        .int()
+        .min(MIN_DEFAULT_LEVERAGE)
+        .max(MAX_DEFAULT_LEVERAGE),
+      marginMode: z.enum(["cross", "isolated"]),
+      orderType: z.enum(["market", "limit"]),
+      sizeUnit: z.enum(["usd", "coin", "pct"]),
     })
-  ),
+    .catch(() => ({ ...DEFAULT_ORDER_DEFAULTS })),
+  favicon: z.string(),
   topRightNavigation: z.array(
     z.object({
       id: z.enum(["feedback", "theme", "notifications"]),
@@ -91,6 +141,7 @@ const shellConfigSchema = z.object({
       entries: z.array(shellEntrySchema),
     })
   ),
+  styling: shellStylingSchema,
 })
 
 export function getShellSettingsErrorMessage(error: unknown) {
@@ -121,9 +172,9 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
         workspaceName: workspace.name,
         sidebarWidth: workspaceSettings.sidebarWidth,
         favicon: workspaceSettings.favicon,
-        topNavigation: workspaceSettings.topNavigation,
         topRightNavigation: workspaceSettings.topRightNavigation,
         sections: workspaceSettings.sections,
+        styling: workspaceSettings.styling,
       },
     }
   }
@@ -155,9 +206,9 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
             ...workspaceSettings,
             sidebarWidth: data.sidebarWidth,
             favicon: data.favicon,
-            topNavigation: data.topNavigation,
             topRightNavigation: data.topRightNavigation,
             sections: data.sections,
+            styling: data.styling,
           },
           updatedAt,
         })
@@ -243,6 +294,110 @@ export function saveSidebarWidth(sidebarWidth: number) {
   return saveSidebarWidthFn({ data: { sidebarWidth } })
 }
 
+const loadDashboardWatchlistTabOrderFn = createServerFn({
+  method: "GET",
+}).handler(async () => {
+  const user = await requireUser()
+  const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } = await import(
+    "@/server/workspaces"
+  )
+  const workspace = await getOrCreateCurrentWorkspace(user.id)
+  const settings = parseWorkspaceSettings(workspace.settings)
+  return { order: settings.dashboardWatchlistTabOrder }
+})
+
+const saveDashboardWatchlistTabOrderFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ order: z.array(z.string().min(1)).max(20) }))
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const settings = parseWorkspaceSettings(workspace.settings)
+
+    const [updated] = await db
+      .update(customShellWorkspaces)
+      .set({
+        settings: { ...settings, dashboardWatchlistTabOrder: data.order },
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(customShellWorkspaces.id, workspace.id),
+          eq(customShellWorkspaces.userId, user.id)
+        )
+      )
+      .returning({ id: customShellWorkspaces.id })
+
+    if (!updated) {
+      throw new Error("Workspace not found")
+    }
+
+    return data
+  })
+
+export function loadDashboardWatchlistTabOrder() {
+  return loadDashboardWatchlistTabOrderFn()
+}
+
+export function saveDashboardWatchlistTabOrder(order: string[]) {
+  return saveDashboardWatchlistTabOrderFn({ data: { order } })
+}
+
+const loadTradeMarketFn = createServerFn({ method: "GET" }).handler(async () => {
+  const user = await requireUser()
+  const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } = await import(
+    "@/server/workspaces"
+  )
+  const workspace = await getOrCreateCurrentWorkspace(user.id)
+  const settings = parseWorkspaceSettings(workspace.settings)
+  return { market: settings.tradeMarket }
+})
+
+const saveTradeMarketFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      market: z.string().trim().min(1).max(HYPERLIQUID_MARKET_NAME_MAX_LENGTH),
+    })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const settings = parseWorkspaceSettings(workspace.settings)
+
+    const [updated] = await db
+      .update(customShellWorkspaces)
+      .set({
+        settings: { ...settings, tradeMarket: data.market },
+        updatedAt: now(),
+      })
+      .where(
+        and(
+          eq(customShellWorkspaces.id, workspace.id),
+          eq(customShellWorkspaces.userId, user.id)
+        )
+      )
+      .returning({ id: customShellWorkspaces.id })
+
+    if (!updated) {
+      throw new Error("Workspace not found")
+    }
+
+    return data
+  })
+
+export function loadTradeMarket() {
+  return loadTradeMarketFn()
+}
+
+export function saveTradeMarket(market: string) {
+  return saveTradeMarketFn({ data: { market } })
+}
+
 async function requireUser() {
   const user = await findCurrentUser()
   if (!user) {
@@ -283,6 +438,10 @@ export function parseShellGlobals(value: unknown) {
         ? settings.adminRoute
         : fallback.adminRoute,
     orderConfirmation: requireOrderConfirmation(settings.orderConfirmation),
+    liquidationAlertThresholdPct: clampLiquidationAlertThreshold(
+      settings.liquidationAlertThresholdPct
+    ),
+    orderDefaults: normalizeOrderDefaults(settings.orderDefaults),
   }
 }
 
@@ -302,5 +461,9 @@ function pickShellGlobals(settings: ShellConfig) {
     maxCandles: clampMaxCandles(settings.maxCandles),
     adminRoute: settings.adminRoute,
     orderConfirmation: settings.orderConfirmation,
+    liquidationAlertThresholdPct: clampLiquidationAlertThreshold(
+      settings.liquidationAlertThresholdPct
+    ),
+    orderDefaults: normalizeOrderDefaults(settings.orderDefaults),
   }
 }

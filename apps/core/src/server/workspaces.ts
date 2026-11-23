@@ -13,10 +13,11 @@ import {
 import {
   createDefaultTopRightNavigation,
   iconMeta,
+  normalizeStyling,
   type IconKey,
   type ShellChildItem,
   type ShellSection,
-  type ShellTopNavigationItem,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/core"
 
@@ -33,9 +34,10 @@ export type WorkspaceSettings = {
   // Draggable sidebar width in px, saved per-workspace.
   sidebarWidth: number
   favicon: string
-  topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -298,9 +300,6 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
           ? clampSidebarWidth(settings.sidebarWidth)
           : fallback.sidebarWidth,
       favicon: typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
-      topNavigation: Array.isArray(settings.topNavigation)
-        ? settings.topNavigation
-        : fallback.topNavigation,
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
@@ -309,6 +308,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
           ? settings.sections
           : fallback.sections
       ),
+      styling: normalizeStyling(settings.styling),
     }
   }
 
@@ -328,15 +328,13 @@ function cleanWorkspaceSettings(
         ? clampSidebarWidth(settings.sidebarWidth)
         : fallback.sidebarWidth,
     favicon: typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
     sections: normalizeWorkspaceSections(
       Array.isArray(settings.sections) ? settings.sections : fallback.sections
     ),
+    styling: normalizeStyling(settings.styling),
   }
 
   return cleaned
@@ -347,9 +345,9 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     icon: DEFAULT_WORKSPACE_ICON,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     favicon: "",
-    topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    styling: normalizeStyling(undefined),
   }
 }
 

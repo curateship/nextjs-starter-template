@@ -1,0 +1,475 @@
+/*
+ * The Pomoder look, ported from apps/pomoder/src/styles.css — the tokens only,
+ * never that file's .pomoder-* classes. This file is app-owned; the shell's
+ * theme.css is never edited.
+ *
+ * The look belongs to the frontend only: the member-facing screens, which
+ * render the PomodoroShell wrapper and its data-pomodoro-screen marker
+ * (the stage for the old app's product UI — dark canvas, orange ring, its own
+ * sidebar). The admin and shell screens never render the marker and keep the
+ * standard shell look, exactly as the old app's admin did.
+ *
+ * The old app kept its --p-* tokens on :root so that layers portaled to
+ * <body> (dialogs, dropdowns, selects) still resolve them. The :has() gate
+ * keeps that property: the tokens live on the page root and switch on only
+ * while a member screen is on the page. The old app's default was dark with a
+ * .light override; the shell's convention is the other way around (:root
+ * light, .dark dark), so the same two palettes are mapped onto the shell's
+ * classes.
+ *
+ * Selectors are html:root:has(...) on purpose: the shell's theme.css declares
+ * the same variables on :root and .dark, and CSS import order is not
+ * guaranteed, so these win by specificity instead. Every variable overridden
+ * in one block is overridden in both, or the light block would beat the
+ * shell's .dark block for that variable.
+ *
+ * Imported by pomodoro-shell.tsx, so this sheet arrives with the first
+ * member screen and never loads on the admin or shell screens. The fonts load
+ * through the FontFace API in fonts.ts rather than @font-face here — a
+ * bundler that ever pulls this sheet server-side (the worker's esbuild has no
+ * .woff2 loader) would fail on a font url(), so this file keeps none.
+ */
+
+html:root:has([data-pomodoro-screen]) {
+  color-scheme: light;
+
+  /* Pomoder product tokens, light (.light in the old app). The -rgb channel
+     copies exist for overlays: rgba(var(--p-canvas-rgb), .58) and friends. */
+  --p-canvas: #f3efe8;
+  --p-canvas-rgb: 243, 239, 232;
+  --p-surface: #fffdf9;
+  --p-surface-2: #ece7de;
+  --p-popover: #fffdf9;
+  --p-popover-rgb: 255, 253, 249;
+  --p-text: #29241f;
+  --p-text-rgb: 41, 36, 31;
+  --p-text-muted: #5f584f;
+  --p-text-subtle: #746c62;
+  --p-text-faint: #8c8177;
+  --p-fg-rgb: 47, 38, 28;
+  --p-shadow-rgb: 60, 45, 30;
+  /* The glow behind a page title over the scene: the page's own paper. */
+  --p-halo-rgb: 255, 253, 249;
+  --p-accent: #f2502d;
+  --p-accent-2: #cc4225;
+  --p-on-accent: #ffffff;
+  --p-success: #12a150;
+  /* "On break" on a room card. Amber-700, because amber-400 on this paper
+     reads at 1.6 to 1; this one reads at 4.9 to 1. */
+  --p-warning: #b45309;
+  --p-danger: #c23b32;
+  --p-track: #d7cfc3;
+  /* A sound's waveform card (sound-wave.tsx): red into amber on a panel. */
+  --p-wave-from: #f23d3d;
+  --p-wave-to: #f7a531;
+  --p-wave-panel-top: #efe4ea;
+  --p-wave-panel-bottom: #f6f1ec;
+
+  /* The shadcn variables the shell's components draw with, mapped onto the
+     product tokens the way the old app's token block did. The on-accent text
+     is white in both themes, Tyler's call (see pomoder-look.md). */
+  --background: var(--p-canvas);
+  --foreground: var(--p-text);
+  --card: var(--p-surface);
+  --card-foreground: var(--p-text);
+  --popover: var(--p-popover);
+  --popover-foreground: var(--p-text);
+  --primary: var(--p-accent);
+  --primary-foreground: var(--p-on-accent);
+  --secondary: #e8e2d8;
+  --secondary-foreground: var(--p-text);
+  --muted: #ebe5db;
+  --muted-foreground: var(--p-text-subtle);
+  --accent: #e2dbcf;
+  --accent-foreground: var(--p-text);
+  --destructive: #dc2626;
+  --border: rgba(var(--p-fg-rgb), 0.1);
+  --input: rgba(var(--p-fg-rgb), 0.12);
+  --ring: var(--p-accent-2);
+  --radius: 0.8rem;
+
+  /* The shell reads these through --primary/--ring indirections and shows
+     --shell-theme-border in the Styling settings' "Theme default" previews. */
+  --shell-primary: var(--p-accent);
+  --shell-primary-foreground: var(--p-on-accent);
+  --shell-ring: var(--p-accent-2);
+  --shell-theme-border: rgba(var(--p-fg-rgb), 0.1);
+
+  /* Sidebar tokens, for the member screens' own sidebar: canvas colour with
+     the accent-tinted active row, like the old app's. */
+  --sidebar: var(--p-canvas);
+  --sidebar-foreground: var(--p-text);
+  --sidebar-primary: var(--p-accent);
+  --sidebar-primary-foreground: var(--p-on-accent);
+  --sidebar-accent: rgba(242, 80, 45, 0.14);
+  --sidebar-accent-foreground: var(--p-accent-2);
+  --sidebar-border: rgba(var(--p-fg-rgb), 0.1);
+  --sidebar-ring: var(--p-accent-2);
+  --shell-sidebar-primary: var(--p-accent);
+  --shell-sidebar-primary-foreground: var(--p-on-accent);
+  --shell-sidebar-accent: rgba(242, 80, 45, 0.14);
+  --shell-sidebar-accent-foreground: var(--p-accent-2);
+  --shell-sidebar-ring: var(--p-accent-2);
+
+  /* The `font-sans`/`font-mono` utilities inline their stacks at build time,
+     so the fonts are set here directly as well as through the variables. */
+  --font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-sans);
+}
+
+/* The shell switches signed-in pages to Inter through body.app-font, which
+   beats a font set on <html>. Same fonts on every member screen. */
+html:root:has([data-pomodoro-screen]) body.app-font {
+  --app-font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--app-font-sans);
+}
+
+/*
+ * The two motions the room cards need, ported from the old app by value.
+ * They live here rather than in a component because a Tailwind arbitrary
+ * animation can name a keyframe but cannot declare one. The elements that use
+ * them carry `motion-reduce:animate-none`, so both stop for anyone who has
+ * asked their machine for less movement.
+ */
+/*
+ * The Pomoder button: round and bold. Every shared Button on a member screen
+ * takes its shape from here instead of each call writing `rounded-full
+ * font-bold`, which seventeen calls did and several forgot. It reaches
+ * dialogs and popovers too, because the gate is on the page root.
+ *
+ * Here rather than in the shared button: `src/components/ui/button.tsx` is a
+ * shell file an app may not edit, and the rest of the Pomoder look already
+ * switches on from this file. `data-slot="button"` is what the shared Button
+ * (and anything it renders through asChild) carries; raw <button>s are not
+ * touched. Unlayered, so it wins over the button's own `rounded-lg` and
+ * `font-medium` utilities.
+ */
+html:root:has([data-pomodoro-screen]) [data-slot="button"] {
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
+/*
+ * A soft glow the colour of the page behind a page's title and the line under
+ * it, so they stay readable over a bright scene. Tyler, 9 Oct 2026: "sometimes
+ * the background makes the text hard to read ... can you add a darker blur
+ * behind the text?" Dark in dark mode, pale in light mode.
+ */
+html:root:has([data-pomodoro-screen]) .title-halo {
+  text-shadow:
+    0 1px 2px rgba(var(--p-halo-rgb), 0.6),
+    0 0 14px rgba(var(--p-halo-rgb), 0.7),
+    0 0 36px rgba(var(--p-halo-rgb), 0.55);
+}
+
+@keyframes pomodoro-vibe {
+  0% { background-position: 0 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+@keyframes pomodoro-equaliser {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+/* A picture background drifting very slowly: a 5% zoom with a slight pan,
+   run over 60 seconds and back again (`scene-backdrop.tsx`). */
+@keyframes pomodoro-drift {
+  from { transform: scale(1) translate(0, 0); }
+  to { transform: scale(1.05) translate(-1%, -0.6%); }
+}
+/* The Flowfly logo (`flowfly/flowfly-logo.tsx`). The firefly drifts on three
+   clocks of 7.3, 5.1 and 3.3 seconds that add together, so its path does not
+   look like a loop. `--fly-reach` shrinks the drift for the small f. */
+.flowfly-logo {
+  --p-fly-body: #29241f;
+  --p-fly-wing: rgba(41, 36, 31, 0.32);
+  --p-fly-glow-core: #2cc4b0;
+  --p-fly-glow: #12a595;
+  --fly-reach: 1;
+}
+.dark .flowfly-logo {
+  --p-fly-body: #55555e;
+  --p-fly-wing: rgba(125, 125, 136, 0.5);
+  --p-fly-glow-core: #d4fff7;
+  --p-fly-glow: #2ee6cb;
+}
+.flowfly-logo-letter { --fly-reach: 0.55; }
+/* On the timer ring while it is paused or not started: the bar's orange.
+   After the dark rule, so it wins on both themes. */
+.flowfly-logo.flowfly-logo-waiting {
+  --p-fly-glow-core: color-mix(in srgb, var(--p-accent) 55%, white);
+  --p-fly-glow: var(--p-accent);
+}
+/* The glow fades between teal and orange over half a second when the timer
+   starts or pauses. */
+.flowfly-glow-core-stop,
+.flowfly-glow-stop {
+  transition: stop-color 0.5s ease;
+}
+.flowfly-glow-core-stop { stop-color: var(--p-fly-glow-core); }
+.flowfly-glow-stop { stop-color: var(--p-fly-glow); }
+.flowfly-drift-a { animation: flowfly-drift-a 7.3s ease-in-out infinite; }
+.flowfly-drift-b { animation: flowfly-drift-b 5.1s ease-in-out infinite; }
+.flowfly-drift-c { animation: flowfly-drift-c 3.3s ease-in-out infinite; }
+.flowfly-glow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: flowfly-glow 2.1s ease-in-out infinite alternate;
+}
+.flowfly-wing-left,
+.flowfly-wing-right {
+  transform-origin: 20px 17px;
+  animation: flowfly-wing-left 0.16s linear infinite alternate;
+}
+.flowfly-wing-right { animation-name: flowfly-wing-right; }
+/* A finished task's fireflies (`flowfly/release-fireflies.ts`). Each one gets
+   its own reach, sway, size, time and wait from the script, so no two bursts
+   look alike. Above dialogs, since a task can be ticked inside one. */
+.flowfly-burst {
+  position: fixed;
+  z-index: 100;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.flowfly-burst i {
+  position: absolute;
+  left: calc(var(--fly-size) / -2);
+  top: calc(var(--fly-size) / -2);
+  width: var(--fly-size);
+  height: var(--fly-size);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--p-fly-glow-core) 0%,
+    var(--p-fly-glow) 30%,
+    color-mix(in srgb, var(--p-fly-glow) 45%, transparent) 55%,
+    transparent 100%
+  );
+  opacity: 0;
+  animation: flowfly-rise var(--fly-time) ease-out var(--fly-wait) forwards;
+}
+@keyframes flowfly-rise {
+  0% { transform: translate(0, 0) scale(0.4); opacity: 0; }
+  15% { opacity: 1; }
+  55% {
+    transform: translate(
+        calc(var(--fly-x) * 0.6 + var(--fly-sway)),
+        calc(var(--fly-y) * 0.65)
+      )
+      scale(1);
+    opacity: 1;
+  }
+  100% { transform: translate(var(--fly-x), var(--fly-y)) scale(0.6); opacity: 0; }
+}
+/* One back flip on the timer ring: the firefly pitches nose-up and flies a
+   full loop around a point just outside the ring, landing where it left. */
+.flowfly-flip { animation: flowfly-flip 0.9s cubic-bezier(0.45, 0, 0.3, 1); }
+@keyframes flowfly-flip {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes flowfly-drift-a {
+  0%, 100% { transform: translate(0, 0); }
+  18% { transform: translate(calc(var(--fly-reach) * -9px), calc(var(--fly-reach) * 2px)); }
+  41% { transform: translate(calc(var(--fly-reach) * 4px), calc(var(--fly-reach) * -3px)); }
+  63% { transform: translate(calc(var(--fly-reach) * -3px), calc(var(--fly-reach) * 4px)); }
+  82% { transform: translate(calc(var(--fly-reach) * 7px), calc(var(--fly-reach) * 1px)); }
+}
+@keyframes flowfly-drift-b {
+  0%, 100% { transform: translate(0, 0); }
+  27% { transform: translate(calc(var(--fly-reach) * 3px), calc(var(--fly-reach) * 5px)); }
+  52% { transform: translate(calc(var(--fly-reach) * -5px), calc(var(--fly-reach) * -2px)); }
+  77% { transform: translate(calc(var(--fly-reach) * 2px), calc(var(--fly-reach) * -4px)); }
+}
+@keyframes flowfly-drift-c {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(calc(var(--fly-reach) * -2px), calc(var(--fly-reach) * -2px)); }
+  70% { transform: translate(calc(var(--fly-reach) * 2.5px), calc(var(--fly-reach) * 1.5px)); }
+}
+@keyframes flowfly-glow {
+  from { opacity: 0.7; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1.12); }
+}
+@keyframes flowfly-wing-left {
+  from { transform: rotate(-7deg); }
+  to { transform: rotate(9deg); }
+}
+@keyframes flowfly-wing-right {
+  from { transform: rotate(7deg); }
+  to { transform: rotate(-9deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flowfly-logo * { animation: none; }
+}
+html:root.dark:has([data-pomodoro-screen]) {
+  color-scheme: dark;
+
+  /* Pomoder product tokens, dark (the old app's default set). */
+  --p-canvas: #0b0b0e;
+  --p-canvas-rgb: 11, 11, 14;
+  --p-surface: #131318;
+  --p-surface-2: #0e0e12;
+  --p-popover: #17171d;
+  --p-popover-rgb: 17, 17, 22;
+  --p-text: #edeae6;
+  --p-text-rgb: 237, 234, 230;
+  --p-text-muted: #a7a5ab;
+  --p-text-subtle: #8a8894;
+  --p-text-faint: #67656c;
+  --p-fg-rgb: 255, 255, 255;
+  --p-shadow-rgb: 0, 0, 0;
+  --p-halo-rgb: 0, 0, 0;
+  --p-accent: #ff5a3c;
+  --p-accent-2: #ff7a5c;
+  --p-on-accent: #ffffff;
+  --p-success: #4ade80;
+  --p-warning: #fbbf24;
+  --p-danger: #fca5a5;
+  --p-track: #303037;
+  --p-wave-from: #ff3b3b;
+  --p-wave-to: #ffb23e;
+  --p-wave-panel-top: #2c1f33;
+  --p-wave-panel-bottom: #19181e;
+
+  --background: var(--p-canvas);
+  --foreground: var(--p-text);
+  --card: var(--p-surface);
+  --card-foreground: var(--p-text);
+  --popover: var(--p-popover);
+  --popover-foreground: var(--p-text);
+  --primary: var(--p-accent);
+  --primary-foreground: var(--p-on-accent);
+  --secondary: #222228;
+  --secondary-foreground: var(--p-text);
+  --muted: #202025;
+  --muted-foreground: var(--p-text-subtle);
+  --accent: #292930;
+  --accent-foreground: var(--p-text);
+  --destructive: #ef4444;
+  --border: rgba(var(--p-fg-rgb), 0.1);
+  --input: rgba(var(--p-fg-rgb), 0.12);
+  --ring: var(--p-accent-2);
+  --radius: 0.8rem;
+
+  --shell-primary: var(--p-accent);
+  --shell-primary-foreground: var(--p-on-accent);
+  --shell-ring: var(--p-accent-2);
+  --shell-theme-border: rgba(var(--p-fg-rgb), 0.1);
+
+  --sidebar: var(--p-canvas);
+  --sidebar-foreground: var(--p-text);
+  --sidebar-primary: var(--p-accent);
+  --sidebar-primary-foreground: var(--p-on-accent);
+  --sidebar-accent: rgba(255, 90, 60, 0.14);
+  --sidebar-accent-foreground: var(--p-accent-2);
+  --sidebar-border: rgba(var(--p-fg-rgb), 0.1);
+  --sidebar-ring: var(--p-accent-2);
+  --shell-sidebar-primary: var(--p-accent);
+  --shell-sidebar-primary-foreground: var(--p-on-accent);
+  --shell-sidebar-accent: rgba(255, 90, 60, 0.14);
+  --shell-sidebar-accent-foreground: var(--p-accent-2);
+  --shell-sidebar-ring: var(--p-accent-2);
+}
+
+/*
+ * How dark the dark mode is. The old app had one near-black canvas, which is
+ * hard to look at for an hour, so dark mode carries four grey steps. The
+ * choice rides on a `data-dark-shade` attribute on <html> (dark-shade.ts
+ * puts it there from the browser's stored choice) and only ever changes the
+ * surface greys: the text, the orange accent, the success and danger colours
+ * and both border alphas are the same in every step, so contrast never drops
+ * below the dark block above.
+ *
+ * `black` has no block of its own; it is the dark block's own values. Each
+ * selector adds the attribute to the same shape as that block, so it wins on
+ * specificity whatever the import order.
+ */
+html:root.dark[data-dark-shade="charcoal"]:has([data-pomodoro-screen]) {
+  --p-canvas: #17171a;
+  --p-canvas-rgb: 23, 23, 26;
+  --p-surface: #1f1f24;
+  --p-surface-2: #1b1b1f;
+  --p-popover: #232329;
+  --p-popover-rgb: 35, 35, 41;
+  --secondary: #2a2a31;
+  --muted: #26262c;
+  --accent: #313138;
+  --p-track: #3a3a42;
+  /* The muted grey lifts with the canvas so the smaller text keeps at least
+     4.5:1 against it, the same as it has on near black. */
+  --p-text-subtle: #92909b;
+}
+
+/* Graphite is the default shade (DEFAULT_DARK_SHADE in
+   src/lib/pomodoro/dark-shade.ts), so it is also what draws before the script
+   that sets data-dark-shade has run. Without the :not() line every visitor saw
+   near black for the first half second and then graphite, on every page load,
+   whether or not they had ever chosen a shade. Only somebody who picked
+   another shade now sees one change, from graphite to theirs. */
+html:root.dark:not([data-dark-shade]):has([data-pomodoro-screen]),
+html:root.dark[data-dark-shade="graphite"]:has([data-pomodoro-screen]) {
+  --p-canvas: #212125;
+  --p-canvas-rgb: 33, 33, 37;
+  --p-surface: #2a2a30;
+  --p-surface-2: #25252a;
+  --p-popover: #2e2e35;
+  --p-popover-rgb: 46, 46, 53;
+  --secondary: #36363e;
+  --muted: #313139;
+  --accent: #3b3b44;
+  --p-track: #494951;
+  --p-text-subtle: #9c9aa5;
+  --p-text-faint: #837f8a;
+}
+
+html:root.dark[data-dark-shade="ash"]:has([data-pomodoro-screen]) {
+  --p-canvas: #2b2b31;
+  --p-canvas-rgb: 43, 43, 49;
+  --p-surface: #35353c;
+  --p-surface-2: #2f2f36;
+  --p-popover: #393941;
+  --p-popover-rgb: 57, 57, 65;
+  --secondary: #42424b;
+  --muted: #3c3c45;
+  --accent: #47474f;
+  --p-track: #55555e;
+  --p-text-subtle: #a8a6b0;
+  --p-text-faint: #918d99;
+}
+
+/*
+ * The blur behind an open window, moved off the canvas and onto the product
+ * shell's own pieces.
+ *
+ * The shell blurs the whole page canvas while a dialog or sheet is open
+ * (`src/theme.css`, `[data-slot="app-canvas"]`). A filter on an element makes
+ * it the box that `position: fixed` children are placed against, instead of
+ * the window. The product's left menu is fixed, so on a page scrolled down by
+ * 1056px the menu jumped 1056px up and off the screen the moment a window
+ * opened. Measured on Settings with the photo picker, 6 Oct 2026.
+ *
+ * So on a product screen the canvas keeps no filter, and the sidebar and the
+ * column beside it are blurred instead. A filter on the fixed menu itself does
+ * not move it; only a filter on something around it does. The look is the
+ * same 4px. The shell's 150ms ease-in is not copied, because a `transition`
+ * here would replace the sidebar's own width and padding transitions.
+ */
+body:has(
+    [data-slot="dialog-overlay"][data-state="open"],
+    [data-slot="sheet-overlay"][data-state="open"]
+  )
+  > [data-slot="app-canvas"]:has(> [data-pomodoro-screen]) {
+  filter: none;
+}
+
+body:has(
+    [data-slot="dialog-overlay"][data-state="open"],
+    [data-slot="sheet-overlay"][data-state="open"]
+  )
+  > [data-slot="app-canvas"]
+  > [data-pomodoro-screen]
+  > * {
+  filter: blur(4px);
+}

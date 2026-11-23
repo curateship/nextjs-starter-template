@@ -1,0 +1,168 @@
+import type {
+  CandleBar,
+  CandleInterval,
+  LiveFigures,
+  NetworkId,
+} from "@/lib/protocols/contracts"
+import { num } from "@/lib/protocols/number"
+
+export { num } from "@/lib/protocols/number"
+
+/**
+ * Lighter's resolution names. All six app timeframes exist; Lighter also
+ * serves 30m and 12h, which the app does not ask for.
+ */
+export const LIGHTER_INTERVALS: Record<CandleInterval, string> = {
+  "1m": "1m",
+  "5m": "5m",
+  "15m": "15m",
+  "1h": "1h",
+  "4h": "4h",
+  "1d": "1d",
+}
+
+/**
+ * Mainnet only, like the REST side. Lighter's testnet is deliberately not
+ * carried; `client.ts` explains why.
+ */
+export function lighterWsUrl(network: NetworkId): string {
+  if (network !== "mainnet") throw new Error("LIGHTER_NETWORK_UNSUPPORTED")
+  return "wss://mainnet.zklighter.elliot.ai/stream"
+}
+
+/**
+ * Lighter closes a socket that stays silent for two minutes, counting only
+ * frames the CLIENT sends. Pushed data does not keep the line alive, so both
+ * sides of the app ping on this clock — well inside the limit, and each ping
+ * still spends one of the 200 client messages a socket may send in a minute.
+ */
+export const LIGHTER_KEEPALIVE_MS = 50_000
+
+/**
+ * Lighter states no tick directly; it states how many decimal places a price
+ * may have. One decimal place means a $0.1 step, six mean $0.000001.
+ */
+export function lighterTickFromDecimals(priceDecimals: unknown): number | null {
+  const decimals = num(priceDecimals)
+  if (decimals === null || decimals < 0 || !Number.isInteger(decimals)) {
+    return null
+  }
+  return Number((10 ** -decimals).toFixed(Math.min(decimals, 12)))
+}
+
+/**
+ * Lighter takes every price and size as a whole number, scaled by the
+ * decimals that market states. A price of 78,584.1 on a market with one
+ * decimal place goes as 785841.
+ *
+ * **Its price field is a 32-bit unsigned integer**, which is not big enough
+ * for every market it lists. A market priced in the thousands that also
+ * allows six decimal places would overflow it, and an overflowed price is
+ * not a refused order — it is a real order at a wildly wrong price. So the
+ * ceiling is checked here and a price past it is refused rather than sent.
+ */
+const LIGHTER_MAX_SCALED_PRICE = 4_294_967_295
+
+/**
+ * A price as Lighter's whole number, or null when it will not fit.
+ *
+ * Null is a refusal the caller must pass on, never a zero to send.
+ */
+export function scaleLighterPrice(
+  px: number,
+  priceDecimals: number
+): number | null {
+  const scaled = scaleByDecimals(px, priceDecimals)
+  if (scaled === null || scaled > LIGHTER_MAX_SCALED_PRICE) return null
+  return scaled
+}
+
+/** A coin size as Lighter's whole number, or null when it cannot be said. */
+export function scaleLighterSize(
+  sz: number,
+  sizeDecimals: number
+): number | null {
+  return scaleByDecimals(sz, sizeDecimals)
+}
+
+function scaleByDecimals(value: number, decimals: number): number | null {
+  if (!Number.isFinite(value) || value < 0) return null
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) return null
+  // Rounded, not truncated, and off the value's own decimal string rather
+  // than a multiplication: 1.1 * 100 is 110.00000000000001 in binary floating
+  // point, and flooring that is a different order than the one asked for.
+  const scaled = Math.round(Number(`${value}e${decimals}`))
+  return Number.isSafeInteger(scaled) ? scaled : null
+}
+
+/** Lighter's whole number back as a price or size a screen can show. */
+export function unscaleLighterNumber(
+  whole: number | string,
+  decimals: number
+): number | null {
+  const value = typeof whole === "number" ? whole : Number(whole)
+  if (!Number.isFinite(value)) return null
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) return null
+  return Number(`${value}e-${decimals}`)
+}
+
+/**
+ * One candle row as the chart's shape. Lighter sends objects:
+ * `{t, o, h, l, c, v, V}` — `t` in epoch milliseconds, `v` the coin volume
+ * and `V` the dollar volume. The chart keeps the coin volume like every
+ * other venue here.
+ */
+export function toLighterBar(row: unknown): CandleBar | null {
+  if (row === null || typeof row !== "object") return null
+  const bar = row as Record<string, unknown>
+  const openTime = num(bar.t)
+  const open = num(bar.o)
+  const high = num(bar.h)
+  const low = num(bar.l)
+  const close = num(bar.c)
+  if (
+    openTime === null ||
+    open === null ||
+    high === null ||
+    low === null ||
+    close === null
+  ) {
+    return null
+  }
+  return { openTime, open, high, low, close, volume: num(bar.v) ?? 0 }
+}
+
+/**
+ * One market's row from the `market_stats` socket channel, translated.
+ *
+ * Two of Lighter's units differ from its own REST catalogue and are handled
+ * here so no caller has to know: `daily_price_change` is a percent, and the
+ * socket's `open_interest` is already in dollars where the REST catalogue's
+ * is in coins. `current_funding_rate` is the percent charged per hour —
+ * measured hourly on 26 Aug 2026 — so a fraction is that over one hundred.
+ */
+export function toLighterStatsFigures(row: unknown): {
+  symbol: string
+  marketId: number
+  figures: LiveFigures
+} | null {
+  if (row === null || typeof row !== "object") return null
+  const stats = row as Record<string, unknown>
+  if (typeof stats.symbol !== "string" || stats.symbol === "") return null
+  const marketId = num(stats.market_id)
+  const price = num(stats.mark_price)
+  if (marketId === null || price === null || !(price > 0)) return null
+  const changePercent = num(stats.daily_price_change)
+  const fundingPercent = num(stats.current_funding_rate)
+  return {
+    symbol: stats.symbol,
+    marketId,
+    figures: {
+      price,
+      change24h: changePercent === null ? null : changePercent / 100,
+      volume24hUsd: num(stats.daily_quote_token_volume) ?? 0,
+      fundingHourly: fundingPercent === null ? null : fundingPercent / 100,
+      openInterestUsd: num(stats.open_interest),
+    },
+  }
+}

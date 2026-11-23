@@ -1,0 +1,79 @@
+{
+ "omniKey": "0x111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222221b",
+ "accountId": "588972539589427317",
+ "connectorCommit": "ca1d7e545239409ad27d6d52a2c9b87621dbcf9a",
+ "cases": [
+  {
+   "input": {
+    "clientId": "apexomni-588972539589427317-1790266000000-123456",
+    "pairId": "50001",
+    "size": "0.001",
+    "price": "84000.1",
+    "side": "BUY",
+    "makerFeeRate": "0.0002",
+    "takerFeeRate": "0.0005"
+   },
+   "output": {
+    "signature": "939d03c922f26ff4b2e39f65e10e955212b3c36c2903e7a8b13eaa35bbace894ea54d984a9cbccffe66af051e7454fbb58268440f61f426c18355fd31d9f3302",
+    "pubKey": "0x14869c75c2dc97a1e63fda5864a547664bcfe820bf98ee8b7a6e3b31e9d7cf08",
+    "accountId": "2229040092",
+    "slotId": "1863446753",
+    "nonce": "33863859",
+    "size": "1000000000000000",
+    "price": "84000100000000000000000",
+    "feeRates": [
+     2,
+     5
+    ]
+   }
+  },
+  {
+   "input": {
+    "clientId": "apexomni-588972539589427317-1790266000001-654321",
+    "pairId": "50001",
+    "size": "0.003",
+    "price": "81480.1",
+    "side": "SELL",
+    "makerFeeRate": "0.0002",
+    "takerFeeRate": "0.0005"
+   },
+   "output": {
+    "signature": "b42ef1fde4212e11270dfc6a5b314718327676300dd455c8998996ff00d71026e422a21e33618a1c0cff95084364c471fed33980ed969782aef908c4b5122801",
+    "pubKey": "0x14869c75c2dc97a1e63fda5864a547664bcfe820bf98ee8b7a6e3b31e9d7cf08",
+    "accountId": "2229040092",
+    "slotId": "2475554126",
+    "nonce": "2315571134",
+    "size": "3000000000000000",
+    "price": "81480100000000000000000",
+    "feeRates": [
+     2,
+     5
+    ]
+   }
+  },
+  {
+   "input": {
+    "clientId": "trade-0f3c9a",
+    "pairId": "50358",
+    "size": "12.34",
+    "price": "0.000123",
+    "side": "SELL",
+    "makerFeeRate": "0.00025",
+    "takerFeeRate": "0.00055"
+   },
+   "output": {
+    "signature": "5d093152a8d5be9b3a668fdc48b57ee9f2844ec8afd778a730ae953aad006d0a8e17c59539aafce36e8568063cb58085e7822bfcea9a2f47b0bebb37269c5405",
+    "pubKey": "0x14869c75c2dc97a1e63fda5864a547664bcfe820bf98ee8b7a6e3b31e9d7cf08",
+    "accountId": "2229040092",
+    "slotId": "340239851",
+    "nonce": "976323082",
+    "size": "12340000000000000000",
+    "price": "123000000000000",
+    "feeRates": [
+     3,
+     6
+    ]
+   }
+  }
+ ]
+}

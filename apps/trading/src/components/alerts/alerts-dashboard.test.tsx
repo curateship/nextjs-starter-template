@@ -48,6 +48,7 @@ describe("AlertsDashboard", () => {
           markets: ["ETH"],
           marketsAvailable: true,
           workerOnline: true,
+          workerActive: true,
           checkedAt: new Date("2026-07-14T12:00:10.000Z").getTime(),
         }}
       />

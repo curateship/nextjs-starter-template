@@ -1,5 +1,6 @@
 import * as React from "react"
-import { Loader2Icon, SettingsIcon } from "lucide-react"
+import { Loader2Icon, PlayIcon, SettingsIcon } from "lucide-react"
+import type { PanelImperativeHandle } from "react-resizable-panels"
 import { toast } from "sonner"
 
 import { formatPrice } from "@nktkas/hyperliquid/utils"
@@ -10,7 +11,11 @@ import {
   type AccountSummary,
   type WalletOption,
 } from "@/components/trading/account-strip"
-import { AlertDialog } from "@/components/alerts/alert-dialog"
+import {
+  AlertDialog,
+  type EditableAlertRule,
+} from "@/components/alerts/alert-dialog"
+import { PracticeSetupDialog } from "@/components/backtest/practice-setup-dialog"
 import {
   FillsTable,
   OpenOrdersTable,
@@ -22,6 +27,10 @@ import {
   type ChartMenuState,
 } from "@/components/trading/chart-order-menu"
 import {
+  ChartQuickOrder,
+  type QuickOrderState,
+} from "@/components/trading/chart-quick-order"
+import {
   MarketPicker,
   MarketWatchlist,
 } from "@/components/trading/market-watchlist"
@@ -31,6 +40,8 @@ import {
   type TicketPrefill,
 } from "@/components/trading/order-ticket"
 import { OneClickMenuActions } from "@/components/trading/one-click-panel"
+import { PanelToggle } from "@/components/panel-toggles"
+import { togglePanel } from "@/lib/panel-collapse"
 import {
   PaperFillsTable,
   PaperOpenOrdersTable,
@@ -38,13 +49,15 @@ import {
 } from "@/components/trading/paper-bottom-tables"
 import {
   PriceChart,
+  type ChartMarker,
   type ChartPriceLine,
   type PriceChartHandle,
+  type TrendlineAlertControls,
+  type TrendlineAlertRuleInfo,
 } from "@/components/chart/price-chart"
 import { ChartToolbar } from "@/components/chart/chart-toolbar"
 import { TradesTape } from "@/components/trading/trades-tape"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -62,11 +75,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
+  BOTTOM_COLLAPSED_HEIGHT,
+  BOTTOM_PANEL_HEADER,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -74,26 +84,26 @@ import {
 } from "@/components/ui/resizable"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
   cancelOrder,
   getOrderErrorMessage,
   modifyOrder,
 } from "@/lib/api/orders"
 import {
+  activateAlert,
   createAlert,
   deleteAlert,
-  loadChartAlerts,
+  loadMyAlertRules,
   updateAlert,
 } from "@/lib/api/alerts"
 import {
   alertWithPriceLevel,
+  alertWithTrendlineTouch,
   quickPriceAlert,
+  quickTrendlineAlert,
   type AlertRuleItem,
+  type TrendlineTouchMode,
 } from "@/lib/alerts"
+import type { Trendline } from "@/lib/trading/trendlines"
 import {
   cancelPaperOrder,
   getPaperErrorMessage,
@@ -104,22 +114,26 @@ import {
 import type { PaperWalletItem } from "@/lib/api/paper"
 import type { WalletItem } from "@/lib/api/wallets"
 import {
-  formatCompactUsd,
-  formatPriceDisplay,
-} from "@/components/trading/format"
+  compactUsd,
+  formatPrice as displayPrice,
+  pct,
+  signedPct,
+  signedUsd,
+} from "@/lib/format"
 import {
   useMarketRows,
   useAccountSnapshot,
+  useUserFills,
+  type AccountSnapshot,
   type MarketRow,
 } from "@/lib/hl/hooks"
 import { resolveTradingNetwork, type TradingNetwork } from "@/lib/hl/network"
+import { useMarketFavorites } from "@/lib/trading/use-market-favorites"
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/hl/ws"
-import {
-  indicatorDisplayName,
-  type IndicatorConfig,
-} from "@/lib/trading/indicators-config"
+import type { IndicatorConfig } from "@/lib/trading/indicators-config"
+import type { OrderDefaults } from "@/lib/trading/order-defaults"
 import { saveIndicator } from "@/lib/api/indicators"
-import { OverlaySettingsDialog } from "@/components/indicators/indicator-settings-dialog"
+import { IndicatorsMenu } from "@/components/chart/indicators-menu"
 import { useIntervalLoader } from "@/lib/use-interval-loader"
 import { usePersistedLayout } from "@/lib/use-persisted-layout"
 import { usePersistedState } from "@/lib/use-persisted-state"
@@ -127,23 +141,16 @@ import { cn } from "@/lib/utils"
 import {
   cancelOpenOrders,
   describeOpenOrder,
+  triggerPnlUsd,
   type FrontendOpenOrder,
 } from "@/lib/trading/open-order"
 
 export const PAPER_WALLET_PREFIX = "paper:"
 
-// Bottom-panel tabs share the backtest workspace's underline styling: active
-// tabs are marked by an underline instead of a filled box.
-const BOTTOM_TABS_LIST =
-  "h-auto w-full justify-start gap-4 rounded-none border-b bg-transparent px-4 py-0"
-const BOTTOM_TAB_TRIGGER =
-  "flex-none rounded-none border-none px-0 py-2.5 text-xs font-semibold group-data-horizontal/tabs:after:bottom-0"
-const MARKET_FAVORITES_KEY = "trading-favorite-markets"
-const EMPTY_MARKET_FAVORITES: string[] = []
 const ALERT_POLL_MS = 10_000
 
 type AlertEditorState = {
-  alert?: AlertRuleItem
+  alert?: EditableAlertRule
   prefill?: { coin: string; level: number }
 }
 
@@ -155,7 +162,9 @@ export function TradingWorkspace({
   selectedValue,
   workerOnline,
   initialIndicators,
+  initialWatchlistTabOrder,
   orderConfirmation,
+  orderDefaults,
   onMarketChange,
   onWalletChange,
 }: {
@@ -168,7 +177,11 @@ export function TradingWorkspace({
   workerOnline?: boolean
   /** The user's overlay-indicator settings from the route loader (DB-backed). */
   initialIndicators: IndicatorConfig[]
+  /** Saved order of the watchlist tabs, from the route loader (DB-backed). */
+  initialWatchlistTabOrder: string[]
   orderConfirmation: boolean
+  /** Starting order-ticket values from Trading settings. */
+  orderDefaults: OrderDefaults
   onMarketChange: (coin: string) => void
   onWalletChange: (value: string) => void
 }) {
@@ -183,6 +196,9 @@ export function TradingWorkspace({
   )
   const [prefill, setPrefill] = React.useState<TicketPrefill | null>(null)
   const [chartMenu, setChartMenu] = React.useState<ChartMenuState | null>(null)
+  const [quickOrder, setQuickOrder] = React.useState<QuickOrderState | null>(
+    null
+  )
   const [alertEditor, setAlertEditor] = React.useState<AlertEditorState | null>(
     null
   )
@@ -190,7 +206,6 @@ export function TradingWorkspace({
   const [editOrder, setEditOrder] = React.useState<FrontendOpenOrder | null>(
     null
   )
-  const [trendlineDrawing, setTrendlineDrawing] = React.useState(false)
   // Imperative chart handle so the right-click menu can offer Reset View,
   // matching the bot and backtest charts.
   const chartApiRef = React.useRef<PriceChartHandle | null>(null)
@@ -238,7 +253,11 @@ export function TradingWorkspace({
       )
     onMarketChange(fallback.coin)
   }, [market, marketRow, marketRows, onMarketChange])
-  const account = useAccountSnapshot(
+  const {
+    data: account,
+    ordersLoaded: accountOrdersLoaded,
+    refresh: refreshAccount,
+  } = useAccountSnapshot(
     tradingNetwork,
     isPaper ? null : accountAddress,
     marketRow?.liveData ? marketRow : null,
@@ -261,18 +280,50 @@ export function TradingWorkspace({
     if (paperWalletId) void refreshPaper()
   }, [paperWalletId, refreshPaper])
 
-  const { data: chartAlerts, refresh: refreshChartAlerts } = useIntervalLoader<
+  // One poll for every alert the user owns: the chart needs the live price
+  // levels for the open market, the watchlist's Watch tab needs the markets
+  // that have any alert at all.
+  const { data: alertRules, refresh: refreshAlerts } = useIntervalLoader<
     AlertRuleItem[]
-  >(
-    React.useCallback(() => loadChartAlerts(market), [market]),
-    [],
-    ALERT_POLL_MS
-  )
+  >(loadMyAlertRules, [], ALERT_POLL_MS)
+  // The interval only starts ticking after the first delay, so fetch once on
+  // mount. The list is not market-specific, so switching market needs no refetch.
   React.useEffect(() => {
-    void refreshChartAlerts()
-  }, [market, refreshChartAlerts])
+    void refreshAlerts()
+  }, [refreshAlerts])
+  const chartAlerts = React.useMemo(
+    () =>
+      alertRules.filter(
+        (rule): rule is Extract<AlertRuleItem, { kind: "price_level" }> =>
+          rule.coin === market &&
+          rule.kind === "price_level" &&
+          rule.status === "active"
+      ),
+    [alertRules, market]
+  )
+  // Markets still being watched. An alert that has already fired ("triggered")
+  // is a finished record, not a watch — listing it would keep a market in the
+  // Watch tab long after the alert stopped doing anything.
+  const alertMarkets = React.useMemo(
+    () =>
+      new Set(
+        alertRules
+          .filter((rule) => rule.status !== "triggered")
+          .map((rule) => rule.coin)
+      ),
+    [alertRules]
+  )
 
   const markPx = Number(mids[market] ?? marketRow?.markPx ?? 0)
+  // A dragged order line that crossed the mark, awaiting the user's OK to fill
+  // it at market. Null when no such prompt is pending.
+  const [marketFillConfirm, setMarketFillConfirm] = React.useState<{
+    oid: number
+    side: "buy" | "sell"
+    px: string
+    walletId: string
+  } | null>(null)
+  const [marketFillBusy, setMarketFillBusy] = React.useState(false)
   const positionMarkets = React.useMemo(
     () =>
       new Set(
@@ -303,6 +354,12 @@ export function TradingWorkspace({
     () => new Set([...positionMarkets, ...openOrderMarkets]),
     [positionMarkets, openOrderMarkets]
   )
+  // The Active tab shows a skeleton until the account's positions AND open
+  // orders have both loaded, rather than a premature "No open orders" while the
+  // orders feed is still in flight.
+  const accountLoading = isPaper
+    ? paperAccount == null
+    : account == null || !accountOrdersLoaded
 
   const summary: AccountSummary | null = isPaper
     ? paperAccount
@@ -341,6 +398,39 @@ export function TradingWorkspace({
   const positionSzi = isPaper
     ? Number(paperPosition?.szi ?? 0)
     : Number(sandboxPosition?.szi ?? 0)
+
+  // Executions on this market, drawn on the chart as arrows: green pointing up
+  // where you bought (long), red pointing down where you sold (short).
+  const liveFills = useUserFills(tradingNetwork, isPaper ? null : accountAddress)
+  const chartMarkers = React.useMemo<ChartMarker[]>(() => {
+    const raw: ChartMarker[] = isPaper
+      ? (paperAccount?.fills ?? [])
+          .filter((fill) => fill.coin === market)
+          .map((fill) => ({
+            time: Date.parse(fill.fill_time),
+            side: fill.side === "buy" ? ("buy" as const) : ("sell" as const),
+            price: Number(fill.px),
+          }))
+      : liveFills
+          .filter((fill) => fill.coin === market)
+          .map((fill) => ({
+            time: fill.time,
+            side: fill.side === "B" ? ("buy" as const) : ("sell" as const),
+            price: Number(fill.px),
+          }))
+
+    // One order can fill in several pieces at the same instant. The chart keys
+    // its arrows on time and side, so those pieces would collide on one id —
+    // and stacking identical arrows says nothing anyway. Keep the first.
+    const seen = new Set<string>()
+    return raw.filter((marker) => {
+      if (!Number.isFinite(marker.time) || !(marker.price > 0)) return false
+      const key = `${marker.time}:${marker.side}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [isPaper, paperAccount?.fills, liveFills, market])
 
   const priceLines = React.useMemo<ChartPriceLine[]>(() => {
     const lines: ChartPriceLine[] = chartAlerts.flatMap((alert) =>
@@ -400,14 +490,42 @@ export function TradingWorkspace({
         })
       }
     }
+    const positionEntryPx = sandboxPosition?.entryPx
+      ? Number(sandboxPosition.entryPx)
+      : null
     for (const order of account?.openOrders ?? []) {
       if (order.coin !== market) continue
       const description = describeOpenOrder(order)
+      const isStop = description.label === "Stop Loss"
+      const isTarget = description.label === "Take Profit"
+      // A stop is what it costs and a target is what it pays, whichever way
+      // the position faces — so colour by meaning, not by buy/sell.
+      const color = isStop
+        ? "#f23645"
+        : isTarget
+          ? "#089981"
+          : order.side === "B"
+            ? "#089981"
+            : "#f23645"
+      const pnl =
+        isStop || isTarget
+          ? triggerPnlUsd({
+              triggerPx: Number(description.price),
+              entryPx: positionEntryPx,
+              sz: Number(order.sz),
+              side: order.side,
+            })
+          : null
       lines.push({
         id: `order-${order.oid}`,
         price: Number(description.price),
-        color: order.side === "B" ? "#089981" : "#f23645",
-        title: `${description.label} ${order.sz}`,
+        color,
+        // Dollars answer "what happens if this hits"; the coin size does not.
+        // With no position to close there is no answer, so show none.
+        title:
+          pnl === null
+            ? `${description.label} ${order.sz}`
+            : `${description.label} ${signedUsd(pnl)}`,
         draggable: true,
       })
     }
@@ -433,10 +551,16 @@ export function TradingWorkspace({
     },
     [paperWalletId, refreshPaper]
   )
-  const handleTrendlinePersistenceError = React.useCallback(
+  // Pull fresh positions/orders right after placing an order so the new order
+  // shows without waiting on a WebSocket push (or a manual page refresh).
+  const refreshAfterOrder = React.useCallback(() => {
+    if (paperWalletId) setTimeout(() => void refreshPaper(), 800)
+    else setTimeout(refreshAccount, 800)
+  }, [paperWalletId, refreshPaper, refreshAccount])
+  const handleDrawingPersistenceError = React.useCallback(
     (action: "load" | "save") =>
       notify(
-        `${action === "load" ? "Loading" : "Saving"} chart trendlines failed.`,
+        `${action === "load" ? "Loading" : "Saving"} chart drawings failed.`,
         "error"
       ),
     [notify]
@@ -453,13 +577,92 @@ export function TradingWorkspace({
     [marketRow]
   )
 
+  // Drawn-line alerts for this chart: one rule per line id, and the
+  // arm/disarm/touch handlers the trendline settings popover calls.
+  const [busyLineId, setBusyLineId] = React.useState<string | null>(null)
+  const trendlineRulesByLine = React.useMemo(() => {
+    const map = new Map<string, Extract<AlertRuleItem, { kind: "trendline" }>>()
+    for (const rule of alertRules) {
+      if (
+        rule.kind === "trendline" &&
+        rule.coin === market &&
+        rule.network === tradingNetwork
+      ) {
+        map.set(rule.trendlineId, rule)
+      }
+    }
+    return map
+  }, [alertRules, market, tradingNetwork])
+
+  const trendlineAlerts = React.useMemo<TrendlineAlertControls>(() => {
+    const run = async (
+      lineId: string,
+      action: () => Promise<unknown>,
+      failure: string
+    ) => {
+      setBusyLineId(lineId)
+      try {
+        await action()
+        await refreshAlerts()
+      } catch (cause) {
+        notify(cause instanceof Error ? cause.message : failure, "error")
+      } finally {
+        setBusyLineId(null)
+      }
+    }
+    const fullRule = (info: TrendlineAlertRuleInfo) =>
+      [...trendlineRulesByLine.values()].find((rule) => rule.id === info.id)
+    return {
+      rules: trendlineRulesByLine,
+      busyLineId,
+      onArm: (line: Trendline, touch: TrendlineTouchMode) => {
+        const existing = trendlineRulesByLine.get(line.id)
+        void run(
+          line.id,
+          () =>
+            existing
+              ? activateAlert(existing.id)
+              : createAlert(
+                  quickTrendlineAlert(market, tradingNetwork, line.id, touch)
+                ),
+          "Arming the line alert failed."
+        )
+      },
+      onDisarm: (info: TrendlineAlertRuleInfo) => {
+        const rule = fullRule(info)
+        if (!rule) return
+        void run(
+          rule.trendlineId,
+          () => deleteAlert(rule.id),
+          "Removing the line alert failed."
+        )
+      },
+      onTouchChange: (info: TrendlineAlertRuleInfo, touch: TrendlineTouchMode) => {
+        const rule = fullRule(info)
+        if (!rule || rule.touch === touch) return
+        void run(
+          rule.trendlineId,
+          () => updateAlert(rule.id, alertWithTrendlineTouch(rule, touch)),
+          "Changing the touch setting failed."
+        )
+      },
+    }
+  }, [
+    trendlineRulesByLine,
+    busyLineId,
+    market,
+    tradingNetwork,
+    refreshAlerts,
+    notify,
+  ])
+
   const addChartAlert = React.useCallback(
     async (price: number) => {
       const level = Number(roundForMarket(price))
       try {
         await createAlert(quickPriceAlert(market, level))
         setChartMenu(null)
-        await refreshChartAlerts()
+        await refreshAlerts()
         setAlertLineRevision((revision) => revision + 1)
         toast.success(`${market} alert added at ${roundForMarket(level)}.`)
       } catch (cause) {
@@ -468,7 +671,7 @@ export function TradingWorkspace({
         )
       }
     },
-    [market, refreshChartAlerts, roundForMarket]
+    [market, refreshAlerts, roundForMarket]
   )
 
   React.useEffect(() => {
@@ -496,6 +699,53 @@ export function TradingWorkspace({
     setChartMenu({ price, px: roundForMarket(price), x, y })
   }
 
+  function submitOrderModify(
+    oid: number,
+    px: string,
+    walletId: string,
+    fillAtMarket = false
+  ) {
+    return modifyOrder({
+      walletId,
+      market,
+      oid,
+      px,
+      ...(fillAtMarket ? { fillAtMarket: true } : {}),
+    })
+      .then((result) => {
+        notify(
+          result.filledAtMarket
+            ? `Order #${oid} filled at market (${result.px}).`
+            : `Order #${oid} moved to ${result.px}.`,
+          "ok"
+        )
+      })
+      .catch((error: unknown) => notify(getOrderErrorMessage(error), "error"))
+  }
+
+  function confirmMarketFill() {
+    const request = marketFillConfirm
+    if (!request) return
+    setMarketFillBusy(true)
+    void submitOrderModify(
+      request.oid,
+      request.px,
+      request.walletId,
+      true
+    ).finally(() => {
+      setMarketFillBusy(false)
+      setMarketFillConfirm(null)
+    })
+  }
+
+  function cancelMarketFill() {
+    const request = marketFillConfirm
+    setMarketFillConfirm(null)
+    // Snap the line back to its resting price instead of leaving it at the
+    // crossed price the user just declined to fill.
+    if (request) chartApiRef.current?.revertLine(`order-${request.oid}`)
+  }
+
   function handleLineDragEnd(id: string, price: number) {
     const px = roundForMarket(price)
 
@@ -505,7 +755,7 @@ export function TradingWorkspace({
       if (alert?.kind === "price_level") {
         void updateAlert(alert.id, alertWithPriceLevel(alert, Number(px)))
           .then(async () => {
-            await refreshChartAlerts()
+            await refreshAlerts()
             setAlertLineRevision((revision) => revision + 1)
           })
           .catch((cause: unknown) => {
@@ -533,14 +783,27 @@ export function TradingWorkspace({
     if (id.startsWith("order-")) {
       if (!selectedWallet?.is_active) return
       const oid = Number(id.slice("order-".length))
-      void modifyOrder({
-        walletId: selectedWallet.id,
-        market,
-        oid,
-        px,
-      })
-        .then((result) => notify(`Order #${oid} moved to ${result.px}.`, "ok"))
-        .catch((error: unknown) => notify(getOrderErrorMessage(error), "error"))
+      const order = account?.openOrders.find(
+        (candidate) => candidate.oid === oid
+      )
+      // A plain resting limit dragged through the mark (a buy above it or a
+      // sell below it) fills at market — real money — so confirm first. Passive
+      // moves and trigger orders just re-price silently as before.
+      const crossesToMarket =
+        order != null &&
+        !order.isTrigger &&
+        markPx > 0 &&
+        (order.side === "B" ? Number(px) > markPx : Number(px) < markPx)
+      if (crossesToMarket) {
+        setMarketFillConfirm({
+          oid,
+          side: order.side === "B" ? "buy" : "sell",
+          px,
+          walletId: selectedWallet.id,
+        })
+        return
+      }
+      void submitOrderModify(oid, px, selectedWallet.id)
     }
   }
 
@@ -561,7 +824,7 @@ export function TradingWorkspace({
       const alertId = id.split(":")[1]
       void deleteAlert(alertId)
         .then(async () => {
-          await refreshChartAlerts()
+          await refreshAlerts()
           notify("Alert deleted.", "ok")
         })
         .catch((cause: unknown) =>
@@ -613,6 +876,37 @@ export function TradingWorkspace({
   const outerLayout = usePersistedLayout("trading-layout-vertical")
   const innerLayout = usePersistedLayout("trading-layout-horizontal")
   const rightLayout = usePersistedLayout("trading-layout-right")
+  // Collapsible market list, order ticket and bottom panel — the automation
+  // editor's pattern. Sizes (including "collapsed") ride along in the saved
+  // layout, so the workspace reopens the way it was left.
+  const watchlistPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const ticketPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const bottomPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const [watchlistCollapsed, setWatchlistCollapsed] = React.useState(false)
+  const [ticketCollapsed, setTicketCollapsed] = React.useState(false)
+  const [bottomCollapsed, setBottomCollapsed] = React.useState(false)
+  const panelToggles = (
+    <div className="flex shrink-0 items-center gap-1">
+      <PanelToggle
+        side="left"
+        collapsed={watchlistCollapsed}
+        label={watchlistCollapsed ? "Show market list" : "Hide market list"}
+        onClick={() => togglePanel(watchlistPanelRef, "16%")}
+      />
+      <PanelToggle
+        side="right"
+        collapsed={ticketCollapsed}
+        label={ticketCollapsed ? "Show order ticket" : "Hide order ticket"}
+        onClick={() => togglePanel(ticketPanelRef, "20%")}
+      />
+      <PanelToggle
+        side="bottom"
+        collapsed={bottomCollapsed}
+        label={bottomCollapsed ? "Show bottom panel" : "Hide bottom panel"}
+        onClick={() => togglePanel(bottomPanelRef, "28%")}
+      />
+    </div>
+  )
   // DB-backed indicator settings: local state flips instantly for the chart;
   // saves are fire-and-forget so they never add latency to a toggle.
   const [indicators, setIndicators] = React.useState(initialIndicators)
@@ -642,6 +936,7 @@ export function TradingWorkspace({
     [indicators]
   )
   const [panels, setPanels] = usePersistedPanels()
+  const [practiceOpen, setPracticeOpen] = React.useState(false)
 
   const ticketDisabledReason = !marketRow?.liveData
     ? "Loading current market data"
@@ -654,7 +949,7 @@ export function TradingWorkspace({
           : null
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60">
+    <div className="flex h-[calc(100vh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/60 dark:bg-background">
       <AccountStrip
         options={options}
         selectedValue={selectedValue}
@@ -671,10 +966,25 @@ export function TradingWorkspace({
             onSelect={onMarketChange}
           />
         }
+        beforeWallet={
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setPracticeOpen(true)}
+          >
+            <PlayIcon className="size-4" />
+            Practice
+          </Button>
+        }
         actions={<PanelSettings panels={panels} onChange={setPanels} />}
       />
+      {/* Mounted only while open: the setup form polls Binance for its market
+          list, which the trade page has no reason to pay for otherwise. */}
+      {practiceOpen ? (
+        <PracticeSetupDialog open onOpenChange={setPracticeOpen} />
+      ) : null}
 
-      <div className="min-h-0 flex-1 p-2 md:p-3">
+      <div className="min-h-0 flex-1 p-[var(--shell-gutter,0.75rem)]">
         <ResizablePanelGroup
           orientation="vertical"
           defaultLayout={outerLayout.defaultLayout}
@@ -686,20 +996,33 @@ export function TradingWorkspace({
               defaultLayout={innerLayout.defaultLayout}
               onLayoutChanged={innerLayout.onLayoutChanged}
             >
-              <ResizablePanel id="watchlist" defaultSize="16%" minSize="10%">
+              <ResizablePanel
+                id="watchlist"
+                panelRef={watchlistPanelRef}
+                collapsible
+                collapsedSize="0%"
+                defaultSize="16%"
+                minSize="10%"
+                onResize={(size) =>
+                  setWatchlistCollapsed(size.asPercentage < 0.5)
+                }
+              >
                 <WorkspacePanel>
                   <MarketWatchlist
                     rows={marketRows}
                     selected={market}
                     positionMarkets={positionMarkets}
                     openOrderMarkets={openOrderMarkets}
+                    alertMarkets={alertMarkets}
                     favorites={favorites}
                     onToggleFavorite={toggleFavorite}
                     onSelect={onMarketChange}
+                    initialTabOrder={initialWatchlistTabOrder}
+                    accountLoading={accountLoading}
                   />
                 </WorkspacePanel>
               </ResizablePanel>
-              <ResizableHandle gap />
+              <ResizableHandle gap collapsed={watchlistCollapsed} />
               <ResizablePanel id="chart" defaultSize="48%" minSize="25%">
                 <WorkspacePanel className="flex flex-col">
                   <ChartToolbar
@@ -715,65 +1038,24 @@ export function TradingWorkspace({
                         onUpdate={updateIndicator}
                       />
                     }
-                  >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant={trendlineDrawing ? "secondary" : "ghost"}
-                          size="icon-sm"
-                          className="text-muted-foreground aria-pressed:text-foreground"
-                          aria-label="Trendline"
-                          aria-pressed={trendlineDrawing}
-                          onClick={() =>
-                            setTrendlineDrawing((active) => !active)
-                          }
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <line
-                              x1="5"
-                              y1="18"
-                              x2="19"
-                              y2="6"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.75"
-                            />
-                            <circle
-                              cx="5"
-                              cy="18"
-                              r="1.75"
-                              fill="currentColor"
-                            />
-                            <circle
-                              cx="19"
-                              cy="6"
-                              r="1.75"
-                              fill="currentColor"
-                            />
-                          </svg>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">Trendline</TooltipContent>
-                    </Tooltip>
-                  </ChartToolbar>
+                  />
                   <div className="min-h-0 flex-1">
                     <PriceChart
                       network={tradingNetwork}
                       coin={market}
                       interval={interval}
                       priceLines={priceLines}
+                      markers={chartMarkers}
                       indicators={pinnedIndicators}
                       onLineDragEnd={handleLineDragEnd}
                       onLineClick={handleLineClick}
                       onLineCancel={handleLineCancel}
                       onChartContextMenu={handleChartContextMenu}
                       registerApi={registerChartApi}
-                      trendlineDrawing={trendlineDrawing}
-                      onTrendlineDrawingChange={setTrendlineDrawing}
-                      onTrendlinePersistenceError={
-                        handleTrendlinePersistenceError
+                      onDrawingPersistenceError={
+                        handleDrawingPersistenceError
                       }
+                      trendlineAlerts={trendlineAlerts}
                     />
                   </div>
                 </WorkspacePanel>
@@ -827,8 +1109,16 @@ export function TradingWorkspace({
                   </ResizablePanel>
                 </>
               ) : null}
-              <ResizableHandle gap />
-              <ResizablePanel id="ticket" defaultSize="20%" minSize="12%">
+              <ResizableHandle gap collapsed={ticketCollapsed} />
+              <ResizablePanel
+                id="ticket"
+                panelRef={ticketPanelRef}
+                collapsible
+                collapsedSize="0%"
+                defaultSize="20%"
+                minSize="12%"
+                onResize={(size) => setTicketCollapsed(size.asPercentage < 0.5)}
+              >
                 <WorkspacePanel className="flex flex-col">
                   <ScrollArea className="min-h-0 flex-1">
                     <OrderTicket
@@ -846,7 +1136,9 @@ export function TradingWorkspace({
                       prefill={prefill}
                       disabledReason={ticketDisabledReason}
                       confirmationEnabled={orderConfirmation}
+                      orderDefaults={orderDefaults}
                       onNotify={notify}
+                      onOrderPlaced={refreshAfterOrder}
                     />
                   </ScrollArea>
                   <AccountSummaryPanel
@@ -859,16 +1151,29 @@ export function TradingWorkspace({
             </ResizablePanelGroup>
           </ResizablePanel>
           <ResizableHandle gap />
-          <ResizablePanel id="bottom" defaultSize="28%" minSize="10%">
+          <ResizablePanel
+            id="bottom"
+            panelRef={bottomPanelRef}
+            collapsible
+            collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+            defaultSize="28%"
+            minSize="10%"
+            onResize={() =>
+              setBottomCollapsed(bottomPanelRef.current?.isCollapsed() ?? false)
+            }
+          >
             <WorkspacePanel>
               {isPaper ? (
                 <PaperBottomTabs
                   account={paperAccount}
                   confirmationEnabled={orderConfirmation}
                   onNotify={notify}
+                  onSelectMarket={onMarketChange}
+                  toggles={panelToggles}
                 />
               ) : (
                 <SandboxBottomTabs
+                  toggles={panelToggles}
                   network={tradingNetwork}
                   account={account}
                   walletId={
@@ -880,6 +1185,7 @@ export function TradingWorkspace({
                   mids={mids}
                   confirmationEnabled={orderConfirmation}
                   onNotify={notify}
+                  onSelectMarket={onMarketChange}
                   editOrder={editOrder}
                   onEditOrderHandled={() => setEditOrder(null)}
                 />
@@ -891,7 +1197,6 @@ export function TradingWorkspace({
 
       <ChartOrderMenu
         menu={chartMenu}
-        market={market}
         oneClickActions={
           <OneClickMenuActions
             walletId={
@@ -906,12 +1211,10 @@ export function TradingWorkspace({
             confirmationEnabled={orderConfirmation}
             limitPx={chartMenu?.px}
             onNotify={notify}
-            onLimitPrefill={(side, px) => {
-              setPrefill({ px, side })
+            onOrderPlaced={refreshAfterOrder}
+            onQuickOrder={(side, px) => {
+              if (chartMenu) setQuickOrder({ side, px, x: chartMenu.x, y: chartMenu.y })
               setChartMenu(null)
-              toast.success(
-                `Ticket prefilled: ${side} limit @ ${px}. Set a size and confirm.`
-              )
             }}
             onComplete={() => setChartMenu(null)}
           />
@@ -920,6 +1223,26 @@ export function TradingWorkspace({
         onResetView={() => chartApiRef.current?.resetView()}
         onClose={() => setChartMenu(null)}
       />
+      {quickOrder ? (
+        <ChartQuickOrder
+          quick={quickOrder}
+          market={market}
+          marketRow={marketRow}
+          markPx={markPx}
+          equity={equity}
+          positionSzi={positionSzi}
+          walletId={
+            selectedWallet?.is_active ? (selectedWallet?.id ?? null) : null
+          }
+          paperWalletId={paperWalletId}
+          disabledReason={ticketDisabledReason}
+          confirmationEnabled={orderConfirmation}
+          orderDefaults={orderDefaults}
+          onNotify={notify}
+          onOrderPlaced={refreshAfterOrder}
+          onClose={() => setQuickOrder(null)}
+        />
+      ) : null}
       {alertEditor ? (
         <AlertDialog
           key={
@@ -936,11 +1259,54 @@ export function TradingWorkspace({
           }}
           onSaved={async () => {
             setAlertEditor(null)
-            await refreshChartAlerts()
+            await refreshAlerts()
             setAlertLineRevision((revision) => revision + 1)
           }}
         />
       ) : null}
+
+      <Dialog
+        open={marketFillConfirm != null}
+        onOpenChange={(open) => {
+          if (!open && !marketFillBusy) cancelMarketFill()
+        }}
+      >
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>
+              Fill this {marketFillConfirm?.side === "buy" ? "long" : "short"}{" "}
+              order at market?
+            </DialogTitle>
+            <DialogDescription>
+              You dragged a {marketFillConfirm?.side === "buy" ? "buy" : "sell"}{" "}
+              order {marketFillConfirm?.side === "buy" ? "above" : "below"} the
+              current price, so it can only fill immediately. Confirming sends a{" "}
+              {marketFillConfirm?.side === "buy" ? "long" : "short"} market order
+              on {market} now.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter variant="plain">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={marketFillBusy}
+              onClick={cancelMarketFill}
+            >
+              Keep it resting
+            </Button>
+            <Button
+              type="button"
+              disabled={marketFillBusy}
+              onClick={confirmMarketFill}
+            >
+              {marketFillBusy ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
+              Fill at market
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -949,10 +1315,14 @@ function PaperBottomTabs({
   account,
   confirmationEnabled,
   onNotify,
+  onSelectMarket,
+  toggles,
 }: {
   account: PaperAccountResponse | null
   confirmationEnabled: boolean
   onNotify: (message: string, tone: "ok" | "error") => void
+  onSelectMarket: (coin: string) => void
+  toggles: React.ReactNode
 }) {
   const positionCount = account?.positions.length ?? 0
   const orderCount = account?.openOrders.length ?? 0
@@ -962,22 +1332,26 @@ function PaperBottomTabs({
       defaultValue="positions"
       className="flex h-full min-h-0 flex-col gap-0"
     >
-      <TabsList variant="line" className={BOTTOM_TABS_LIST}>
-        <TabsTrigger value="positions" className={BOTTOM_TAB_TRIGGER}>
-          Positions{positionCount ? ` (${positionCount})` : ""}
-        </TabsTrigger>
-        <TabsTrigger value="orders" className={BOTTOM_TAB_TRIGGER}>
-          Open Orders{orderCount ? ` (${orderCount})` : ""}
-        </TabsTrigger>
-        <TabsTrigger value="fills" className={BOTTOM_TAB_TRIGGER}>
-          Fills
-        </TabsTrigger>
-      </TabsList>
+      <div className={BOTTOM_PANEL_HEADER}>
+        <TabsList variant="pill">
+          <TabsTrigger value="positions">
+            Positions{positionCount ? ` (${positionCount})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="orders">
+            Open Orders{orderCount ? ` (${orderCount})` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="fills">
+            Fills
+          </TabsTrigger>
+        </TabsList>
+        <div className="ml-auto">{toggles}</div>
+      </div>
       <TabsContent value="positions" className="min-h-0 flex-1">
         <PaperPositionsTable
           account={account}
           confirmationEnabled={confirmationEnabled}
           onDone={onNotify}
+          onSelectMarket={onSelectMarket}
         />
       </TabsContent>
       <TabsContent value="orders" className="min-h-0 flex-1">
@@ -998,18 +1372,22 @@ function SandboxBottomTabs({
   mids,
   confirmationEnabled,
   onNotify,
+  onSelectMarket,
   editOrder,
   onEditOrderHandled,
+  toggles,
 }: {
   network: TradingNetwork
-  account: ReturnType<typeof useAccountSnapshot>
+  account: AccountSnapshot | null
   walletId: string | null
   accountAddress: string | null
   mids: Record<string, string>
   confirmationEnabled: boolean
   onNotify: (message: string, tone: "ok" | "error") => void
+  onSelectMarket: (coin: string) => void
   editOrder: FrontendOpenOrder | null
   onEditOrderHandled: () => void
+  toggles: React.ReactNode
 }) {
   const positionCount = (
     account?.clearinghouseState?.assetPositions ?? []
@@ -1042,22 +1420,19 @@ function SandboxBottomTabs({
       onValueChange={setActiveTab}
       className="flex h-full min-h-0 flex-col gap-0"
     >
-      <div className="flex items-center border-b">
-        <TabsList
-          variant="line"
-          className={cn(BOTTOM_TABS_LIST, "w-auto flex-1 border-b-0")}
-        >
-          <TabsTrigger value="positions" className={BOTTOM_TAB_TRIGGER}>
+      <div className={BOTTOM_PANEL_HEADER}>
+        <TabsList variant="pill">
+          <TabsTrigger value="positions">
             Positions{positionCount ? ` (${positionCount})` : ""}
           </TabsTrigger>
-          <TabsTrigger value="orders" className={BOTTOM_TAB_TRIGGER}>
+          <TabsTrigger value="orders">
             Open Orders{orderCount ? ` (${orderCount})` : ""}
           </TabsTrigger>
-          <TabsTrigger value="fills" className={BOTTOM_TAB_TRIGGER}>
+          <TabsTrigger value="fills">
             Fills
           </TabsTrigger>
         </TabsList>
-        <div className="flex items-center gap-3 pr-3 text-xs text-muted-foreground">
+        <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
           <span>
             Open orders:{" "}
             <strong className="text-foreground">{orderCount}</strong>
@@ -1078,6 +1453,7 @@ function SandboxBottomTabs({
             Cancel all orders
           </Button>
         </div>
+        {toggles}
       </div>
       <TabsContent value="positions" className="min-h-0 flex-1">
         <PositionsTable
@@ -1086,6 +1462,7 @@ function SandboxBottomTabs({
           mids={mids}
           confirmationEnabled={confirmationEnabled}
           onDone={onNotify}
+          onSelectMarket={onSelectMarket}
         />
       </TabsContent>
       <TabsContent value="orders" className="min-h-0 flex-1">
@@ -1205,25 +1582,6 @@ function usePersistedPanels() {
   )
 }
 
-function useMarketFavorites() {
-  const [list, setList] = usePersistedState<string[]>(
-    MARKET_FAVORITES_KEY,
-    EMPTY_MARKET_FAVORITES
-  )
-  const favorites = React.useMemo(() => new Set(list), [list])
-  const toggleFavorite = React.useCallback(
-    (coin: string) => {
-      setList((current) =>
-        current.includes(coin)
-          ? current.filter((item) => item !== coin)
-          : [...current, coin]
-      )
-    },
-    [setList]
-  )
-  return { favorites, toggleFavorite }
-}
-
 /** Selected-market summary shown on the left of the account bar. */
 function MarketInfoBar({
   marketRow,
@@ -1280,34 +1638,34 @@ function MarketInfoBar({
         <span
           className={cn("font-mono text-lg font-semibold tabular-nums", tone)}
         >
-          {price > 0 ? formatPriceDisplay(String(price)) : "—"}
+          {price > 0 ? displayPrice(String(price)) : "—"}
         </span>
         <span className={cn("font-mono text-[11px] tabular-nums", tone)}>
           {change === null
             ? "—"
-            : `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}
+            : signedPct(change)}
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <MarketStat
           label="Mark"
-          value={liveData ? formatPriceDisplay(marketRow.markPx) : "—"}
+          value={liveData ? displayPrice(marketRow.markPx) : "—"}
         />
         <MarketStat
           label="Index"
-          value={liveData ? formatPriceDisplay(marketRow.oraclePx) : "—"}
+          value={liveData ? displayPrice(marketRow.oraclePx) : "—"}
         />
         <MarketStat
           label="Funding"
-          value={liveData ? `${funding.toFixed(4)}%` : "—"}
+          value={liveData ? pct(funding, 4) : "—"}
         />
         <MarketStat
           label="24h Vol"
-          value={liveData ? formatCompactUsd(Number(marketRow.dayNtlVlm)) : "—"}
+          value={liveData ? compactUsd(Number(marketRow.dayNtlVlm)) : "—"}
         />
         <MarketStat
           label="OI"
-          value={liveData ? formatCompactUsd(openInterestUsd) : "—"}
+          value={liveData ? compactUsd(openInterestUsd) : "—"}
         />
       </div>
     </div>
@@ -1329,80 +1687,3 @@ function MarketStat({ label, value }: { label: string; value: string }) {
  * painted chart lines; clicking a name opens the shared settings modal. Lives
  * next to the timeframe buttons; strategy signals are picked separately.
  */
-function IndicatorsMenu({
-  indicators,
-  onUpdate,
-}: {
-  indicators: IndicatorConfig[]
-  onUpdate: (id: string, patch: Partial<IndicatorConfig>) => void
-}) {
-  const activeCount = indicators.filter((ind) => ind.enabled).length
-  const [editingId, setEditingId] = React.useState<string | null>(null)
-  const editing = indicators.find((ind) => ind.id === editingId) ?? null
-
-  return (
-    <>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-          >
-            Indicators{activeCount ? ` (${activeCount})` : ""}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-60 gap-1 p-2">
-          {indicators.length === 0 ? (
-            <div className="px-1 py-1 text-xs text-muted-foreground">
-              No pinned indicators — pin them on the{" "}
-              <a href="/indicators" className="underline underline-offset-2">
-                Indicators
-              </a>{" "}
-              page.
-            </div>
-          ) : null}
-          {indicators.map((ind) => (
-            <div
-              key={ind.id}
-              className="flex items-center gap-2 rounded px-1 py-1 hover:bg-muted/50"
-            >
-              <Checkbox
-                id={`ind-${ind.id}`}
-                checked={ind.enabled}
-                onCheckedChange={(checked) =>
-                  onUpdate(ind.id, { enabled: checked === true })
-                }
-              />
-              <button
-                type="button"
-                className="flex-1 cursor-pointer text-left text-xs font-medium"
-                title="Indicator settings"
-                onClick={() => setEditingId(ind.id)}
-              >
-                {indicatorDisplayName(ind)}
-              </button>
-            </div>
-          ))}
-        </PopoverContent>
-      </Popover>
-      {editing ? (
-        <OverlaySettingsDialog
-          indicator={editing}
-          open={editingId !== null}
-          draggable
-          onOpenChange={(open) => {
-            if (!open) setEditingId(null)
-          }}
-          onSave={(next) => {
-            // Local flip is instant; persistence is the same fire-and-forget
-            // path the checkboxes use (failures surface via the notify strip).
-            onUpdate(next.id, next)
-            return Promise.resolve()
-          }}
-        />
-      ) : null}
-    </>
-  )
-}

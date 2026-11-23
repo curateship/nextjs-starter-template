@@ -132,7 +132,7 @@ export default function PlatformSenderEmailsPage() {
 
           <AdminTableShell
             title="Email Accounts"
-            icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
+            icon={<Mail className="text-muted-foreground" />}
             count={filteredSenders.length}
             controls={
               <TableRightActions>

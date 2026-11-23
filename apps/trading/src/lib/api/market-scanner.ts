@@ -22,7 +22,7 @@ const loadRulesPageFn = createServerFn({ method: "GET" }).handler(async () => {
     await import("@/server/market-scanner")
   const { getScannerUniverse } = await import("@/server/scanner/info")
   const { getMarketScannerWorkerStatus } =
-    await import("@/server/market-scanner-status")
+    await import("@/server/worker-status")
   const { getWorkerControl } = await import("@/server/workers/control")
   const user = await requireUser()
   const [rules, universe, status, paused, control] = await Promise.all([

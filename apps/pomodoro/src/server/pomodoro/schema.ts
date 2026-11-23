@@ -1,0 +1,2558 @@
+import { sql } from "drizzle-orm"
+import {
+  bigint,
+  boolean,
+  check,
+  date,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core"
+
+import type { PublicSocialLink } from "@/lib/pages/public-social"
+import type { PomodoroNoticeKind } from "@/lib/pomodoro/notices"
+import type { SimulatedHabits } from "@/lib/pomodoro/simulated-days"
+import {
+  customShellMedia,
+  customShellNotifications,
+  customShellUsers,
+} from "@/server/schema"
+
+/**
+ * The pomodoro app's own tables, apart from the shell's schema the way trade
+ * and video keep theirs. Shapes are ported from the old app
+ * (apps/pomoder/src/server/schema.ts) so its behaviour carries over row for
+ * row. Migrations are handwritten SQL from 0082_pomodoro_* up.
+ *
+ * Dates are stored as the user's local calendar day (a `yyyy-mm-dd` string),
+ * because a focus streak is about the day the person experienced, not the
+ * server's midnight. The browser sends its timezone and the server derives
+ * the day — see `localDateFor` in productivity.ts.
+ */
+
+export const userPreferences = pgTable(
+  "user_preferences",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    focusMinutes: integer("focus_minutes").notNull().default(25),
+    shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
+    longBreakMinutes: integer("long_break_minutes").notNull().default(15),
+    dailyGoalSessions: integer("daily_goal_sessions").notNull().default(4),
+    /** How many focuses earn the long break. Part of the saved rhythm. */
+    sessionsBeforeLongBreak: integer("sessions_before_long_break")
+      .notNull()
+      .default(4),
+    autoStart: boolean("auto_start").notNull().default(false),
+    /**
+     * No longer written. The sound and theme belong to the personal room
+     * since 7 Oct 2026 (`pomodoroPersonalRooms`); migration 0122 copied these
+     * two into it. Kept rather than dropped, because stored fields are never
+     * renamed or removed.
+     */
+    selectedSound: varchar("selected_sound", { length: 60 }),
+    selectedBackground: varchar("selected_background", { length: 60 }),
+    soundVolume: integer("sound_volume").notNull().default(70),
+    soundMuted: boolean("sound_muted").notNull().default(false),
+    completionAlerts: boolean("completion_alerts").notNull().default(false),
+    /**
+     * The floating timer window opens by itself when a focus starts (Tyler,
+     * 7 Nov 2026: "The floating timer should be automatic", and "I can enable
+     * or disable the floating timer in settings"). On until switched off.
+     */
+    floatingTimer: boolean("floating_timer").notNull().default(true),
+    /** The chime when a focus ends, an id from src/lib/pomodoro/chimes.ts. */
+    focusChime: varchar("focus_chime", { length: 30 })
+      .notNull()
+      .default("two-tone"),
+    /** The chime when a break ends. */
+    breakChime: varchar("break_chime", { length: 30 })
+      .notNull()
+      .default("two-tone"),
+    /** The evening streak reminder in the bell. Off until switched on. */
+    streakReminderBell: boolean("streak_reminder_bell").notNull().default(false),
+    /** The member's own local hour, 12 to 23, the reminder may go from. */
+    streakReminderHour: integer("streak_reminder_hour").notNull().default(19),
+    /**
+     * The local day the reminder was last considered for this person, so a
+     * day is looked at once and nobody is nudged twice in it.
+     */
+    streakReminderOn: date("streak_reminder_on", { mode: "string" }),
+    /**
+     * How dark the layer between the scene and the page is, 0 to 70 out of
+     * 100 (`src/lib/pomodoro/backdrop-look.ts`). 0 draws no layer.
+     */
+    backdropDim: integer("backdrop_dim").notNull().default(0),
+    /** A slow zoom on a picture background the member uploaded. */
+    backdropDrift: boolean("backdrop_drift").notNull().default(true),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "preferences_streak_reminder_hour_check",
+      sql`${table.streakReminderHour} between 12 and 23`
+    ),
+    check(
+      "preferences_focus_check",
+      sql`${table.focusMinutes} between 1 and 90`
+    ),
+    check(
+      "preferences_short_check",
+      sql`${table.shortBreakMinutes} between 1 and 90`
+    ),
+    check(
+      "preferences_long_check",
+      sql`${table.longBreakMinutes} between 1 and 90`
+    ),
+    check(
+      "preferences_goal_check",
+      sql`${table.dailyGoalSessions} between 1 and 20`
+    ),
+    check(
+      "preferences_long_break_cycle_check",
+      sql`${table.sessionsBeforeLongBreak} between 2 and 8`
+    ),
+    check(
+      "preferences_backdrop_dim_check",
+      sql`${table.backdropDim} between 0 and 70`
+    ),
+  ]
+)
+
+/**
+ * The personal room: one per account, holding the sound and the theme that
+ * account sees when it is in nobody else's room. Nobody else ever joins it,
+ * and there is no way to close or delete it; it goes only with the account.
+ * See `workspace/docs/personal-room.md`.
+ *
+ * Both are stored the way the catalogues serialize them: `curated:<key>` or
+ * `media:<uuid>` for the sound, `scene:<key>` or `media:<uuid>` for the theme.
+ * A null sound is silence; a null theme draws the default scene.
+ */
+export const pomodoroPersonalRooms = pgTable("pomodoro_personal_rooms", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  sound: varchar("sound", { length: 200 }),
+  background: varchar("background", { length: 200 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/**
+ * A project groups tasks at the level people bill and think at. Archiving is
+ * a timestamp rather than a delete, because History keeps showing the hours a
+ * finished project earned after it leaves the picker.
+ */
+export const pomodoroProjects = pgTable(
+  "pomodoro_projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    /**
+     * Whether this project's name and hours may appear on the owner's public
+     * profile. Off for every project that exists and every one made from now
+     * on; a project becomes public only because somebody ticked it.
+     *
+     * A project name is often a client's name, so the default is the whole
+     * safety of it. No migration ever turns one on.
+     */
+    isPublic: boolean("is_public").notNull().default(false),
+    /**
+     * An optional number of hours to aim at each week or each month. Both
+     * are null, or both are set: a target with no period means nothing, and
+     * the check below refuses one without the other.
+     */
+    targetHours: integer("target_hours"),
+    targetPeriod: varchar("target_period", { length: 10 }).$type<
+      "week" | "month"
+    >(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_projects_user_idx").on(table.userId),
+    check(
+      "pomodoro_projects_target_check",
+      sql`(${table.targetHours} is null and ${table.targetPeriod} is null) or (${table.targetHours} is not null and ${table.targetPeriod} is not null and ${table.targetHours} between 1 and 744 and ${table.targetPeriod} in ('week', 'month'))`
+    ),
+  ]
+)
+
+/**
+ * A task's repeat rule, held apart from the task because a task belongs to
+ * one calendar day and a rule outlives every day it makes. `weekdays` is a
+ * seven-bit set, bit 0 Sunday through bit 6 Saturday; every day is all seven
+ * bits rather than a separate kind. "No repeat" is the absence of a row.
+ */
+export const pomodoroTaskRepeats = pgTable(
+  "pomodoro_task_repeats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 160 }).notNull(),
+    priority: varchar("priority", { length: 10 }).notNull().default("normal"),
+    estimatedPomodoros: integer("estimated_pomodoros"),
+    projectId: uuid("project_id").references(() => pomodoroProjects.id, {
+      onDelete: "set null",
+    }),
+    weekdays: integer("weekdays").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_task_repeats_priority_check",
+      sql`${table.priority} in ('low', 'normal', 'high')`
+    ),
+    check(
+      "pomodoro_task_repeats_estimate_check",
+      sql`${table.estimatedPomodoros} is null or ${table.estimatedPomodoros} between 1 and 20`
+    ),
+    check(
+      "pomodoro_task_repeats_weekdays_check",
+      sql`${table.weekdays} between 1 and 127`
+    ),
+    index("pomodoro_task_repeats_user_idx").on(table.userId),
+  ]
+)
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 160 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("active"),
+    plannedDate: date("planned_date", { mode: "string" }).notNull(),
+    pomodoroCount: integer("pomodoro_count").notNull().default(0),
+    priority: varchar("priority", { length: 10 }).notNull().default("normal"),
+    estimatedPomodoros: integer("estimated_pomodoros"),
+    /**
+     * When the task has to be done by, apart from the day it is planned on.
+     * Null for no deadline. Carried with the task to the next day; a repeat
+     * rule's copies never have one.
+     */
+    dueDate: date("due_date", { mode: "string" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+    projectId: uuid("project_id").references(() => pomodoroProjects.id, {
+      onDelete: "set null",
+    }),
+    /** The rule that makes this task each morning, when there is one. */
+    repeatId: uuid("repeat_id").references(() => pomodoroTaskRepeats.id, {
+      onDelete: "set null",
+    }),
+    /** Set when the rollover copies an unfinished task to a new day. */
+    carriedToTaskId: uuid("carried_to_task_id"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "tasks_status_check",
+      sql`${table.status} in ('active', 'completed', 'carried', 'abandoned')`
+    ),
+    check(
+      "tasks_priority_check",
+      sql`${table.priority} in ('low', 'normal', 'high')`
+    ),
+    check(
+      "tasks_estimated_pomodoros_check",
+      sql`${table.estimatedPomodoros} is null or ${table.estimatedPomodoros} between 1 and 20`
+    ),
+    check("tasks_sort_order_check", sql`${table.sortOrder} >= 0`),
+    index("tasks_user_date_idx").on(table.userId, table.plannedDate),
+    index("tasks_project_idx").on(table.projectId),
+    // One task per rule per day, enforced here rather than in the rollover's
+    // own check, because two tabs can load the day at the same moment.
+    uniqueIndex("tasks_repeat_day_unique")
+      .on(table.repeatId, table.plannedDate)
+      .where(sql`${table.repeatId} is not null`),
+  ]
+)
+
+/**
+ * A short checklist under one task, ticked off as you go. It is not a second
+ * task system: a step has no estimate, no date and no focus count, and ticking
+ * the last one does not complete the task. The ten-step cap is the server's,
+ * checked under a lock on the task row.
+ */
+export const pomodoroTaskSteps = pgTable(
+  "pomodoro_task_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 120 }).notNull(),
+    done: boolean("done").notNull().default(false),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check("pomodoro_task_steps_sort_order_check", sql`${table.sortOrder} >= 0`),
+    index("pomodoro_task_steps_task_idx").on(table.taskId, table.sortOrder),
+  ]
+)
+
+/**
+ * A short label that cuts across projects, such as "admin" or "email". One
+ * account's tags are its own, unique by name ignoring case. A tag is never
+ * deleted for falling out of use; it only leaves the picker.
+ */
+export const pomodoroTags = pgTable(
+  "pomodoro_tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 24 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pomodoro_tags_user_name_unique").on(
+      table.userId,
+      sql`lower(${table.name})`
+    ),
+  ]
+)
+
+/** Which tags a task carries, at most three, checked when the set is written. */
+export const pomodoroTaskTags = pgTable(
+  "pomodoro_task_tags",
+  {
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => pomodoroTags.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.taskId, table.tagId] }),
+    index("pomodoro_task_tags_tag_idx").on(table.tagId),
+  ]
+)
+
+export const focusSessions = pgTable(
+  "focus_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** The task this focus counted towards; breaks always store null. */
+    taskId: uuid("task_id").references(() => tasks.id, {
+      onDelete: "set null",
+    }),
+    /** Set when the session ran inside a focus room. */
+    roomId: uuid("room_id").references(() => rooms.id, {
+      onDelete: "set null",
+    }),
+    mode: varchar("mode", { length: 20 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("running"),
+    /**
+     * One line about what the focus was for, written after it finishes.
+     * Private to the account: only the owner's own History reads it, and the
+     * admin sessions dashboard names its columns and leaves this one out.
+     */
+    note: varchar("note", { length: 120 }),
+    plannedSeconds: integer("planned_seconds").notNull(),
+    accumulatedSeconds: integer("accumulated_seconds").notNull().default(0),
+    targetEndsAt: timestamp("target_ends_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    idempotencyKey: varchar("idempotency_key", { length: 100 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "focus_sessions_mode_check",
+      sql`${table.mode} in ('focus', 'short', 'long')`
+    ),
+    check(
+      "focus_sessions_status_check",
+      sql`${table.status} in ('running', 'paused', 'completed', 'cancelled')`
+    ),
+    // The old app's duplicate guard: a retried start with the same key finds
+    // the session it already made instead of creating a second one.
+    unique("focus_sessions_user_idempotency_unique").on(
+      table.userId,
+      table.idempotencyKey
+    ),
+    index("focus_sessions_user_completed_idx").on(
+      table.userId,
+      table.completedAt
+    ),
+    // Every open page asks for this account's live session every few seconds.
+    index("focus_sessions_user_active_idx")
+      .on(table.userId)
+      .where(sql`${table.status} in ('running', 'paused')`),
+  ]
+)
+
+export const dailyFocusStats = pgTable(
+  "daily_focus_stats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    focusSessions: integer("focus_sessions").notNull().default(0),
+    focusSeconds: integer("focus_seconds").notNull().default(0),
+    tasksCompleted: integer("tasks_completed").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("daily_focus_stats_user_date_unique").on(
+      table.userId,
+      table.localDate
+    ),
+    index("daily_focus_stats_date_idx").on(table.localDate),
+  ]
+)
+
+/**
+ * One row per badge a person has earned, and the moment they earned it.
+ *
+ * Only the earning is stored. What the badges are and what each one takes
+ * lives in code (`@/lib/pomodoro/achievements`), because a badge is a promise
+ * the app made rather than data an account owns.
+ *
+ * The unique index is what makes "awarded exactly once" true. The award check
+ * inserts every badge the counters satisfy and lets the index throw the
+ * repeats away, so a hundredth session finishing twice, or two tabs finishing
+ * one each, still leaves one row with the first date on it.
+ */
+export const pomodoroAchievements = pgTable(
+  "pomodoro_achievements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    badgeId: varchar("badge_id", { length: 40 }).notNull(),
+    earnedAt: timestamp("earned_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /**
+     * Set when an admin takes the badge away (admin task 06). The row stays,
+     * so the unique index below keeps refusing the award and the next
+     * finished focus cannot hand it straight back. Every reader skips it.
+     */
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByUserId: varchar("revoked_by_user_id", { length: 36 }),
+  },
+  (table) => [
+    uniqueIndex("pomodoro_achievements_user_badge_unique").on(
+      table.userId,
+      table.badgeId
+    ),
+  ]
+)
+
+/**
+ * One account blocking another, in one direction.
+ *
+ * A block is checked by `isBlockedBetween` in `@/server/pomodoro/blocks`, and
+ * by nothing else. Every list of people in this app calls that one function,
+ * because a block that holds on the profile page and leaks through the
+ * leaderboard is four separate bugs rather than one.
+ *
+ * There is no cap. Tyler's call, 2 Oct 2026: a block is self-protection and
+ * refusing one has a real cost to the person being harassed.
+ */
+export const pomodoroBlocks = pgTable(
+  "pomodoro_blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    blockerUserId: varchar("blocker_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    blockedUserId: varchar("blocked_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Blocking twice is the same block, decided by the index rather than by a
+    // read-then-write that two tabs could both pass.
+    uniqueIndex("pomodoro_blocks_pair_unique").on(
+      table.blockerUserId,
+      table.blockedUserId
+    ),
+    index("pomodoro_blocks_blocked_idx").on(table.blockedUserId),
+  ]
+)
+
+/**
+ * A one-way follow. No invite, no approval, and nothing for the followed
+ * person to accept.
+ *
+ * Capped at 200 followed accounts. Tyler's call, 2 Oct 2026: far above what
+ * anybody reaches in normal use, and low enough that one account cannot
+ * follow every member to scrape the list.
+ */
+export const pomodoroFollows = pgTable(
+  "pomodoro_follows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    followerUserId: varchar("follower_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    followedUserId: varchar("followed_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // What makes a double-pressed Follow one row, the way the achievements
+    // index makes a twice-earned badge one row.
+    uniqueIndex("pomodoro_follows_pair_unique").on(
+      table.followerUserId,
+      table.followedUserId
+    ),
+    index("pomodoro_follows_followed_idx").on(table.followedUserId),
+    check(
+      "pomodoro_follows_not_self_check",
+      sql`${table.followerUserId} <> ${table.followedUserId}`
+    ),
+  ]
+)
+
+/**
+ * One cheer: a canned line sent to somebody you follow.
+ *
+ * The row exists to count the daily cap per pair, and to be the thing an
+ * operator could look at if this were ever abused. Nothing here is typed by
+ * anybody, so there is no text to moderate.
+ */
+export const pomodoroCheers = pgTable(
+  "pomodoro_cheers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fromUserId: varchar("from_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    toUserId: varchar("to_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** One of the fixed ids in `@/lib/pomodoro/cheers`, never free text. */
+    cheerId: varchar("cheer_id", { length: 40 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_cheers_pair_created_idx").on(
+      table.fromUserId,
+      table.toUserId,
+      table.createdAt
+    ),
+  ]
+)
+
+export const pomodoroProfiles = pgTable(
+  "pomodoro_profiles",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    publicDisplayName: varchar("public_display_name", { length: 50 }),
+    timezone: varchar("timezone", { length: 80 }).notNull().default("UTC"),
+    leaderboardOptIn: boolean("leaderboard_opt_in").notNull().default(false),
+    /**
+     * The secret in the public streak badge's address. Null is off, which is
+     * the default, so a badge only ever exists because someone asked for one.
+     * Turning it off clears the column, which is what kills the old link;
+     * asking for a new link writes a new secret and kills the old one the
+     * same way.
+     */
+    streakBadgeToken: varchar("streak_badge_token", { length: 64 }),
+    /**
+     * The one public address for this person, `/u/<handle>`. Null until they
+     * pick one. Always stored lowercase, because a handle is an address and
+     * two addresses differing only in case would be two doors to one page.
+     */
+    handle: varchar("handle", { length: 30 }),
+    /**
+     * Whether `/u/<handle>` answers at all. The column default is off, but
+     * `loadOrCreateProfile` makes every new row with it on, and migration
+     * 0158 switched every older row on (Tyler, 17 Oct 2026). Switching it
+     * off makes the page 404 exactly as an unknown handle does.
+     */
+    profilePublic: boolean("profile_public").notNull().default(false),
+    /** A few lines about the person. Drawn as text, never as markup. */
+    bio: varchar("bio", { length: 280 }),
+    /**
+     * The person's own social accounts, in the same shape the site-wide
+     * footer setting uses, so `normalizePublicSocialLinks` is the one reader
+     * for both. Re-normalised on the way out as well as in, so a hand-edited
+     * row cannot put a `javascript:` address on a page.
+     */
+    socialLinks: jsonb("social_links")
+      .$type<PublicSocialLink[]>()
+      .notNull()
+      .default([]),
+    /**
+     * The strip behind the name: `scene:<key>` for one of the eight built-in
+     * scenes, `media:<uuid>` for the person's own upload, null for none. The
+     * same spelling `user_preferences.selected_background` uses, parsed by
+     * the same function, so nothing a browser sends can become a URL.
+     */
+    bannerRef: varchar("banner_ref", { length: 80 }),
+    /**
+     * Up to three badge ids drawn larger above the rest. Ids the account has
+     * not earned, and ids that are no longer badges at all, are ignored when
+     * the page is built rather than drawn as a gap.
+     */
+    pinnedBadges: jsonb("pinned_badges")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    /**
+     * One switch per publishable section. The column defaults are off, and
+     * new and existing rows were switched on the same way as `profilePublic`
+     * above. The server
+     * reads a section only when its switch is on, so a section that is off is
+     * never in the page's data for anybody to find in the network tab.
+     *
+     * The bio, the links and the picture have no switch of their own: they
+     * are the profile, and they ride on `profilePublic`.
+     */
+    showFigures: boolean("show_figures").notNull().default(false),
+    showBadges: boolean("show_badges").notNull().default(false),
+    showHeatmap: boolean("show_heatmap").notNull().default(false),
+    showProjects: boolean("show_projects").notNull().default(false),
+    showFocusingNow: boolean("show_focusing_now").notNull().default(false),
+    showRoom: boolean("show_room").notNull().default(false),
+    /** The "My shared sounds and backgrounds" cards (migration 0138). */
+    showSharedMedia: boolean("show_shared_media").notNull().default(false),
+    /**
+     * When an admin approved this member's first shared file. After that,
+     * their shares go straight out.
+     */
+    sharingApprovedAt: timestamp("sharing_approved_at", { withTimezone: true }),
+    /**
+     * Whether this profile appears on `/people`. A second switch on top of
+     * `profilePublic`, because "I want a page" and "I want to be in a
+     * directory" are different wishes — the same reasoning that keeps the
+     * group board and the global board apart.
+     */
+    listed: boolean("listed").notNull().default(false),
+    /**
+     * Whether this person accepts cheers. On by default, because a cheer is
+     * one of a fixed set of canned lines from somebody they already allow to
+     * follow them, and off is one press away.
+     */
+    cheersEnabled: boolean("cheers_enabled").notNull().default(true),
+    /**
+     * Whether the people in a room with this person see the title of the
+     * task their running focus counts towards. Off by default, because a
+     * task title can name a client or a problem. Read only by the room
+     * snapshot, and only for people in that room.
+     */
+    shareTaskInRooms: boolean("share_task_in_rooms").notNull().default(false),
+    /**
+     * Set when an operator hides a reported profile. The public read tests
+     * it, so a hidden profile answers 404 exactly as a switched-off one does,
+     * and the owner is told on their own Settings card rather than left
+     * thinking the app broke.
+     */
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    /**
+     * Set when an admin takes this person off the global board and the group
+     * boards (admin task 06). `leaderboardOptIn` is left as they chose it, so
+     * putting them back restores exactly what they had. Their profile is not
+     * hidden by this.
+     */
+    leaderboardHiddenAt: timestamp("leaderboard_hidden_at", {
+      withTimezone: true,
+    }),
+    leaderboardHiddenByUserId: varchar("leaderboard_hidden_by_user_id", {
+      length: 36,
+    }),
+    guestImportedAt: timestamp("guest_imported_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Unique so one address can never resolve to two accounts, and partial so
+    // the many accounts with no badge do not all collide on null.
+    uniqueIndex("pomodoro_profiles_streak_badge_token_unique")
+      .on(table.streakBadgeToken)
+      .where(sql`${table.streakBadgeToken} is not null`),
+    // Same shape, same reason: one handle is one account, and the accounts
+    // with no handle must not all collide on null.
+    uniqueIndex("pomodoro_profiles_handle_unique")
+      .on(table.handle)
+      .where(sql`${table.handle} is not null`),
+    // The database's own last word on the shape, so a handle with a slash or
+    // a NUL byte in it cannot be written even by a hand-run statement.
+    check(
+      "pomodoro_profiles_handle_shape_check",
+      sql`${table.handle} is null or ${table.handle} ~ '^[a-z0-9_-]{3,30}$'`
+    ),
+  ]
+)
+
+/**
+ * A private focus group: a name, an owner and the secret in its invite link.
+ *
+ * There is no ranking stored here. A group board is the leaderboard query
+ * filtered to this group's members (`src/server/pomodoro/leaderboard.ts`), so
+ * the figures on a group board and the global one can never disagree.
+ *
+ * The token is never null, unlike the streak badge's: a group always has a
+ * link. Replacing it is what kills a leaked one.
+ */
+export const pomodoroGroups = pgTable(
+  "pomodoro_groups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerUserId: varchar("owner_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    joinToken: varchar("join_token", { length: 64 }).notNull().unique(),
+    /**
+     * The address of the group's public page, `/team/<handle>` (public
+     * profile task 05). Null until the owner picks one. Stored lowercase with
+     * the profile handle's shape, in its own namespace.
+     */
+    handle: varchar("handle", { length: 30 }),
+    /**
+     * Whether `/team/<handle>` answers at all. Off by default, and only an
+     * owner on Pro can switch it on; a lapsed plan makes the page 404 with the
+     * switch left as it was.
+     */
+    pagePublic: boolean("page_public").notNull().default(false),
+    /** The owner's line about the group, shown under its name (groups task 01). */
+    description: varchar("description", { length: 120 }),
+    /** The invite link lets nobody in while this is on, without changing. */
+    joinsPaused: boolean("joins_paused").notNull().default(false),
+    /** A join becomes a request the owner lets in or turns down. */
+    approveJoins: boolean("approve_joins").notNull().default(false),
+    /** "After 7 days": when the link stops. Null is never. */
+    linkExpiresAt: timestamp("link_expires_at", { withTimezone: true }),
+    /** "After 10 joins": how many more the link lets in. Null is no limit. */
+    linkJoinsLeft: integer("link_joins_left"),
+    /**
+     * The calendar the board counts days in, so every member sees the same
+     * week. Null reads as the owner's own timezone.
+     */
+    timezone: varchar("timezone", { length: 80 }),
+    /** Combined hours the group aims for each week. Null is no goal. */
+    weeklyGoalHours: integer("weekly_goal_hours"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_groups_owner_idx").on(table.ownerUserId),
+    uniqueIndex("pomodoro_groups_handle_unique")
+      .on(table.handle)
+      .where(sql`${table.handle} is not null`),
+    check(
+      "pomodoro_groups_handle_shape_check",
+      sql`${table.handle} is null or ${table.handle} ~ '^[a-z0-9_-]{3,30}$'`
+    ),
+    check(
+      "pomodoro_groups_link_joins_left_check",
+      sql`${table.linkJoinsLeft} is null or ${table.linkJoinsLeft} >= 0`
+    ),
+    check(
+      "pomodoro_groups_weekly_goal_check",
+      sql`${table.weeklyGoalHours} is null or ${table.weeklyGoalHours} between 1 and 1000`
+    ),
+  ]
+)
+
+/**
+ * One row per person in a group, the owner included.
+ *
+ * The unique pair is what makes "in a group once" true, so following an invite
+ * link twice leaves one row rather than two entries on the board.
+ */
+export const pomodoroGroupMembers = pgTable(
+  "pomodoro_group_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("pomodoro_group_members_group_user_unique").on(
+      table.groupId,
+      table.userId
+    ),
+    index("pomodoro_group_members_user_idx").on(table.userId),
+  ]
+)
+
+/** People the owner removed and kept out. The invite link refuses them. */
+export const pomodoroGroupBans = pgTable(
+  "pomodoro_group_bans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("pomodoro_group_bans_group_user_unique").on(
+      table.groupId,
+      table.userId
+    ),
+  ]
+)
+
+/** A join waiting for the owner. Counts toward neither cap until let in. */
+export const pomodoroGroupRequests = pgTable(
+  "pomodoro_group_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("pomodoro_group_requests_group_user_unique").on(
+      table.groupId,
+      table.userId
+    ),
+    index("pomodoro_group_requests_user_idx").on(table.userId),
+  ]
+)
+
+/**
+ * An invite sent in the bell to somebody the sender follows. Answering sets
+ * `answeredAt` instead of deleting, because the daily limit counts these rows.
+ */
+export const pomodoroGroupInvites = pgTable(
+  "pomodoro_group_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    inviteeUserId: varchar("invitee_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    inviterUserId: varchar("inviter_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+  },
+  (table) => [
+    unique("pomodoro_group_invites_group_invitee_unique").on(
+      table.groupId,
+      table.inviteeUserId
+    ),
+    index("pomodoro_group_invites_inviter_idx").on(
+      table.inviterUserId,
+      table.createdAt
+    ),
+    index("pomodoro_group_invites_invitee_idx").on(table.inviteeUserId),
+  ]
+)
+
+/**
+ * The owner's Activity panel. `name` is the words the line shows, saved as
+ * they were then, so drawing it needs no user id. The last 50 are kept.
+ */
+export const pomodoroGroupEvents = pgTable(
+  "pomodoro_group_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 30 }).notNull(),
+    name: varchar("name", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_group_events_group_created_idx").on(
+      table.groupId,
+      table.createdAt
+    ),
+  ]
+)
+
+/** Which hour milestones a group has reached, so each is told once. */
+export const pomodoroGroupMilestones = pgTable(
+  "pomodoro_group_milestones",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    hours: integer("hours").notNull(),
+    reachedAt: timestamp("reached_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "pomodoro_group_milestones_pk",
+      columns: [table.groupId, table.hours],
+    }),
+  ]
+)
+
+/**
+ * Which weekly notices went out, the Monday winner and the goal reached. A
+ * record that a notice was sent, never a ranking.
+ */
+export const pomodoroGroupWeekNotices = pgTable(
+  "pomodoro_group_week_notices",
+  {
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => pomodoroGroups.id, { onDelete: "cascade" }),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: "pomodoro_group_week_notices_pk",
+      columns: [table.groupId, table.weekStart, table.kind],
+    }),
+    check(
+      "pomodoro_group_week_notices_kind_check",
+      sql`${table.kind} in ('winner', 'goal')`
+    ),
+  ]
+)
+
+export const userTimerPresets = pgTable(
+  "user_timer_presets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 60 }).notNull(),
+    focusMinutes: integer("focus_minutes").notNull(),
+    shortBreakMinutes: integer("short_break_minutes").notNull(),
+    longBreakMinutes: integer("long_break_minutes").notNull(),
+    /** The preset owns the long-break cycle, the same as its durations. */
+    sessionsBeforeLongBreak: integer("sessions_before_long_break")
+      .notNull()
+      .default(4),
+    autoStart: boolean("auto_start").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "timer_presets_focus_check",
+      sql`${table.focusMinutes} between 1 and 90`
+    ),
+    check(
+      "timer_presets_short_check",
+      sql`${table.shortBreakMinutes} between 1 and 90`
+    ),
+    check(
+      "timer_presets_long_check",
+      sql`${table.longBreakMinutes} between 1 and 90`
+    ),
+    check(
+      "timer_presets_long_break_cycle_check",
+      sql`${table.sessionsBeforeLongBreak} between 2 and 8`
+    ),
+    unique("timer_presets_user_name_unique").on(table.userId, table.name),
+  ]
+)
+
+export type UserPreferences = typeof userPreferences.$inferSelect
+export type PomodoroPersonalRoom = typeof pomodoroPersonalRooms.$inferSelect
+export type FocusSession = typeof focusSessions.$inferSelect
+export type DailyFocusStat = typeof dailyFocusStats.$inferSelect
+export type Task = typeof tasks.$inferSelect
+export type PomodoroProject = typeof pomodoroProjects.$inferSelect
+export type PomodoroTaskRepeat = typeof pomodoroTaskRepeats.$inferSelect
+export type UserTimerPreset = typeof userTimerPresets.$inferSelect
+export type PomodoroProfile = typeof pomodoroProfiles.$inferSelect
+export type PomodoroAchievement = typeof pomodoroAchievements.$inferSelect
+export type PomodoroGroup = typeof pomodoroGroups.$inferSelect
+export type PomodoroGroupMember = typeof pomodoroGroupMembers.$inferSelect
+
+export const rooms = pgTable(
+  "rooms",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    hostUserId: varchar("host_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    slug: varchar("slug", { length: 80 }).notNull().unique(),
+    name: varchar("name", { length: 80 }).notNull(),
+    visibility: varchar("visibility", { length: 20 })
+      .notNull()
+      .default("public"),
+    phase: varchar("phase", { length: 20 }).notNull().default("waiting"),
+    /** Bumped by every phase change; stale timed transitions no-op on it. */
+    sequence: integer("sequence").notNull().default(0),
+    /**
+     * When a booked room opens itself. Null on a room started by hand, which
+     * is every room made before scheduling existed. Set alongside the
+     * 'scheduled' phase and left in place afterwards, so an opened room still
+     * says what time it was booked for.
+     */
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    /** The weekly rule that made this room, when one did. */
+    repeatId: uuid("repeat_id").references(() => pomodoroRoomRepeats.id, {
+      onDelete: "set null",
+    }),
+    /** Which of the rule's days this room is, on the host's calendar. */
+    occurrenceDate: date("occurrence_date", { mode: "string" }),
+    /**
+     * The group this is a group room of (groups task 01). Only that group's
+     * members may join, and it shows on their Group room card.
+     */
+    groupId: uuid("group_id").references(() => pomodoroGroups.id, {
+      onDelete: "set null",
+    }),
+    phaseStartedAt: timestamp("phase_started_at", { withTimezone: true }),
+    phaseEndsAt: timestamp("phase_ends_at", { withTimezone: true }),
+    focusMinutes: integer("focus_minutes").notNull().default(25),
+    shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
+    longBreakMinutes: integer("long_break_minutes").notNull().default(15),
+    autoStart: boolean("auto_start").notNull().default(false),
+    /**
+     * The sound and theme everybody in the room gets, picked by the host:
+     * `curated:<key>` and `scene:<key>`, catalogue only. Null on rooms made
+     * before 7 Oct 2026, which draw the default scene with no sound.
+     */
+    sound: varchar("sound", { length: 200 }),
+    background: varchar("background", { length: 200 }),
+    cycleFocusCount: integer("cycle_focus_count").notNull().default(0),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    /** Set by an admin to put the room first on Browse rooms (admin task 04). */
+    featuredAt: timestamp("featured_at", { withTimezone: true }),
+    /**
+     * "Starting in": the countdown the host's Start begins, 5 seconds until
+     * the host picks 1 to 5 minutes. Tyler, 9 Oct 2026.
+     */
+    startDelaySeconds: integer("start_delay_seconds").notNull().default(5),
+    /**
+     * The host's own limit on how many people the room holds (migration
+     * 0151), null for none. The admin's site-wide limit applies on top and
+     * the lower wins.
+     */
+    maxPeople: integer("max_people"),
+    /** When a countdown running from waiting ends and the focus starts. */
+    startingAt: timestamp("starting_at", { withTimezone: true }),
+    /** The length of that countdown, so a minute or more lists under "Starting soon". */
+    countdownSeconds: integer("countdown_seconds"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "rooms_start_delay_check",
+      sql`${table.startDelaySeconds} in (5, 60, 120, 180, 240, 300)`
+    ),
+    check(
+      "rooms_visibility_check",
+      sql`${table.visibility} in ('public', 'unlisted')`
+    ),
+    check(
+      "rooms_cycle_focus_count_check",
+      sql`${table.cycleFocusCount} between 0 and 4`
+    ),
+    check(
+      "rooms_phase_check",
+      sql`${table.phase} in ('scheduled', 'waiting', 'focus', 'short', 'long', 'closed')`
+    ),
+    // A room waiting for its own clock must say when that clock goes off,
+    // otherwise nothing would ever open it.
+    check(
+      "rooms_scheduled_starts_at_check",
+      sql`${table.phase} <> 'scheduled' or ${table.startsAt} is not null`
+    ),
+    index("rooms_public_idx").on(
+      table.visibility,
+      table.phase,
+      table.createdAt
+    ),
+    index("rooms_scheduled_idx").on(table.phase, table.startsAt),
+    index("rooms_group_idx")
+      .on(table.groupId)
+      .where(sql`${table.groupId} is not null`),
+    // The room clock's read for countdowns that have run out (migration 0132).
+    index("rooms_starting_idx")
+      .on(table.startingAt)
+      .where(sql`${table.startingAt} is not null`),
+    // One room per rule per day. The worker inserts on conflict do nothing,
+    // so two passes racing for the same Tuesday make one room between them.
+    uniqueIndex("rooms_repeat_occurrence_unique")
+      .on(table.repeatId, table.occurrenceDate)
+      .where(sql`${table.repeatId} is not null`),
+  ]
+)
+
+/**
+ * A room that repeats every week: the settings, the days, the time and the
+ * invite list. Nothing here is a room. The scheduled-rooms worker turns each
+ * occurrence into an ordinary booked room a day before it starts, with its
+ * own invitations, so everything a one-off booking does a weekly one does too.
+ *
+ * `weekdays` is the same seven-bit set as `pomodoroTaskRepeats`. The time is
+ * minutes after midnight in `timezone`, the host's own when the rule was made,
+ * so a 9am room stays 9am for the host through a clock change.
+ */
+export const pomodoroRoomRepeats = pgTable(
+  "pomodoro_room_repeats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    hostUserId: varchar("host_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    visibility: varchar("visibility", { length: 20 })
+      .notNull()
+      .default("public"),
+    weekdays: integer("weekdays").notNull(),
+    startMinute: integer("start_minute").notNull(),
+    timezone: varchar("timezone", { length: 80 }).notNull(),
+    focusMinutes: integer("focus_minutes").notNull().default(25),
+    shortBreakMinutes: integer("short_break_minutes").notNull().default(5),
+    longBreakMinutes: integer("long_break_minutes").notNull().default(15),
+    autoStart: boolean("auto_start").notNull().default(false),
+    /** Copied onto every room the rule books, the same as the timers. */
+    sound: varchar("sound", { length: 200 }),
+    background: varchar("background", { length: 200 }),
+    /** Lowercased addresses. Copied onto each room's own invites when it is made. */
+    invites: jsonb("invites").$type<string[]>().notNull().default([]),
+    /**
+     * A weekly group room: each week's room is a group room, and its invites
+     * are the group's members as they are that week.
+     */
+    groupId: uuid("group_id").references(() => pomodoroGroups.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * When the next day still to be booked starts. The worker moves it on
+     * each time it books a day, and Cancel this week moves it on without
+     * booking, so a pass reads only the rules due within a day.
+     */
+    nextStartsAt: timestamp("next_starts_at", { withTimezone: true }),
+    /**
+     * When a day was first skipped because the host no longer has Pro
+     * (payments task 05, migration 0156). Invitees hear once per pause;
+     * cleared the next time a day books.
+     */
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    /** Set by Cancel the series. Rooms already made keep their own state. */
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    /** Every room this rule books sits first on Browse rooms. */
+    featured: boolean("featured").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_room_repeats_visibility_check",
+      sql`${table.visibility} in ('public', 'unlisted')`
+    ),
+    check(
+      "pomodoro_room_repeats_weekdays_check",
+      sql`${table.weekdays} between 1 and 127`
+    ),
+    check(
+      "pomodoro_room_repeats_start_minute_check",
+      sql`${table.startMinute} between 0 and 1439`
+    ),
+    index("pomodoro_room_repeats_host_idx").on(table.hostUserId),
+    index("pomodoro_room_repeats_next_idx")
+      .on(table.nextStartsAt)
+      .where(sql`${table.cancelledAt} is null`),
+  ]
+)
+
+export const roomMemberships = pgTable(
+  "room_memberships",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    role: varchar("role", { length: 20 }).notNull().default("member"),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    leftAt: timestamp("left_at", { withTimezone: true }),
+    /**
+     * Until when this member counts as looking at the room. The room's live
+     * connection sets it forty seconds ahead when it opens and every fifteen
+     * seconds after, and clears it when it closes. In the future means the
+     * room is on their screen, so the bell stays quiet about what they can
+     * already see. Null, or in the past, means away.
+     */
+    watchingUntil: timestamp("watching_until", { withTimezone: true }),
+    /**
+     * Kept the room on the person's My rooms list. The list was removed on
+     * 7 Oct 2026 and nothing writes or reads this any more; the column stays
+     * because a stored field is never removed.
+     */
+    saved: boolean("saved").notNull().default(false),
+  },
+  (table) => [
+    check(
+      "room_memberships_role_check",
+      sql`${table.role} in ('host', 'member')`
+    ),
+    uniqueIndex("room_memberships_one_active_room_per_user")
+      .on(table.userId)
+      .where(sql`${table.leftAt} is null`),
+    index("room_memberships_room_active_idx").on(table.roomId, table.leftAt),
+    index("room_memberships_user_saved_idx")
+      .on(table.userId, table.roomId)
+      .where(sql`${table.saved}`),
+    // Where the "focused with" list starts: one person's memberships from a
+    // date onwards.
+    index("room_memberships_user_joined_idx").on(table.userId, table.joinedAt),
+  ]
+)
+
+export const roomMessages = pgTable(
+  "room_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    body: varchar("body", { length: 500 }).notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /** Who removed it: "host" or "admin". Null on a host's removal before 8 Oct 2026. */
+    removedBy: varchar("removed_by", { length: 10 }).$type<"host" | "admin">(),
+    /** Held for an admin because it has a blocked word; only its writer sees it. */
+    heldAt: timestamp("held_at", { withTimezone: true }),
+    /** An admin's line to every live room, pinned at the top and signed Pomoder. */
+    broadcast: boolean("broadcast").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("room_messages_room_created_idx").on(table.roomId, table.createdAt),
+  ]
+)
+
+/**
+ * "Did you finish?" after a room's focus (Tyler's pick, 7 Nov 2026). One
+ * answer per person per break, keyed by the room's `sequence` during that
+ * break, so a second press changes the answer and the next focus, which moves
+ * the sequence on, leaves every tick behind without a cleanup.
+ */
+export const pomodoroRoomCheckIns = pgTable(
+  "pomodoro_room_check_ins",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    breakSequence: integer("break_sequence").notNull(),
+    finished: boolean("finished").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pomodoro_room_check_ins_room_user_break_unique").on(
+      table.roomId,
+      table.userId,
+      table.breakSequence
+    ),
+  ]
+)
+
+export const roomMessageReactions = pgTable(
+  "room_message_reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => roomMessages.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    emoji: varchar("emoji", { length: 16 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("room_message_reactions_message_user_emoji_unique").on(
+      table.messageId,
+      table.userId,
+      table.emoji
+    ),
+    index("room_message_reactions_message_idx").on(table.messageId),
+  ]
+)
+
+export const roomBans = pgTable(
+  "room_bans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    bannedByUserId: varchar("banned_by_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("room_bans_room_user_unique").on(table.roomId, table.userId),
+  ]
+)
+
+/**
+ * One invitation email for a booked room: who it goes to and what became of
+ * it. The row is written when the host books the room and the worker sends
+ * it on the next pass, so cancelling in between means the email never leaves.
+ *
+ * The address is stored lowercased and unique per room, so a host who types
+ * the same person twice invites them once.
+ */
+export const roomInvites = pgTable(
+  "room_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    email: varchar("email", { length: 254 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("queued"),
+    /** Claimed by the sender before it sends, so two passes cannot both send. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    failureReason: varchar("failure_reason", { length: 200 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "room_invites_status_check",
+      sql`${table.status} in ('queued', 'sent', 'failed', 'cancelled')`
+    ),
+    unique("room_invites_room_email_unique").on(table.roomId, table.email),
+    index("room_invites_status_created_idx").on(table.status, table.createdAt),
+  ]
+)
+
+export const roomReports = pgTable(
+  "room_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /**
+     * What is being reported. `message` is a room message, which is every row
+     * written before public profiles existed and the reason this column
+     * defaults to it.
+     */
+    kind: varchar("kind", { length: 20 }).notNull().default("message"),
+    /** Null on a profile report, which belongs to no room. */
+    roomId: uuid("room_id").references(() => rooms.id, {
+      onDelete: "cascade",
+    }),
+    /**
+     * Null when a signed-out reader reported a public profile. The page is
+     * public and most of its readers have no account, so a report that
+     * required one would mostly not be filed.
+     */
+    reporterUserId: varchar("reporter_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "cascade" }
+    ),
+    /** The group a `group` report is about. */
+    groupId: uuid("group_id").references(() => pomodoroGroups.id, {
+      onDelete: "cascade",
+    }),
+    /** Whose profile was reported. Null on a message report. */
+    profileUserId: varchar("profile_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "cascade" }
+    ),
+    messageId: uuid("message_id").references(() => roomMessages.id, {
+      onDelete: "set null",
+    }),
+    reason: varchar("reason", { length: 300 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    reviewedByUserId: varchar("reviewed_by_user_id", {
+      length: 36,
+    }).references(() => customShellUsers.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    /**
+     * When the reporter was told the report was reviewed. Set on the first
+     * resolve or dismiss and never cleared, so reopening and closing again
+     * tells nobody twice.
+     */
+    reporterToldAt: timestamp("reporter_told_at", { withTimezone: true }),
+    /**
+     * The shared file a `shared_file` or `copyright` report is about. No
+     * foreign key, so the report keeps naming the file after it is gone.
+     */
+    mediaId: varchar("media_id", { length: 36 }),
+    /** A copyright report from somebody with no account: who and how to reply. */
+    contactName: varchar("contact_name", { length: 100 }),
+    contactEmail: varchar("contact_email", { length: 254 }),
+    /** What the file copies, in the sender's words. */
+    details: varchar("details", { length: 2000 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "room_reports_status_check",
+      sql`${table.status} in ('pending', 'resolved', 'dismissed')`
+    ),
+    uniqueIndex("room_reports_reporter_message_unique").on(
+      table.reporterUserId,
+      table.messageId
+    ),
+    index("room_reports_status_created_idx").on(table.status, table.createdAt),
+  ]
+)
+
+/**
+ * What one of this app's bell notices is about, saved beside it.
+ *
+ * Every Pomodoro notice is the shell's `app_activity` type, so the shell's
+ * row cannot say whether it is a cheer or a room notice, or which room. This
+ * row does, and it is written in the same transaction as the notice. The link
+ * the bell follows is worked out from it when the tray is read, never stored:
+ * a handle can change and a room can close after the notice was written.
+ */
+export const pomodoroNoticeLinks = pgTable(
+  "pomodoro_notice_links",
+  {
+    noticeId: varchar("notice_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellNotifications.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 30 }).$type<PomodoroNoticeKind>().notNull(),
+    /**
+     * The room a room notice is about. Opening that room marks its notices
+     * read. Kept, as null, when the room is deleted, so the notice keeps its
+     * kind and simply stops leading anywhere.
+     */
+    roomId: uuid("room_id").references(() => rooms.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * The chat message a mention or reaction notice is about, so reactions
+     * fold per message and a host deleting the message takes its notices too.
+     */
+    messageId: uuid("message_id").references(() => roomMessages.id, {
+      onDelete: "set null",
+    }),
+    /** The group a group notice is about, so later joins fold into it. */
+    groupId: uuid("group_id").references(() => pomodoroGroups.id, {
+      onDelete: "set null",
+    }),
+    /**
+     * How many events this one unread notice stands for. A second join while
+     * the first is unread raises this and rewrites the sentence rather than
+     * adding a row.
+     */
+    foldCount: integer("fold_count").notNull().default(1),
+    /**
+     * Where a notice about a fixed page of this app leads: History, the
+     * leaderboard, the backgrounds or sounds page. Null for a notice whose
+     * link is a person's page, which is worked out when the tray is read.
+     */
+    href: varchar("href", { length: 200 }),
+  },
+  (table) => [
+    index("pomodoro_notice_links_room_idx")
+      .on(table.roomId)
+      .where(sql`${table.roomId} is not null`),
+    index("pomodoro_notice_links_message_idx")
+      .on(table.messageId)
+      .where(sql`${table.messageId} is not null`),
+  ]
+)
+
+/**
+ * Who did what, for every privileged act in the app: a host deleting a
+ * message, removing or banning a member, and (with the admin sections) an
+ * operator moving a report along. The old app wrote the shell's
+ * `admin_audit_logs`; this shell has no such table, so the app owns one
+ * rather than writing into shell-owned rows.
+ *
+ * `actorUserId` carries no foreign key on purpose: deleting an account must
+ * not delete the record of what that account did.
+ */
+export const pomodoroAuditLogs = pgTable(
+  "pomodoro_audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull(),
+    action: varchar("action", { length: 40 }).notNull(),
+    resource: varchar("resource", { length: 30 }).notNull(),
+    recordIds: jsonb("record_ids").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_audit_logs_actor_created_idx").on(
+      table.actorUserId,
+      table.createdAt
+    ),
+    index("pomodoro_audit_logs_resource_created_idx").on(
+      table.resource,
+      table.createdAt
+    ),
+  ]
+)
+
+/**
+ * A Pro member's own background or sound loop.
+ *
+ * The file and its record live in the shell's media library and its R2 bucket,
+ * so this table holds only what the shell knows nothing about: which library
+ * files belong to the pomodoro app, what the member meant each one for, and how
+ * the re-encode is getting on. `mediaId` is the key, so one library file is at
+ * most one pomodoro upload and deleting the library row takes this row with it.
+ */
+export const pomodoroMediaUploads = pgTable(
+  "pomodoro_media_uploads",
+  {
+    mediaId: varchar("media_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    purpose: varchar("purpose", { length: 20 }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("queued"),
+    /**
+     * What the member actually sent. Kept after the re-encode replaces the
+     * file, so the size the upload was accepted at is still on record.
+     */
+    originalBytes: bigint("original_bytes", { mode: "number" }).notNull(),
+    failureReason: varchar("failure_reason", { length: 200 }),
+    /**
+     * What the card shows, typed in the upload window (migration 0133). Null
+     * only on a row written by a server still running older code, which the
+     * list reads as the library row's file name.
+     */
+    name: varchar("name", { length: 80 }),
+    /** Short lower-case words, the same rules as the catalogue's tags. */
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    /**
+     * The "Share this" tick. Other members see the file only while it is on,
+     * confirmed, out of the bin, not waiting for an admin's first check and
+     * ready (`sharedWithOthers` in `src/server/pomodoro/shared-media.ts`).
+     */
+    shared: boolean("shared").notNull().default(false),
+    /** When the tick last went on: newest first, and the daily limit. */
+    sharedAt: timestamp("shared_at", { withTimezone: true }),
+    /** When the member confirmed the file is theirs or free to share. */
+    shareConfirmedAt: timestamp("share_confirmed_at", { withTimezone: true }),
+    /** Waiting for an admin to approve this member's first share. */
+    shareWaitingSince: timestamp("share_waiting_since", { withTimezone: true }),
+    /** An admin took it off sharing; the owner cannot share it again. */
+    adminUnsharedAt: timestamp("admin_unshared_at", { withTimezone: true }),
+    adminUnshareReason: varchar("admin_unshare_reason", { length: 300 }),
+    /** Followers were told about it, so the next pass does not tell them twice. */
+    shareAnnouncedAt: timestamp("share_announced_at", { withTimezone: true }),
+    /** The one file an admin features on the front page. */
+    featuredAt: timestamp("featured_at", { withTimezone: true }),
+    /**
+     * Where a trimmed sound or clip starts and ends. The whole file is stored
+     * and the worker cuts it while re-encoding. Both null when not trimmed.
+     */
+    trimStartMs: integer("trim_start_ms"),
+    trimEndMs: integer("trim_end_ms"),
+    /**
+     * The original a sound or clip was cut from, kept as a library file of its
+     * own so a re-trim can reach parts an earlier trim cut (migration 0134).
+     * While it is set, the upload's own library row holds a finished file.
+     */
+    sourceMediaId: varchar("source_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    /**
+     * When it last joined the worker's queue (migration 0135). The worker
+     * takes the oldest first by this, so a re-trim of an old file waits its
+     * turn behind newer uploads.
+     */
+    queuedAt: timestamp("queued_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /**
+     * In the 30-day bin since then (migration 0136). Hidden everywhere a
+     * member picks or plays a file, still counted toward their space, and
+     * removed for good by a worker pass after 30 days.
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /**
+     * A video's middle frame, under `pomodoro-stills/` in the bucket, so a
+     * grid of clips loads pictures rather than films. Null for a sound, a
+     * picture, or a video the worker has not reached yet.
+     */
+    stillPath: varchar("still_path", { length: 300 }),
+    /**
+     * Who made a file imported from Pixabay ("Ruben on Pixabay") and their
+     * page, so the credit follows the file (task 06, part 8). Null otherwise.
+     */
+    sourceAuthor: varchar("source_author", { length: 160 }),
+    sourcePageUrl: varchar("source_page_url", { length: 500 }),
+    attempts: integer("attempts").notNull().default(0),
+    /**
+     * Set while a worker pass holds the job. A pass that dies leaves this
+     * behind, so a stale claim is retried after a timeout rather than stuck.
+     */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_media_uploads_purpose_check",
+      sql`${table.purpose} in ('background', 'sound')`
+    ),
+    check(
+      "pomodoro_media_uploads_kind_check",
+      sql`${table.kind} in ('image', 'audio', 'video')`
+    ),
+    check(
+      "pomodoro_media_uploads_status_check",
+      sql`${table.status} in ('queued', 'processing', 'ready', 'failed')`
+    ),
+    check(
+      "pomodoro_media_uploads_original_bytes_check",
+      sql`${table.originalBytes} > 0`
+    ),
+    check(
+      "pomodoro_media_uploads_trim_check",
+      sql`(${table.trimStartMs} is null and ${table.trimEndMs} is null) or (${table.trimStartMs} >= 0 and ${table.trimEndMs} > ${table.trimStartMs})`
+    ),
+    index("pomodoro_media_uploads_user_purpose_idx").on(
+      table.userId,
+      table.purpose,
+      table.createdAt
+    ),
+    index("pomodoro_media_uploads_status_created_idx").on(
+      table.status,
+      table.createdAt
+    ),
+    index("pomodoro_media_uploads_status_queued_idx").on(
+      table.status,
+      table.queuedAt
+    ),
+  ]
+)
+
+/** A shared file somebody kept for later with the heart (migration 0138). */
+export const pomodoroSavedMedia = pgTable(
+  "pomodoro_saved_media",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.mediaId] }),
+    index("pomodoro_saved_media_media_idx").on(table.mediaId),
+  ]
+)
+
+/**
+ * The first time each person added someone else's shared file to a room or
+ * saved it, for the owner's weekly note. One row per person per file.
+ */
+export const pomodoroMediaAdds = pgTable(
+  "pomodoro_media_adds",
+  {
+    mediaId: varchar("media_id", { length: 36 })
+      .notNull()
+      .references(() => customShellMedia.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.mediaId, table.userId] }),
+    index("pomodoro_media_adds_created_idx").on(table.createdAt),
+  ]
+)
+
+/** The Monday each owner was last sent the weekly sharing note. */
+export const pomodoroShareWeeklyNotes = pgTable(
+  "pomodoro_share_weekly_notes",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.weekStart] })]
+)
+
+/**
+ * A member the bell has told their space is nearly full (90% of the plan's
+ * limit). The row goes when they drop back under, so the next climb warns
+ * again (migration 0136).
+ */
+export const pomodoroStorageWarnings = pgTable("pomodoro_storage_warnings", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  warnedAt: timestamp("warned_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/**
+ * Bucket files to remove on the media worker's next pass (migration 0137).
+ * A trigger notes a clip's still here whenever its upload row is deleted, by
+ * any route including an account purge, or its still is replaced, because a
+ * still has no library row for the shell's own clean-up to find.
+ */
+export const pomodoroBucketDeletions = pgTable("pomodoro_bucket_deletions", {
+  path: varchar("path", { length: 300 }).primaryKey(),
+  queuedAt: timestamp("queued_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/**
+ * What each person has spent on AI generation this month.
+ *
+ * `reserved - refunded` is what has actually been spent, so a failed job hands
+ * the credit back without losing the record that the attempt happened. The
+ * credit is taken when the request is accepted rather than when the file
+ * arrives, so nobody can queue twenty videos while the first is still running.
+ */
+export const pomodoroGenerationUsage = pgTable(
+  "pomodoro_generation_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** The first of the month, so a month is one comparable value. */
+    month: date("month", { mode: "string" }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    reserved: integer("reserved").notNull().default(0),
+    completed: integer("completed").notNull().default(0),
+    refunded: integer("refunded").notNull().default(0),
+    /**
+     * When the "one left" and "none left" notices went out for this month and
+     * kind. Each goes out once: a refund that lifts the count back up must not
+     * send the same warning a second time.
+     */
+    warnedLowAt: timestamp("warned_low_at", { withTimezone: true }),
+    warnedEmptyAt: timestamp("warned_empty_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_generation_usage_kind_check",
+      sql`${table.kind} in ('background', 'soundscape')`
+    ),
+    check(
+      "pomodoro_generation_usage_counts_check",
+      sql`${table.reserved} >= 0 and ${table.completed} >= 0 and ${table.refunded} >= 0`
+    ),
+    unique("pomodoro_generation_usage_unique").on(
+      table.userId,
+      table.month,
+      table.kind
+    ),
+  ]
+)
+
+/**
+ * One AI request, from the moment it is asked for until a file exists.
+ *
+ * `mediaId` stays null until then, which is why this cannot live on
+ * `pomodoroMediaUploads`: that table is keyed by a library row, and for most of
+ * a generation's life there is not one yet. Once the file lands it gets an
+ * uploads row too, so the pickers, the serving and the delete all work on it
+ * exactly as they do on something the member uploaded themselves.
+ */
+export const pomodoroGenerations = pgTable(
+  "pomodoro_generations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    prompt: varchar("prompt", { length: 500 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("queued"),
+    /**
+     * The month the credit came out of, so a refund goes back to the same
+     * month even when the job finishes after midnight on the first.
+     */
+    month: date("month", { mode: "string" }).notNull(),
+    mediaId: varchar("media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    failureReason: varchar("failure_reason", { length: 200 }),
+    attempts: integer("attempts").notNull().default(0),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    /** A style pill's key (task 06, part 6), added inside the prompt frame. */
+    style: varchar("style", { length: 20 }),
+    /**
+     * Asked to start from one of the member's pictures (task 06, part 3).
+     * Stays true when the picture goes, so the worker refuses rather than
+     * making a film from the words alone.
+     */
+    fromPicture: boolean("from_picture").notNull().default(false),
+    pictureMediaId: varchar("picture_media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    /** The two halves of a whole look made from one prompt (part 7). */
+    lookId: uuid("look_id"),
+    /**
+     * Which pot the credit came from, `month` or a bought `pack` (task 07,
+     * migration 0146), so a failure refunds the pot it was taken from.
+     */
+    pot: varchar("pot", { length: 10 }).notNull().default("month"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_generations_kind_check",
+      sql`${table.kind} in ('background', 'soundscape')`
+    ),
+    check(
+      "pomodoro_generations_status_check",
+      sql`${table.status} in ('queued', 'running', 'ready', 'failed')`
+    ),
+    index("pomodoro_generations_user_kind_idx").on(
+      table.userId,
+      table.kind,
+      table.createdAt
+    ),
+    index("pomodoro_generations_status_created_idx").on(
+      table.status,
+      table.createdAt
+    ),
+  ]
+)
+
+/**
+ * One-off purchases (uploads-and-sharing task 07, migration 0146): an AI
+ * credit pack or 10 GB more space for a year. Written when Buy is pressed,
+ * paid once Stripe says so, refunded when Stripe says the charge was.
+ */
+export const pomodoroPurchases = pgTable(
+  "pomodoro_purchases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    product: varchar("product", { length: 30 }).notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("usd"),
+    stripeSessionId: varchar("stripe_session_id", { length: 255 }).unique(),
+    stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    /** Space only: when the extra 10 GB stops counting. */
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    refundedAt: timestamp("refunded_at", { withTimezone: true }),
+    /**
+     * Paid with Stripe's live keys rather than its sandbox keys (migration
+     * 0149). Only purchases in the site's current mode count.
+     */
+    livemode: boolean("livemode").notNull().default(false),
+    /** When the worker last asked Stripe about it. */
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_purchases_product_check",
+      sql`${table.product} in ('backgrounds_5', 'soundscapes_20', 'space_10gb')`
+    ),
+    check(
+      "pomodoro_purchases_status_check",
+      sql`${table.status} in ('pending', 'paid', 'refunded', 'expired')`
+    ),
+    check("pomodoro_purchases_amount_check", sql`${table.amountCents} > 0`),
+    index("pomodoro_purchases_user_idx").on(table.userId, table.status),
+    index("pomodoro_purchases_check_idx").on(table.status, table.checkedAt),
+  ]
+)
+
+/**
+ * What has been spent from bought credits, per member and kind. They never
+ * reset: what is left is every paid pack's credits less `reserved -
+ * refunded`, the monthly ledger's own rule.
+ */
+export const pomodoroPackUsage = pgTable(
+  "pomodoro_pack_usage",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    reserved: integer("reserved").notNull().default(0),
+    completed: integer("completed").notNull().default(0),
+    refunded: integer("refunded").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.kind] }),
+    check(
+      "pomodoro_pack_usage_kind_check",
+      sql`${table.kind} in ('background', 'soundscape')`
+    ),
+    check(
+      "pomodoro_pack_usage_counts_check",
+      sql`${table.reserved} >= 0 and ${table.completed} >= 0 and ${table.refunded} >= 0`
+    ),
+  ]
+)
+
+/**
+ * A member's pasted Pixabay link, waiting for the Pixabay worker (task 06,
+ * part 8, migration 0145). The finished file is an ordinary upload; this row
+ * is the queue and what the daily limit counts.
+ */
+export const pomodoroMemberImports = pgTable(
+  "pomodoro_member_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    url: varchar("url", { length: 500 }).notNull(),
+    family: varchar("family", { length: 10 }).notNull(),
+    pixabayId: varchar("pixabay_id", { length: 20 }).notNull(),
+    name: varchar("name", { length: 80 }).notNull(),
+    /**
+     * An admin's "Give them files to share" for a made-up account (task 05,
+     * part 9, migration 0147): the finished file is shared at once.
+     */
+    madeUpShare: boolean("made_up_share").notNull().default(false),
+    status: varchar("status", { length: 20 }).notNull().default("queued"),
+    failureReason: varchar("failure_reason", { length: 200 }),
+    mediaId: varchar("media_id", { length: 36 }).references(
+      () => customShellMedia.id,
+      { onDelete: "set null" }
+    ),
+    attempts: integer("attempts").notNull().default(0),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_member_imports_family_check",
+      sql`${table.family} in ('image', 'video')`
+    ),
+    check(
+      "pomodoro_member_imports_status_check",
+      sql`${table.status} in ('queued', 'running', 'ready', 'failed')`
+    ),
+    index("pomodoro_member_imports_user_idx").on(table.userId, table.createdAt),
+    index("pomodoro_member_imports_queue_idx").on(table.status, table.createdAt),
+  ]
+)
+
+/**
+ * The themes and sounds every member picks from, kept here so an admin can
+ * add, edit, order, price and hide them without a deploy (admin task 02,
+ * 8 Oct 2026). See `workspace/docs/catalog-admin.md`.
+ *
+ * `key` is what a choice stores, as `scene:<key>` or `curated:<key>`, so it
+ * never changes once an item exists: a renamed key would silently empty every
+ * room that picked it. The sixteen items that shipped in code were copied in
+ * with their old keys and their files still under `public/`.
+ *
+ * A file an admin uploads goes to the bucket and is re-encoded by the worker
+ * first: `fileStatus` is `queued` until then, `failed` with the reason when the
+ * file was refused, and `ready` once `fileUrl` is the finished file. A Draft or
+ * an item whose file is not ready is never shown to members.
+ */
+export const pomodoroCatalogItems = pgTable(
+  "pomodoro_catalog_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: varchar("kind", { length: 10 }).$type<"theme" | "sound">().notNull(),
+    key: varchar("key", { length: 40 }).notNull(),
+    label: varchar("label", { length: 60 }).notNull(),
+    hint: varchar("hint", { length: 120 }).notNull().default(""),
+    /**
+     * A sound's group (music, ambient, noise) or a theme's look (video,
+     * animated, static), shown small on the card.
+     */
+    descriptor: varchar("descriptor", { length: 20 }).notNull().default(""),
+    locked: boolean("locked").notNull().default(false),
+    status: varchar("status", { length: 10 })
+      .$type<"draft" | "live">()
+      .notNull()
+      .default("draft"),
+    position: integer("position").notNull().default(0),
+    /** A sound's audio, or a theme's film. Null for a theme that is a still. */
+    fileUrl: varchar("file_url", { length: 500 }),
+    /** Where an uploaded file sits in the bucket, so a delete can remove it. */
+    filePath: varchar("file_path", { length: 300 }),
+    /** A theme's still, or a sound's card picture. */
+    pictureUrl: varchar("picture_url", { length: 500 }),
+    /**
+     * Where the picture sits in the bucket when this app put it there (a
+     * still dropped on "Upload several", or a film's middle frame), so it can
+     * be removed with the item. Null for a picture from the media library.
+     */
+    picturePath: varchar("picture_path", { length: 300 }),
+    fileStatus: varchar("file_status", { length: 12 })
+      .$type<"ready" | "queued" | "processing" | "failed">()
+      .notNull()
+      .default("ready"),
+    fileError: varchar("file_error", { length: 300 }),
+    /** The upload as it arrived, waiting for the worker. */
+    sourcePath: varchar("source_path", { length: 300 }),
+    sourceKind: varchar("source_kind", { length: 10 }).$type<
+      "audio" | "video" | "image"
+    >(),
+    attempts: integer("attempts").notNull().default(0),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    /**
+     * The Pixabay page a picture or film is still being fetched from, by the
+     * `pomodoro-pixabay-imports` worker. Emptied once the file is in the
+     * bucket or refused.
+     */
+    importUrl: varchar("import_url", { length: 500 }),
+    durationSeconds: integer("duration_seconds"),
+    /** Out of 100, multiplied into the member's own volume. */
+    volume: integer("volume").notNull().default(100),
+    /** Short lower-case words members pick by, such as "rain" or "piano". */
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
+    artist: varchar("artist", { length: 120 }),
+    sourceUrl: varchar("source_url", { length: 500 }),
+    licence: varchar("licence", { length: 20 }),
+    licenceNote: varchar("licence_note", { length: 300 }),
+    /** When it first went Live, for the NEW label. Null for a Draft. */
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_catalog_items_kind_check",
+      sql`${table.kind} in ('theme', 'sound')`
+    ),
+    check(
+      "pomodoro_catalog_items_status_check",
+      sql`${table.status} in ('draft', 'live')`
+    ),
+    check(
+      "pomodoro_catalog_items_file_status_check",
+      sql`${table.fileStatus} in ('ready', 'queued', 'processing', 'failed')`
+    ),
+    check(
+      "pomodoro_catalog_items_volume_check",
+      sql`${table.volume} between 10 and 100`
+    ),
+    check(
+      "pomodoro_catalog_items_licence_check",
+      sql`${table.licence} is null or ${table.licence} in ('bought', 'free', 'ai', 'own', 'other')`
+    ),
+    unique("pomodoro_catalog_items_kind_key_unique").on(table.kind, table.key),
+    index("pomodoro_catalog_items_kind_position_idx").on(
+      table.kind,
+      table.position
+    ),
+    index("pomodoro_catalog_items_file_queue_idx")
+      .on(table.createdAt)
+      .where(sql`${table.fileStatus} in ('queued', 'processing')`),
+  ]
+)
+
+/**
+ * The app's own admin settings: shuffle for guests, the default theme and
+ * sound, the seasonal defaults and the timer a new account starts with (admin
+ * task 03), and the settings later admin tasks add. One row per setting, each
+ * checked against its shape in `@/lib/pomodoro/app-settings` on every read and
+ * write; a missing or broken row means the code's default.
+ */
+export const pomodoroSettings = pgTable("pomodoro_settings", {
+  key: varchar("key", { length: 60 }).primaryKey(),
+  value: jsonb("value").notNull(),
+  /** No foreign key: deleting an account must not delete a setting. */
+  updatedByUserId: varchar("updated_by_user_id", { length: 36 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
+/**
+ * House room setups an admin makes, which hosts pick from above their own
+ * presets when they open a room (admin task 04). A room made from one copies
+ * it; changing the preset later does not change that room.
+ */
+export const pomodoroRoomPresets = pgTable(
+  "pomodoro_room_presets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: varchar("name", { length: 60 }).notNull(),
+    focusMinutes: integer("focus_minutes").notNull(),
+    shortBreakMinutes: integer("short_break_minutes").notNull(),
+    longBreakMinutes: integer("long_break_minutes").notNull(),
+    autoStart: boolean("auto_start").notNull().default(false),
+    sound: varchar("sound", { length: 200 }),
+    background: varchar("background", { length: 200 }),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "pomodoro_room_presets_focus_check",
+      sql`${table.focusMinutes} between 1 and 90`
+    ),
+    check(
+      "pomodoro_room_presets_short_check",
+      sql`${table.shortBreakMinutes} between 1 and 90`
+    ),
+    check(
+      "pomodoro_room_presets_long_check",
+      sql`${table.longBreakMinutes} between 1 and 90`
+    ),
+  ]
+)
+
+/** A warning an admin sent a member (admin task 05), kept for the next admin. */
+export const pomodoroWarnings = pgTable(
+  "pomodoro_warnings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    message: varchar("message", { length: 500 }).notNull(),
+    /** No foreign key: deleting an admin must not delete what they sent. */
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("pomodoro_warnings_user_idx").on(table.userId, table.createdAt)]
+)
+
+/**
+ * A member barred from joining, hosting and chatting in every room (admin task
+ * 05), until `endsAt`, or until lifted when that is null. It ends by itself
+ * on its date; nothing has to run.
+ */
+export const pomodoroSuspensions = pgTable(
+  "pomodoro_suspensions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    reason: varchar("reason", { length: 300 }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    liftedAt: timestamp("lifted_at", { withTimezone: true }),
+    liftedByUserId: varchar("lifted_by_user_id", { length: 36 }),
+  },
+  (table) => [
+    index("pomodoro_suspensions_user_idx")
+      .on(table.userId)
+      .where(sql`${table.liftedAt} is null`),
+  ]
+)
+
+/**
+ * A streak day an admin put back (admin task 06), for a member whose streak
+ * broke through no fault of theirs. Kept apart from `daily_focus_stats` on
+ * purpose: the streak count reads this table and nothing else does, so a fixed
+ * day can never feed the leaderboard, a badge or History's hours. See
+ * `workspace/docs/admin-members.md`.
+ */
+export const pomodoroStreakFixes = pgTable(
+  "pomodoro_streak_fixes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    reason: varchar("reason", { length: 200 }).notNull(),
+    /** No foreign key: deleting an admin must not delete what they fixed. */
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("pomodoro_streak_fixes_user_date_unique").on(
+      table.userId,
+      table.localDate
+    ),
+  ]
+)
+
+/**
+ * A private note admins keep about a member (admin task 06). Only admins read
+ * it; nothing the member can reach selects from this table.
+ */
+export const pomodoroAdminNotes = pgTable(
+  "pomodoro_admin_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    body: varchar("body", { length: 2000 }).notNull(),
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedByUserId: varchar("updated_by_user_id", { length: 36 }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("pomodoro_admin_notes_user_idx").on(table.userId, table.createdAt),
+  ]
+)
+
+/**
+ * A made-up member (live activity task 01). The row is the only mark: `users`
+ * is a shell table, so the flag lives here and Remove all deletes exactly the
+ * accounts named in this table. See `workspace/docs/made-up-members.md`.
+ */
+export const pomodoroSimulatedAccounts = pgTable(
+  "pomodoro_simulated_accounts",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** The working day and the task titles, read by `planSimulatedDay`. */
+    habits: jsonb("habits").$type<SimulatedHabits>().notNull(),
+    /** A line about how this person comes across, for the chat in task 03. */
+    personality: varchar("personality", { length: 200 }).notNull(),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    /**
+     * Remove all was pressed while this account hosted a room with a real
+     * member in it (task 02). The worker deletes it once that room is empty
+     * of real people; until then it starts nothing new.
+     */
+    removeRequestedAt: timestamp("remove_requested_at", { withTimezone: true }),
+    /** Set while a worker pass is looking after this account. */
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    /** No foreign key: deleting an admin must not delete what they made. */
+    createdByUserId: varchar("created_by_user_id", { length: 36 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_simulated_accounts_created_idx").on(table.createdAt),
+  ]
+)
+
+/**
+ * An open room a made-up member hosts (live activity task 02), written the
+ * first time the worker sees it. See "Rooms" in
+ * `workspace/docs/made-up-members.md`.
+ */
+export const pomodoroSimulatedRooms = pgTable(
+  "pomodoro_simulated_rooms",
+  {
+    roomId: uuid("room_id")
+      .primaryKey()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    hostUserId: varchar("host_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    /** Focuses the host has started. Made-up rooms wait between rounds, so the room's own steps cannot count them. */
+    focusesRun: integer("focuses_run").notNull().default(0),
+    /** How many focuses the host means to run before closing. */
+    focusTarget: integer("focus_target").notNull(),
+    /** How many other made-up members should sit in it. */
+    memberTarget: integer("member_target").notNull(),
+    /** The worker set `rooms.featured_at`, so only the worker clears it. */
+    featured: boolean("featured").notNull().default(false),
+    /** An admin took the worker's feature off, so it is never put back. */
+    featureDeclined: boolean("feature_declined").notNull().default(false),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("pomodoro_simulated_rooms_host_idx").on(table.hostUserId)]
+)
+
+/**
+ * One attempt at a line a made-up member says in a room (live activity task
+ * 03): sent, rewritten or thrown away. See "Chat and the voice card" in
+ * `workspace/docs/made-up-members.md`. Kept 30 days.
+ */
+export const pomodoroSimulatedLines = pgTable(
+  "pomodoro_simulated_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    /** The message a sent line became; empty for a line thrown away. */
+    messageId: uuid("message_id").references(() => roomMessages.id, {
+      onDelete: "set null",
+    }),
+    /** The moment that asked for the line, so a moment is answered once. */
+    triggerKey: varchar("trigger_key", { length: 120 }).notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    source: varchar("source", { length: 10 }).$type<"ai" | "fixed">().notNull(),
+    model: varchar("model", { length: 60 }),
+    costCents: numeric("cost_cents", { precision: 10, scale: 4, mode: "number" })
+      .notNull()
+      .default(0),
+    /** The text sent to the model, for an AI line. */
+    brief: text("brief"),
+    body: varchar("body", { length: 500 }),
+    rejectedReason: varchar("rejected_reason", { length: 200 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("pomodoro_simulated_lines_room_trigger_idx").on(table.roomId, table.triggerKey),
+    index("pomodoro_simulated_lines_created_idx").on(table.createdAt),
+  ]
+)
+
+/**
+ * What the made-up members have done towards one real member (live activity
+ * task 04, Part 2): when the worker first saw their profile public, how many
+ * follows it has ever sent them, and the last cheer. See "Touching real
+ * members" in `workspace/docs/made-up-members.md`.
+ */
+export const pomodoroSimulatedReach = pgTable("pomodoro_simulated_reach", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  seenPublicAt: timestamp("seen_public_at", { withTimezone: true }).notNull(),
+  /** Follows ever sent, so one an admin or a block removed is never sent again. */
+  followsSent: integer("follows_sent").notNull().default(0),
+  lastFollowAt: timestamp("last_follow_at", { withTimezone: true }),
+  lastCheerAt: timestamp("last_cheer_at", { withTimezone: true }),
+})
+
+/**
+ * Each admin's left page on the Flowfly admin dashboard (Tyler, 13 Nov
+ * 2026), the same shape as Promo's `promo_anti_detect_pages`: the page's
+ * words and blocks, its cover and lock, Overview's widget layout, and the
+ * Dashboards block's hidden and dragged sections. One row per admin, read
+ * and written only by them. See `workspace/docs/admin-dashboard.md`.
+ */
+export const pomodoroAdminPages = pgTable("pomodoro_admin_pages", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellUsers.id, { onDelete: "cascade" }),
+  /** The editor's own document as JSON text, or "". */
+  body: text("body").notNull(),
+  coverUrl: text("cover_url"),
+  coverImages: jsonb("cover_images").notNull(),
+  locked: boolean("locked").notNull(),
+  /** Overview's widget layout as the shell's grid stores it, or null for the starting one. */
+  widgets: jsonb("widgets"),
+  /** The Dashboards block's sections left out and their dragged order. */
+  sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+})
+
+export type Room = typeof rooms.$inferSelect
+export type PomodoroRoomRepeat = typeof pomodoroRoomRepeats.$inferSelect
+export type RoomInvite = typeof roomInvites.$inferSelect
+export type PomodoroMediaUpload = typeof pomodoroMediaUploads.$inferSelect
+export type PomodoroGeneration = typeof pomodoroGenerations.$inferSelect
+export type PomodoroMemberImport = typeof pomodoroMemberImports.$inferSelect
+export type PomodoroPurchase = typeof pomodoroPurchases.$inferSelect
+export type PomodoroCatalogItem = typeof pomodoroCatalogItems.$inferSelect

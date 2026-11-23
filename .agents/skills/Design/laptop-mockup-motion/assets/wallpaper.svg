@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <!-- deep charcoal base -->
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#23262f"/>
+      <stop offset="0.5" stop-color="#171a22"/>
+      <stop offset="1" stop-color="#0d0f13"/>
+    </linearGradient>
+    <!-- warm orange bloom -->
+    <radialGradient id="warm" cx="0.22" cy="0.12" r="0.7">
+      <stop offset="0" stop-color="#ff8a3d" stop-opacity="0.55"/>
+      <stop offset="0.4" stop-color="#ff5800" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ff5800" stop-opacity="0"/>
+    </radialGradient>
+    <!-- cool blue bloom -->
+    <radialGradient id="cool" cx="0.86" cy="0.94" r="0.75">
+      <stop offset="0" stop-color="#4f74ff" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#3b5cf6" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#3b5cf6" stop-opacity="0"/>
+    </radialGradient>
+    <!-- soft aurora ribbon gradient -->
+    <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2="0.3">
+      <stop offset="0" stop-color="#ff7a33" stop-opacity="0.0"/>
+      <stop offset="0.35" stop-color="#ff7a33" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#b64bd8" stop-opacity="0.7"/>
+      <stop offset="0.85" stop-color="#3b5cf6" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#3b5cf6" stop-opacity="0.0"/>
+    </linearGradient>
+    <linearGradient id="ribbon2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3b5cf6" stop-opacity="0.0"/>
+      <stop offset="0.4" stop-color="#5568ff" stop-opacity="0.6"/>
+      <stop offset="0.75" stop-color="#ff7a33" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ff7a33" stop-opacity="0.0"/>
+    </linearGradient>
+    <filter id="blur" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="42"/>
+    </filter>
+    <filter id="blurSoft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="70"/>
+    </filter>
+    <!-- subtle grain -->
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.04"/></feComponentTransfer>
+    </filter>
+  </defs>
+
+  <!-- base -->
+  <rect width="1920" height="1080" fill="url(#base)"/>
+
+  <!-- flowing aurora ribbons -->
+  <g filter="url(#blur)">
+    <path d="M -120 640 C 380 420, 760 760, 1180 560 S 1900 380, 2120 520 L 2120 780 C 1700 680, 1200 940, 760 860 S 200 900, -120 860 Z"
+          fill="url(#ribbon)" opacity="0.55"/>
+    <path d="M -120 470 C 300 560, 720 300, 1140 440 S 1780 620, 2120 460 L 2120 640 C 1740 780, 1200 560, 780 660 S 220 620, -120 700 Z"
+          fill="url(#ribbon2)" opacity="0.5"/>
+  </g>
+
+  <!-- corner blooms -->
+  <rect width="1920" height="1080" fill="url(#warm)" filter="url(#blurSoft)"/>
+  <rect width="1920" height="1080" fill="url(#cool)" filter="url(#blurSoft)"/>
+
+  <!-- vignette for depth -->
+  <radialGradient id="vig" cx="0.5" cy="0.52" r="0.75">
+    <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.42"/>
+  </radialGradient>
+  <rect width="1920" height="1080" fill="url(#vig)"/>
+
+  <!-- grain overlay -->
+  <rect width="1920" height="1080" filter="url(#grain)" opacity="0.6"/>
+</svg>

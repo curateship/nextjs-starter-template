@@ -64,22 +64,18 @@ export function WorkersSettings({
   }
 
   if (!data) {
+    if (!error) {
+      return <Card className="min-h-72" />
+    }
+
     return (
       <Card>
         <CardContent
-          role={error ? "alert" : "status"}
-          className={
-            error
-              ? "flex items-center gap-2 py-6 text-sm text-destructive"
-              : "flex items-center gap-2 py-6 text-sm text-muted-foreground"
-          }
+          role="alert"
+          className="flex items-center gap-2 py-6 text-sm text-destructive"
         >
-          {error ? (
-            <AlertCircleIcon className="size-4" />
-          ) : (
-            <Loader2Icon className="size-4 animate-spin" />
-          )}
-          {error ?? "Loading workers…"}
+          <AlertCircleIcon className="size-4" />
+          {error}
         </CardContent>
       </Card>
     )
@@ -93,7 +89,7 @@ export function WorkersSettings({
   ] as const
 
   return (
-    <div className="space-y-2 md:space-y-3">
+    <div className="space-y-[var(--shell-gutter,0.75rem)]">
       {error ? (
         <div
           role="alert"
@@ -197,6 +193,24 @@ function WorkerCard({
           <Info
             label="Last successful work"
             value={formatTime(worker.lastSuccessfulWorkAt)}
+          />
+          <Info
+            label="Watchdog check"
+            value={
+              worker.watchdogLastCheckAt
+                ? formatTime(worker.watchdogLastCheckAt)
+                : worker.online
+                  ? "Waiting for first check"
+                  : "Not running"
+            }
+          />
+          <Info
+            label="Last incident"
+            value={
+              worker.lastIncidentAt
+                ? `${formatTime(worker.lastIncidentAt)}${worker.lastIncidentOngoing ? " · ongoing" : " · recovered"}`
+                : "None"
+            }
           />
         </dl>
 

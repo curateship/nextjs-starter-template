@@ -6,11 +6,12 @@ trade collector or pause switch. Rules and alerts are private to the signed-in
 user.
 
 Worker-wide controls live only under **Settings → Workers**. Turning the Market
-Scanner off or pausing it stops its subscriptions and processing without
-deleting rules or alerts. **Pause my rules** skips only the signed-in user's
-saved rules. None of these controls affect the Whale Scanner or bots.
+Scanner off or pausing it stops Market Scanner rule processing without deleting
+rules or alerts. **Pause my rules** skips only the signed-in user's saved rules.
+None of these controls affect the separate Alert Worker, the Whale Scanner, or
+bots.
 
-`npm run dev` starts Trading and all four independent worker processes.
+`npm run dev` starts Trading and all five independent worker processes.
 Use `npm run market-scanner:dev` only when running the scanner by itself. The
 scanner remains separate from `npm run bot-worker:dev`, so it does not start
 bots. An intentional Off or Paused setting survives a process restart. The
@@ -39,9 +40,8 @@ granted. The first poll establishes a baseline so old alerts do not create a
 burst of popups. The shared browser alert setting is under **Settings → General
 Settings**. Alert history is kept for 30 days and remains after a rule is deleted.
 
-TradingView-style chart alerts are separate. They have their own rules, Alert
-Log, and evaluation behavior; sharing the live trade feed does not change
-Market Scanner rules or results.
+TradingView-style chart alerts are separate. They have their own worker, live
+trade feed, rules, Alert Log, and evaluation behavior.
 
 ## Status
 

@@ -1,7 +1,19 @@
 import { z } from "zod"
 
+import { CAPTION_ANIMATION_IDS } from "./caption-animations.ts"
+import { TRANSITION_KINDS } from "./clip-transitions.ts"
+import { MUSIC_TRACK_IDS } from "./music-library.ts"
 import { SOUND_EFFECT_IDS } from "./sound-effects.ts"
 import { TEXT_FONT_IDS } from "./text-fonts.ts"
+
+// A blend at the seam entering this clip (see clip-transitions.ts). Absent =
+// hard cut, so timelines saved before this feature validate unchanged.
+const clipTransitionSchema = z
+  .object({
+    kind: z.enum(TRANSITION_KINDS),
+    durationMs: z.number().positive().finite(),
+  })
+  .strict()
 
 const clipWordSchema = z
   .object({
@@ -23,6 +35,8 @@ const clipSchema = z
     url: z.string().max(2048).optional(),
     muted: z.boolean().optional(),
     soundEffectId: z.enum(SOUND_EFFECT_IDS).optional(),
+    // Bundled music bed (public/music); resolved like a sound effect at export.
+    musicTrackId: z.enum(MUSIC_TRACK_IDS).optional(),
     sourceDurationMs: z.number().nonnegative().finite().optional(),
     text: z.string().max(5000).optional(),
     fontId: z.enum(TEXT_FONT_IDS).optional(),
@@ -30,10 +44,14 @@ const clipSchema = z
     color: z.string().max(32).optional(),
     highlightColor: z.string().max(32).optional(),
     words: z.array(clipWordSchema).max(50).optional(),
+    // Entrance animation for the active karaoke word (caption presets).
+    // Absent or "none" = static highlight, so old timelines are unaffected.
+    animation: z.enum(CAPTION_ANIMATION_IDS).optional(),
     x: z.number().min(0).max(1).optional(),
     y: z.number().min(0).max(1).optional(),
     replaceable: z.boolean().optional(),
     segmentLabel: z.string().max(100).optional(),
+    transition: clipTransitionSchema.optional(),
   })
   .strict()
   .superRefine((clip, context) => {
@@ -70,6 +88,12 @@ export type ProjectTimeline = z.infer<typeof timelineSchema>
 
 export const SAVED_TIMELINE_INVALID_MESSAGE =
   "Saved timeline is invalid. Recreate it with the current editor."
+
+// Thrown when a timeline write is based on a version the project has since
+// moved past (another tab, or a server-side writer). Shared so the client can
+// recognize the rejection and show the conflict banner.
+export const PROJECT_CONFLICT_MESSAGE =
+  "This project changed elsewhere — reload to continue"
 
 export function createEmptyTimeline(): ProjectTimeline {
   return { tracks: [], aspect: "9:16" }

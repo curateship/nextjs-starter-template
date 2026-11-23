@@ -4,8 +4,8 @@ import { Loader2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
-  DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -38,12 +38,15 @@ export function DeleteConfirmDialog({
           <DialogTitle>
             Delete {count === 1 ? noun : `${count} ${noun}s`}?
           </DialogTitle>
+          <DialogDescription>{description(count)}</DialogDescription>
         </DialogHeader>
-        <DialogBody>
-          <p className="text-sm text-muted-foreground">{description(count)}</p>
-        </DialogBody>
         <DialogFooter variant="plain">
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={deleting}
+            onClick={onClose}
+          >
             Cancel
           </Button>
           <Button

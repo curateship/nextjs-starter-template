@@ -1,0 +1,351 @@
+# The timer
+
+The main screen, at `/` and `/timer`. A 300px SVG ring counts a focus or
+break down, orange at rest and green while running, shrinking to fit a window
+narrower than that.
+
+## The layout
+
+Tyler sent the design on 7 Oct 2026 with "redesign the front page", and the
+screen is drawn to it (`src/components/pomodoro/timer-dashboard.tsx`). Top to
+bottom:
+
+- **A firefly rides the end of the ring's bar.** Its glow is teal while the
+  timer runs and orange while it is paused or not started. It is the logo's
+  firefly, see [The Flowfly logo](brand-logo.md).
+- **The ring holds everything about the countdown.** A small spaced line at the
+  top says where the cycle is ("Session 1 of 4"). Under it the time sits in
+  large white mono digits. Then comes the orange Start pill between Reset and
+  Zen mode, and at the bottom the "Space to start" hint.
+- **The mode tabs sit 40px under the ring, larger than any other tab row.**
+  The 40px is Tyler's "add some spacing here", 7 Oct 2026; the rest of the
+  column is 24px apart. The
+  strip is 48px tall and fully round, and each tab is 36px with 16px words.
+  Tyler, 7 Oct 2026: "the focus, short break, long break tabs should be large
+  like the screenshot." They are the screen's main switch, so they are the one
+  tab row past 32px. A phone gets tighter padding and 15px words, so the strip
+  is 288px wide on a 375px screen.
+- **The card has 24px corners**, which Tyler set the same day. The theme's
+  `rounded-3xl` works out to 28px here, so the card writes 24px outright.
+- **Today, Streak, Auto-start and Tasks are one card**, from the design Tyler
+  sent on 8 Oct 2026 with "redesign the task section to look like this". The
+  three boxes run along the top and Tasks sits under a full-width line.
+- **The three boxes along the top:** Today holds the goal count and one
+  chip per session, each reading the focus length ("25m"). A finished focus
+  fills orange, the next one has an orange outline, and the rest are grey.
+  Every finished chip turns green once the goal is met.
+- **A goal of more than six sessions** has no room for "25m" on each chip, so
+  the chips are blank 24px squares, and a line under the count gives the
+  minutes instead: "50m of 4h 10m" for 2 of 10 sessions of 25 minutes. Tyler
+  sent the design on 8 Oct 2026 with "if there are more than 6 sessions, it
+  should look like this". Streak holds the current and best run of days.
+  Auto-start holds the switch, labelled "Next timer". On a phone the three
+  stack.
+- **A task row on the front page** is a grip, a 20px round tick, the title in 15px,
+  then "in" and the project as a pill with a dot, and on the right the count
+  in pomos ("1 pomo", "0 pomos", "1/3 pomos"), the steps button, the settings cog and the X.
+  The pill takes one of five tints picked from the project's name, the same
+  five as the Projects cards, so a project keeps its colour. Rows sit 34px
+  apart with no space between them, closer than the design's 44px, which Tyler asked for on 8 Oct 2026. A phone hides the pill, the same as tags, so the title keeps the room.
+- **The settings cog always shows**, between the steps button and the X.
+  Tyler did not want it hidden until hover.
+- **The rows have no box of their own**, unlike the Tasks page, because the
+  design draws them flat. The add box sits under a
+  divider that runs the card's full width, with no frame of its own, and an
+  orange Add task button at its right end, which Tyler asked for because a box
+  with no frame does not look like it takes a click. The button is never greyed
+  out: pressed with nothing typed, it marks the box and the toast says "Type
+  what the task is first.", the same as Enter. The chosen task still shows
+  the orange bar on its left.
+- **Every small heading is the same spaced capitals**: the cycle line, Today,
+  Streak, Auto-start and Tasks.
+
+## The ring on a narrow window
+
+The ring is 300px wide at most and the width of the page at least, whichever is
+smaller, so it stays a whole circle on a phone instead of running off the side.
+A 375px window gives it the full 300px; a 320px window gives it 272px.
+
+The cap is a percentage of the content column, not of the window, so the ring
+follows the page's left and right edge without repeating that number. The SVG
+inside it keeps its `viewBox` of 300 units, so every coordinate and the stroke
+width are still written at the size they were drawn for and only the drawn
+result scales.
+
+Zen mode sizes its own ring against the window instead
+(`min(380px, 100vw - 48px, 100vh - 260px)`), which is the right measure there
+because zen mode covers the window and must not be scrolled.
+
+## Using it by keyboard
+
+**Space starts and pauses the timer**, on the dashboard and in zen mode. It
+calls the same `toggleTimer` the Start pill calls, so on a break it pauses and
+resumes the break, like the break's own play button. A line at the bottom of
+the ring says "Space to start" or "Space to pause", and only on a screen with
+a mouse or
+trackpad (`pointer-fine`), since a phone has no Space bar to press.
+
+Space leaves the timer alone whenever something else wants the key
+(`src/lib/pomodoro/use-space-toggle.ts`):
+
+- **Typing.** In a box, a text area, a select or anything editable, Space types
+  a space. A task called "Write the intro" never touches the timer.
+- **A focused button, link, switch or tab.** That control presses itself on
+  Space, and the timer does not press as well.
+- **An open dialog or popover**, such as the "Discard this focus?" question.
+- **Held down or with Ctrl, Cmd or Alt.** Only a single plain press counts.
+
+Every stop on this screen shows where it is. The dashboard's buttons are the
+shared `Button`, so they draw the one focus ring the rest of the app draws
+(`src/lib/layout/focus-ring.ts`); before this they were bare `<button>`
+elements with hover styles only, and zen mode was the only part of the timer
+you could see your way around.
+
+- **The mode strip takes one Tab stop, not three.** Left and right move
+  between Focus, Short break and Long break. It is `ui/tabs.tsx`, so the
+  roving focus comes with the component rather than being written here.
+  Measured: one Tab reaches it, ArrowRight moves Focus to Short break and
+  ArrowLeft moves it back.
+- **Tab order runs down the screen** from the ring's Start, Reset and Zen
+  mode (plus the break's own play button on a break), through the mode strip, to the tasks card and the "Add a task" field
+  at the bottom.
+- **A control that is switched off is still reachable.** A disabled button
+  cannot take focus, so the reason sits on a wrapper that can
+  (`ui/disabled-reason.tsx`). Tab on to the greyed-out minute rows in the
+  header's Timer popover and the reason appears, the same sentence the mouse
+  gets on hover.
+
+## The header's timer pill
+
+On every member screen the header's pill shows the time left while a timer
+runs, beside a clock icon. A paused timer swaps the clock for a pause icon and
+dims the time, so it is never mistaken for one that is running. A screen reader
+hears "Timer, 12:34 left" or "Timer, 12:34 left, paused"
+(`quick-controls-header.tsx`). The tab in the browser does the same; see
+[The tab countdown](tab-countdown.md).
+
+## Controls that have gone dead say why
+
+A faded button with no explanation is the commonest reason someone decides an
+app is broken, so every control the timer switches off names the thing that
+would switch it back on. The sentences are written as the action, not the
+state — "Reset or finish the timer to change durations or presets", never
+"Timer is running" — and they live together in
+`src/lib/pomodoro/disabled-reasons.ts`, so one sentence is never kept in two
+copies that drift apart.
+
+- **Picking a task** is off while a focus is counting down, and it is the one
+  switched-off control with no tooltip: Tyler asked for it gone on 7 Oct 2026.
+  The task still cannot be picked until the focus is paused or finished.
+- **The header's minute steppers and preset rows** are off for the same
+  reason: "Reset or finish the timer to change durations or presets." That
+  sentence used to sit in a loose paragraph at the bottom of the popover with
+  nothing tying it to the rows it was about. The paragraph is gone. What is
+  left in its place is "Current values are custom", which is a fact about the
+  numbers rather than a reason a control is off.
+- **The daily goal's + and − at the end of the range** say "The goal can be
+  between 1 and 20 sessions." on hover and on keyboard focus. The numbers come
+  from `DAILY_GOAL_MIN` and `DAILY_GOAL_MAX`, so the sentence cannot drift from
+  the limits. The buttons used to stop at 1 and 20 without a word.
+- **The session note's Save is never off for want of a change.** Pressing it
+  with nothing typed says "Saved" instead of doing nothing, because "nothing
+  has changed" is not worth greying a button out for.
+
+## What is not on it
+
+Tyler had the FOCUS TASK pill and the line of encouragement under it
+removed on 27 September 2026. The dashboard no longer names the task the
+focus is on, and there is no "Choose a task" link on it. The task is
+chosen in the Tasks card below and on `/tasks`: tapping a task chooses it
+and tapping the chosen one again clears it, which is what the pill's cross
+used to do. Zen mode still shows the name.
+
+## How it behaves
+
+- **Three modes** — Focus, Short break and Long break — as segmented tabs.
+  Lengths come from the saved preferences (defaults 25/5/15 minutes).
+- **No break before the first focus of a round.** Tyler, 10 Oct 2026: "I can
+  click on short break and longer before a pomo timer start. I should not be
+  able to do that." While the timer sits on a focus nobody has started and no
+  focus of the round is done, pressing a break tab keeps Focus selected and
+  says "Start a focus first. The breaks come after one." The tabs stay
+  pressable rather than greyed out. Once a focus has run, or one is done, the
+  breaks are there as before.
+- **A logged-out visitor is sent to sign in** by a click on the Tasks box, its
+  Add task button or the Auto-start switch, and comes back to the timer.
+  Tyler, 10 Oct 2026.
+- **The orange chip slides** from one tab to the next over 300ms instead of
+  blinking out and in. The chip is one layer behind the labels, and its
+  position and width are measured from the live buttons
+  (`ModeTabs` in `src/components/pomodoro/timer-dashboard.tsx`), because the
+  three labels are different widths and the font arrives after the first
+  paint. A ResizeObserver re-measures when the row reflows, and the chip is
+  not drawn at all until it has been placed, so it never slides in from the
+  left edge on load. Anyone who has asked their machine for less movement
+  gets the jump.
+- **The cycle:** every finished focus leads to a short break, the focus that
+  reaches the rhythm's number leads to the long break, and every break leads
+  back to focus. The number is part of the saved rhythm, 4 in the classic
+  pattern and 2 to 8 in general; see
+  [Sessions before the long break](sessions-before-long-break.md). The rule is
+  `advanceCycle` in `src/lib/pomodoro/use-pomodoro.ts`, unit-tested next to it.
+- **The line at the top of the ring says where the cycle is:** "Session 2 of
+  4" while focusing, and "Next: session 3 of 4" on a break, because the focus
+  you were in is over. The "4" is how many focuses earn the long break. The
+  ring has no room for "before the long break", so the dashboard asks
+  `cycleSessionLabel` in `src/lib/pomodoro/timer.ts` for the short form.
+- **Switching phase and pressing Reset ask first when a focus is in
+  progress.** Nothing is recorded for a focus that does not finish, and both
+  controls are one stray tap away, so the app asks before nineteen minutes go
+  in the bin. The question names the minutes already spent and what happens
+  next: "19 minutes of this focus is lost and the timer switches to Short
+  break." Cancel is worded "Keep focusing" and leaves the countdown running,
+  untouched.
+- **It only asks when there is something to lose.** A break of any kind, and a
+  focus nobody has started, change straight away with no dialog. A focus that
+  is paused partway through still asks, because the time spent is just as gone.
+  The rule is `focusWouldBeLost` in `src/lib/pomodoro/timer.ts`, unit-tested
+  beside it, and all three controls share one hook,
+  `src/components/pomodoro/discard-focus-confirm.tsx`: the mode pills, Reset on
+  the dashboard, and Reset in the header's Timer popover. The minutes are
+  frozen when the question is asked so the sentence does not climb while it is
+  being read.
+- **Auto-start the next timer** (the switch in the Auto-start box) starts
+  whatever comes next, a break or a focus, on its own, and opens the next
+  server session itself. The dashboard reads "Auto-start" over "Next
+  timer", and Settings → Timer and the preset editor spell it out, because it
+  is not only focuses that it starts. A screen reader hears "Auto-start Next
+  timer". Tyler, 27 September 2026: "Auto start next phase is
+  wrong".
+- **The countdown runs in the browser** on a 250ms tick against a wall-clock
+  end moment, so a throttled background tab still shows the right time
+  (`src/lib/pomodoro/timer.ts`).
+- **The pencil in the Today box edits the goal**, as a stepper in a
+  popover: one tap a session, 1 to 20, saved the moment it moves. It never
+  touches the countdown, so it works while the timer runs, and Settings >
+  Timer edits the same number. `setDailyGoal` in
+  `src/lib/pomodoro/use-pomodoro.ts` is the one saver for both.
+- **The Today box** shows finished focus sessions today against the daily
+  goal (default 4, 1-20, saved per user) as "3 / 4 sessions", with one short
+  bar per session of the goal that fills orange as each focus finishes. The
+  shared `Meter` draws a single fill and cannot show the sessions apart, so the
+  bars are the dashboard's own `GoalSegments`. They read out the way the Meter
+  does, so a screen reader hears "Today's daily goal, 3 of 4 sessions".
+- **The Streak box** shows consecutive days with at least one finished focus,
+  current and best: "3 days · best 5". The day math runs in JS on yyyy-mm-dd
+  strings in
+  the user's own timezone (`calculateFocusStreaks`, unit-tested in
+  `src/server/pomodoro/productivity.test.ts`); yesterday's streak stays
+  current until today ends without a focus.
+- **Reaching the goal is noticeable.** Once today's count meets the goal the
+  bars turn to the success colour (`--p-success`) and the Today heading reads
+  "Today · Goal reached", and a screen reader hears ", goal reached". The
+  words are the text colour rather than green, because the light theme's
+  green is under 4.5:1 on white at that size. The focus that crosses the line
+  also puts up one toast, "Daily goal reached: 8 sessions today."
+  (`src/lib/pomodoro/goal-toast.ts`). Only a finished focus can raise it, so
+  a reload, another visit that day, or lowering the goal under today's count
+  stays quiet. No confetti and no extra sound, and the toast does not slide
+  for anyone who asked their system for less movement.
+- **When a focus finishes, a one-line note field appears** under the mode
+  tabs, for what that session was for. It never takes keyboard focus and
+  never touches the countdown, so a running break keeps running while it is on
+  screen. See [Session notes](session-notes.md).
+
+## Skipping a break
+
+On a short or long break the wide pill inside the ring reads **Skip break**
+instead of Start or Pause, and pressing it goes straight to the next focus.
+Tyler asked for it on 1 October 2026: "There is no option to skip breaks at the
+moment. Replace Start with Skip break if its on break."
+
+- **The break is thrown away, not finished.** No chime, and nothing is written
+  to `focus_sessions`: a break that was already running is cancelled the same
+  way Reset cancels one. Only a focus is ever counted, so there is nothing to
+  lose by leaving a break early, and the app does not ask first.
+- **Where the cycle lands is the same as sitting through it.** Skipping a short
+  break keeps the focuses already counted towards the long break, and skipping
+  a long break ends the cycle and starts counting again from one. The rule is
+  the same `advanceCycle` a finished break uses, so the "Session 2 of 4 before
+  the long break" line reads the same either way. `skipBreak` in
+  `src/lib/pomodoro/use-pomodoro.ts`.
+- **Auto-start decides whether the focus is already running.** With the switch
+  on, skipping drops you into a focus that is counting down; with it off, the
+  focus sits at its full length waiting for Start, which is what happens when a
+  break runs out on its own.
+- **The break's own Start and Pause moved to a round icon**, between Reset and
+  Zen mode inside the ring, and into the header's Timer popover beside Reset.
+  It is drawn on breaks only, so the focus screen still has its two buttons.
+  Without it there would be no way to run a break at all with auto-start off.
+- **Zen mode is unchanged.** Tapping its ring still starts and pauses, because
+  the ring is one big target and a stray tap there should not end the break.
+  Leave zen mode to skip.
+
+## When a save fails
+
+- **One red line, and it leaves when the problem does.** A failed save writes a
+  sentence into `syncError` (`src/lib/pomodoro/use-pomodoro.ts`) and the timer
+  and the tasks page each show it above the content. Every request that settles
+  successfully clears it, so a save that works takes the warning down with no
+  reload. Before that, one dropped request pinned the line up for the rest of
+  the evening, which teaches people to ignore warnings.
+- **Both screens word it the same.** Both use `InlineError` from
+  `src/components/ui/inline-error.tsx`, so one failure never reads as a warning
+  on one screen and an error on the other.
+- **A failed tick or removal is a toast, not this line.** Those two belong to a
+  single row rather than the whole screen; see [Tasks](tasks.md).
+- **A failed load never claims the list is empty.** After a load that failed,
+  an empty list means "we do not know", so `loadFailed` on the engine's state
+  holds the empty state back and the warning line does the talking.
+- **While the tasks are loading the screen says so** instead of claiming you
+  have none. "Loading your tasks…" stands in the Tasks card until the list
+  lands (`loading` on the engine's state, true until the first load settles
+  either way).
+
+## When the app reads your data
+
+Opening a member screen fetches your tasks, preferences and today's summary
+once. Two things ask for it on every screen — the header's quick controls and
+the page underneath them — and the store in `src/lib/pomodoro/use-pomodoro.ts`
+answers both from one request.
+
+- **A load already in flight is never duplicated.** The second asker gets the
+  one that is running.
+- **A load that finished less than five seconds ago is skipped**
+  (`RELOAD_FRESH_MS`). Five seconds covers one navigation, and it is short
+  enough that a change made in another tab is back before you have finished
+  switching to this one. Measured on the dev server: moving between the timer
+  and the tasks page fires one `loadProductivity` request when the last one is
+  older than that and none when it is not.
+- **A save never waits on that window.** Every explicit reload — a saved
+  setting, a rejected reorder, the guest import — asks for fresh rows and
+  always gets them. Only the refresh a screen does on mount is allowed to skip.
+- **A failed load does not count as fresh**, so the next screen retries at
+  once instead of sitting on the failure for five seconds.
+- **The timer's own writes never go near this.** They go straight into the
+  store, so the countdown and today's count are current whatever the window
+  says.
+- **A guest never fetches at all.** Those rows come out of the browser's own
+  storage.
+
+## What the server records
+
+Every run writes one `focus_sessions` row through guarded endpoints in
+`src/lib/api/pomodoro/productivity.ts` (start, pause, resume, cancel,
+complete — reads `userGet`, changes `userPost`). A finished focus also adds
+to that day's `daily_focus_stats` row, which goals, streaks and history read.
+Tables live in `src/server/pomodoro/schema.ts`, created by migration
+`0082_pomodoro_timer.sql`; a start carries an idempotency key so a retried
+request cannot write two rows.
+
+"Today" is the user's own calendar day: the browser sends its timezone and
+the server derives the date (`localDateFor`), because the shell keeps no
+timezone on the account. An unknown timezone falls back to UTC.
+
+## Two lessons baked into the code
+
+- **No server calls inside a React state updater.** The old app made them
+  there; StrictMode runs updaters twice in development, and one press of
+  Start wrote two session rows. Handlers read state through a ref instead.
+- The task picker, the tasks card and the room preview from the old
+  dashboard join with their own tasks (03 tasks page, 16 rooms).

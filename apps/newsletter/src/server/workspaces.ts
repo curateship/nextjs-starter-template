@@ -1,11 +1,16 @@
 import { and, asc, eq } from "drizzle-orm"
 
 import {
+  cleanAutomationPaletteKeys,
+  type AutomationPaletteKey,
+} from "@/lib/automations/palette"
+import {
   createDefaultTopRightNavigation,
   iconMeta,
+  normalizeStyling,
   type IconKey,
   type ShellSection,
-  type ShellTopNavigationItem,
+  type ShellStyling,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
 import { db, type CustomShellDb } from "@/server/db"
@@ -21,9 +26,40 @@ const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
-  topNavigation: ShellTopNavigationItem[]
+  automationFavoriteNodeKeys: AutomationPaletteKey[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+  // Visual styling (spacing, card border, backgrounds), saved per-workspace.
+  styling: ShellStyling
+}
+
+export async function saveWorkspaceAutomationFavorites(
+  userId: string,
+  favoriteNodeKeys: AutomationPaletteKey[],
+  database: CustomShellDb = db
+) {
+  const workspace = await getOrCreateCurrentWorkspace(userId, database)
+  const settings = parseWorkspaceSettings(workspace.settings)
+  const cleanedKeys = cleanAutomationPaletteKeys(favoriteNodeKeys)
+  const [updated] = await database
+    .update(customShellWorkspaces)
+    .set({
+      settings: {
+        ...settings,
+        automationFavoriteNodeKeys: cleanedKeys,
+      },
+      updatedAt: now(),
+    })
+    .where(
+      and(
+        eq(customShellWorkspaces.id, workspace.id),
+        eq(customShellWorkspaces.userId, userId)
+      )
+    )
+    .returning({ id: customShellWorkspaces.id })
+
+  if (!updated) throw new Error("Workspace not found")
+  return cleanedKeys
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -311,15 +347,16 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
         typeof settings.favicon === "string"
           ? settings.favicon
           : fallback.favicon,
-      topNavigation: Array.isArray(settings.topNavigation)
-        ? settings.topNavigation
-        : fallback.topNavigation,
+      automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
+        settings.automationFavoriteNodeKeys
+      ),
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
       sections: Array.isArray(settings.sections)
         ? settings.sections
         : fallback.sections,
+      styling: normalizeStyling(settings.styling),
     }
   }
 
@@ -336,15 +373,16 @@ function cleanWorkspaceSettings(
       : fallback.icon,
     favicon:
       typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
-    topNavigation: Array.isArray(settings.topNavigation)
-      ? settings.topNavigation
-      : fallback.topNavigation,
+    automationFavoriteNodeKeys: cleanAutomationPaletteKeys(
+      settings.automationFavoriteNodeKeys
+    ),
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
+    styling: normalizeStyling(settings.styling),
   }
 }
 
@@ -352,14 +390,53 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
     favicon: "",
-    topNavigation: [],
+    automationFavoriteNodeKeys: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: createDefaultWorkspaceSections(),
+    styling: normalizeStyling(undefined),
   }
 }
 
 function createDefaultWorkspaceSections(): ShellSection[] {
   return [
+    {
+      id: "section-newsletter",
+      title: "Newsletter",
+      entries: [
+        {
+          type: "item",
+          id: "item-broadcasts",
+          label: "Broadcasts",
+          href: "/broadcasts",
+          icon: "send",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-automations",
+          label: "Automations",
+          href: "/automations",
+          icon: "workflow",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-contacts",
+          label: "Contacts",
+          href: "/contacts",
+          icon: "users",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "item-email-settings",
+          label: "Email settings",
+          href: "/email-settings",
+          icon: "mail",
+          visible: true,
+        },
+      ],
+    },
     {
       id: "section-platform-settings",
       title: "Platform Settings",

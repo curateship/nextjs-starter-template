@@ -1,11 +1,11 @@
 import * as React from "react"
 
 import {
-  pct,
+  signedPct,
   signedUsd,
   toneClass,
   usd,
-} from "@/components/backtest/backtest-format"
+} from "@/lib/format"
 import {
   STICKY_TABLE_HEADER,
   Table,
@@ -40,6 +40,8 @@ export type TradeTableRow = {
   returnPct: number | null
   /** null renders as "—". */
   cumPnl: number | null
+  /** Render faded — e.g. replay rows the playhead hasn't reached yet. */
+  dimmed?: boolean
 }
 
 type TradeSortKey =
@@ -133,7 +135,8 @@ export function TradeTable({
     onClick: () => onSelect?.(row.id === selectedId ? null : row.id),
     className: cn(
       "cursor-pointer font-mono text-[11px]",
-      row.id === selectedId && "bg-muted/60 hover:bg-muted/60"
+      row.id === selectedId && "bg-muted/60 hover:bg-muted/60",
+      row.dimmed && "opacity-40"
     ),
   })
 
@@ -188,7 +191,7 @@ export function TradeTable({
                 row.returnPct != null ? toneClass(row.returnPct) : "text-muted-foreground"
               )}
             >
-              {row.returnPct != null ? pct(row.returnPct) : "—"}
+              {row.returnPct != null ? signedPct(row.returnPct) : "—"}
             </TableCell>
             <TableCell
               className={cn(

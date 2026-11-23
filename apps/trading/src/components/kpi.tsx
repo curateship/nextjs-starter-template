@@ -1,9 +1,9 @@
 import { Card, CardContent } from "@/components/ui/card"
 import {
-  pct,
-  price as fmtPrice,
+  signedPct,
+  formatPrice,
   toneClass,
-} from "@/components/backtest/backtest-format"
+} from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 /** Mark price + signed 24h change, toned by the day's direction. */
@@ -24,7 +24,7 @@ export function MarkPriceInline({
           dayChangePct !== null ? toneClass(dayChangePct) : undefined
         )}
       >
-        {markPrice > 0 ? `$${fmtPrice(markPrice)}` : "—"}
+        {markPrice > 0 ? `$${formatPrice(markPrice)}` : "—"}
       </span>
       <span
         className={cn(
@@ -32,7 +32,7 @@ export function MarkPriceInline({
           dayChangePct !== null ? toneClass(dayChangePct) : "text-muted-foreground"
         )}
       >
-        {dayChangePct !== null ? `${pct(dayChangePct)} 24h` : "—"}
+        {dayChangePct !== null ? `${signedPct(dayChangePct)} 24h` : "—"}
       </span>
     </div>
   )

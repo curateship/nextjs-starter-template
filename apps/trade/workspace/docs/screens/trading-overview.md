@@ -1,0 +1,373 @@
+# The trading overview
+
+Overview, the first row of the Trade dashboard's Protocols block
+(`/trade?view=overview`, `dashboard-blocks.md`), answers the account-wide money
+question without belonging to one exchange. It was its own page at
+`/admin/trading-overview` until 8 Nov 2026. Its widgets now sit in the shell's
+widget cards and rows, and a member opens their own. PnL Graph, short for profit and loss, is the main
+card. Its layout copies the design Tyler sent on 23 Sep 2026
+(`workspace/docs/assets/pasted-image-1790208001182205000.png`).
+
+- **The header:** the made or lost figure in 30px monospace type, with its
+  share of the shown balance in a green, red or grey badge. No percentage
+  appears when that balance is zero or below. There is no line above it: the
+  card's title already says PnL Graph and the wallet picker says which wallet
+  is shown (Tyler, 23 Nov 2026: "remove this label "Profit and loss · All
+  wallets""). When a wallet did not answer, a small info icon after the badge
+  names it. The header is taller than the standard 57px card header because the
+  figure is the card's headline.
+- **The chart fills the card.** When the grid makes the card taller than the
+  chart needs, the chart grows rather than leaving a blank band under the
+  dates (Tyler, 23 Nov 2026: "there is a huge gap in the bottom of the pnl
+  graph widget on mobile"). The band the dates sit in is 24px instead of the
+  chart library's 30px, so the dates end 14px above the card's foot ("there's
+  still a gap in the bottom of the widget"). At 18px the dates were clipped.
+  The chart box has no 16:9 shape of its own (`aspect-auto`). With one,
+  Safari on an iPhone drew the chart at 16:9, 197px tall, inside its 256px
+  box and left a 59px blank band under the dates. A desktop window narrowed
+  to the same width never showed it, because Chrome fills the box (Tyler,
+  23 Nov 2026: "its fine when I resize the brwoser but for somr reason the
+  safari mobile browser still shows the gap").
+- **The header is centred:** the figure and the wallets button share one
+  middle at every width. Top-aligned, the figure sat 4px higher than the
+  button on a phone (Tyler, 23 Nov 2026: "This needs to be aligned in the
+  middle").
+- **On a phone** (under 768px) the figure and its badge are a fifth smaller:
+  24px for the figure and 10px for the badge's text. Tyler, 23 Nov 2026:
+  "reduce the size of this on mobile by 20%"
+  (`workspace/docs/assets/pasted-image-1795444102426200000.png`).
+- **The whole card follows the selected row:** picking a wallet changes the
+  header figure, the badge, the four figures above the chart and the chart
+  line to that wallet's own. All wallets puts the account totals back.
+- **The four figures:** Balance, Settled, Open and Fees sit in a row above the
+  chart, each an 11.2px grey label over a 12.8px monospace figure, with 25.6px
+  between them. Tyler had the row made 20% smaller on 23 Sep 2026. The warning
+  about trades with unstated money sits at the right end of that row.
+- **The chart:** one black line for the selected row, with a faint grey fill
+  under it and a dashed line at $0. The dollar labels on the left are
+  monospace. Five dates run along the bottom, the first and last flush with the
+  line's ends. A chart narrower than 480px shows only the first, middle and last
+  date so the labels never touch. The other wallets' lines are not drawn.
+- **What the card leaves out on purpose:** a second "PnL Graph" title inside
+  the card (the widget card's heading names it once, with its icon and ⋮,
+  since 8 Nov 2026), the grey subheader bars, the small line in each wallet row, the coloured wallet
+  squares, and the "7 days ago · last read just now" line. The dates button
+  names the period instead.
+
+The widgets sit in the shell's rows (8 Nov 2026): a top row of 1 to 4 columns
+and a bottom row of None or 1 to 4, set in the Widgets tab of the dashboard's
+⋮, which is also where a widget is swapped or removed. Wide, the two rows share
+the height and a long list scrolls inside its card. Narrow, the widgets stack
+at their own height and Overview scrolls. Each person keeps their own layout
+(`trade_prefs.overview_widgets`), starting with PnL Graph and Active Trades on
+top and Running bots and All trades under them. The card's heading holds the
+name, the count and the widget's ⋮. Widgets are the site's gutter apart.
+
+Each widget's ⋮ holds that widget's own options, then Manage widgets under a
+line (Tyler, 10 Nov 2026: "remove the widget management out of the widget
+itself ... and replace it with filter", the period and dates "into the dotted
+dropdown", then "replace delete widget with 'Manage widgets' link that opens
+up the left top header widget tab"):
+
+- **Active Trades and All trades:** the Exchange and Wallet filter, each pick
+  applying at once, and Clear filters under them while one is narrowed.
+- **PnL Graph:** Dates, with the 1D to All presets in a dropdown (Tyler,
+  10 Nov 2026: "Make this a dropdown"), then the From and To date pickers,
+  each writing the month as three letters, "Nov 10, 2026" ("shorten the month
+  text to something like November to Nov"). Picked dates make the dropdown
+  read Custom. With no history yet the pickers are replaced by a line saying
+  so.
+- **The rest** (Running bots, Profit calendar, Moving now): Manage widgets
+  alone. Moving now keeps its All markets link in the heading.
+- **Manage widgets** opens the left page if it was shut, or switches to it on
+  a narrow screen, then opens the left page's ⋮ at its Widgets tab.
+
+The wallets are a dropdown at the top right of PnL Graph, level with the made
+or lost figure (Tyler, 15 Nov 2026: "Move the wallets here as a dropdown"). The
+button shows a wallet icon and the wallet the card follows, "All wallets" at
+first, so the chart has the card's whole width. The list opens under the
+button, 320px wide, and scrolls inside itself when it is taller than the space
+below. Picking a row closes it. The list starts with All wallets and then lists
+each real mainnet wallet.
+
+- **A row:** the wallet's name with Made or lost on the right, and the exchange
+  with the balance under it in grey. All wallets names how many wallets
+  answered, and how many are missing when some did not.
+- **The selected row:** the small dark bar before its name, as every block's
+  picked row has. Every row has a hand cursor and can be picked by mouse or
+  keyboard.
+- **Empty wallets:** a wallet whose balance and made or lost both round to
+  $0.00 is folded away under "Show 3 empty wallets" at the foot of the list.
+  Clicking it shows them and the link then reads "Hide 3 empty wallets". Hiding
+  them while one is selected puts the selection back on All wallets. The choice
+  holds while the dropdown is shut and opened again, and is not remembered
+  after a reload.
+- **Switched-off and failed wallets:** switched-off wallets stay out of PnL
+  Graph. A wallet whose exchange did not answer stays named with "did not
+  answer" under it. It never becomes a row of zeroes and never counts as empty.
+- **Sorting:** the Wallets and Made or lost headings sort the rows either way.
+  All wallets stays pinned first. Unavailable results stay at the bottom when
+  sorting by money. The last sort is remembered in this browser.
+
+The overview asks Trade's server as it opens, then again every fifteen seconds
+while the browser tab is visible and Overview is the row picked. The first read
+asks every exchange and takes a few seconds, and "Reading your overview" shows
+until it lands; one that fails says so, with Try again. One answer updates every placed widget. Active Trades reads
+positions only when that widget is placed, and Running bots follows the same
+rule for bot runs. Hiding the tab stops the clock. Showing it makes one
+catch-up read and starts the clock again, without replaying missed turns. A
+failed read keeps the last answer on screen.
+
+The graph records results from midnight on 20 August 2026 in Toronto through
+the latest account read. The card's top right holds the period tabs and a
+dates button.
+
+- **The tabs:** 1D, 1W, 1M, 3M, 6M and All. 1D means the current calendar day
+  from midnight, not the last 24 hours.
+- **The dates:** From and To in the widget's ⋮, each showing the date it
+  holds. Picking one changes the chart at once and makes the period custom.
+  Picking a preset again drops the custom dates.
+- **No history yet:** the ⋮ says there is no profit history to pick dates
+  from yet, in place of the date pickers.
+- **What the dates change:** only the chart. The header figure and the four
+  figures above the chart always describe the whole record. Dates outside the
+  recorded history show that no results fall inside the range. The graph does
+  not carry the last known result into days the app has not read.
+
+Rows directly below a panel title and summary rows at the bottom use one panel
+bar treatment. The bar has the muted light-gray fill and one divider on its top
+and bottom. Both dividers take the Divider lines color from Styling. A panel
+title drops its own bottom divider when the subheader owns that edge, so the
+line never becomes two pixels thick. Sticky table headings use an opaque mix of
+the same muted gray and card background, which keeps scrolling numbers from
+showing through without changing the visible shade.
+
+Active Trades is the account-wide exception to the real-money totals. It lists
+every open position across every protocol and every wallet, including practice
+and testnet wallets. Practice and Testnet rows name their account type so
+pretend money cannot be read as real money. Real rows carry no account-type
+chip. A fresh layout puts Active Trades beside PnL Graph on the top row.
+
+The Active Trades table has five columns: ticker, type, order, current position
+value, and current profit in dollars and as a share of the money the trade
+holds. Type is Long or Short. Order says Manual, DCA ladder, Grid, or Signal.
+Manual means no running smart order owns the position. Value is the absolute
+position size at the current market price, not the margin committed to the
+trade. The ticker cell has a 16px icon, 12px medium symbol, then a compact
+Testnet or Practice badge when the account is pretend. Clicking the symbol or
+anywhere else on the row opens that market on its protocol's chart. A narrow
+screen keeps every column reachable through the table's horizontal scroll.
+Trade rows use 10px of vertical padding, 2px more than the bottom Positions
+panel, to give the list a little more air without changing its type size. The
+table opens
+with the largest P/L first. Every heading sorts, and Filter narrows the rows by
+exchange, wallet, or both. Every exchange and wallet starts checked. More than
+one may stay checked, and unchecking a choice removes its rows. Clear all resets
+the menu to every row. Each choice shows its row count in a muted badge directly
+beside the exchange or wallet name. The checkmark stays at the far right. On
+Overview the filter is in the widget's ⋮ and Clear all is Clear filters,
+shown only while a group is narrowed; elsewhere it is a Filter button that
+counts how many groups are narrowed.
+Active Trades and Trades use the same checked filter. Each keeps its own
+choices when both widgets sit on screen. A
+wallet that could not be read does not add an
+orange warning row above the trades that did answer. When no trades answer, the
+empty wording still avoids claiming that every wallet was empty. A market whose
+current price could not be read shows a dash for both value and profit, never a
+made-up zero. A plain divider sits
+between every pair of trade rows, including the final two. The sticky table
+header uses an opaque mix of the muted gray and card background. The shade is
+light gray, but scrolling rows cannot show through it. Every Active Trades
+column is left-aligned, including Value and P/L.
+The footer stays at the bottom of the widget while the trades scroll. Total
+adds the value and current profit for the rows shown. Filters update the total.
+If any shown trade lacks a figure, the affected total uses a dash instead of
+presenting a partial answer as complete. The footer does not show averages.
+The PnL Graph and Trades cards use the same card, text, divider, and muted
+background rules as the rest of the dashboard. Money values use the dashboard's
+semibold tabular monospace treatment.
+
+The signed-in header's top-right side also shows the account-wide Active Trades
+total. The first figure is the current value held in every open position. The
+second is their current profit or loss. Both are rounded to whole dollars in
+the header so the answer stays readable beside the shell controls. Hovering the
+summary opens a two-tab menu. Active trades has the same rows, filters, sorting,
+totals, and chart links as the dashboard widget. Watching lists every active
+manual watched price, DCA ladder, grid, and signal order across the account.
+Its columns name the ticker, order kind, wallet, and Distance.
+Distance uses the same percentage-away pill as Open orders. A manual watch
+uses its waiting price; a grid or ladder uses its nearest waiting entry level.
+Signals and plans with no waiting entries leave Distance blank. The snapshot
+includes waiting prices and a market mark; live marks override that mark when
+available. Clicking Distance sorts nearest first, with unavailable distances last. A watched row opens that
+market on its protocol's chart. The two tabs keep separate exchange and wallet
+filters, so narrowing one list does not silently narrow the other.
+
+Clicking the summary opens the menu for touch and keyboard use. The menu grows
+with its rows up to the available screen height. Longer lists scroll
+under their sticky headings. The menu also respects the space Radix reports
+around the header button, so it cannot exceed the available popover height.
+Loading and failed reads use a padded line that fits its content. A failed
+read offers Try again in that same compact menu.
+Both tabs use the same 640px menu width, capped by the available browser
+width. Each table fills that width, including its headings and dividers.
+Narrow screens keep overflowing columns reachable through horizontal scrolling. Moving away closes it. The header asks for a fresh
+answer every 15 seconds while the browser tab is visible. The Active trades item can be
+moved or hidden under Settings → Top right menu. It appears only in the admin
+menu. The eye beside Filter hides the profit or loss from the header button and
+changes to a crossed eye. The value held stays visible, so the button still
+opens and the crossed eye can show the profit or loss again. The table keeps
+its P/L column either way. A wallet that misses a read keeps its last known
+rows.
+
+**The header button keeps the figures it last had until better ones arrive**
+(Tyler, 29 Sep 2026). A read with a wallet missing has no account-wide total to
+draw, and blanking both figures to dashes for a few seconds made the button
+flicker empty every refresh while nothing was wrong with the trades. Dashes are
+now only the first read of a fresh page, before any total has ever landed.
+
+The header reads the wallet list and then the open positions that supply its
+menu and total. It does not ask every exchange for a full account balance first.
+That balance is not part of the Active Trades answer, and waiting for it left
+the header on loading dashes long after the rest of the workspace had opened.
+
+Running bots is the fourth trading-overview widget. A fresh layout puts it on
+the bottom row, beside All trades.
+
+Running bots uses the same table shape as Active Trades. Its columns are
+Automation, Status, Markets, Positions, and Made or lost. Markets is how many
+markets the automation watches. Positions is how many of those markets still
+hold an open position from the current run. When several runs added to the same
+open position, the run whose earliest recorded order opened it gets the count.
+Later runs do not count the same position again.
+
+Running bots also uses Active Trades' row type. Automation uses the same 12px
+medium text as Ticker. Status uses 12px muted text. Markets and Positions use
+the same 12px monospaced numbers as Value.
+Made or lost uses the same 12px type and medium-weight dollar figure as P/L.
+
+Each automation gets one row. When an automation has run more than once, its
+newest run supplies the status, counts, money, and dashboard link. Running
+comes first, followed by waiting, paused, stopping, and stopped. Waiting uses
+the same explanation as the run dashboard. Every heading sorts its column. A
+flow that stopped without a person pressing Stop stays in the table until its
+run is deleted or the flow is started again. A flow stopped by hand leaves the
+table. Backtests never enter the widget. The widget chooses the newest run of
+every automation before the history page's 200-run display limit is applied, so
+one frequently restarted automation cannot hide another.
+
+For an admin, the whole row opens that bot on the Bots dashboard
+(`bots-dashboard.md`), its chart in the middle. A member cannot open that
+dashboard (Tyler, 9 Nov 2026: "Admins only"), so for a member the rows lead
+nowhere. The same widget is the Bots dashboard's own Overview widget too ("Both
+dashboards"). The table scrolls inside the card when there are more rows than
+its height can hold. An empty card says "No running bots". The rows arrive in the same server
+answer as the other overview widgets, with no timer of their own. A row keeps
+its last banked dollar figure until the overview is read again.
+
+Profit calendar is the month grid as an overview widget: one tile per day,
+green for money made, red for money lost, plain grey for a day with no
+trades. It draws `src/components/pnl/pnl-month-grid.tsx` inside
+`src/components/trade/profit-calendar-widget.tsx`, and a public profile draws
+the same grid. A fresh layout leaves it out, so it waits in the Widgets tab,
+or an empty spot's "Add a widget" until somebody places it.
+
+Until 8 Nov 2026 the grid also sat on a P&L page at `/pnl`, beside the whole
+Journal, pattern cards and an AI score out of 100. Tyler removed that page
+and everything only it used, so older notes that name the P&L page mean this
+grid.
+
+- **Where its dollars come from:** it splits the overview's own real fills by
+  Toronto day. It asks the server for nothing extra and updates with the
+  overview's fifteen-second read.
+- **Why the tiles give no trade count:** the overview carries fills, not
+  finished trades. Rebuilding every finished trade on each fifteen-second read
+  would be a much heavier read, so the widget names dollars alone.
+- **How it agrees with PnL Graph:** a month's tiles add up to the settled
+  figure the graph names for that month.
+- **When the two can differ:** the graph leaves out a wallet whose balance
+  could not be read. The calendar still counts that wallet's saved fills,
+- **Which month it opens on:** the current one. The arrows walk back to August
+  2026, and the chosen month is not remembered after a reload. Days before
+  20 August 2026, where the records begin, and days still to come are drawn
+  faint. Hovering a tile, or tabbing to it, shows its dollars.
+- **A day runs midnight to midnight in Toronto:** a fill at 00:30 UTC on the
+  2nd belongs to the 1st (`src/lib/trade/pnl/periods.ts`).
+- **An unpriced fill is counted apart, never as zero:** on an exchange that
+  only states a trade's money when the whole position closes, the sales
+  before that carry no figure yet. The tile says "plus 11 fills the exchange
+  has not priced" and the money shown is the priced part alone. Once the
+  position closes, its one payout covers those sales and they stop counting
+  as unpriced (see "Sales the exchange has not priced yet" below).
+- **A grid's round trip is counted once, on the sale:** the rung's sale
+  carries the whole trip after both fees, and the buy that opened the rung
+  carries nothing. Charged on the buy as well, the entry fee came off twice:
+  the USELESS run that ended on 29 September 2026 read $18.34 down on the
+  grid and $17.80 down in the Journal before the fix.
+- **A grid run can straddle two days, and each day keeps its own sales:** the
+  same USELESS run banked $9.55 on the 28th and lost $27.35 on the 29th, so
+  the 29th's tile is worse than the run was. The run's own total is the
+  Journal row.
+
+Practice wallets never enter a number on this screen. If one real wallet cannot
+be read, the rest of the screen stays up, the missing exchange is named, and
+every affected total says it is short. A failed read is never drawn as an empty
+wallet.
+
+Testnet wallets do not appear in PnL Graph. Made or lost is settled trade money
+plus current open profit. Deposits and withdrawals can change Balance but never
+profit.
+
+Fees are the exchange's stated charges on every fill in the same window,
+including a fill whose profit the exchange did not state. Made or lost stays
+the net figure Tyler reads first; the fee note explains part of that result.
+
+The Journal starts with the newest bounded page so the four-second account poll
+does not grow slower as a wallet ages. Show older reads and appends the next
+page without changing that poll. The pages overlap their boundary timestamp so
+fills recorded in the same millisecond do not fall through the join. If a page
+cuts through a trade, the next page also rebuilds the trade whole. Once an empty
+page comes back, the control says That is everything.
+
+Each line starts at zero on the start date and adds priced settled trade money
+until now. Its final point adds current open profit. Opening balances, deposits,
+withdrawals, and older fills never enter a line. A trade whose money an exchange
+did not state is left out of the line rather than counted as zero.
+
+## Sales the exchange has not priced yet
+
+- **What it is:** KuCoin states profit once, when a whole position closes, and
+  puts it on the last piece of the closing sale. Every sale before that comes
+  back with no figure.
+- **Covered once the position closes:** a sale with no figure counts as priced
+  when a later payout on the same wallet and market exists, because that payout
+  already includes it. Ku1 closed its PONS long on 20 Nov 2026 in five pieces.
+  KuCoin put the whole -$204.87 on the last one, and the other four used to
+  read "4 unpriced" although the chart held the full loss. The rule is
+  `fillsPaidLater` in `src/lib/trade/wallets.ts`.
+- **Still unpriced:** a sale from a position that is still open. Nothing has
+  been paid for it yet, so the chart cannot count it.
+- **Where it is said:** in PnL Graph's wallet dropdown, never on the card. The
+  wallet's row reads "KuCoin · 1 sale not priced yet", and All wallets adds the
+  total to its own line. Tyler, 23 Nov 2026: "put that notice somewhere else,
+  it doesnt need to take up space on the widget".
+
+The trades table uses the money each exchange stated. A KuCoin sale that did
+not close the position has no stated profit, so its Money cell is a dash. The
+Money column's header tooltip and the chart header say how many trades their
+total is short of. An unstated figure never becomes zero. Trade rows are grouped
+by day and keep market, side, time, exchange, wallet, money, size, and fee in a
+compact four-column table. The shared Filter menu narrows the table to one
+exchange, one wallet, or both, and Clear all restores every trade. A fill hidden from the
+Journal stays hidden here too.
+An unhidden fill that cannot be rebuilt into a complete trade stays in this
+table and also appears in the Journal as History incomplete. A PnL figure can
+therefore never depend on saved history that the Journal silently omits.
+Trade rows inherit the dashboard's Inter typeface, including market names and
+Money values. Their numbers keep tabular spacing without switching to a
+monospace face.
+
+Widgets are not in Settings any more (Tyler, 8 Nov 2026: "widgets are not in
+settings"). The trading layout is set on the dashboard itself and saved per
+account; the platform Admin Overview keeps its own layout for the whole site.
+Moving a card in one never changes the other.

@@ -1,0 +1,92 @@
+import { z } from "zod"
+
+import { DEFAULT_ENTRY_STYLE, ENTRY_STYLES } from "@/lib/trade/order-style"
+
+/**
+ * What the right-click order window was set to last time it placed something.
+ *
+ * Only the parts of the window that describe how you size a trade — how much,
+ * in what, at what leverage, and where you get out. What it does not carry is
+ * "only reduce what I hold": that one is about the position in front of you at
+ * the time, and a remembered yes would quietly shrink the next order somewhere
+ * else.
+ */
+export const DEFAULT_SLIPPAGE_PCT = "0.5"
+
+/**
+ * The typed slippage as a fraction the connector can use, or the default
+ * when the box holds nothing usable. Capped at 50%: a bigger number is a
+ * typo, and a swap that may fill half price away is not a cap at all.
+ */
+export function slippageFraction(pct: string | undefined): number {
+  const typed = Number(pct)
+  if (!Number.isFinite(typed) || typed <= 0 || typed > 50) {
+    return Number(DEFAULT_SLIPPAGE_PCT) / 100
+  }
+  return typed / 100
+}
+
+export const quickOrderPrefsSchema = z.object({
+  /**
+   * Whether the order waits here, waits on the exchange, or fills now. The
+   * window opens on the last answer, so somebody who trades one way is not
+   * choosing it again on every right-click.
+   */
+  entryStyle: z.enum(ENTRY_STYLES).default(DEFAULT_ENTRY_STYLE),
+  /**
+   * How the size was being said: in dollars, as a share of the free cash, or
+   * as the share of the whole wallet the trade may lose.
+   */
+  sizeUnit: z.enum(["usd", "pct", "risk"]),
+  /** The number typed beside it, kept as typed so it comes back the same. */
+  size: z.string().max(24),
+  leverage: z.number().int().min(1).max(100),
+  /** The old combined switch. True still means both lines are on. */
+  bracketOn: z.boolean(),
+  /** Independent switches added after the combined bracket control. */
+  stopOn: z.boolean().default(false),
+  targetOn: z.boolean().default(false),
+  /** Whether the stop box holds a distance or the exact losing price. */
+  stopUnit: z.enum(["pct", "price"]).default("pct"),
+  /** The exact stop price, kept separately from the old percent value. */
+  stopPrice: z.string().max(24).default(""),
+  stopPct: z.string().max(12),
+  targetPct: z.string().max(12),
+  /** Whether the exit box holds a distance or the exact winning price. */
+  targetUnit: z.enum(["pct", "price"]).default("pct"),
+  /** The exact exit price, kept separately from the percent value. */
+  targetPrice: z.string().max(24).default(""),
+  /**
+   * The worst fill a swap may take, as a percent of the price, kept as
+   * typed. Only a venue whose orders are swaps reads it (Solana through
+   * Jupiter); a book venue's order has a price and needs no cap. Half a
+   * percent is Jupiter's own default.
+   */
+  slippagePct: z.string().max(8).default(DEFAULT_SLIPPAGE_PCT),
+})
+
+export type QuickOrderPrefs = z.infer<typeof quickOrderPrefsSchema>
+
+/** A first visit: nothing typed, no borrowed money, no stop or target. */
+export const DEFAULT_QUICK_ORDER: QuickOrderPrefs = {
+  entryStyle: DEFAULT_ENTRY_STYLE,
+  sizeUnit: "usd",
+  size: "",
+  leverage: 1,
+  bracketOn: false,
+  stopOn: false,
+  targetOn: false,
+  stopUnit: "pct",
+  stopPrice: "",
+  stopPct: "2",
+  targetPct: "5",
+  targetUnit: "pct",
+  targetPrice: "",
+  slippagePct: DEFAULT_SLIPPAGE_PCT,
+}
+
+/** Stored settings, with the plain defaults for a first or unreadable value. */
+export function readQuickOrderPrefs(value: unknown): QuickOrderPrefs {
+  const parsed = quickOrderPrefsSchema.safeParse(value)
+  return parsed.success ? parsed.data : DEFAULT_QUICK_ORDER
+}

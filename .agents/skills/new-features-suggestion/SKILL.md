@@ -87,7 +87,9 @@ Use the available choice control and do not auto-resolve the decision.
 
 After the user selects `Create tasks`, use the Personal IDE task-creation tool for the active workspace. The tool must create each task from the user's configured default task template. Do not bypass the tool by manually creating Markdown files when the tool is available.
 
-Create one task per accepted feature across all completed rounds with a concise title. Fill the generated task with:
+Create one task per accepted feature across all completed rounds with a concise title. Use plain english and fill the generated task with:
+
+** Use plain English
 
 - goal and user value
 - codebase evidence

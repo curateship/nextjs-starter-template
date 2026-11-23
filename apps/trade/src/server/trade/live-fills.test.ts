@@ -1,0 +1,1554 @@
+import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import type { TradeWallet } from "@/lib/trade/wallets"
+import type { CustomShellDb } from "@/server/db"
+import { createTestDatabase, insertUser } from "@/server/test-support"
+import { customShellNotifications } from "@/server/schema"
+import { writeTradeNotice } from "@/server/trade/notices"
+import {
+  hideLiveTrade,
+  liveHistoryStamp,
+  loadLiveHistory,
+  recordLiveFills,
+  sweepLiveFills,
+  sweepWaitMs,
+} from "@/server/trade/live-fills"
+import {
+  tradeGridOrderRungs,
+  tradeLiveFills,
+  tradeLiveTriggers,
+  tradeSmartLadders,
+  tradeWallets,
+} from "@/server/trade/schema"
+
+const protocolMocks = vi.hoisted(() => ({
+  fills: vi.fn(),
+  orderInfo: vi.fn(),
+  watchFills: vi.fn(),
+  fillsNeedRecovery: vi.fn(),
+}))
+
+vi.mock("@/server/trade/notices", () => ({ writeTradeNotice: vi.fn() }))
+// Copying has its own suite. Here it is only a door that fresh fills pass
+// through, so the counts of this file's own reads stay this file's.
+vi.mock("@/server/trade/copy-engine", () => ({ copyFreshLiveFills: vi.fn() }))
+vi.mock("@/server/trade/engine-errors", () => ({ recordEngineError: vi.fn() }))
+// Only the two order-facing doors are replaced. The rest of the registry
+// comes through as itself, because `pricesEverySale` is asked here for what
+// each exchange says about its own closed money, and a mock listing just
+// these two left it undefined.
+vi.mock("@/server/protocols/registry", async (importOriginal) => {
+  const orders = {
+    fills: protocolMocks.fills,
+    orderInfo: protocolMocks.orderInfo,
+    watchFills: protocolMocks.watchFills,
+    fillsNeedRecovery: protocolMocks.fillsNeedRecovery,
+  }
+  return {
+    ...(await importOriginal<object>()),
+    getProtocol: () => ({ orders }),
+    ordersOf: () => orders,
+  }
+})
+
+let client: PGlite
+let database: CustomShellDb
+
+beforeEach(async () => {
+  const test = await createTestDatabase()
+  client = test.client
+  database = test.db
+  vi.mocked(writeTradeNotice).mockReset()
+  protocolMocks.fills.mockReset()
+  protocolMocks.fills.mockResolvedValue([])
+  protocolMocks.orderInfo.mockReset()
+  protocolMocks.watchFills.mockReset()
+  protocolMocks.fillsNeedRecovery.mockReset()
+  protocolMocks.fillsNeedRecovery.mockReturnValue(true)
+})
+
+afterEach(async () => {
+  await client.close()
+})
+
+describe("how often a wallet's history is read", () => {
+  it("slows down when nobody is looking, and never stops", () => {
+    // The Journal is only DRAWN when it is open, but the record behind it is
+    // what sends the bell notice. The engine keeps that record only for
+    // wallets running ladders, so a plain wallet holding one position has
+    // nothing else — and a stop firing at three in the morning would go
+    // unannounced until somebody next opened the page. That is the bug this
+    // pins: unwatched means slower, never off.
+    expect(sweepWaitMs(true)).toBe(30_000)
+    expect(sweepWaitMs(false)).toBe(120_000)
+    expect(Number.isFinite(sweepWaitMs(false))).toBe(true)
+    expect(sweepWaitMs(false)).toBeGreaterThan(sweepWaitMs(true))
+  })
+
+  it("reads a just-made close even while the pushed feed says it is current", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Lighter",
+      kind: "live",
+      status: "active",
+      protocol: "lighter",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x1111111111111111111111111111111111111111",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    protocolMocks.fillsNeedRecovery.mockReturnValue(false)
+    protocolMocks.fills.mockResolvedValue([
+      {
+        fillId: "close-fill",
+        orderId: "close-order",
+        marketId: "ETH",
+        side: "buy",
+        px: 2_468.81,
+        sz: 0.0922,
+        at: Date.now(),
+        closedPnl: -0.169648,
+        fee: 0,
+        dir: "Close Short",
+        liquidation: false,
+      },
+    ])
+
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => null,
+      false,
+      true
+    )
+
+    expect(protocolMocks.fillsNeedRecovery).not.toHaveBeenCalled()
+    expect(protocolMocks.fills).toHaveBeenCalledWith(
+      "mainnet",
+      wallet.address,
+      0,
+      expect.any(Function),
+      "order",
+      { userId: user.id, walletId: wallet.id }
+    )
+    const saved = await database
+      .select()
+      .from(tradeLiveFills)
+      .where(eq(tradeLiveFills.userId, user.id))
+    expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatchObject({
+      marketKey: "lighter:mainnet:ETH",
+      dir: "Close Short",
+      closedPnl: -0.169648,
+    })
+  })
+
+  it("keeps a dead pushed feed on the ordinary polling clock", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Phemex",
+      kind: "live",
+      status: "active",
+      protocol: "phemex",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "phemex-key",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => "credential"
+    )
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => "credential"
+    )
+
+    expect(protocolMocks.fills).toHaveBeenCalledOnce()
+    expect(protocolMocks.fillsNeedRecovery).toHaveBeenCalledWith(
+      "mainnet",
+      "phemex-key",
+      expect.any(Function)
+    )
+  })
+
+  it("routes a pushed fill through storage before recovery sees it", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Hyperliquid",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x1111111111111111111111111111111111111111",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const fill = {
+      fillId: "pushed-fill",
+      orderId: "pushed-order",
+      marketId: "ETH",
+      side: "buy" as const,
+      px: 2_500,
+      sz: 0.2,
+      at: Date.now(),
+      closedPnl: 0,
+      fee: 0.3,
+      dir: "Open Long",
+      liquidation: false,
+    }
+    const pushed = { current: null as ((one: typeof fill) => void) | null }
+    protocolMocks.watchFills.mockImplementation(
+      (_network, _address, _listenerId, _credential, onFill) => {
+        pushed.current = onFill
+      }
+    )
+    protocolMocks.fillsNeedRecovery.mockReturnValue(false)
+
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => "credential"
+    )
+    pushed.current?.(fill)
+    await vi.waitFor(async () => {
+      const rows = await database
+        .select()
+        .from(tradeLiveFills)
+        .where(eq(tradeLiveFills.userId, user.id))
+      expect(rows).toHaveLength(1)
+    })
+
+    protocolMocks.fills.mockResolvedValue([fill])
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => "credential",
+      true,
+      true
+    )
+
+    expect(writeTradeNotice).toHaveBeenCalledOnce()
+  })
+})
+
+describe("live fill storage", () => {
+  it("hands copying the new fills once, and nothing when the same fills come again", async () => {
+    const { copyFreshLiveFills } = await import("@/server/trade/copy-engine")
+    vi.mocked(copyFreshLiveFills).mockClear()
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Main",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "test-account",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const fill = {
+      fillId: "copy-fill",
+      orderId: "copy-order",
+      marketId: "ETH",
+      side: "buy" as const,
+      px: 100,
+      sz: 1,
+      at: Date.now(),
+      closedPnl: 0,
+      fee: 0,
+      dir: "Open Long",
+      liquidation: false,
+    }
+    await recordLiveFills(user.id, wallet, [fill])
+    await recordLiveFills(user.id, wallet, [fill])
+
+    expect(copyFreshLiveFills).toHaveBeenCalledTimes(1)
+    expect(copyFreshLiveFills).toHaveBeenCalledWith(user.id, wallet, [fill])
+  })
+
+  it("continues announcing other orders when one notice fails", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Main",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "test-account",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    vi.mocked(writeTradeNotice).mockRejectedValueOnce(
+      new Error("Notice unavailable")
+    )
+    await recordLiveFills(
+      user.id,
+      wallet,
+      [1, 2].map((number) => ({
+        fillId: `fill-${number}`,
+        orderId: `order-${number}`,
+        marketId: "ETH",
+        side: "buy" as const,
+        px: 100,
+        sz: number,
+        at: Date.now(),
+        closedPnl: 0,
+        fee: 0,
+        dir: "Open Long",
+        liquidation: false,
+      }))
+    )
+    expect(writeTradeNotice).toHaveBeenCalledTimes(2)
+    expect(writeTradeNotice).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        title: "Entered a trade: $200 of ETH at $100 (Main)",
+      })
+    )
+    expect(
+      await database
+        .select()
+        .from(tradeLiveFills)
+        .where(eq(tradeLiveFills.userId, user.id))
+    ).toHaveLength(2)
+  })
+
+  it("announces one order once when the exchange splits it into fill pieces", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Ku1",
+      kind: "live",
+      status: "active",
+      protocol: "kucoin",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "kucoin-account",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const at = Date.now()
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "fill-piece-1",
+        orderId: "one-order",
+        marketId: "JASMYUSDTM",
+        side: "buy",
+        px: 0.004861,
+        sz: 9_300,
+        at,
+        closedPnl: 0,
+        fee: 0.02,
+        dir: "Buy",
+        liquidation: false,
+      },
+      {
+        fillId: "fill-piece-2",
+        orderId: "one-order",
+        marketId: "JASMYUSDTM",
+        side: "buy",
+        px: 0.00486,
+        sz: 220.16,
+        at: at + 5,
+        closedPnl: 0,
+        fee: 0.01,
+        dir: "Buy",
+        liquidation: false,
+      },
+    ])
+
+    expect(writeTradeNotice).toHaveBeenCalledTimes(1)
+    expect(writeTradeNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Entered a trade: $46.28 of JASMY at $0.004861 (Ku1)",
+        body: "The order filled on the exchange.",
+        soundKind: "fill",
+      })
+    )
+    const saved = await database
+      .select()
+      .from(tradeLiveFills)
+      .where(eq(tradeLiveFills.userId, user.id))
+    expect(saved).toHaveLength(2)
+  })
+
+  it.each([1, 14])(
+    "adds KuCoin close money once across %i pieces to the same notice",
+    async (pieces) => {
+      const user = await insertUser(database)
+      const wallet: TradeWallet = {
+        id: crypto.randomUUID(),
+        label: "KuCoin",
+        kind: "live",
+        status: "active",
+        protocol: "kucoin",
+        network: "mainnet",
+        startingBalance: 0,
+        address: "kucoin-account",
+        hasKey: true,
+        keyValidUntil: null,
+      }
+      await database.insert(tradeWallets).values({
+        userId: user.id,
+        id: wallet.id,
+        label: wallet.label,
+        kind: wallet.kind,
+        status: wallet.status,
+        protocol: wallet.protocol,
+        network: wallet.network,
+        startingBalance: 0,
+        address: wallet.address,
+      })
+      const fill = {
+        fillId: "kucoin-close",
+        orderId: "kucoin-order",
+        marketId: "XBTUSDTM",
+        side: "sell" as const,
+        px: 70_000,
+        sz: 0.01,
+        at: Date.now(),
+        closedPnl: 0,
+        fee: 0.4,
+        dir: "Close Long",
+        liquidation: false,
+      }
+
+      const pushed = Array.from({ length: pieces }, (_, i) => ({
+        ...fill,
+        fillId: `${fill.fillId}-${i}`,
+        fee: 0.11926794 / pieces,
+      }))
+      await recordLiveFills(user.id, wallet, pushed)
+      const beforeRecovery = await liveHistoryStamp(user.id, [wallet.id])
+      const recovered = pushed.map((one, i) => ({
+        ...one,
+        closedPnl: i === pieces - 1 ? -2.74687686 : 0,
+      }))
+      await recordLiveFills(user.id, wallet, recovered)
+      const afterRecovery = await liveHistoryStamp(user.id, [wallet.id])
+      await recordLiveFills(user.id, wallet, recovered)
+      // A late notification with zero money must not undo the settled amount.
+      await recordLiveFills(user.id, wallet, pushed)
+
+      const saved = await database
+        .select()
+        .from(tradeLiveFills)
+        .where(eq(tradeLiveFills.userId, user.id))
+      expect(saved).toHaveLength(pieces)
+      expect(saved.filter((one) => one.closedPnl !== 0)).toHaveLength(1)
+      expect(
+        saved.reduce((sum, one) => sum + one.closedPnl - one.fee, 0) -
+          0.11753328
+      ).toBeCloseTo(-2.98367808, 10)
+      expect(afterRecovery).not.toBe(beforeRecovery)
+      expect(await liveHistoryStamp(user.id, [wallet.id])).toBe(afterRecovery)
+      // The money rewrites the one notice in place, under the same key, so
+      // the bell still holds one row for the close and now says what it lost.
+      const notices = vi.mocked(writeTradeNotice).mock.calls.map(([n]) => n)
+      expect(notices).toHaveLength(2)
+      expect(notices[1].noticeKey).toBe(notices[0].noticeKey)
+      expect(notices[0].meta?.at(-1)).toBe("filled")
+      expect(notices[1].meta?.at(-1)).toBe("lost $2.75")
+    }
+  )
+
+  it("names the average entry only where the exchange prices every sale", async () => {
+    // Working an entry back from a closing fill only holds when the money on
+    // that fill belongs to that fill. KuCoin and Lighter pay out the whole
+    // position's figure and land it on one sale, so there is no entry to
+    // name. The venue is never asked by name: it is asked whether it prices
+    // every sale, which is written once beside the venue itself.
+    const user = await insertUser(database)
+    for (const protocol of ["hyperliquid", "kucoin"] as const) {
+      const wallet: TradeWallet = {
+        id: crypto.randomUUID(),
+        label: `W-${protocol}`,
+        kind: "live",
+        status: "active",
+        protocol,
+        network: "mainnet",
+        startingBalance: 0,
+        address: `${protocol}-account`,
+        hasKey: true,
+        keyValidUntil: null,
+      }
+      await database.insert(tradeWallets).values({
+        userId: user.id,
+        id: wallet.id,
+        label: wallet.label,
+        kind: wallet.kind,
+        status: wallet.status,
+        protocol: wallet.protocol,
+        network: wallet.network,
+        startingBalance: 0,
+        address: wallet.address,
+      })
+      await recordLiveFills(user.id, wallet, [
+        {
+          fillId: `${protocol}-close`,
+          orderId: `${protocol}-order`,
+          marketId: "BTC",
+          side: "sell",
+          px: 100,
+          sz: 2,
+          at: Date.now(),
+          closedPnl: 20,
+          fee: 0.1,
+          dir: "Close Long",
+          liquidation: false,
+        },
+      ])
+    }
+
+    const bodies = vi
+      .mocked(writeTradeNotice)
+      .mock.calls.map(([notice]) => notice.body)
+    expect(bodies).toHaveLength(2)
+    // $20 banked on 2 coins sold at $100 each puts the entry at $90.
+    expect(bodies[0]).toContain("average entry of $90")
+    expect(bodies[1]).not.toContain("average entry")
+  })
+
+  it("measures a grid sale against its own rung, not the position average", async () => {
+    // Two rungs holding, bought at $1.00 and $0.90. The cheaper one sells at
+    // $0.95 for $5 more than it paid, and the venue books it against the
+    // $0.95 average of both, so it says nothing was made. The bell says what
+    // the rung made, the same figure the chart arrow and the month grid show.
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "HL1 - GRID",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x4444444444444444444444444444444444444444",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const BTC = "hyperliquid:mainnet:BTC"
+    const now = Date.now()
+    await database.insert(tradeSmartLadders).values({
+      userId: user.id,
+      id: "grid-1",
+      walletId: wallet.id,
+      marketKey: BTC,
+      status: "active",
+      kind: "grid",
+      plan: {} as never,
+      createdAt: new Date(now - 60_000),
+      updatedAt: new Date(now - 60_000),
+    })
+    await database.insert(tradeGridOrderRungs).values(
+      [
+        ["buy-rung-1", 1],
+        ["buy-rung-2", 2],
+        ["sell-rung-2", 2],
+      ].map(([orderId, rung]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: orderId as string,
+        ladderId: "grid-1",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: rung as number,
+      }))
+    )
+    await database.insert(tradeLiveFills).values(
+      [
+        ["buy-1", "buy-rung-1", 1, now - 50_000],
+        ["buy-2", "buy-rung-2", 0.9, now - 40_000],
+      ].map(([fillId, orderId, px, at]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: fillId as string,
+        orderId: orderId as string,
+        marketKey: BTC,
+        side: "buy" as const,
+        px: px as number,
+        sz: 100,
+        at: at as number,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Open Long",
+        liquidation: false,
+      }))
+    )
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "sell-2",
+        orderId: "sell-rung-2",
+        marketId: "BTC",
+        side: "sell",
+        px: 0.95,
+        sz: 100,
+        at: now,
+        // The venue's figure: nothing made, against the $0.95 average.
+        closedPnl: 0,
+        fee: 0,
+        dir: "Close Long",
+        liquidation: false,
+      },
+    ])
+
+    const [notice] = vi.mocked(writeTradeNotice).mock.calls[0]
+    // The rung leads and the money is its own, not the venue's nothing.
+    expect(notice.title).toBe("BTC Rung 2 sold: made $5.00 (HL1 - GRID)")
+    expect(notice.body).toBe("Sold $95.00. Still holding $95.00.")
+    expect(notice.level).toBe("info")
+  })
+
+  it("rings once for a grid sale and the Pair Out rescue beside it", async () => {
+    // MARSCOIN, 3 Oct 2026, the shape this was found on. Rung 4 sells the
+    // coins it bought, and its profit pays to clear a buy the range left
+    // behind two moves ago. Two orders, one event, one row in the bell.
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "HL1 - GRID",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x5555555555555555555555555555555555555555",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const BTC = "hyperliquid:mainnet:BTC"
+    const now = Date.now()
+    await database.insert(tradeSmartLadders).values({
+      userId: user.id,
+      id: "grid-1",
+      walletId: wallet.id,
+      marketKey: BTC,
+      status: "active",
+      kind: "grid",
+      plan: {} as never,
+      createdAt: new Date(now - 60_000),
+      updatedAt: new Date(now - 60_000),
+    })
+    await database.insert(tradeGridOrderRungs).values([
+      // The two buys, each naming its own level.
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: "buy-carried",
+        ladderId: "grid-1",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: 4,
+        levelId: "level-carried",
+      },
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: "buy-in-range",
+        ladderId: "grid-1",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: 6,
+        levelId: "level-in-range",
+      },
+      // The level's own sale.
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: "sell-own",
+        ladderId: "grid-1",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: 4,
+        levelId: "level-in-range",
+        eventId: "event-1",
+        levelName: "Rung 4",
+      },
+      // The rescue its profit paid for.
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: "sell-rescue",
+        ladderId: "grid-1",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: 1,
+        levelId: "level-carried",
+        eventId: "event-1",
+        levelName: "Rung 6 - level 2",
+        pairOut: true,
+      },
+    ])
+    await database.insert(tradeLiveFills).values(
+      [
+        ["buy-1", "buy-carried", 1.2, 100, now - 50_000],
+        ["buy-2", "buy-in-range", 0.9, 100, now - 40_000],
+      ].map(([fillId, orderId, px, sz, at]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: fillId as string,
+        orderId: orderId as string,
+        marketKey: BTC,
+        side: "buy" as const,
+        px: px as number,
+        sz: sz as number,
+        at: at as number,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Open Long",
+        liquidation: false,
+      }))
+    )
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "sell-own-1",
+        orderId: "sell-own",
+        marketId: "BTC",
+        side: "sell",
+        px: 1,
+        sz: 100,
+        at: now,
+        closedPnl: -5,
+        fee: 0,
+        dir: "Close Long",
+        liquidation: false,
+      },
+      {
+        fillId: "sell-rescue-1",
+        orderId: "sell-rescue",
+        marketId: "BTC",
+        side: "sell",
+        px: 1,
+        sz: 100,
+        at: now + 850,
+        closedPnl: -25,
+        fee: 0,
+        dir: "Close Long",
+        liquidation: false,
+      },
+    ])
+
+    const fillNotices = vi
+      .mocked(writeTradeNotice)
+      .mock.calls.map(([notice]) => notice)
+      .filter((notice) => notice.soundKind === "fill")
+    // One row, not two. Rung 4 bought at $0.90 and sold at $1.00, so it made
+    // $10. The carried buy cost $1.20 and went at $1.00, so it lost $20. The
+    // event lost $10, which is neither of the venue's own figures.
+    expect(fillNotices).toHaveLength(1)
+    expect(fillNotices[0].title).toBe(
+      "BTC Rung 4 sold and cleared Rung 6 - level 2: lost $10.00 (HL1 - GRID)"
+    )
+    expect(fillNotices[0].body).toBe(
+      "Rung 4 sold $100 and made $10.00. Rung 6 - level 2 sold $100 and lost $20.00."
+    )
+    expect(fillNotices[0].level).toBe("warning")
+  })
+
+  it("counts the same coins in a grid sale's dollars and its money", async () => {
+    // One sale, delivered in two pieces, and one of those pieces is not in the
+    // history any more. The money is worked out on the coins that are, so the
+    // dollars in the headline have to name those same coins. On 29 Sep 2026 a
+    // USELESS notice read "$262 of USELESS … made $8.12" when $8.12 was 815 of
+    // the 1,086 coins that $262 counted.
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "HL1 - GRID",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x5555555555555555555555555555555555555555",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const BTC = "hyperliquid:mainnet:BTC"
+    const now = Date.now()
+    await database.insert(tradeSmartLadders).values({
+      userId: user.id,
+      id: "grid-2",
+      walletId: wallet.id,
+      marketKey: BTC,
+      status: "active",
+      kind: "grid",
+      plan: {} as never,
+      createdAt: new Date(now - 60_000),
+      updatedAt: new Date(now - 60_000),
+    })
+    await database.insert(tradeGridOrderRungs).values(
+      [
+        ["buy-rung-1", 1],
+        ["buy-rung-2", 2],
+        ["sell-rung-2", 2],
+      ].map(([orderId, rung]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: orderId as string,
+        ladderId: "grid-2",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: rung as number,
+      }))
+    )
+    await database.insert(tradeLiveFills).values([
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: "buy-1",
+        orderId: "buy-rung-1",
+        marketKey: BTC,
+        side: "buy" as const,
+        px: 1,
+        sz: 100,
+        at: now - 50_000,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Open Long",
+        liquidation: false,
+      },
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: "buy-2",
+        orderId: "buy-rung-2",
+        marketKey: BTC,
+        side: "buy" as const,
+        px: 0.9,
+        sz: 50,
+        at: now - 40_000,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Open Long",
+        liquidation: false,
+      },
+      // The other piece of the sale, taken out of the history.
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: "sell-hidden",
+        orderId: "sell-rung-2",
+        marketKey: BTC,
+        side: "sell" as const,
+        px: 0.95,
+        sz: 50,
+        at: now,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Close Long",
+        liquidation: false,
+        hidden: true,
+      },
+    ])
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "sell-2",
+        orderId: "sell-rung-2",
+        marketId: "BTC",
+        side: "sell",
+        px: 0.95,
+        sz: 50,
+        at: now,
+        closedPnl: 0,
+        fee: 0,
+        dir: "Close Long",
+        liquidation: false,
+      },
+    ])
+
+    const [notice] = vi.mocked(writeTradeNotice).mock.calls[0]
+    // 50 coins at $0.95 is $47.50, and $2.50 is what those 50 made over the
+    // $0.90 they cost. The hidden 50 are in neither figure. The dollars moved
+    // out of the headline on 3 Oct 2026 — "showing the dollar amount sold tell
+    // us nothing about what was sold" — so the body is where they have to
+    // agree with the money beside them.
+    expect(notice.title).toBe("BTC Rung 2 sold: made $2.50 (HL1 - GRID)")
+    expect(notice.body).toContain("Sold $47.50.")
+  })
+
+  it("says the whole run when a sale leaves a grid with no coins", async () => {
+    // On 24 Sep a USELESS grid was closed and the bell said "Lost $87.36",
+    // measured against the dearest rungs still holding, while the Journal
+    // row for the same run said -$16.43. The sale that ends a run now says
+    // the run's total, the Journal row's figure. Here one rung already sold
+    // for +$4.90, and closing the grid by hand banks -$20.10 on the rest.
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "HL1 - GRID",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x5555555555555555555555555555555555555555",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const BTC = "hyperliquid:mainnet:BTC"
+    const now = Date.now()
+    await database.insert(tradeSmartLadders).values({
+      userId: user.id,
+      id: "grid-run",
+      walletId: wallet.id,
+      marketKey: BTC,
+      status: "active",
+      kind: "grid",
+      plan: {} as never,
+      createdAt: new Date(now - 60_000),
+      updatedAt: new Date(now - 60_000),
+    })
+    await database.insert(tradeGridOrderRungs).values(
+      [
+        ["run-buy-1", 1],
+        ["run-buy-2", 2],
+        ["run-sell-2", 2],
+      ].map(([orderId, rung]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: orderId as string,
+        ladderId: "grid-run",
+        marketKey: BTC,
+        direction: "long" as const,
+        rung: rung as number,
+      }))
+    )
+    await database.insert(tradeLiveFills).values(
+      [
+        ["run-fill-1", "run-buy-1", "buy", 1, now - 50_000, 0, "Open Long"],
+        ["run-fill-2", "run-buy-2", "buy", 0.9, now - 40_000, 0, "Open Long"],
+        ["run-fill-3", "run-sell-2", "sell", 0.95, now - 30_000, 5, "Close Long"],
+      ].map(([fillId, orderId, side, px, at, closedPnl, dir]) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: fillId as string,
+        orderId: orderId as string,
+        marketKey: BTC,
+        side: side as "buy" | "sell",
+        px: px as number,
+        sz: 100,
+        at: at as number,
+        closedPnl: closedPnl as number,
+        fee: fillId === "run-fill-3" ? 0.1 : 0,
+        dir: dir as string,
+        liquidation: false,
+      }))
+    )
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "run-fill-4",
+        orderId: "closed-by-hand",
+        marketId: "BTC",
+        side: "sell",
+        px: 0.8,
+        sz: 100,
+        at: now,
+        closedPnl: -20,
+        fee: 0.1,
+        dir: "Close Long",
+        liquidation: false,
+      },
+    ])
+
+    const [notice] = vi.mocked(writeTradeNotice).mock.calls[0]
+    // $5 - $0.10 on the rung sale, then -$20 - $0.10 on the close.
+    expect(notice.title).toBe("BTC grid run ended: lost $15.20 (HL1 - GRID)")
+    expect(notice.body).toBe(
+      "Sold the last $80.00 at $0.8. That is the whole run, after fees, the same as its Journal row."
+    )
+    expect(notice.level).toBe("warning")
+  })
+
+  it("reads fills for newly learnt triggers in one query", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Learnt stops",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x3333333333333333333333333333333333333333",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    await database.insert(tradeLiveFills).values([
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: "learnt-fill-1",
+        orderId: "learnt-order-1",
+        marketKey: "hyperliquid:mainnet:BTC",
+        side: "sell",
+        px: 90,
+        sz: 1,
+        at: Date.now(),
+        closedPnl: -10,
+        fee: 0,
+        dir: "Close long",
+        liquidation: false,
+      },
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        fillId: "learnt-fill-2",
+        orderId: "learnt-order-2",
+        marketKey: "hyperliquid:mainnet:ETH",
+        side: "sell",
+        px: 120,
+        sz: 1,
+        at: Date.now(),
+        closedPnl: 20,
+        fee: 0,
+        dir: "Close long",
+        liquidation: false,
+      },
+    ])
+    protocolMocks.orderInfo.mockImplementation(
+      async (_network: string, _address: string, orderId: string) => ({
+        kind: orderId.endsWith("1") ? "stop" : "target",
+        triggerPx: orderId.endsWith("1") ? 90 : 120,
+      })
+    )
+    const select = vi.spyOn(database, "select")
+    const before = await liveHistoryStamp(user.id, [wallet.id])
+    select.mockClear()
+
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => null
+    )
+
+    expect(select).toHaveBeenCalledTimes(3)
+    expect(protocolMocks.orderInfo).toHaveBeenCalledTimes(2)
+    expect(writeTradeNotice).toHaveBeenCalledTimes(2)
+    expect(await liveHistoryStamp(user.id, [wallet.id])).not.toBe(before)
+
+    const learntStop = vi
+      .mocked(writeTradeNotice)
+      .mock.calls.map(([notice]) => notice)
+      .find((notice) => notice.title.startsWith("Stop hit"))!
+    expect(learntStop.noticeKey).toBeDefined()
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "learnt-fill-later",
+        orderId: "learnt-order-1",
+        marketId: "BTC",
+        side: "sell",
+        px: 80,
+        sz: 1,
+        at: Date.now(),
+        closedPnl: -20,
+        fee: 0,
+        dir: "Close long",
+        liquidation: false,
+      },
+    ])
+    expect(vi.mocked(writeTradeNotice).mock.calls.at(-1)![0].noticeKey).toBe(
+      learntStop.noticeKey
+    )
+  })
+
+  it("reads known triggers once before announcing a batch", async () => {
+    const actual = await vi.importActual<
+      typeof import("@/server/trade/notices")
+    >("@/server/trade/notices")
+    vi.mocked(writeTradeNotice).mockImplementation(actual.writeTradeNotice)
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Main",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x1111111111111111111111111111111111111111",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    await database.insert(tradeLiveTriggers).values([
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: "stop-order",
+        marketKey: "hyperliquid:mainnet:BTC",
+        kind: "stop",
+        px: 90,
+      },
+      {
+        userId: user.id,
+        walletId: wallet.id,
+        orderId: "target-order",
+        marketKey: "hyperliquid:mainnet:ETH",
+        kind: "target",
+        px: 120,
+      },
+    ])
+    const select = vi.spyOn(database, "select")
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "fill-stop",
+        orderId: "stop-order",
+        marketId: "BTC",
+        side: "sell",
+        px: 90,
+        sz: 1,
+        at: Date.now(),
+        closedPnl: -10,
+        fee: 0.1,
+        dir: "Close long",
+        liquidation: false,
+      },
+      {
+        fillId: "fill-target",
+        orderId: "target-order",
+        marketId: "ETH",
+        side: "sell",
+        px: 120,
+        sz: 1,
+        at: Date.now(),
+        closedPnl: 20,
+        fee: 0.1,
+        dir: "Close long",
+        liquidation: false,
+      },
+    ])
+
+    expect(select).toHaveBeenCalledTimes(1)
+    expect(
+      vi.mocked(writeTradeNotice).mock.calls.map(([notice]) => notice.soundKind)
+    ).toEqual(["fill", "stop", "fill", "stop"])
+
+    const firstStops = vi
+      .mocked(writeTradeNotice)
+      .mock.calls.map(([notice]) => notice)
+      .filter((notice) => notice.soundKind === "stop")
+    expect(firstStops[0].noticeKey).toBeDefined()
+    expect(firstStops[1].noticeKey).not.toBe(firstStops[0].noticeKey)
+
+    await recordLiveFills(user.id, wallet, [
+      {
+        fillId: "fill-stop-second-piece",
+        orderId: "stop-order",
+        marketId: "BTC",
+        side: "sell",
+        px: 80,
+        sz: 1,
+        at: Date.now(),
+        closedPnl: -20,
+        fee: 0.1,
+        dir: "Close long",
+        liquidation: false,
+      },
+    ])
+    const updated = vi.mocked(writeTradeNotice).mock.calls.at(-1)![0]
+    expect(updated.noticeKey).toBe(firstStops[0].noticeKey)
+    expect(updated.title).toContain("$85")
+    expect(updated.title).toContain("$30.00")
+    const notices = await database.select().from(customShellNotifications)
+    expect(notices).toHaveLength(4)
+    expect(
+      notices.filter((notice) => notice.message?.startsWith("Stop hit"))
+    ).toHaveLength(1)
+  })
+
+  it("chunks a large trigger lookup instead of asking once per fill", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Backlog",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x2222222222222222222222222222222222222222",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const count = 501
+    const orderIds = Array.from(
+      { length: count },
+      (_, index) => `order-${index}`
+    )
+    await database.insert(tradeLiveTriggers).values(
+      orderIds.map((orderId) => ({
+        userId: user.id,
+        walletId: wallet.id,
+        orderId,
+        marketKey: "hyperliquid:mainnet:BTC",
+        kind: "stop" as const,
+        px: 90,
+      }))
+    )
+    const select = vi.spyOn(database, "select")
+
+    await recordLiveFills(
+      user.id,
+      wallet,
+      orderIds.map((orderId, index) => ({
+        fillId: `fill-${index}`,
+        orderId,
+        marketId: "BTC",
+        side: "sell" as const,
+        px: 90,
+        sz: 1,
+        at: Date.now(),
+        closedPnl: -1,
+        fee: 0,
+        dir: "Close long",
+        liquidation: false,
+      }))
+    )
+
+    expect(select).toHaveBeenCalledTimes(2)
+    expect(writeTradeNotice).toHaveBeenCalledTimes(count * 2)
+  })
+
+  it("stores the same pushed and recovered fill once", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Aster",
+      kind: "live",
+      status: "active",
+      protocol: "aster",
+      network: "testnet",
+      startingBalance: 0,
+      address: "0x1111111111111111111111111111111111111111",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+      agentKeyEncrypted: "encrypted-test-value",
+    })
+    const fill = {
+      fillId: "88",
+      orderId: "42",
+      marketId: "BTCUSDT",
+      side: "sell" as const,
+      px: 101,
+      sz: 0.25,
+      at: 1234,
+      closedPnl: 2.5,
+      fee: 0.01,
+      dir: "Close long",
+      liquidation: false,
+    }
+
+    await recordLiveFills(user.id, wallet, [fill])
+    const afterInsert = await liveHistoryStamp(user.id, [wallet.id])
+    await recordLiveFills(user.id, wallet, [fill])
+    const afterDuplicate = await liveHistoryStamp(user.id, [wallet.id])
+
+    const rows = await database
+      .select()
+      .from(tradeLiveFills)
+      .where(eq(tradeLiveFills.userId, user.id))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].fillId).toBe("88")
+    expect(afterDuplicate).toBe(afterInsert)
+
+    await hideLiveTrade(user.id, wallet.id, [fill.fillId])
+    expect(await liveHistoryStamp(user.id, [wallet.id])).not.toBe(afterInsert)
+  })
+
+  it("rewrites a close's notice when its money arrives after it", async () => {
+    // KuCoin's sale carries no profit; its closed position does, a sweep
+    // later. The Ku1 XRP close of 6 Nov 2026 rang as "filled" and never said
+    // it lost $38.02, though the Journal had the money two minutes on.
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Ku1",
+      kind: "live",
+      status: "active",
+      protocol: "kucoin",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "kucoin-account",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    const close = {
+      fillId: "xrp-close",
+      orderId: "483699423193497600",
+      marketId: "XRPUSDTM",
+      side: "sell" as const,
+      px: 1.1895,
+      sz: 210,
+      at: Date.now(),
+      closedPnl: 0,
+      fee: 0.149877,
+      dir: "Close Long",
+      liquidation: false,
+    }
+
+    await recordLiveFills(user.id, wallet, [close])
+    await recordLiveFills(user.id, wallet, [
+      { ...close, closedPnl: -38.02433252 },
+    ])
+    // The same priced fill again changes nothing and says nothing.
+    await recordLiveFills(user.id, wallet, [
+      { ...close, closedPnl: -38.02433252 },
+    ])
+
+    const notices = vi.mocked(writeTradeNotice).mock.calls.map(([n]) => n)
+    expect(notices).toHaveLength(2)
+    expect(notices[0].meta).toEqual(["@ $1.1895", "Ku1", "filled"])
+    expect(notices[1].noticeKey).toBe(notices[0].noticeKey)
+    expect(notices[1].meta).toEqual(["@ $1.1895", "Ku1", "lost $38.02"])
+    expect(notices[1].level).toBe("warning")
+  })
+
+  it("reads only the markets requested for a run list", async () => {
+    const user = await insertUser(database)
+    const walletId = crypto.randomUUID()
+    const btc = "hyperliquid:mainnet:BTC"
+    const eth = "hyperliquid:mainnet:ETH"
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: walletId,
+      label: "Main",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x1111111111111111111111111111111111111111",
+    })
+    await database.insert(tradeLiveFills).values(
+      [btc, eth].flatMap((marketKey, index) => [
+        {
+          userId: user.id,
+          walletId,
+          fillId: `open-${index}`,
+          orderId: `open-order-${index}`,
+          marketKey,
+          side: "buy" as const,
+          px: 100,
+          sz: 1,
+          at: index * 10 + 1,
+          closedPnl: 0,
+          fee: 0,
+          dir: "Open Long",
+          liquidation: false,
+        },
+        {
+          userId: user.id,
+          walletId,
+          fillId: `close-${index}`,
+          orderId: `close-order-${index}`,
+          marketKey,
+          side: "sell" as const,
+          px: 110,
+          sz: 1,
+          at: index * 10 + 2,
+          closedPnl: 10,
+          fee: 0,
+          dir: "Close Long",
+          liquidation: false,
+        },
+      ])
+    )
+
+    const history = await loadLiveHistory(user.id, [walletId], undefined, [btc])
+
+    expect(history.trades).toHaveLength(1)
+    expect(history.trades[0].marketKey).toBe(btc)
+  })
+})

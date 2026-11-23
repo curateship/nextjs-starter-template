@@ -1,0 +1,179 @@
+{
+  "pomodoro": {
+    "server": "de",
+    "project": "Flowfly",
+    "healthUrl": "https://flowfly.app/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "v0hykgu0jg9yi2z9tieqlnlj"
+      },
+      {
+        "role": "worker",
+        "uuid": "hasivc8zbffsgaw7oq5sku2s"
+      }
+    ],
+    "database": {
+      "uuid": "agbwgycisgnvtbbyl6ivkdty"
+    }
+  },
+  "trade": {
+    "server": "de",
+    "ownScript": "cd apps/trade && npm run deploy (engine, then worker, then web)"
+  },
+  "personal": {
+    "server": "de",
+    "project": "Personal",
+    "healthUrl": "https://personal.barelycompany.com/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "q5zidodlzqnja0etohqln7la"
+      }
+    ]
+  },
+  "video": {
+    "server": "de",
+    "project": "Video",
+    "healthUrl": "https://video.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "x9xjideeh5zv8xa8vh80szvo"
+      },
+      {
+        "role": "worker",
+        "uuid": "uzeo56eu7x1gnqbqb4mwugvu"
+      }
+    ],
+    "database": {
+      "uuid": "cms4hc61idk3pxmalek6vws2"
+    }
+  },
+  "fitness": {
+    "server": "de",
+    "project": "Fitness",
+    "healthUrl": "https://fitness.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "hy4xqsokqign22sitwgqaum4"
+      },
+      {
+        "role": "worker",
+        "uuid": "uiviv0vnxxh5wijywsc4f57r"
+      }
+    ],
+    "database": {
+      "uuid": "aokuqnxme28hta1io6mq3nnz"
+    }
+  },
+  "course": {
+    "server": "de",
+    "project": "Course systemeverything.com",
+    "healthUrl": "https://systemeverything.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "rk8qez2yn2jqyyxkzzlkaevf"
+      },
+      {
+        "role": "worker",
+        "uuid": "jh5sr2redrhforourfjnfq91"
+      }
+    ],
+    "database": {
+      "uuid": "ji4n4zbyommqelno0xoz9wu5"
+    }
+  },
+  "course-de": {
+    "server": "de",
+    "project": "Course",
+    "healthUrl": "https://course.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "x8ockgtzr0tukuel2gdtf6mw"
+      },
+      {
+        "role": "worker",
+        "uuid": "ze72p6mtkabxou28ifiypert"
+      }
+    ],
+    "database": {
+      "uuid": "jee1uxx0iazkaw78y7yqtyhf"
+    }
+  },
+  "project": {
+    "server": "de",
+    "project": "Project",
+    "healthUrl": "https://project.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "jpq3inydlkjofvn3a3algugr"
+      },
+      {
+        "role": "worker",
+        "uuid": "y0zxuxzqdszjyesiauc7b78m"
+      }
+    ],
+    "database": {
+      "uuid": "qi7owchjxxin7stgfpb4fvnm"
+    }
+  },
+  "note": {
+    "server": "de",
+    "project": "Note",
+    "healthUrl": "https://note.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "gaqliog3hnnyhx7tdgih3zt5"
+      },
+      {
+        "role": "worker",
+        "uuid": "am6pke5hxmkluo2ky11v3rli"
+      }
+    ],
+    "database": {
+      "uuid": "o6fpwrpa6xfddszyrqqpwpvj"
+    }
+  },
+  "date": {
+    "server": "de",
+    "project": "Date",
+    "healthUrl": "https://date.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "5jj7njinhnx6eruy8jyirkgl"
+      },
+      {
+        "role": "worker",
+        "uuid": "obj0mfcjfjhx79bro3at3amk"
+      }
+    ],
+    "database": {
+      "uuid": "qgmm1hiolawbjwhyq4ffhllh"
+    }
+  },
+  "travel": {
+    "server": "de",
+    "project": "Travel",
+    "healthUrl": "https://travel.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "pydrsqnwxph6chs9mkmjlqfq"
+      },
+      {
+        "role": "worker",
+        "uuid": "2d3g2mzhrpej3137gatm4iga"
+      }
+    ],
+    "database": {
+      "uuid": "nufmzgsvjhlbedjyksycgbsv"
+    }
+  }
+}

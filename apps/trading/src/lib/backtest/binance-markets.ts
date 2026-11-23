@@ -19,6 +19,10 @@ export type BacktestMarketRow = {
   coin: string
   markPx: string
   prevDayPx: string
+  /** Traded value over the last 24h, in USDT. The picker's liquidity filters
+   * read this. It is TODAY's volume, not what the coin traded during a past
+   * backtest window — a coin can be liquid now and have been thin then. */
+  dayVolumeUsd: number
 }
 
 /** Strips the `USDT` quote suffix to get the base coin (e.g. `BTCUSDT`→`BTC`). */
@@ -46,6 +50,7 @@ export function useBinanceMarketRows(): BacktestMarketRow[] {
             coin: baseCoin(t.symbol),
             markPx: t.lastPrice,
             prevDayPx: t.openPrice,
+            dayVolumeUsd: Number(t.quoteVolume) || 0,
           }))
         setRows(next)
       } catch {

@@ -156,7 +156,7 @@ export function WorkspacesDashboard({
         title="Projects"
         icon={renderShellIcon(
           "briefcaseBusiness",
-          "size-4 text-muted-foreground sm:size-[18px]"
+          "text-muted-foreground"
         )}
         count={sortedWorkspaces.length}
         controls={
