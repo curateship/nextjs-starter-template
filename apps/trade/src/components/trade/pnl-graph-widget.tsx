@@ -899,7 +899,14 @@ function ProfitChart({
             : "No recorded results fall inside these dates."}
         </div>
       ) : (
-        <ChartContainer config={config} className="mt-4 min-h-64 w-full flex-1">
+        // aspect-auto: the chart box's own 16:9 shape made Safari draw the
+        // chart at 16:9 (197px on an iPhone) inside a 256px box, a blank band
+        // under the dates that a resized desktop window never shows (Tyler,
+        // 23 Nov 2026: "the safari mobile browser still shows the gap").
+        <ChartContainer
+          config={config}
+          className="mt-4 aspect-auto min-h-64 w-full flex-1"
+        >
           <AreaChart
             data={shownData}
             margin={{ top: 8, right: 4, left: 0, bottom: 0 }}

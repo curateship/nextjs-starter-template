@@ -22,6 +22,12 @@ card. Its layout copies the design Tyler sent on 23 Sep 2026
   graph widget on mobile"). The band the dates sit in is 24px instead of the
   chart library's 30px, so the dates end 14px above the card's foot ("there's
   still a gap in the bottom of the widget"). At 18px the dates were clipped.
+  The chart box has no 16:9 shape of its own (`aspect-auto`). With one,
+  Safari on an iPhone drew the chart at 16:9, 197px tall, inside its 256px
+  box and left a 59px blank band under the dates. A desktop window narrowed
+  to the same width never showed it, because Chrome fills the box (Tyler,
+  23 Nov 2026: "its fine when I resize the brwoser but for somr reason the
+  safari mobile browser still shows the gap").
 - **The header is centred:** the figure and the wallets button share one
   middle at every width. Top-aligned, the figure sat 4px higher than the
   button on a phone (Tyler, 23 Nov 2026: "This needs to be aligned in the
