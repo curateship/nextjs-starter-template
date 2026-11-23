@@ -85,6 +85,29 @@ The window is the last step before real inboxes, so two rules guard it
   again." The buttons stay pressable, because a greyed-out button gives no
   reason.
 
+## How fast newsletters go out
+
+The pace every new newsletter starts from is in the CRM's left header ⋮,
+Emails tab, under the addresses mail arrives at (Tyler, 23 Nov 2026: "move
+the drip sending settings to the 3 dot dropdown"). It was a card in
+Settings → Email, which no longer has it. It is in the Emails tab rather than
+a tab of its own because a fourth tab does not fit the 324px menu.
+
+- **The fields:** batches on or off, people per batch (fewest and most),
+  minutes between batches (fewest and most), the bounce limit out of 100,
+  weekends off, and up to two stretches of sending hours with a timezone.
+  They are the same fields as the pace in Review and send
+  (`src/components/shared/drip-settings-fields.tsx`), which still changes one
+  newsletter on its own.
+- **Saving:** 1.2s after typing stops, at once when focus leaves the fields,
+  and once more if the menu shuts with a change still waiting
+  (`src/components/broadcasts/newsletter-pace-settings.tsx`). Settings that
+  contradict each other, such as a fewest above the most, are not saved, and
+  leaving the fields says why.
+- **The pairs stack when narrow.** The fields size to their own space, not the
+  window's, so in the menu each field is on its own line and in Review and
+  send they sit in pairs.
+
 The old addresses `/admin/newsletter` and `/admin/newsletter/<id>` forward
 into the Broadcasts tab, the second with that newsletter open.
 

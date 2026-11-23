@@ -16,7 +16,7 @@ export const readSegmentDrip = readJoinedSegment
  * the people already there and stops the flow when more than a hundred arrive
  * at once, which is right for a welcome email and makes it impossible to put an
  * existing list through seven emails. This one lets the list in, but at the
- * pace in Settings > Email, so twenty thousand people become fifty batches
+ * pace in the CRM ⋮'s Emails tab, so twenty thousand people become fifty batches
  * spread over days rather than one burst a mail server reads as spam.
  *
  * Each person gets a run of their own, so a Wait later in the flow is two days

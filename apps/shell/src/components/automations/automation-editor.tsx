@@ -19,6 +19,7 @@ import { AutomationRunsPanel } from "@/components/automations/automation-runs-pa
 import { TestWithContactDialog } from "@/components/automations/test-with-contact-dialog"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
+import { AutomationRunStatsPanel } from "@/components/automations/automation-run-stats"
 import { AutomationPalette } from "@/components/automations/automation-palette"
 import { RunRecord } from "@/components/automations/run-record"
 import { RunsTable } from "@/components/automations/runs-table"
@@ -898,6 +899,13 @@ export function AutomationEditor({
     canvasCard
   )
 
+  // A live flow's right panel is its Statistics, whatever step is picked:
+  // turning Live on swaps the open step's settings for the numbers at once
+  // (Tyler, 23 Nov 2026: "If live is on the right panel should show runs total
+  // stats with a stats card", then "it doesnt change right away. I can still
+  // edit unless I refresh"). A step picked in the list to add it still shows
+  // its card, since that is how a step is added.
+  const showsStats = live && !templateMode && !previewNode
   const right = runsShown
     ? {
         label: "Run",
@@ -927,7 +935,15 @@ export function AutomationEditor({
           />
         ),
       }
-    : selectedNode
+    : showsStats
+      ? {
+          label: "Statistics",
+          showLabel: "Show the statistics",
+          content: (
+            <AutomationRunStatsPanel automationId={initial.id} name={name} readAgain={startedRunId} />
+          ),
+        }
+      : selectedNode
       ? {
           label: "Step",
           showLabel: "Show the step",
@@ -952,7 +968,9 @@ export function AutomationEditor({
   return frame({
     ids: [],
     showMiddleFor: `${initial.id}|${pane}`,
-    showRightFor: runsShown ? runId : (previewNode?.id ?? selectedNodeId ?? undefined),
+    // The Statistics panel has no id here on purpose: on a phone, opening a
+    // live flow stays on its canvas rather than jumping to the numbers.
+    showRightFor: runsShown ? runId : (previewNode?.id ?? (showsStats ? undefined : selectedNodeId) ?? undefined),
     middle,
     // Bare for as long as a flow is open on a wide screen, whatever it shows:
     // the frame draws a bare middle with another element, and switching

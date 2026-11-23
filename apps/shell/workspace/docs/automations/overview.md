@@ -170,10 +170,11 @@ described one of its two ways (Tyler: "join a segment only tells one thing").
   in before. Off goes back to watching for new joiners, taking whoever is there
   at that moment as already there.
 
-- **The pace is the drip rules in Settings > Email**: people per batch, minutes
+- **The pace is the drip rules in the CRM ⋮'s Emails tab**
+  ([How fast newsletters go out](../email/newsletters-and-broadcasts.md#how-fast-newsletters-go-out)): people per batch, minutes
   between batches, sending hours, weekdays only, and the bounce limit. They
   are read live, so changing them changes the pace of a flow already running.
-  The Drip sending switch there is about newsletters. This start always drips.
+  The batches switch there is about newsletters. This start always drips.
 - **Each person gets a run of their own.** So a Wait is two days from that
   person's email, not from whenever the last batch went.
 - **Only reachable people are let in.** Opted out, bouncing and spam-marked
