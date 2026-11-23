@@ -221,16 +221,30 @@ async function fetchMissingRange(
 const SPLIT_TOLERANCE = 0.03
 const SPLIT_MOST = 100
 const DAY = 86_400_000
+/**
+ * The most calendar days two sessions in a row can sit apart: a Friday and
+ * the Tuesday after a long weekend is four, and one more allows for a market
+ * closed by a storm. A wider step crosses a hole in what is stored, and a
+ * price can double across a hole on its own. Micron went from $517 on 30 Apr
+ * 2026 to $1,009 on 1 Jun 2026 while May was missing from the four-hour
+ * bars, and that step was read as a one-for-two.
+ */
+const SPLIT_SESSIONS_APART_MOST = 5
+
+/** Midnight UTC of the day a bar opens on. */
+function dayStart(time: number): number {
+  return Math.floor(time / DAY) * DAY
+}
 
 export type CandleSplit = { at: number; ratio: number }
 
 /**
  * A split between two bars, or null.
  *
- * Only across a session boundary, only a whole-number step of two or more
- * (or its reverse), and only within the tolerance above. A stock can fall
- * by half overnight on its own, and a fall that lands on exactly two is
- * read as a split; that is the one guess in this file, and it is written
+ * Only between two sessions next to each other, only a whole-number step of
+ * two or more (or its reverse), and only within the tolerance above. A stock
+ * can fall by half overnight on its own, and a fall that lands on exactly two
+ * is read as a split; that is the one guess in this file, and it is written
  * down in `trade_candle_splits` so it can be checked and undone.
  *
  * The answer is old units per new unit: 5 for five-for-one, 0.1 for
@@ -238,9 +252,8 @@ export type CandleSplit = { at: number; ratio: number }
  */
 export function splitBetween(prev: CandleBar, next: CandleBar): number | null {
   if (!(prev.close > 0 && next.open > 0)) return null
-  if (Math.floor(prev.openTime / DAY) === Math.floor(next.openTime / DAY)) {
-    return null
-  }
+  const daysApart = (dayStart(next.openTime) - dayStart(prev.openTime)) / DAY
+  if (daysApart < 1 || daysApart > SPLIT_SESSIONS_APART_MOST) return null
   const down = prev.close / next.open
   for (const [candidate, reverse] of [
     [down, false],
@@ -267,6 +280,22 @@ function scaled(bar: CandleBar, ratio: number): CandleBar {
     close: bar.close / ratio,
     volume: bar.volume * ratio,
   }
+}
+
+/**
+ * When a split takes effect: midnight UTC of the first session in the new
+ * units, whichever timeframe saw it.
+ *
+ * It used to be the first bar's own open time, so the same split found on the
+ * four-hour bars said 12:00 and on the daily bars said 00:00. A 12:00 record
+ * folded that day's daily bar, which was already in the new units, and the
+ * daily walk then read the damage as two more splits: Apple's 31 Aug 2020 had
+ * three records, and its two four-hour bars that day sat at $505 to $524
+ * between days at $125 and $131. One time per day makes every timeframe find
+ * the same record, and the second finder folds nothing.
+ */
+function splitStart(firstNewBar: CandleBar): number {
+  return dayStart(firstNewBar.openTime)
 }
 
 /** Every bar before each split, divided by that split's ratio. */
@@ -329,6 +358,90 @@ async function recordSplit(
   console.info(
     `[candle-store] ${marketKey}: split of ${split.ratio} on ${new Date(split.at).toISOString().slice(0, 10)}, older bars folded into today's units`
   )
+
+  // A daily bar for the split day already stored was written as the source
+  // sent it, so it is rebuilt here; one still on its way is rebuilt in
+  // `inTodaysUnits`.
+  const [stored] = await database
+    .select({ openTime: tradeCandles.openTime })
+    .from(tradeCandles)
+    .where(
+      and(
+        eq(tradeCandles.marketKey, marketKey),
+        eq(tradeCandles.interval, "1d"),
+        eq(tradeCandles.openTime, split.at)
+      )
+    )
+  if (!stored) return
+  const rebuilt = await splitDayBar(marketKey, split.at, database)
+  if (!rebuilt) return
+  await database
+    .update(tradeCandles)
+    .set({
+      open: rebuilt.open,
+      high: rebuilt.high,
+      low: rebuilt.low,
+      close: rebuilt.close,
+      volume: rebuilt.volume,
+    })
+    .where(
+      and(
+        eq(tradeCandles.marketKey, marketKey),
+        eq(tradeCandles.interval, "1d"),
+        eq(tradeCandles.openTime, split.at)
+      )
+    )
+}
+
+/**
+ * The daily bar of a split day, built from that day's hourly bars.
+ *
+ * Dukascopy's own daily file gets the split day wrong. Amazon's 20-for-1 took
+ * effect on 6 Jun 2022, and the daily file says it opened at $122.32 (the
+ * Friday close divided by 20) with a low of $6.12 (that divided by 20 again),
+ * while its hourly bars that day open at $126.49 and never go below $123.80.
+ * The hourly bars add up to the daily file's volume exactly, so they are the
+ * day. Null when the source has no hours for it or will not answer, and the
+ * bar is then kept as it came.
+ */
+async function splitDayBar(
+  marketKey: MarketKey,
+  day: number,
+  database: CustomShellDb
+): Promise<CandleBar | null> {
+  const ref = parseMarketKey(marketKey)
+  if (!ref) return null
+  let hours: CandleBar[]
+  try {
+    hours = await getProtocol(ref.protocol).markets.history(
+      ref.network,
+      ref.marketId,
+      "1h",
+      day,
+      day + DAY
+    )
+  } catch (error) {
+    console.warn(
+      `[candle-store] ${marketKey}: split day ${new Date(day).toISOString().slice(0, 10)} kept as the source sent it, hourly bars did not load`,
+      error
+    )
+    return null
+  }
+  const inDay = applySplits(
+    hours
+      .filter((bar) => bar.openTime >= day && bar.openTime < day + DAY)
+      .sort((left, right) => left.openTime - right.openTime),
+    await knownSplits(marketKey, database)
+  )
+  if (inDay.length === 0) return null
+  return {
+    openTime: day,
+    open: inDay[0].open,
+    high: Math.max(...inDay.map((bar) => bar.high)),
+    low: Math.min(...inDay.map((bar) => bar.low)),
+    close: inDay[inDay.length - 1].close,
+    volume: inDay.reduce((sum, bar) => sum + bar.volume, 0),
+  }
 }
 
 /**
@@ -383,14 +496,25 @@ async function inTodaysUnits(
   for (let index = 1; index < walk.length; index += 1) {
     const ratio = splitBetween(walk[index - 1], walk[index])
     if (ratio === null) continue
-    const split = { at: walk[index].openTime, ratio }
+    const split = { at: splitStart(walk[index]), ratio }
     await recordSplit(marketKey, split, database)
     bars = applySplits(bars, [split])
     for (let older = 0; older < index; older += 1) {
       walk[older] = scaled(walk[older], ratio)
     }
   }
-  return bars
+
+  if (interval !== "1d") return bars
+  const splitDays = new Set(
+    (await knownSplits(marketKey, database)).map((split) => split.at)
+  )
+  return Promise.all(
+    bars.map(async (bar) =>
+      splitDays.has(bar.openTime)
+        ? ((await splitDayBar(marketKey, bar.openTime, database)) ?? bar)
+        : bar
+    )
+  )
 }
 
 /**
@@ -431,7 +555,7 @@ export async function adjustStoredSplits(
     for (let index = 1; index < walk.length; index += 1) {
       const ratio = splitBetween(walk[index - 1], walk[index])
       if (ratio === null) continue
-      const split = { at: walk[index].openTime, ratio }
+      const split = { at: splitStart(walk[index]), ratio }
       await recordSplit(marketKey, split, database)
       found.push(split)
       for (let older = 0; older < index; older += 1) {
@@ -440,6 +564,44 @@ export async function adjustStoredSplits(
     }
   }
   return found
+}
+
+/**
+ * Puts a market's stored bars back into the source's raw units, forgets its
+ * splits, and finds them again under the rules above.
+ *
+ * Every fold is a division, so undoing one is the multiplication by the same
+ * ratio for every bar before it, in any order. Run once per market after the
+ * split rules change; running it again finds the same splits and changes
+ * nothing.
+ */
+export async function repairStoredSplits(
+  marketKey: MarketKey,
+  database: CustomShellDb = db
+): Promise<CandleSplit[]> {
+  return database.transaction(async (tx) => {
+    for (const split of await knownSplits(marketKey, tx)) {
+      await tx
+        .update(tradeCandles)
+        .set({
+          open: sql`${tradeCandles.open} * ${split.ratio}`,
+          high: sql`${tradeCandles.high} * ${split.ratio}`,
+          low: sql`${tradeCandles.low} * ${split.ratio}`,
+          close: sql`${tradeCandles.close} * ${split.ratio}`,
+          volume: sql`${tradeCandles.volume} / ${split.ratio}`,
+        })
+        .where(
+          and(
+            eq(tradeCandles.marketKey, marketKey),
+            lt(tradeCandles.openTime, split.at)
+          )
+        )
+    }
+    await tx
+      .delete(tradeCandleSplits)
+      .where(eq(tradeCandleSplits.marketKey, marketKey))
+    return adjustStoredSplits(marketKey, tx)
+  })
 }
 
 async function writeCandles(

@@ -190,17 +190,44 @@ one statement.
   across each cliff. That is what Tyler saw on 2 Sep 2026.
 - The store folds a split back so the whole history reads in today's units,
   which is also the units the venue's own bars are in. A step between two
-  sessions that lands on a whole number of two or more (or its reverse) within
-  three percent is read as a split: prices before it are divided by the
-  ratio and volume multiplied, on every timeframe of that market.
+  sessions next to each other that lands on a whole number of two or more (or
+  its reverse) within three percent is read as a split: prices before it are
+  divided by the ratio and volume multiplied, on every timeframe of that
+  market.
+- "Next to each other" means at most five calendar days apart, which covers a
+  long weekend and a storm closure. A wider step crosses a hole in what is
+  stored, and a price can double across a hole on its own: Micron went from
+  $517 on 30 Apr 2026 to $1,009 on 1 Jun 2026 while May was missing from the
+  four-hour bars, and the old rule read that as a one-for-two and doubled every
+  Micron price before June.
 - That is the one guess in the store, and it is written down.
-  `trade_candle_splits` holds every split found: the market, the first bar in
-  the new units, and the ratio. A raw page fetched later for a stretch before
-  a recorded split is folded on its way in, and a split that lands in a later
-  top-up folds the years already stored.
-- Rows stored before the store knew about splits were folded by hand on
-  2 Sep 2026 with `adjustStoredSplits`, and the same call is the repair if a
-  split is ever missed.
+  `trade_candle_splits` holds every split found: the market, midnight UTC of
+  the first day in the new units, and the ratio. A raw page fetched later for a
+  stretch before a recorded split is folded on its way in, and a split that
+  lands in a later top-up folds the years already stored.
+- The split time is the day, not the bar, so every timeframe finds the same
+  record and only the first finder folds. When it was the bar's own time, the
+  four-hour bars said 12:00 and the daily bars said 00:00. The 12:00 record
+  folded that day's daily bar, which was already in the new units, and the
+  damage was then read as two more splits. Apple's two four-hour bars on
+  31 Aug 2020 sat at $505 to $524 between days at $125 and $131, and Tesla,
+  Google, Nvidia, Broadcom and Netflix had the same spike on their split days.
+- The split day's daily bar is built from that day's hourly bars, because
+  Dukascopy's own daily file gets it wrong. Amazon's 20-for-1 took effect on
+  6 Jun 2022: the daily file says it opened at $122.32 (Friday's $2,446.36
+  close divided by 20) with a low of $6.12 (that divided by 20 again), while
+  its hourly bars open at $126.49 and never go below $123.80. The hourly
+  volume adds up to the daily file's exactly. If the hourly bars will not load,
+  the daily bar is kept as it came and the server log says so.
+- Only split days are rebuilt. Daily bars on ordinary days are Dukascopy's own.
+  Some recent ones disagree with the four-hour bars, in both directions: on
+  29 Sep 2026 Oracle's four-hour high is $143.54 against a daily high of
+  $135.59. That is a separate problem and is not repaired here.
+- `repairStoredSplits` undoes a market's recorded folds, forgets its splits and
+  finds them again under these rules; `scripts/repair-stock-splits.ts` runs it
+  for every market with a split on record. It was run on the local database on
+  22 Nov 2026. `adjustStoredSplits` is the call that finds splits in rows
+  stored raw.
 - Coins never split, and Binance's prices are used as they are.
 
 ## The volume label

@@ -178,10 +178,12 @@ describe("what the widgets say about when they started", () => {
     const shown = show("2026-08-24T16:00:00.000Z")
     expect(shown).toContain("Profit and loss · All wallets")
     expect(shown).toContain("+$190.00+3.65%")
-    expect(
-      host.querySelector('[aria-label="Current made or lost"] > .font-mono')
-        ?.className
-    ).toContain("text-3xl")
+    // 24px on a phone, 30px from 768px up.
+    const figure = host.querySelector(
+      '[aria-label="Current made or lost"] > .font-mono'
+    )?.className
+    expect(figure).toContain("text-2xl")
+    expect(figure).toContain("md:text-3xl")
     const chart = host.querySelector(
       'section[aria-label="All wallets profit history"]'
     )

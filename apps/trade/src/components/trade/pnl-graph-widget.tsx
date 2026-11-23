@@ -336,13 +336,15 @@ export function PnlGraphWidget({
               </Tooltip>
             ) : null}
           </div>
+          {/* A fifth smaller on a phone (Tyler, 23 Nov 2026: "reduce the size
+              of this on mobile by 20%"): 24px for 30px, 10px for 12px. */}
           <div
             aria-label="Current made or lost"
             className="mt-1.5 flex items-center gap-2"
           >
             <PnlAmount
               className={cn(
-                "block font-mono text-3xl leading-none font-semibold tracking-tight tabular-nums",
+                "block font-mono text-2xl leading-none font-semibold tracking-tight tabular-nums md:text-3xl",
                 moneyTone(figures.madeOrLost)
               )}
             >
@@ -357,7 +359,7 @@ export function PnlGraphWidget({
                       ? "lost"
                       : "neutral"
                 }
-                className="font-mono tabular-nums"
+                className="font-mono tabular-nums max-md:px-1 max-md:text-[10px]"
               >
                 <PnlAmount>{formatChange(profitShare)}</PnlAmount>
               </TradeBadge>
