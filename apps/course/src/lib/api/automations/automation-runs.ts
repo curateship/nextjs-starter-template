@@ -9,12 +9,14 @@ import {
   startAutomationTestRun,
 } from "@/server/automations/engine"
 import {
+  automationRunStats as readAutomationRunStats,
   getAutomationRun as readAutomationRun,
   listAutomationRunDeliveries as readAutomationRunDeliveries,
   listRunsAwaitingApproval as readRunsAwaitingApproval,
   listRunsForAutomation as readRunsForAutomation,
   type AutomationDeliveryState,
   type AutomationRunRow,
+  type AutomationRunStats,
 } from "@/server/automations/runs"
 import {
   listAutomationTestContacts as readAutomationTestContacts,
@@ -32,7 +34,7 @@ import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import type { SequencePersonStatus } from "@/lib/broadcasts/sequence-progress"
 import { createErrorMessage } from "../error-message"
 
-export type { AutomationTestContact }
+export type { AutomationRunStats, AutomationTestContact }
 
 export type AutomationRunItem = {
   id: string
@@ -173,6 +175,14 @@ const listRunsForAutomationFn = createServerFn({ method: "GET" })
     )
     return { runs: page.runs.map(serializeRun), total: page.total }
   })
+
+/** How one flow's real runs have gone: a live flow's Statistics card. */
+const automationRunStatsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(automationIdSchema)
+  .handler(async ({ data, context }): Promise<AutomationRunStats> =>
+    readAutomationRunStats(await workspaceIdForRequest(context.user.id), data.automationId)
+  )
 
 const listWaitingRunsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
@@ -330,6 +340,10 @@ const deleteAutomationRunFn = createServerFn({ method: "POST" })
 
 export function listRunsForAutomation(automationId: string, offset: number) {
   return listRunsForAutomationFn({ data: { automationId, offset } })
+}
+
+export function loadAutomationRunStats(automationId: string) {
+  return automationRunStatsFn({ data: { automationId } })
 }
 
 export function listWaitingRuns(options: { search?: string; offset?: number } = {}) {

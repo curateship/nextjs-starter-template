@@ -13,6 +13,7 @@ import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
 import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
 import { segmentDripNode } from "@/lib/automations/nodes/segment-drip"
 import { waitNode } from "@/lib/automations/nodes/wait"
+import { dripNode } from "@/lib/automations/nodes/drip"
 import {
   MEMBER_EVENT_LABELS,
   memberEventNode,
@@ -45,6 +46,7 @@ import {
 import { executeSendEmailNode } from "@/server/automations/send-email"
 import { executeWebhookNode } from "@/server/automations/webhook"
 import { executeWaitNode } from "@/server/automations/wait"
+import { executeDripNode } from "@/server/automations/drip"
 import { startSequenceForRun } from "@/server/email/sequences"
 import { changeMemberTag } from "@/server/people/member-tags"
 import { normalizeMemberTag } from "@/lib/member-tags"
@@ -367,6 +369,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
 
   [waitNode.kind]: executeWaitNode,
 
+  [dripNode.kind]: executeDripNode,
+
   [waitForApprovalNode.kind]: async ({ settings, now }) => {
     const summary =
       typeof settings.summary === "string" ? settings.summary.trim() : ""
@@ -394,6 +398,7 @@ const TEST_RUN_SAFE_KINDS = new Set([
   timeActivateNode.kind,
   segmentDripNode.kind,
   waitNode.kind,
+  dripNode.kind,
   audienceNode.kind,
   sendEmailNode.kind,
   webhookNode.kind,

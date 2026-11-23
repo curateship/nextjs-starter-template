@@ -15,6 +15,7 @@ import type {
 import { aiStepNode } from "./nodes/ai-step"
 import { audienceNode } from "./nodes/audience"
 import { billingMomentNode } from "./nodes/billing-moment"
+import { dripNode } from "./nodes/drip"
 import { joinedSegmentNode } from "./nodes/joined-segment"
 import { memberEventNode } from "./nodes/member-event"
 import { memberTagNode } from "./nodes/member-tag"
@@ -47,6 +48,7 @@ const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   sendEmailNode,
   sendSequenceNode,
   waitNode,
+  dripNode,
   waitForApprovalNode,
   webhookNode,
 ]

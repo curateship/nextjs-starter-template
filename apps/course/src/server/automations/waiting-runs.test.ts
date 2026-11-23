@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { compileAutomationGraph } from "@/lib/automations/compile"
 import type { AutomationRunStatus } from "@/lib/automations/run"
 import { now, uuid } from "@/server/auth/security"
-import { automationSectionCounts, listRunsAwaitingApproval } from "@/server/automations/runs"
+import { automationRunStats, automationSectionCounts, listRunsAwaitingApproval } from "@/server/automations/runs"
 import { type CustomShellDb } from "@/server/db"
 import { customShellAutomationRuns, customShellAutomations } from "@/server/schema"
 import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-support"
@@ -138,5 +138,44 @@ describe("the Dashboards block's counts", () => {
     await insertRun(await insertFlow("Theirs", other.id), { workspaceId: other.id, status: "waiting_approval" })
 
     expect(await automationSectionCounts(site, db)).toEqual({ automations: 2, waiting: 1 })
+  })
+})
+
+describe("A live flow's Statistics", () => {
+  it("counts this flow's real runs by how they stand, leaving out tests, other flows and other sites", async () => {
+    const welcome = await insertFlow("Welcome email")
+    const other = await insertFlow("Win-back")
+    const elsewhere = (await insertWorkspace(db)).id
+    await insertRun(welcome)
+    await insertRun(welcome)
+    await insertRun(welcome, { status: "active" })
+    await insertRun(welcome, { status: "waiting_approval" })
+    await insertRun(welcome, { status: "failed" })
+    await insertRun(welcome, { status: "rejected" })
+    await insertRun(welcome, { status: "canceled" })
+    await insertRun(welcome, { test: true })
+    await insertRun(other)
+    await insertRun(welcome, { workspaceId: elsewhere })
+
+    expect(await automationRunStats(site, welcome.id, db)).toEqual({
+      total: 7,
+      completed: 2,
+      running: 1,
+      waiting: 1,
+      failed: 1,
+      stopped: 2,
+    })
+  })
+
+  it("is all zeros for a flow that has not run", async () => {
+    const flow = await insertFlow("Welcome email")
+    expect(await automationRunStats(site, flow.id, db)).toEqual({
+      total: 0,
+      completed: 0,
+      running: 0,
+      waiting: 0,
+      failed: 0,
+      stopped: 0,
+    })
   })
 })
