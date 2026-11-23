@@ -8,12 +8,18 @@ widget cards and rows, and a member opens their own. PnL Graph, short for profit
 card. Its layout copies the design Tyler sent on 23 Sep 2026
 (`workspace/docs/assets/pasted-image-1790208001182205000.png`).
 
-- **The header:** a small grey line reads "Profit and loss · All wallets", or
-  the selected wallet's name in place of All wallets. Under it sits the made or
-  lost figure in 30px monospace type, with its share of the shown balance in a
-  green, red or grey badge. No percentage appears when that balance is zero or
-  below. The header is taller than the standard 57px card header because the
+- **The header:** the made or lost figure in 30px monospace type, with its
+  share of the shown balance in a green, red or grey badge. No percentage
+  appears when that balance is zero or below. There is no line above it: the
+  card's title already says PnL Graph and the wallet picker says which wallet
+  is shown (Tyler, 23 Nov 2026: "remove this label "Profit and loss · All
+  wallets""). When a wallet did not answer, a small info icon after the badge
+  names it. The header is taller than the standard 57px card header because the
   figure is the card's headline.
+- **The chart fills the card.** When the grid makes the card taller than the
+  chart needs, the chart grows rather than leaving a blank band under the
+  dates (Tyler, 23 Nov 2026: "there is a huge gap in the bottom of the pnl
+  graph widget on mobile").
 - **On a phone** (under 768px) the figure and its badge are a fifth smaller:
   24px for the figure and 10px for the badge's text. Tyler, 23 Nov 2026:
   "reduce the size of this on mobile by 20%"

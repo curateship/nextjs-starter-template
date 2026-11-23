@@ -176,7 +176,7 @@ afterEach(() => {
 describe("what the widgets say about when they started", () => {
   it("puts the result for the selected row in the card's header", async () => {
     const shown = show("2026-08-24T16:00:00.000Z")
-    expect(shown).toContain("Profit and loss · All wallets")
+    expect(shown).not.toContain("Profit and loss")
     expect(shown).toContain("+$190.00+3.65%")
     // 24px on a phone, 30px from 768px up.
     const figure = host.querySelector(
@@ -280,7 +280,6 @@ describe("what the widgets say about when they started", () => {
         .find((button) => button.textContent?.includes("Alpha"))
         ?.getAttribute("aria-pressed")
     ).toBe("true")
-    expect(host.textContent).toContain("Profit and loss · Alpha")
     expect(host.textContent).toContain("-$20.00-2.00%")
     expect(
       host.querySelector('section[aria-label="Alpha profit history"]')

@@ -312,35 +312,15 @@ export function PnlGraphWidget({
     <Frame className={cn("flex min-h-0 flex-col gap-0 py-0", className)}>
       <DashboardCardHeader className="flex-wrap items-start gap-x-4 gap-y-3 px-5 py-4">
         <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
-            <h2 className="truncate">
-              Profit and loss
-              <span aria-hidden="true"> · </span>
-              {shown.label}
-            </h2>
-            {missing ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="About missing wallet figures"
-                    className="transition-colors hover:text-foreground"
-                  >
-                    <InfoIcon className="size-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-64">
-                  {overview.missingVenues.join(" and ")} did not answer. The
-                  total includes only the wallets that answered.
-                </TooltipContent>
-              </Tooltip>
-            ) : null}
-          </div>
-          {/* A fifth smaller on a phone (Tyler, 23 Nov 2026: "reduce the size
-              of this on mobile by 20%"): 24px for 30px, 10px for 12px. */}
+          {/* No "Profit and loss · All wallets" line above the figure: the
+              card's own title already says PnL Graph, and the wallet picker
+              says which wallet (Tyler, 23 Nov 2026: "remove this label
+              "Profit and loss · All wallets""). A fifth smaller on a phone
+              (Tyler, 23 Nov 2026: "reduce the size of this on mobile by
+              20%"): 24px for 30px, 10px for 12px. */}
           <div
             aria-label="Current made or lost"
-            className="mt-1.5 flex items-center gap-2"
+            className="flex items-center gap-2"
           >
             <PnlAmount
               className={cn(
@@ -364,6 +344,23 @@ export function PnlGraphWidget({
                 <PnlAmount>{formatChange(profitShare)}</PnlAmount>
               </TradeBadge>
             )}
+            {missing ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="About missing wallet figures"
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <InfoIcon className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-64">
+                  {overview.missingVenues.join(" and ")} did not answer. The
+                  total includes only the wallets that answered.
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
           </div>
         </div>
         {/* The wallets are a dropdown at the header's top right (Tyler, 15 Nov
@@ -862,7 +859,11 @@ function ProfitChart({
   return (
     <section
       aria-label={`${shown.label} profit history`}
-      className="flex min-h-72 min-w-0 flex-col px-5 pt-4 pb-3"
+      // Fills the card, so a card the grid makes taller than the chart grows
+      // the chart instead of leaving a blank band under the dates (Tyler,
+      // 23 Nov 2026: "there is a huge gap in the bottom of the pnl graph
+      // widget on mobile").
+      className="flex min-h-72 min-w-0 flex-1 flex-col px-5 pt-4 pb-3"
     >
       <div className="flex flex-wrap items-start gap-x-8 gap-y-3">
         <dl className="flex flex-wrap gap-x-[1.6rem] gap-y-[0.6rem]">
