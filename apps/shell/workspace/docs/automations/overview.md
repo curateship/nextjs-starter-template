@@ -135,10 +135,10 @@ The picker reads from `src/server/automations/test-contacts.ts`. Apps can hide
 the button on flows with nobody in them through the `memberTest` option, which
 keeps its older name so no app breaks.
 
-## Sequences: a whole segment a few at a time, and Wait
+## Sequences: a whole segment, Drip and Wait
 
-These two steps exist so a flow can send a run of emails days apart, such as
-seven emails every other day.
+These three steps exist so a flow can send a run of emails days apart, such as
+seven emails every other day, without sending to a whole list at once.
 
 **The "Segment" start, with its switch off, keeps a list of who was in the segment at its last
 look,** checked every 15 seconds. A row on that list is written only when a
@@ -156,11 +156,9 @@ described one of its two ways (Tyler: "join a segment only tells one thing").
 - **Off, for a welcome email:** only people who join from now on start the
   flow, straight away. The flow stops when more than 100 join at once, in case
   the segment changed by mistake.
-- **On, for a sequence to a list:** everyone already there is let in one batch
-  at a time, then anyone who joins later. The rest of this list is about this
-  way.
-- **Why off is not paced too:** a paced flow only sends in the sending hours,
-  so a welcome for someone who signs up at 11pm would wait until morning.
+- **On, for a sequence to a list:** everyone already there is let in, then
+  anyone who joins later. A Drip step after it spaces them out. The rest of
+  this list is about this way.
 - **The switch changes the step's stored kind:** `joinedSegment` when off,
   `segmentDrip` when on. Both kinds stay, so every flow saved before the merge
   runs as it did. Only `joinedSegment` is in the step menu
@@ -169,12 +167,22 @@ described one of its two ways (Tyler: "join a segment only tells one thing").
 - **Switching it on a live flow:** on lets in everyone in the segment not let
   in before. Off goes back to watching for new joiners, taking whoever is there
   at that moment as already there.
-
-- **The pace is the drip rules in the CRM ⋮'s Emails tab**
-  ([How fast newsletters go out](../email/newsletters-and-broadcasts.md#how-fast-newsletters-go-out)): people per batch, minutes
-  between batches, sending hours, weekdays only, and the bounce limit. They
-  are read live, so changing them changes the pace of a flow already running.
-  The batches switch there is about newsletters. This start always drips.
+- **It has no pace of its own** (Tyler, 23 Nov 2026: "if we have already have
+  the drip node. Why would we need the batch settings baked in?"). Until that
+  day it let people in a batch at a time at the newsletter pace from Settings
+  → Email, and its runs from then show that.
+- **It needs a Drip step.** A flow with the switch on that reaches any step
+  other than Audience or Wait before a Drip cannot be turned on. An Approval
+  checkpoint needs the Drip before it too, or a whole segment at once would
+  fill Waiting on you. The Segment step says "Add a Drip step after Segment, or everyone
+  in it is emailed at once." A flow that was live before the rule lets nobody
+  in, and stays on so people already partway through carry on
+  (`segmentStartMissingDrip` in `src/lib/automations/nodes/drip.ts`, asked by
+  the compiler and by the segment scan).
+- **100 people a pass, at most.** The engine walks 20 runs every 15 seconds, so
+  the start lets more in only while fewer than 100 of the flow's runs are
+  waiting to be walked. Letting twenty thousand in at once would put a Drip
+  step's next batch behind hours of new arrivals.
 - **Each person gets a run of their own.** So a Wait is two days from that
   person's email, not from whenever the last batch went.
 - **Only reachable people are let in.** Opted out, bouncing and spam-marked
@@ -182,26 +190,55 @@ described one of its two ways (Tyler: "join a segment only tells one thing").
 - **Once per person, ever.** Switching the flow off and on, or leaving the
   segment and coming back, never lets anyone in twice.
 - **Oldest contacts go first**, so the order is the same on every pass.
-- **The bounce limit switches the flow off.** Before each batch it counts the
-  people this flow has emailed whose address has since bounced. At 20 or more
-  emailed and over the limit (5 in 100 unless changed), the flow goes off with
-  the reason on it. Automation emails carry no bounce stamp of their own, so
-  the contact's Bouncing status is the record.
-- **Nothing new is stored for the pace.** The last batch time is the newest
-  enrollment row for the flow, and the gap after it is picked from the range
-  using that time as the seed, so every pass of the ticker gets the same gap.
-- **The step's panel shows progress** when the switch is on: how many people are let in, how many
-  are still to go, and when the next batch goes.
+- **The step's panel shows progress** when the switch is on: how many people
+  are let in and how many are still to go. The pace is the Drip step's.
+
+**Drip lets people through a few at a time** (Tyler, 23 Nov 2026: "Create a
+new flow node called \"Drip\" And add these options there"). It is in the
+step list's Flow group. Anyone who reaches it waits there and goes on to the
+next step with the next batch.
+
+- **Its settings are the newsletter pace fields**, without the on/off box:
+  people per batch (fewest and most), minutes between batches (fewest and
+  most), the bounce limit, weekends off, and up to two stretches of sending
+  hours with a timezone. A new Drip starts at 400 to 500 people, 30 to 60
+  minutes apart, any hour, 5 in 100 bounces. It does not copy the CRM ⋮'s
+  newsletter pace, which is for Broadcasts only.
+- **A batch fills, then the next one waits for the gap.** The first person
+  gets a place in a batch going now. Each next person joins that batch while
+  it has room and the gap after it is still running, otherwise starts the next
+  one, the gap later and inside the sending hours. So no more than "Most" ever
+  go at once, even after a quiet spell. Each batch's size and the gap after it are picked from the ranges with
+  the batch's own time as the seed, so every pass works out the same answer.
+- **A pace change reaches people let in after it.** A run keeps the flow as it
+  was when its person was let in, so people already in the flow keep the old
+  pace, and for a while the two share batches. A place, once given, keeps its
+  time.
+- **The bounce limit switches the flow off.** Once a batch, when its first
+  person goes on, it counts the people this flow has emailed whose address has
+  since bounced. The rest of the batch reuse that answer, held in the server's
+  memory, so twenty thousand people do not each read every email sent. At 20 or
+  more emailed and over the limit, the flow goes off with the reason on it.
+  Automation emails carry no bounce stamp of their own, so the contact's
+  Bouncing status is the record.
+- **Switching the flow off stops everyone still waiting** when their batch's
+  time comes, as it does at a Wait.
+- **Nothing new is stored.** A person's place is the `releaseAt` on the line
+  the step writes when they go to sleep there, and the newest batch and how
+  many it holds are read back from those lines
+  (`src/server/automations/drip.ts`).
+- **A test with one contact does not wait.** The step says "Would wait for its
+  batch. Skipped in this test."
 
 **Wait holds a run for 1 hour to 60 days.** The engine records a "Waiting 2
 days, until ..." line, keeps the run pointed at the Wait, and moves its wake-up
 time. A sleeping run costs nothing. When it wakes, the Wait runs again, finds
 its own line, and decides whether to carry on.
 
-- **It keeps to the sending hours** when the flow starts with "Segment"
-  and its "Also send to people already in this segment" switch is on. A wait that ends outside them, or on a weekend when weekends are
-  skipped, carries on at the next allowed hour. Any other start wakes at the
-  exact time.
+- **It keeps to the Drip step's sending hours** in a flow with a Drip step. A
+  wait that ends outside them, or on a weekend when weekends are skipped,
+  carries on at the next allowed hour. A flow with no Drip wakes at the exact
+  time, and its "until" line is in Eastern time.
 - **"Stop for anyone who clicked a link"** is on by default. On waking, a person
   who clicked a link in any email this flow sent them ends there, and the
   history names the email. Resend does not say which link was clicked, so any

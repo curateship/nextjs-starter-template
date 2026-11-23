@@ -25,10 +25,10 @@ const FIRST_WINDOW: DripWindow = { start: "08:00", end: "13:00" }
 const SECOND_WINDOW: DripWindow = { start: "19:00", end: "21:00" }
 
 /**
- * The drip sending fields, in one place because they appear twice: as the
- * workspace default in the CRM ⋮'s Emails tab, and again on the newsletter itself in
- * Review and send. Two copies of this form would drift in wording within a
- * month.
+ * The drip sending fields, in one place because they appear three times: as
+ * the newsletter default in the CRM ⋮'s Emails tab, on the newsletter itself
+ * in Review and send, and as an automation's Drip step (`alwaysOn`). Copies of
+ * this form would drift in wording within a month.
  *
  * Purely controlled — it holds no config of its own, so whichever screen is
  * using it decides what saving means.
@@ -38,11 +38,14 @@ export function DripSettingsFields({
   onChange,
   disabled,
   idPrefix,
+  alwaysOn = false,
 }: {
   value: DripConfig
   onChange: (next: DripConfig) => void
   disabled?: boolean
   idPrefix: string
+  /** No on/off box: an automation's Drip step always sends in batches. */
+  alwaysOn?: boolean
 }) {
   const id = (name: string) => `${idPrefix}-${name}`
   const set = (changes: Partial<DripConfig>) =>
@@ -60,22 +63,24 @@ export function DripSettingsFields({
     // Sized by its own width, not the window's: in the CRM ⋮ the pairs stack,
     // in Review and send they sit side by side.
     <div className="@container grid gap-4">
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={id("enabled")}
-          checked={value.enabled}
-          disabled={disabled}
-          // Only `enabled` changes. Wiping the rest would mean coming back to
-          // empty boxes after a change of mind, which is exactly the trap the
-          // directory app fell into.
-          onCheckedChange={(checked) => set({ enabled: checked === true })}
-        />
-        <Label htmlFor={id("enabled")} className="font-normal">
-          Send it in batches instead of all at once
-        </Label>
-      </div>
+      {alwaysOn ? null : (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={id("enabled")}
+            checked={value.enabled}
+            disabled={disabled}
+            // Only `enabled` changes. Wiping the rest would mean coming back to
+            // empty boxes after a change of mind, which is exactly the trap the
+            // directory app fell into.
+            onCheckedChange={(checked) => set({ enabled: checked === true })}
+          />
+          <Label htmlFor={id("enabled")} className="font-normal">
+            Send it in batches instead of all at once
+          </Label>
+        </div>
+      )}
 
-      {value.enabled ? (
+      {alwaysOn || value.enabled ? (
         <>
           <div className="flex flex-col gap-4 @sm:flex-row @sm:items-start">
             <NumberField
