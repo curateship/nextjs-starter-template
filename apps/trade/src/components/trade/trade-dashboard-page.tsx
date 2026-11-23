@@ -385,13 +385,17 @@ export function TradeDashboard() {
   )
 
   const exchangeShown = onOverview ? data.protocol : view
-  const protocolsBlock = (
+  const protocolsBlock = ({ onPicked }: { onPicked: () => void }) => (
     <ProtocolsRows
       view={view}
       protocols={shownProtocols(hidden, exchangeShown, order)}
       widgets={widgets.layout ? widgetsShown(widgets.layout) : null}
       counts={counts}
-      onPick={pick}
+      onPick={(next) => {
+        pick(next)
+        onPicked()
+      }}
+      onRepick={onPicked}
     />
   )
 
@@ -485,7 +489,7 @@ function ExchangeDashboard({
   data: TradeDashboardData
   page: TradePage
   pageMenu: (parts: { alerts: React.ReactNode }) => React.ReactNode
-  protocolsBlock: React.ReactNode
+  protocolsBlock: (parts: { onPicked: () => void }) => React.ReactNode
   protocolsMenu: React.ReactNode
   hideEmptyBlocks: boolean
   overview: React.ReactNode | null

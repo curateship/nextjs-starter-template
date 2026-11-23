@@ -30,6 +30,7 @@ export function ProtocolsRows({
   widgets,
   counts,
   onPick,
+  onRepick,
 }: {
   view: DashboardView
   protocols: readonly ProtocolId[]
@@ -37,6 +38,8 @@ export function ProtocolsRows({
   widgets: number | null
   counts: ProtocolPositionCounts | null
   onPick: (view: DashboardView) => void
+  /** A press on the row already picked, which changes nothing on the page. */
+  onRepick?: () => void
 }) {
   const sections = [
     {
@@ -53,7 +56,14 @@ export function ProtocolsRows({
       }
     }),
   ]
-  return <DashboardsRows sections={sections} current={view} onPick={onPick} />
+  return (
+    <DashboardsRows
+      sections={sections}
+      current={view}
+      onPick={onPick}
+      onRepick={onRepick}
+    />
+  )
 }
 
 /**

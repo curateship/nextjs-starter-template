@@ -333,8 +333,15 @@ export function TradeWorkspace({
    * list, which this workspace reads.
    */
   pageMenu: (parts: { alerts: React.ReactNode }) => React.ReactNode
-  /** What the Protocols block draws: Overview and the exchanges. */
-  protocolsBlock: React.ReactNode
+  /**
+   * What the Protocols block draws: Overview and the exchanges. Handed
+   * `onPicked`, which a row calls once it is pressed, so a phone's Left panel
+   * shuts on every row. Before this it shut only when the press swapped the
+   * exchange and the page was drawn again, so Overview and the exchange
+   * Overview borrows (Hyperliquid) left it open (Tyler, 23 Nov 2026: "some
+   * links dont close the panel like hyperliquid or overview").
+   */
+  protocolsBlock: (parts: { onPicked: () => void }) => React.ReactNode
   /** The Protocols block's ⋮ rows: each exchange's eye. */
   protocolsMenu: React.ReactNode
   /** "Hide empty blocks" from the page's ⋮: empty trade blocks leave the page. */
@@ -363,6 +370,7 @@ export function TradeWorkspace({
   // slides a panel up over it: Left panel, Positions, Browse and Right
   // panel (Tyler, 13 Nov 2026). Null is the chart with every panel shut.
   const [narrowPanel, setNarrowPanel] = React.useState<NarrowPanel | null>(null)
+  const closeNarrowPanel = React.useCallback(() => setNarrowPanel(null), [])
   const showingOverview = overview !== null
   // Memoised: the workspace re-renders on every poll and every price tick,
   // and a fresh answer each time made every panel below re-do its own work.
@@ -1078,7 +1086,7 @@ export function TradeWorkspace({
         onSelectMarket={pickMarket}
       />
     ),
-    protocols: protocolsBlock,
+    protocols: protocolsBlock({ onPicked: closeNarrowPanel }),
     protocolsMenu,
     hidden: hideEmptyBlocks ? emptyBlocks : NO_HIDDEN_BLOCKS,
     folders: (

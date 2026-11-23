@@ -198,6 +198,23 @@ vi.mock("@/components/trade/market-header", () => ({
 vi.mock("@/components/trade/notes/trade-page-panel", () => ({
   TradePageBody: () => <div data-testid="page" />,
 }))
+// The blocks reach the page through this provider; drawing the Protocols block
+// beside it lets a test press one of its rows.
+vi.mock("@/components/trade/notes/trade-block-views", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/trade/notes/trade-block-views")>()),
+  TradeBlocksProvider: ({
+    value,
+    children,
+  }: {
+    value: { protocols: React.ReactNode }
+    children: React.ReactNode
+  }) => (
+    <>
+      <div data-testid="protocols-block">{value.protocols}</div>
+      {children}
+    </>
+  ),
+}))
 vi.mock("@/components/trade/notes/page-menus", () => ({
   FoldersMenuRow: () => <button type="button" aria-label="Folders" />,
   PinMenuRow: () => <button type="button" aria-label="Pin to top" />,
@@ -431,7 +448,10 @@ const page = {
   retry: vi.fn(),
 } as never
 
-function renderWorkspace(overview: React.ReactNode | null) {
+function renderWorkspace(
+  overview: React.ReactNode | null,
+  protocolsBlock: (parts: { onPicked: () => void }) => React.ReactNode = () => null
+) {
   return (
     <TooltipProvider>
       <TradeWorkspace
@@ -486,7 +506,7 @@ function renderWorkspace(overview: React.ReactNode | null) {
         }}
         page={page}
         pageMenu={() => <button type="button" aria-label="Dashboard settings" />}
-        protocolsBlock={null}
+        protocolsBlock={protocolsBlock}
         protocolsMenu={null}
         hideEmptyBlocks={false}
         overview={overview}
@@ -678,6 +698,25 @@ describe("the trade dashboard", () => {
       // Overview has no Right panel; its Positions is every exchange's trades.
       await act(async () => root.render(renderWorkspace(<div data-testid="overview-widgets" />)))
       expect(bar()).toEqual(["Left panel", "Positions", "Browse"])
+
+      // A Protocols row pressed shuts Left panel, even when the exchange stays
+      // the same and nothing above draws the page again: Overview to
+      // Hyperliquid did not (Tyler, 23 Nov 2026).
+      await act(async () =>
+        root.render(
+          renderWorkspace(null, ({ onPicked }) => (
+            <button type="button" onClick={onPicked}>
+              Overview
+            </button>
+          ))
+        )
+      )
+      await act(async () => press("Left panel"))
+      expect(sheet().hasAttribute("inert")).toBe(false)
+      await act(async () =>
+        host.querySelector<HTMLButtonElement>('[data-testid="protocols-block"] button')!.click()
+      )
+      expect(sheet().hasAttribute("inert")).toBe(true)
     } finally {
       wideScreen.value = true
     }

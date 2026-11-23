@@ -55,6 +55,13 @@ How a panel behaves:
   while shut, the same as the three panels side by side on a wide screen.
 - **Picking a coin** in Left panel or Browse shuts the panel and shows that
   coin's chart.
+- **Pressing any Protocols row** in Left panel shuts the panel, the row
+  already picked included (Tyler, 23 Nov 2026: "tapping the protocols link
+  should automatically close the panel"). The row hands the press to the
+  workspace through `onPicked` (`trade-dashboard-page.tsx`,
+  `trade-workspace.tsx`). Until then the panel shut only when the press
+  swapped the exchange and the whole page was drawn again, so Overview and
+  Hyperliquid, which Overview borrows its page from, left it open.
 - **A widget's Manage widgets** opens Left panel.
 - **Overview** has no Right panel, so its bar is Left panel, Positions and
   Browse. Browse is left out when no market can be picked.
