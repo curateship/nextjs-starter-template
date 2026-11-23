@@ -15,9 +15,12 @@ trading screen. The window never asks the exchange again. It adds each wallet's
 position margin and compares the percentage distance between each current price
 and liquidation price.
 
-KuCoin states profit when a position closes, not on every partial sale. When a
-recent sale is still unpriced, the info mark beside Settled says that Settled
-and Made or lost are short and names how many trades are missing.
+KuCoin states profit when a position closes, not on every partial sale. A sale
+before a close that has since been paid counts as priced, because the payout
+includes it. A sale from a position still open is unpriced, and the info mark
+beside Settled says that Settled and Made or lost are short and names how many
+trades are missing. `../screens/trading-overview.md` has the rule and the
+PONS close it came from.
 
 **Where that fact is written down.** Each exchange's entry in
 `src/server/protocols/registry.ts` carries `account.profitPerSale`. Hyperliquid

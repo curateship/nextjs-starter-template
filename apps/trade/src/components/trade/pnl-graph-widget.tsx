@@ -310,7 +310,10 @@ export function PnlGraphWidget({
 
   return (
     <Frame className={cn("flex min-h-0 flex-col gap-0 py-0", className)}>
-      <DashboardCardHeader className="flex-wrap items-start gap-x-4 gap-y-3 px-5 py-4">
+      {/* Centred, so the figure and the wallets button share one middle at
+          every width (Tyler, 23 Nov 2026: "This needs to be aligned in the
+          middle"). */}
+      <DashboardCardHeader className="flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4">
         <div className="min-w-0">
           {/* No "Profit and loss · All wallets" line above the figure: the
               card's own title already says PnL Graph, and the wallet picker
@@ -399,7 +402,6 @@ export function PnlGraphWidget({
 
       <div className="flex min-h-0 flex-1 flex-col">
         <ProfitChart
-          overview={overview}
           shown={shown}
           data={data}
           rangeDates={rangeDates}
@@ -716,7 +718,7 @@ function WalletList({
         <div className="grid gap-0.5 px-1.5 pb-1.5">
           <WalletResultRow
             label="All wallets"
-            detail={`${answered.length.toLocaleString()} connected${missing ? ` · ${missing.toLocaleString()} missing` : ""}`}
+            detail={`${answered.length.toLocaleString()} connected${missing ? ` · ${missing.toLocaleString()} missing` : ""}${notPriced(overview.unpricedFills)}`}
             balance={total.balance}
             madeOrLost={total.madeOrLost}
             selected={selectedWalletId === null}
@@ -729,7 +731,7 @@ function WalletList({
               <WalletResultRow
                 key={wallet.id}
                 label={wallet.label}
-                detail={wallet.venue}
+                detail={`${wallet.venue}${notPriced(wallet.summary.unpricedFills)}`}
                 balance={wallet.summary.equity}
                 madeOrLost={wallet.performance.madeOrLost}
                 selected={selectedWalletId === wallet.id}
@@ -804,6 +806,17 @@ function WalletResultRow({
   )
 }
 
+/**
+ * Sales the chart cannot count yet, said in the wallet dropdown under the
+ * wallet they belong to rather than on the card (Tyler, 23 Nov 2026: "put that
+ * notice somewhere else, it doesnt need to take up space on the widget"). A
+ * sale the exchange has already covered with one payout is not one of them.
+ */
+function notPriced(count: number): string {
+  if (!count) return ""
+  return ` · ${count.toLocaleString()} ${count === 1 ? "sale" : "sales"} not priced yet`
+}
+
 function UnavailableWalletRow({ wallet }: { wallet: TradingOverviewWallet }) {
   return (
     <div className="grid gap-0.5 px-3 py-2.5">
@@ -829,13 +842,11 @@ function Figure({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function ProfitChart({
-  overview,
   shown,
   data,
   rangeDates,
   figures,
 }: {
-  overview: TradingOverview
   shown: ProfitSeries
   data: TradingOverviewProfitChartPoint[]
   rangeDates: ReturnType<typeof profitRangeDates>
@@ -880,24 +891,6 @@ function ProfitChart({
           </Figure>
           <Figure label="Fees">{formatUsd(figures.fees)}</Figure>
         </dl>
-        {overview.unpricedFills ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="ml-auto flex items-center gap-1 self-center text-xs text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <InfoIcon className="size-3.5" />
-                {overview.unpricedFills.toLocaleString()} unpriced
-              </button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-64">
-              The line is short of {overview.unpricedFills.toLocaleString()}{" "}
-              {overview.unpricedFills === 1 ? "trade" : "trades"} whose money
-              the exchange did not state.
-            </TooltipContent>
-          </Tooltip>
-        ) : null}
       </div>
       {shownData.length === 0 ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -959,6 +952,10 @@ function ProfitChart({
               tickLine={false}
               axisLine={false}
               interval={0}
+              // Just tall enough for the dates. Recharts' own 30px left a
+              // band of white under them at the card's foot (Tyler, 23 Nov
+              // 2026: "there's still a gap in the bottom of the widget").
+              height={24}
             />
             <YAxis
               tick={({ x, y, payload }) => (

@@ -19,6 +19,7 @@ import {
   type TradingOverviewWallet,
 } from "@/lib/trade/dashboard/overview"
 import {
+  fillsPaidLater,
   moneyForWalletFill,
   walletProfitWindowStart,
   type TradeWallet,
@@ -287,6 +288,7 @@ export async function priceFills(
         : []
     )
   )
+  const paidLater = fillsPaidLater(fills)
   const money = new Map<string, number | null>()
   for (const fill of fills) {
     const protocol =
@@ -305,6 +307,7 @@ export async function priceFills(
           side: fill.side,
           closedPnl: fill.closedPnl,
           fee: fill.fee,
+          paidLater: paidLater.has(fill.fillId),
         })
     )
   }

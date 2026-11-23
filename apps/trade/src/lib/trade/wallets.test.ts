@@ -6,6 +6,8 @@ import {
   cleanAgentKey,
   describeAgentKeyProblem,
   describeKeyRefusal,
+  fillsPaidLater,
+  moneyForWalletFill,
 } from "@/lib/trade/wallets"
 
 describe("cleaning a pasted key", () => {
@@ -220,5 +222,32 @@ describe("holding a wallet's figures through a missed read", () => {
 
     expect(held.summaries.get("w1")).toEqual(refusal)
     expect(held.misses.has("w1")).toBe(false)
+  })
+})
+
+describe("a sale the exchange prices only when the position closes", () => {
+  const fill = (fillId: string, at: number, closedPnl: number, marketKey = "PONS") => ({
+    fillId,
+    walletId: "ku1",
+    marketKey,
+    at,
+    closedPnl,
+  })
+
+  it("is covered by a payout on the same wallet and market at once or later", () => {
+    const paid = fillsPaidLater([
+      fill("before", 1, 0),
+      fill("same-moment", 3, 0),
+      fill("payout", 3, -204.87),
+      fill("after", 4, 0),
+      fill("other-market", 2, 0, "XBT"),
+    ])
+    expect([...paid].sort()).toEqual(["before", "same-moment"])
+  })
+
+  it("is unpriced until then, and costs only its fee after", () => {
+    const sale = { profitPerSale: false, side: "sell" as const, closedPnl: 0, fee: 0.01 }
+    expect(moneyForWalletFill(sale)).toBeNull()
+    expect(moneyForWalletFill({ ...sale, paidLater: true })).toBe(-0.01)
   })
 })

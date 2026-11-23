@@ -173,6 +173,25 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+describe("sales the exchange has not priced yet", () => {
+  it("are named in the wallet dropdown, not on the card", () => {
+    const [main] = overview.wallets
+    if (main.summary.state !== "ok") throw new Error("expected figures")
+    show("2026-08-24T16:00:00.000Z", {
+      ...overview,
+      wallets: [{ ...main, summary: { ...main.summary, unpricedFills: 1 } }],
+      unpricedFills: 1,
+    })
+
+    expect(host.textContent).not.toContain("not priced")
+    const rows = [...openWallets().querySelectorAll("button[aria-pressed]")].map(
+      (row) => row.textContent
+    )
+    expect(rows[0]).toContain("1 connected · 1 sale not priced yet")
+    expect(rows[1]).toContain("Hyperliquid · 1 sale not priced yet")
+  })
+})
+
 describe("what the widgets say about when they started", () => {
   it("puts the result for the selected row in the card's header", async () => {
     const shown = show("2026-08-24T16:00:00.000Z")

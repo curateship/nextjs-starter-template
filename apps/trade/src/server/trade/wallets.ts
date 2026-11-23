@@ -9,6 +9,7 @@ import type {
 } from "@/lib/protocols/contracts"
 import {
   MAX_WALLETS,
+  fillsPaidLater,
   moneyForWalletFill,
   summarizeWallet,
   walletProfitWindowStart,
@@ -656,6 +657,9 @@ export async function loadWalletSummaries(
       }))
     )
   )
+  const paidLater = fillsPaidLater(
+    liveMoney.map((fill) => ({ ...fill, at: Number(fill.at) }))
+  )
   for (const fill of liveMoney) {
     const wallet = walletById.get(fill.walletId)
     if (!wallet) continue
@@ -664,6 +668,7 @@ export async function loadWalletSummaries(
       moneyForWalletFill({
         profitPerSale: pricesEverySale(wallet.protocol),
         ...fill,
+        paidLater: paidLater.has(fill.fillId),
       })
     if (money === null) {
       unpricedByWallet.set(

@@ -589,6 +589,48 @@ describe("the figures sweep", () => {
     expect(summaries[0].madeOrLost).toBeCloseTo(75.9, 10)
   })
 
+  it("counts a sale the position's later payout covers as priced", async () => {
+    // Ku1's PONS close on 20 Nov 2026: one order in pieces, KuCoin's whole
+    // figure on the last piece and zero on the others.
+    const userId = await person()
+    const wallet = await createWallet(userId, {
+      ...liveInput(),
+      protocol: "kucoin",
+    })
+    const since = walletProfitWindowStart()
+    const piece = (fillId: string, at: number, closedPnl: number) => ({
+      userId,
+      walletId: wallet.id,
+      fillId,
+      orderId: "close-order",
+      marketKey: "kucoin:mainnet:PONSUSDTM",
+      side: "sell" as const,
+      px: 0.08708,
+      sz: 210,
+      at,
+      closedPnl,
+      fee: 0.01,
+    })
+    await database
+      .insert(tradeLiveFills)
+      .values([
+        piece("piece-1", since + 1, 0),
+        piece("piece-2", since + 1, 0),
+        piece("piece-last", since + 2, -204.87),
+      ])
+    fetchAccount.mockResolvedValue({
+      equity: 1_000,
+      free: 1_000,
+      inTrades: 0,
+      openProfit: 0,
+    })
+
+    const { summaries } = await loadWalletSummaries(userId)
+    expect(summaries[0]).toMatchObject({ state: "ok", unpricedFills: 0 })
+    if (summaries[0].state !== "ok") throw new Error("expected figures")
+    expect(summaries[0].settled).toBeCloseTo(-204.9, 10)
+  })
+
   it("lets one unreachable wallet stay its own problem", async () => {
     const userId = await person()
     await createWallet(userId, paperInput())

@@ -19,7 +19,13 @@ card. Its layout copies the design Tyler sent on 23 Sep 2026
 - **The chart fills the card.** When the grid makes the card taller than the
   chart needs, the chart grows rather than leaving a blank band under the
   dates (Tyler, 23 Nov 2026: "there is a huge gap in the bottom of the pnl
-  graph widget on mobile").
+  graph widget on mobile"). The band the dates sit in is 24px instead of the
+  chart library's 30px, so the dates end 14px above the card's foot ("there's
+  still a gap in the bottom of the widget"). At 18px the dates were clipped.
+- **The header is centred:** the figure and the wallets button share one
+  middle at every width. Top-aligned, the figure sat 4px higher than the
+  button on a phone (Tyler, 23 Nov 2026: "This needs to be aligned in the
+  middle").
 - **On a phone** (under 768px) the figure and its badge are a fifth smaller:
   24px for the figure and 10px for the badge's text. Tyler, 23 Nov 2026:
   "reduce the size of this on mobile by 20%"
@@ -284,7 +290,9 @@ grid.
 - **An unpriced fill is counted apart, never as zero:** on an exchange that
   only states a trade's money when the whole position closes, the sales
   before that carry no figure yet. The tile says "plus 11 fills the exchange
-  has not priced" and the money shown is the priced part alone.
+  has not priced" and the money shown is the priced part alone. Once the
+  position closes, its one payout covers those sales and they stop counting
+  as unpriced (see "Sales the exchange has not priced yet" below).
 - **A grid's round trip is counted once, on the sale:** the rung's sale
   carries the whole trip after both fees, and the buy that opened the rung
   carries nothing. Charged on the buy as well, the entry fee came off twice:
@@ -317,9 +325,26 @@ page comes back, the control says That is everything.
 
 Each line starts at zero on the start date and adds priced settled trade money
 until now. Its final point adds current open profit. Opening balances, deposits,
-withdrawals, and older fills never enter a line. If an exchange did not state a
-trade's money, the chart names how many trades are missing instead of counting
-them as zero.
+withdrawals, and older fills never enter a line. A trade whose money an exchange
+did not state is left out of the line rather than counted as zero.
+
+## Sales the exchange has not priced yet
+
+- **What it is:** KuCoin states profit once, when a whole position closes, and
+  puts it on the last piece of the closing sale. Every sale before that comes
+  back with no figure.
+- **Covered once the position closes:** a sale with no figure counts as priced
+  when a later payout on the same wallet and market exists, because that payout
+  already includes it. Ku1 closed its PONS long on 20 Nov 2026 in five pieces.
+  KuCoin put the whole -$204.87 on the last one, and the other four used to
+  read "4 unpriced" although the chart held the full loss. The rule is
+  `fillsPaidLater` in `src/lib/trade/wallets.ts`.
+- **Still unpriced:** a sale from a position that is still open. Nothing has
+  been paid for it yet, so the chart cannot count it.
+- **Where it is said:** in PnL Graph's wallet dropdown, never on the card. The
+  wallet's row reads "KuCoin · 1 sale not priced yet", and All wallets adds the
+  total to its own line. Tyler, 23 Nov 2026: "put that notice somewhere else,
+  it doesnt need to take up space on the widget".
 
 The trades table uses the money each exchange stated. A KuCoin sale that did
 not close the position has no stated profit, so its Money cell is a dash. The

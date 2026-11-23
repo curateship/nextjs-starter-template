@@ -185,6 +185,13 @@ export function summarizeWallet(
  * entry says about itself (`account.profitPerSale`), and a zero on a venue
  * that has not spoken is counted as unpriced rather than as nothing earned.
  *
+ * **Unless the payout has already come.** Once the position closes, the one
+ * figure the exchange pays covers every sale before it, so those zeros are
+ * part of a known total and count as nothing more (`paidLater`). Ku1 closed
+ * its PONS long on 20 Nov 2026 in five pieces: KuCoin put the whole -$204.87
+ * on the last one, and the other four were shown as "4 unpriced" although the
+ * chart already held the full loss.
+ *
  * Deliberately not `protocol === "…"`. The fact belongs to the exchange, and
  * `fence.test.ts` fails any shared file that asks which one it is holding.
  */
@@ -194,11 +201,48 @@ export function moneyForWalletFill(fill: {
   side: "buy" | "sell"
   closedPnl: number
   fee: number
+  /** A later payout on the same wallet and market covers this sale. */
+  paidLater?: boolean
 }): number | null {
-  if (!fill.profitPerSale && fill.side === "sell" && fill.closedPnl === 0) {
+  if (
+    !fill.profitPerSale &&
+    fill.side === "sell" &&
+    fill.closedPnl === 0 &&
+    !fill.paidLater
+  ) {
     return null
   }
   return fill.closedPnl - fill.fee
+}
+
+/**
+ * The fills a payout on the same wallet and market, at the same moment or
+ * later, already accounts for. Hand it every fill that could hold the payout:
+ * those after the sales as well as the sales themselves.
+ */
+export function fillsPaidLater(
+  fills: readonly {
+    fillId: string
+    walletId: string
+    marketKey: string
+    at: number
+    closedPnl: number
+  }[]
+): Set<string> {
+  const lastPayout = new Map<string, number>()
+  for (const fill of fills) {
+    if (fill.closedPnl === 0) continue
+    const key = `${fill.walletId}\n${fill.marketKey}`
+    lastPayout.set(key, Math.max(lastPayout.get(key) ?? fill.at, fill.at))
+  }
+  return new Set(
+    fills.flatMap((fill) =>
+      fill.closedPnl === 0 &&
+      fill.at <= (lastPayout.get(`${fill.walletId}\n${fill.marketKey}`) ?? -1)
+        ? [fill.fillId]
+        : []
+    )
+  )
 }
 
 /**
