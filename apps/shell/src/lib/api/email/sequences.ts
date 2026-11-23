@@ -12,6 +12,7 @@ import {
   sendSequenceTestEmail as sendSequenceTestEmailRow,
   type SequenceRow,
 } from "@/server/email/sequences"
+import { sequenceStats, type SequenceStats } from "@/server/email/sequence-stats"
 import { adminGet, adminPost } from "@/server/guards"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
@@ -103,6 +104,17 @@ const sendSequenceTestFn = createServerFn({ method: "POST" })
       toEmail: context.user.email,
     })
   )
+
+const loadSequenceStatsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ id: idSchema }))
+  .handler(async ({ data, context }): Promise<SequenceStats> =>
+    sequenceStats(await workspaceIdForRequest(context.user.id), data.id)
+  )
+
+export function loadSequenceStats(id: string) {
+  return loadSequenceStatsFn({ data: { id } })
+}
 
 export function loadSequences() {
   return loadSequencesFn()

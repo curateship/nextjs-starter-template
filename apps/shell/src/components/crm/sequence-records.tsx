@@ -19,6 +19,7 @@ import { Link } from "@tanstack/react-router"
 
 import { ActionRow, TextPickRow } from "@/components/crm/crm-record-menu"
 import { EmailPage, type EmailEditableFields } from "@/components/crm/email-page"
+import { SequenceStatsCard, useSequenceStats } from "@/components/crm/sequence-stats"
 import { FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { PanelCard } from "@/components/shared/panel-card"
 import { keepOpenForInnerBoxes, PickGroup, PickRow } from "@/components/shared/notes/pick-rows"
@@ -53,9 +54,11 @@ import {
   type SequenceSteps,
   type SequenceWait,
 } from "@/lib/broadcasts/sequence-graph"
+import { sequenceEmailLine } from "@/lib/broadcasts/sequence-progress"
 import { plural } from "@/lib/format/plural"
 import { useAutoSave } from "@/lib/hooks/use-auto-save"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import type { SequenceEmailStats } from "@/server/email/sequence-stats"
 
 type Draft = { name: string; steps: SequenceSteps }
 
@@ -91,6 +94,7 @@ export function SequenceRecord({
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [openEmailId, setOpenEmailId] = React.useState<string | null>(null)
   const [testing, setTesting] = React.useState(false)
+  const stats = useSequenceStats(initial.id)
 
   const listChangedRef = React.useRef(onListChanged)
   React.useEffect(() => {
@@ -382,6 +386,7 @@ export function SequenceRecord({
       }
       body={
         <>
+          <SequenceStatsCard stats={stats} />
           <PanelCard
             icon={<MailIcon />}
             storageId="crm-sequence-emails"
@@ -400,6 +405,7 @@ export function SequenceRecord({
                   email={email}
                   index={index}
                   count={steps.emails.length}
+                  stats={stats ? (stats.byEmail[`email-${email.id}`] ?? null) : undefined}
                   onOpen={() => setOpenEmailId(email.id)}
                   onWait={(wait) => editEmail(email.id, (current) => ({ ...current, wait }))}
                   onAddAfter={() => addEmail(index)}
@@ -450,7 +456,8 @@ function settleFirstWait(emails: SequenceEmail[]) {
 }
 
 /**
- * One email in the list: its number, subject and when it goes. Pressing it
+ * One email in the list: its number, subject, when it goes, and a grey line
+ * of what became of it ("120 sent · 48% opened"). Pressing it
  * opens the email; its ⋮ changes the wait, adds one after, moves it or
  * deletes it.
  */
@@ -458,6 +465,7 @@ function EmailRow({
   email,
   index,
   count,
+  stats,
   onOpen,
   onWait,
   onAddAfter,
@@ -467,6 +475,8 @@ function EmailRow({
   email: SequenceEmail
   index: number
   count: number
+  /** Its numbers; null when none has gone, undefined while they load. */
+  stats: SequenceEmailStats | null | undefined
   onOpen: () => void
   onWait: (wait: SequenceWait) => void
   onAddAfter: () => void
@@ -485,6 +495,12 @@ function EmailRow({
             {email.subject.trim() || "No subject yet"}
           </span>
           <span className="truncate text-xs text-muted-foreground">{whenOf(email, index)}</span>
+          {stats !== undefined ? (
+            // Wraps rather than cuts: the numbers are the point of the line.
+            <span className="text-xs text-muted-foreground">
+              {sequenceEmailLine(stats ?? { sent: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, unsubscribed: 0 })}
+            </span>
+          ) : null}
         </span>
       </button>
       {index > 0 ? <WaitPopover open={waitOpen} onOpenChange={setWaitOpen} wait={email.wait} onChange={onWait} /> : null}

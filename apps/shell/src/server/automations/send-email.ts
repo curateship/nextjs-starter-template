@@ -271,9 +271,9 @@ async function sendRecipient({
   const unsubscribeUrl = !includeUnsubscribe
     ? undefined
     : recipient.contactId
-      ? buildUnsubscribeUrl(recipient.contactId)
+      ? buildUnsubscribeUrl(recipient.contactId, id)
       : recipient.userId
-        ? buildAccountUnsubscribeUrl(recipient.userId)
+        ? buildAccountUnsubscribeUrl(recipient.userId, id)
         : undefined
   const subject = personalizeEmail(subjectTemplate, recipient, {
     html: false,

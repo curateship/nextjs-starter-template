@@ -116,6 +116,56 @@ depends on what comes before it in the flow.
 `startSequenceForRun` in `src/server/email/sequences.ts`, tested in
 `sequences.test.ts`.
 
+## Sequence progress and statistics
+
+A sequence shows how far each person has got and what became of every email.
+Tyler, 22 Nov 2026: "Sequence works but there's no statistics at all or any
+sort of progression indicators". Everything is read from the sequence's runs
+and their emails as they stand, so a bounce Resend reports an hour later
+shows the next time the panel opens.
+
+**In CRM → Broadcasts → Sequences, the sequence's right panel shows, top to
+bottom:**
+- **Statistics.** Two tiles, People enrolled and Finished out of People with
+  a bar, then one bar each for Open, Click, Bounce and Unsub, drawn to Tyler's
+  design of 23 Nov 2026.
+  Each rate is out of the emails that went, so "48%" opened means 48 of every
+  100 sent. A rate shows "-" until something has gone. Test runs never count.
+- **Emails.** Each email gets a grey line of its own numbers, such as "120 sent
+  · 48% opened · 9% clicked · 1 bounced · 2 unsubscribed". Numbers that are
+  zero are left out.
+
+There is no list of people in the panel. Tyler, 23 Nov 2026: "we dont need
+this". Each person's bar and word show on the flow's Runs tab instead.
+
+**The one word** is the first that fits, in Tyler's order: Complained,
+Bounced, Unsubscribed, Clicked, Opened, Delivered, Sent. After those come
+Failed, for a run that broke or an email that did not go, and Waiting, for
+nothing sent yet. Complained, Bounced and Unsubscribed also read the person's
+own list status, so somebody who unsubscribed from a newsletter shows it here
+too. Colours come from the old Directory app: refusals red, Unsubscribed
+yellow, Opened green, Clicked blue, the rest grey.
+
+**A flow's Runs tab** gets Progress and Status columns, but only when the flow
+has a Send sequence step. The columns show what that step started for the
+run's person. A Run now that started a whole audience shows one bar summed over
+everybody, and the number of people in place of a word.
+
+**Where the numbers come from.** Each automation email remembers when it was
+delivered, opened, clicked, bounced, complained about and unsubscribed from,
+in `automation_deliveries` (migration 0117 added the last three on 22 Nov
+2026).
+- **Bounces and complaints** are stamped by the Resend webhook, as well as
+  changing the contact.
+- **Unsubscribes** are tied to an email by the link. Automation emails sent
+  from 22 Nov 2026 carry `d`, the email's id, and `s`, a signature over the
+  person and that id. A link with a changed `d` is refused. Links in emails
+  sent before that date still unsubscribe the person, but count on no email.
+  Newsletter links carry no `d`.
+
+`src/server/email/sequence-stats.ts`, tested in `sequence-stats.test.ts`; the
+panel is `src/components/crm/sequence-stats.tsx`.
+
 ## The site name in an email's header
 
 The header block of a newsletter, sequence email or system email prints the

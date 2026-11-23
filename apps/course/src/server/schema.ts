@@ -1830,6 +1830,12 @@ export const customShellAutomationDeliveries = pgTable(
     openedAt: timestamp("opened_at", { withTimezone: true }),
     /** First link click Resend reported. */
     clickedAt: timestamp("clicked_at", { withTimezone: true }),
+    /** When Resend reported the address refused this message. */
+    bouncedAt: timestamp("bounced_at", { withTimezone: true }),
+    /** When Resend reported the recipient marked this message as spam. */
+    complainedAt: timestamp("complained_at", { withTimezone: true }),
+    /** When the recipient used this message's own unsubscribe link. */
+    unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
