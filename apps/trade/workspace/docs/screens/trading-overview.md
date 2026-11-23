@@ -14,6 +14,10 @@ card. Its layout copies the design Tyler sent on 23 Sep 2026
   green, red or grey badge. No percentage appears when that balance is zero or
   below. The header is taller than the standard 57px card header because the
   figure is the card's headline.
+- **On a phone** (under 768px) the figure and its badge are a fifth smaller:
+  24px for the figure and 10px for the badge's text. Tyler, 23 Nov 2026:
+  "reduce the size of this on mobile by 20%"
+  (`workspace/docs/assets/pasted-image-1795444102426200000.png`).
 - **The whole card follows the selected row:** picking a wallet changes the
   header figure, the badge, the four figures above the chart and the chart
   line to that wallet's own. All wallets puts the account totals back.
