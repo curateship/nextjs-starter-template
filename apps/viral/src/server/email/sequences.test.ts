@@ -24,6 +24,7 @@ import {
   startSequenceForRun,
 } from "@/server/email/sequences"
 import {
+  customShellAutomations,
   customShellAutomationRuns,
   customShellAutomationRunSteps,
   customShellContacts,
@@ -239,12 +240,12 @@ describe("the Send sequence step", () => {
     expect(woke).toEqual({ type: "next", summary: "Finished waiting." })
   })
 
-  it("stops a run that is not about one person", async () => {
+  it("stops a run with no person and no Audience step, saying what to add", async () => {
     const sequence = await makeReadySequence()
     const run = flowRun({ contactId: null, label: null })
     await expect(
       startSequenceForRun({ run, nodeId: "send", settings: { sequenceId: sequence.id }, now: now(), testRun: false }, database)
-    ).rejects.toThrow("not about one person")
+    ).rejects.toThrow("Put an Audience step before Send sequence, or start the flow with the Segment trigger.")
     expect(await sequenceRuns(sequence.id)).toEqual([])
   })
 
@@ -281,6 +282,132 @@ describe("the Send sequence step", () => {
     })
     expect(result.type).toBe("next")
     expect(await sequenceRuns(sequence.id)).toEqual([])
+  })
+})
+
+/**
+ * A flow run that went through an Audience step before Send sequence, stored
+ * the way the engine stores it, so the step can find the Audience it follows.
+ */
+async function audienceFlowRun(audience: string, options: { testRecipientEmail?: string; contactId?: string } = {}) {
+  const timestamp = now()
+  const configSnapshot = {
+    v: 1 as const,
+    kind: "automation" as const,
+    nodes: {
+      audience: { kind: "audience", settings: { audience, planSlug: "", segmentId: "", segmentName: "", tag: "" } },
+      send: { kind: "sendSequence", settings: {} },
+    },
+    edges: [{ from: "audience", sourcePort: "then", to: "send" }],
+  }
+  const flowId = uuid()
+  await database.insert(customShellAutomations).values({
+    id: flowId,
+    workspaceId,
+    userId,
+    name: `Flow ${flowId}`,
+    graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+    compiledConfig: configSnapshot,
+    enabled: false,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+  const [run] = await database
+    .insert(customShellAutomationRuns)
+    .values({
+      id: uuid(),
+      automationId: flowId,
+      userId,
+      workspaceId,
+      status: "active",
+      currentNodeId: "send",
+      configSnapshot,
+      wakeAt: timestamp,
+      attempts: 0,
+      subjectContactId: options.contactId ?? null,
+      subjectLabel: options.contactId ? "tester" : null,
+      testRun: Boolean(options.testRecipientEmail),
+      testRecipientEmail: options.testRecipientEmail ?? null,
+      startedAt: timestamp,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .returning()
+  await database.insert(customShellAutomationRunSteps).values({
+    id: uuid(),
+    runId: run!.id,
+    nodeId: "audience",
+    kind: "audience",
+    status: "completed",
+    attempts: 1,
+    summary: "Matched people.",
+    startedAt: timestamp,
+    finishedAt: timestamp,
+  })
+  return run!
+}
+
+describe("Send sequence after an Audience step", () => {
+  it("starts the sequence for everybody in the audience, each on their own run, once even if retried", async () => {
+    const sequence = await makeReadySequence()
+    const ids = [await addContact("ann"), await addContact("bo"), await addContact("cy")]
+    const run = await audienceFlowRun("everyone")
+    const settings = { sequenceId: sequence.id }
+
+    const summary = await startSequenceForRun({ run, nodeId: "send", settings, now: now(), testRun: false }, database)
+    await startSequenceForRun({ run, nodeId: "send", settings, now: now(), testRun: false }, database)
+
+    expect(summary).toBe("Started “Welcome series” (2 emails) for 3 people.")
+    const runs = await sequenceRuns(sequence.id)
+    expect(runs.map((row) => row.subjectContactId).sort()).toEqual([...ids].sort())
+    expect(runs.every((row) => row.currentNodeId === "email-one" && row.status === "active")).toBe(true)
+    expect(runs.find((row) => row.subjectContactId === ids[0])?.subjectLabel).toBe("ann (ann@example.test)")
+  })
+
+  it("leaves anybody already partway through the sequence where they are on a second Run now", async () => {
+    const sequence = await makeReadySequence()
+    await addContact("ann")
+    const settings = { sequenceId: sequence.id }
+    await startSequenceForRun({ run: await audienceFlowRun("everyone"), nodeId: "send", settings, now: now(), testRun: false }, database)
+    await addContact("late")
+
+    const summary = await startSequenceForRun(
+      { run: await audienceFlowRun("everyone"), nodeId: "send", settings, now: now(), testRun: false },
+      database
+    )
+
+    expect(summary).toBe("Started “Welcome series” (2 emails) for 1 person. Skipped 1 person already in it.")
+    expect(await sequenceRuns(sequence.id)).toHaveLength(2)
+  })
+
+  it("says so, without failing, when nobody new is left to start", async () => {
+    const sequence = await makeReadySequence()
+    const run = await audienceFlowRun("everyone")
+    const summary = await startSequenceForRun({ run, nodeId: "send", settings: { sequenceId: sequence.id }, now: now(), testRun: false }, database)
+    expect(summary).toBe("Nobody new to start on “Welcome series”.")
+  })
+
+  it("skips accounts that never confirmed their email", async () => {
+    const sequence = await makeReadySequence()
+    await insertUser(database, { email: "unconfirmed@example.test", emailVerifiedAt: null })
+    const run = await audienceFlowRun("accounts")
+    const summary = await startSequenceForRun({ run, nodeId: "send", settings: { sequenceId: sequence.id }, now: now(), testRun: false }, database)
+    expect(summary).toContain("Skipped 1 person who never confirmed their email.")
+    expect((await sequenceRuns(sequence.id)).some((row) => row.subjectLabel?.includes("unconfirmed"))).toBe(false)
+  })
+
+  it("starts only the tester on a test run, never the whole audience", async () => {
+    const sequence = await makeReadySequence()
+    await addContact("ann")
+    await addContact("bo")
+    const tester = await addContact("tester")
+    const run = await audienceFlowRun("everyone", { testRecipientEmail: "admin@example.test", contactId: tester })
+
+    await startSequenceForRun({ run, nodeId: "send", settings: { sequenceId: sequence.id }, now: now(), testRun: true }, database)
+
+    const runs = await sequenceRuns(sequence.id)
+    expect(runs).toHaveLength(1)
+    expect(runs[0]).toEqual(expect.objectContaining({ subjectContactId: tester, testRun: true }))
   })
 })
 
@@ -330,12 +457,12 @@ describe("Send myself a test", () => {
     expect(sent).toHaveLength(0)
   })
 
-  it("sends nothing when email is not set up", async () => {
+  it("sends nothing when email is not set up, and says the from address is missing", async () => {
     emailSettings.getSendableEmailConfig.mockResolvedValue(null)
     const sequence = await makeReadySequence()
     await expect(
       sendSequenceTestEmail(workspaceId, { sequenceId: sequence.id, emailId: "one", toEmail: "a@example.test" }, database)
-    ).rejects.toThrow("EMAIL_NOT_CONFIGURED")
+    ).rejects.toThrow("EMAIL_FROM_MISSING")
     expect(sent).toHaveLength(0)
   })
 })

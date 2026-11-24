@@ -57,6 +57,7 @@ const FooterOpen = React.createContext<boolean | null>(null)
  * elsewhere; folding it again afterwards is still allowed.
  */
 export function PanelCard({
+  id,
   storageId,
   icon,
   title,
@@ -70,6 +71,8 @@ export function PanelCard({
   className,
   children,
 }: {
+  /** The card's element id, for a press elsewhere that scrolls to it. */
+  id?: string
   /** Plain characters only; it names the card's remembered open or shut state. */
   storageId: string
   /** Before the title, 16px, such as a network's mark. */
@@ -103,6 +106,7 @@ export function PanelCard({
   const quietClass = "hidden group-hover/card:flex group-has-[:focus-visible]/card:flex [@media(hover:none)]:flex"
   return (
     <Collapsible
+      id={id}
       open={open}
       onOpenChange={setOpen}
       data-slot="panel-card"

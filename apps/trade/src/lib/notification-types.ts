@@ -23,6 +23,7 @@ export type NotificationType =
   | "ai_limit_reached"
   | "automation_approval"
   | "automation_failed"
+  | "automation_stalled"
   | "account_update"
   | "system_email_failed"
   | "app_activity"
@@ -38,6 +39,7 @@ export const NOTIFICATION_TYPES = [
   "ai_limit_reached",
   "automation_approval",
   "automation_failed",
+  "automation_stalled",
   "account_update",
   "system_email_failed",
   "app_activity",
@@ -57,6 +59,7 @@ export const NOTIFICATION_TYPES = [
  */
 export const SELF_WORDED_NOTIFICATION_TYPES = [
   "account_update",
+  "automation_stalled",
   "system_email_failed",
   "app_activity",
   "crm_follow_up",
@@ -120,6 +123,22 @@ export const automationApprovalNotificationText: Record<
     detail:
       "The deadline passed with no answer, so the run was rejected and nothing after that step ran.",
   },
+}
+
+/**
+ * The words of the notice that a live flow has stopped moving: somebody in it
+ * was due to move on over an hour ago and has not. Written when it is sent,
+ * so it still names the flow and the count it saw.
+ */
+export function automationStalledNotificationText(
+  flowName: string,
+  people: number
+): { message: string; detail: string } {
+  const who = people === 1 ? "1 person" : `${people.toLocaleString("en-US")} people`
+  return {
+    message: `${flowName} has stopped moving`,
+    detail: `${who} in it ${people === 1 ? "was" : "were"} due to move on over an hour ago and ${people === 1 ? "has" : "have"} not. Open the flow to see where.`,
+  }
 }
 
 /**

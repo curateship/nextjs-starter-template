@@ -13,6 +13,7 @@ import { timeActivateNode } from "@/lib/automations/nodes/time-activate"
 import { joinedSegmentNode } from "@/lib/automations/nodes/joined-segment"
 import { segmentDripNode } from "@/lib/automations/nodes/segment-drip"
 import { waitNode } from "@/lib/automations/nodes/wait"
+import { dripNode } from "@/lib/automations/nodes/drip"
 import {
   MEMBER_EVENT_LABELS,
   memberEventNode,
@@ -45,6 +46,7 @@ import {
 import { executeSendEmailNode } from "@/server/automations/send-email"
 import { executeWebhookNode } from "@/server/automations/webhook"
 import { executeWaitNode } from "@/server/automations/wait"
+import { executeDripNode } from "@/server/automations/drip"
 import { startSequenceForRun } from "@/server/email/sequences"
 import { changeMemberTag } from "@/server/people/member-tags"
 import { normalizeMemberTag } from "@/lib/member-tags"
@@ -213,13 +215,14 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
   },
 
   /**
-   * Starts one of the CRM's sequences for this run's person, and the flow
-   * carries on at once. The sequence's own run sends its emails and waits.
+   * Starts one of the CRM's sequences for this run's person, or for everyone
+   * in an Audience step before it, and the flow carries on at once. Each
+   * sequence run sends its own emails and waits.
    */
   [sendSequenceNode.kind]: async ({ database, run, nodeId, settings, now, testRun, dryRun }) => ({
     type: "next",
     summary: dryRun
-      ? "Would start the sequence for this person. Nothing was started in this dry run."
+      ? "Would start the sequence for this run's person, or everyone in its Audience step. Nothing was started in this dry run."
       : await startSequenceForRun({ run, nodeId, settings, now: now(), testRun: Boolean(testRun) }, database),
   }),
 
@@ -366,6 +369,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
 
   [waitNode.kind]: executeWaitNode,
 
+  [dripNode.kind]: executeDripNode,
+
   [waitForApprovalNode.kind]: async ({ settings, now }) => {
     const summary =
       typeof settings.summary === "string" ? settings.summary.trim() : ""
@@ -393,6 +398,7 @@ const TEST_RUN_SAFE_KINDS = new Set([
   timeActivateNode.kind,
   segmentDripNode.kind,
   waitNode.kind,
+  dripNode.kind,
   audienceNode.kind,
   sendEmailNode.kind,
   webhookNode.kind,

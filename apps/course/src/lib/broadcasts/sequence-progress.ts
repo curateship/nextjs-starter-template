@@ -58,8 +58,10 @@ export function sequenceEmailLine(stats: {
   bounced: number
   complained: number
   unsubscribed: number
+  waiting: number
 }) {
-  if (stats.sent === 0) return "Not sent yet"
+  const waiting = stats.waiting ? `${stats.waiting.toLocaleString("en-US")} waiting` : ""
+  if (stats.sent === 0) return ["Not sent yet", waiting].filter(Boolean).join(" · ")
   return [
     `${stats.sent.toLocaleString("en-US")} sent`,
     stats.opened ? `${sequenceRate(stats.opened, stats.sent)} opened` : "",
@@ -67,6 +69,7 @@ export function sequenceEmailLine(stats: {
     stats.bounced ? `${stats.bounced} bounced` : "",
     stats.complained ? `${stats.complained} complained` : "",
     stats.unsubscribed ? `${stats.unsubscribed} unsubscribed` : "",
+    waiting,
   ]
     .filter(Boolean)
     .join(" · ")

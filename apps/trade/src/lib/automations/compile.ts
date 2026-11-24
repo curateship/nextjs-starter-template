@@ -14,6 +14,7 @@ import {
   automationNodeSourcePortIsValid,
   descriptorForNode,
 } from "./node-registry"
+import { NEEDS_DRIP_MESSAGE, segmentStartMissingDrip } from "./nodes/drip"
 
 /**
  * The runtime's view of a valid graph: strict-parsed settings only, no canvas
@@ -227,6 +228,16 @@ export function compileAutomationGraph(
   for (const node of nodes) visit(node.id)
   if (cycleFound) {
     addError({ code: "cycle", message: "Automation cannot contain a cycle." })
+  }
+
+  // A Segment start lets a whole segment in at once, so its flow cannot run
+  // until a Drip step paces them (`segmentStartMissingDrip`).
+  const missingDrip = segmentStartMissingDrip({
+    nodes: Object.fromEntries(nodes.map((node) => [node.id, node])),
+    edges,
+  })
+  if (missingDrip) {
+    addError({ code: "needs_drip", nodeId: missingDrip, message: NEEDS_DRIP_MESSAGE })
   }
 
   if (errors.length > 0) return { config: null, errors }

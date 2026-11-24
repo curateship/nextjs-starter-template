@@ -20,6 +20,8 @@ const headerContentSchema = z.object({
   logoUrl: z.string().trim().max(2000).default(""),
   logoWidth: z.number().int().min(16).max(600).default(120),
   logoHeight: z.number().int().min(8).max(600).nullable().default(null),
+  /** Off, a header with a logo shows only the logo. With no logo the name always shows. */
+  showName: z.boolean().default(true),
   alignment: alignmentSchema.default("center"),
   backgroundColor: hexColorSchema.default("#ffffff"),
   paddingTop: z.number().int().min(0).max(120).default(20),

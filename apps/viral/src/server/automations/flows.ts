@@ -27,6 +27,7 @@ import {
   initializeJoinedSegmentWatch,
   resetJoinedSegmentWatch,
 } from "@/server/automations/segment-triggers"
+import { recordSegmentAtStart } from "@/server/automations/segment-drip"
 import { sanitizeBlocks } from "@/server/email/broadcasts"
 import {
   customShellAutomationRuns,
@@ -240,6 +241,9 @@ export async function setAutomationEnabled(
       .set({
         enabled,
         pausedReason: transitioning || enabled ? null : current.pausedReason,
+        // The Segment card counts who is new since this moment.
+        ...(enabled && transitioning ? { liveSince: timestamp } : {}),
+        ...(transitioning ? { stallAlertedAt: null } : {}),
         nextRunAt,
         updatedAt: timestamp,
       })
@@ -258,6 +262,7 @@ export async function setAutomationEnabled(
     }
     if (enabled && transitioning) {
       await initializeJoinedSegmentWatch(updated, tx, timestamp)
+      await recordSegmentAtStart(updated, tx, timestamp)
     }
     return updated
   })

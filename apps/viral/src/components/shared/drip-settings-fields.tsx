@@ -25,10 +25,10 @@ const FIRST_WINDOW: DripWindow = { start: "08:00", end: "13:00" }
 const SECOND_WINDOW: DripWindow = { start: "19:00", end: "21:00" }
 
 /**
- * The drip sending fields, in one place because they appear twice: as the
- * workspace default in Settings → Email, and again on the newsletter itself in
- * Review and send. Two copies of this form would drift in wording within a
- * month.
+ * The drip sending fields, in one place because they appear three times: as
+ * the newsletter default in the CRM ⋮'s Emails tab, on the newsletter itself
+ * in Review and send, and as an automation's Drip step (`alwaysOn`). Copies of
+ * this form would drift in wording within a month.
  *
  * Purely controlled — it holds no config of its own, so whichever screen is
  * using it decides what saving means.
@@ -38,11 +38,14 @@ export function DripSettingsFields({
   onChange,
   disabled,
   idPrefix,
+  alwaysOn = false,
 }: {
   value: DripConfig
   onChange: (next: DripConfig) => void
   disabled?: boolean
   idPrefix: string
+  /** No on/off box: an automation's Drip step always sends in batches. */
+  alwaysOn?: boolean
 }) {
   const id = (name: string) => `${idPrefix}-${name}`
   const set = (changes: Partial<DripConfig>) =>
@@ -57,25 +60,29 @@ export function DripSettingsFields({
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={id("enabled")}
-          checked={value.enabled}
-          disabled={disabled}
-          // Only `enabled` changes. Wiping the rest would mean coming back to
-          // empty boxes after a change of mind, which is exactly the trap the
-          // directory app fell into.
-          onCheckedChange={(checked) => set({ enabled: checked === true })}
-        />
-        <Label htmlFor={id("enabled")} className="font-normal">
-          Send it in batches instead of all at once
-        </Label>
-      </div>
+    // Sized by its own width, not the window's: in the CRM ⋮ the pairs stack,
+    // in Review and send they sit side by side.
+    <div className="@container grid gap-4">
+      {alwaysOn ? null : (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={id("enabled")}
+            checked={value.enabled}
+            disabled={disabled}
+            // Only `enabled` changes. Wiping the rest would mean coming back to
+            // empty boxes after a change of mind, which is exactly the trap the
+            // directory app fell into.
+            onCheckedChange={(checked) => set({ enabled: checked === true })}
+          />
+          <Label htmlFor={id("enabled")} className="font-normal">
+            Send it in batches instead of all at once
+          </Label>
+        </div>
+      )}
 
-      {value.enabled ? (
+      {alwaysOn || value.enabled ? (
         <>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <div className="flex flex-col gap-4 @sm:flex-row @sm:items-start">
             <NumberField
               id={id("batch-min")}
               label="People per batch, fewest"
@@ -84,7 +91,7 @@ export function DripSettingsFields({
               min={1}
               max={10_000}
               disabled={disabled}
-              className="sm:flex-1"
+              className="@sm:flex-1"
               onChange={(batchSizeMin) => set({ batchSizeMin })}
             />
             <NumberField
@@ -95,12 +102,12 @@ export function DripSettingsFields({
               min={1}
               max={10_000}
               disabled={disabled}
-              className="sm:flex-1"
+              className="@sm:flex-1"
               onChange={(batchSizeMax) => set({ batchSizeMax })}
             />
           </div>
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <div className="flex flex-col gap-4 @sm:flex-row @sm:items-start">
             <NumberField
               id={id("wait-min")}
               label="Minutes between batches, fewest"
@@ -109,7 +116,7 @@ export function DripSettingsFields({
               min={1}
               max={1440}
               disabled={disabled}
-              className="sm:flex-1"
+              className="@sm:flex-1"
               onChange={(waitMinMinutes) => set({ waitMinMinutes })}
             />
             <NumberField
@@ -120,12 +127,12 @@ export function DripSettingsFields({
               min={1}
               max={1440}
               disabled={disabled}
-              className="sm:flex-1"
+              className="@sm:flex-1"
               onChange={(waitMaxMinutes) => set({ waitMaxMinutes })}
             />
           </div>
 
-          <div className="sm:max-w-64">
+          <div className="@sm:max-w-64">
             <NumberField
               id={id("bounce")}
               label="Stop if this many out of 100 bounce"
@@ -173,9 +180,9 @@ export function DripSettingsFields({
               {value.windows.map((window, index) => (
                 <div
                   key={index}
-                  className="flex flex-col gap-4 sm:flex-row sm:items-end"
+                  className="flex flex-col gap-4 @sm:flex-row @sm:items-end"
                 >
-                  <div className="grid gap-2 sm:flex-1">
+                  <div className="grid gap-2 @sm:flex-1">
                     <FieldLabel
                       htmlFor={id(`start-${index}`)}
                       hint="Your own 24-hour clock in the timezone below. A start later than the end runs overnight — 10pm to 2am is a valid stretch."
@@ -192,7 +199,7 @@ export function DripSettingsFields({
                       }
                     />
                   </div>
-                  <div className="grid gap-2 sm:flex-1">
+                  <div className="grid gap-2 @sm:flex-1">
                     <FieldLabel htmlFor={id(`end-${index}`)}>Until</FieldLabel>
                     <Input
                       id={id(`end-${index}`)}
@@ -253,7 +260,7 @@ export function DripSettingsFields({
                   disabled={disabled}
                   onValueChange={(timezone) => set({ timezone })}
                 >
-                  <SelectTrigger id={id("timezone")} className="w-full sm:w-fit">
+                  <SelectTrigger id={id("timezone")} className="w-full @sm:w-fit">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

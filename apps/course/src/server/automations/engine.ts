@@ -27,6 +27,7 @@ import {
   publishNotificationCreated,
   publishNotificationCreatedMany,
 } from "@/server/notifications/events"
+import { alertStalledFlows } from "@/server/automations/stalls"
 import { findAutomationTestContact } from "@/server/automations/test-contacts"
 import {
   customShellAutomationRuns,
@@ -173,6 +174,12 @@ export async function runAutomationTick(database: CustomShellDb = db) {
   }
 
   const expired = await sweepExpiredApprovals(database)
+  // After the walk, so a run due this pass has had its chance to move.
+  try {
+    await alertStalledFlows(database)
+  } catch (error) {
+    console.error("Stalled flow check failed", error)
+  }
 
   return { processed, failed, expired, started, paused: false }
 }

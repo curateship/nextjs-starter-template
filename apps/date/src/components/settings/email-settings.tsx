@@ -3,7 +3,6 @@ import { InfoIcon, Loader2Icon } from "lucide-react"
 
 import { BlockedSendersCard } from "@/components/settings/blocked-senders-card"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
-import { DripSettingsFields } from "@/components/shared/drip-settings-fields"
 import { Button } from "@/components/ui/button"
 import { Card, CardGroup } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -38,14 +37,12 @@ import {
   saveCrmReplyNameSetting,
   saveCrmReplySignatureSetting,
   saveInboundAddressSetting,
-  saveNewsletterDripDefaults,
   saveResendWebhookSecret,
   saveSystemEmailSenderSetting,
   testEmailKey,
   type EmailKeyTestResult,
   type EmailSettingsStatus,
 } from "@/lib/api/email/email-settings"
-import { validateDripConfig, type DripConfig } from "@/lib/broadcasts/drip"
 import type { AuthLinkExpiry } from "@/lib/email/auth-token-expiry"
 import {
   emailLinkStatusLine,
@@ -115,8 +112,6 @@ type Secret = keyof typeof SECRET_SAVES
 export function EmailSettings() {
   // The sender fields as typed; null until the load fills them in.
   const [sender, setSender] = React.useState<Sender | null>(null)
-  // The pace a new newsletter starts from, as edited; null until the load.
-  const [drip, setDrip] = React.useState<DripConfig | null>(null)
   // The run of unopened sends that marks somebody quiet; null until the load.
   const [quietAfter, setQuietAfter] = React.useState<number | null>(null)
   const [linkExpiry, setLinkExpiry] = React.useState<AuthLinkExpiry | null>(null)
@@ -134,7 +129,6 @@ export function EmailSettings() {
             crmQuoteReplies: next.crmQuoteReplies,
           }
       )
-      setDrip((prev) => prev ?? next.dripDefaults)
       setQuietAfter((prev) => prev ?? next.quietAfterEmails)
       setLinkExpiry((prev) => prev ?? next.authLinkExpiry)
     },
@@ -242,30 +236,6 @@ export function EmailSettings() {
   const flushQuiet = () => {
     if (quietAfter === null) return
     autoSave.flush("quietAfter", () => saveQuietAfterEmailsSetting(quietAfter))
-  }
-
-  const editDrip = (next: DripConfig) => {
-    setDrip(next)
-    // Settings that contradict each other are simply not sent. The blur below
-    // is what says so out loud — complaining 1.2 seconds after every keystroke
-    // would fire halfway through typing a two-digit number.
-    if (validateDripConfig(next)) {
-      autoSave.cancel("drip")
-      return
-    }
-    autoSave.schedule("drip", () => saveNewsletterDripDefaults(next))
-  }
-  // Fires when focus leaves the card, which is when a half-typed number has
-  // become a finished answer worth judging.
-  const flushDrip = () => {
-    if (!drip) return
-    const invalid = validateDripConfig(drip)
-    if (invalid) {
-      autoSave.cancel("drip")
-      showErrorToast(`Not saved. ${invalid}`)
-      return
-    }
-    autoSave.flush("drip", () => saveNewsletterDripDefaults(drip))
   }
 
   const test = async () => {
@@ -588,38 +558,6 @@ export function EmailSettings() {
           <LoadingRow
             label="Loading link expiry settings…"
             className="min-h-[16.5rem] sm:min-h-[7.75rem]"
-          />
-        )}
-      </CollapsibleSettingsCard>
-
-      <CollapsibleSettingsCard
-        storageId="newsletter-drip"
-        title="How fast newsletters go out"
-        description="Sending a big list all at once is what a spam machine looks like to a mail server. These settings let a newsletter out a few hundred at a time instead. They are the starting point for every new newsletter — each one can still be changed on its own before it is sent."
-      >
-        {status && drip ? (
-          // Focus leaving the card is the moment to judge what was typed, so
-          // the handler sits on the container rather than on each of the eight
-          // fields. React's onBlur bubbles, so it also fires on every hop from
-          // one field to the next inside the card — and the containment check
-          // is what stops "the smallest cannot be bigger than the largest"
-          // firing on the way to the box that fixes it.
-          <div
-            onBlur={(event) => {
-              if (event.currentTarget.contains(event.relatedTarget)) return
-              flushDrip()
-            }}
-          >
-            <DripSettingsFields
-              idPrefix="drip-defaults"
-              value={drip}
-              onChange={editDrip}
-            />
-          </div>
-        ) : (
-          <LoadingRow
-            label="Loading newsletter sending settings…"
-            className="min-h-13 py-2"
           />
         )}
       </CollapsibleSettingsCard>

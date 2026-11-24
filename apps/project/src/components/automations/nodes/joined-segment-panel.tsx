@@ -1,5 +1,4 @@
 import { ListChecksIcon, SlidersHorizontalIcon } from "lucide-react"
-import { Link } from "@tanstack/react-router"
 
 import {
   InspectorCard,
@@ -14,7 +13,6 @@ import {
   getSegmentDripProgressErrorMessage,
   loadSegmentDripProgress,
 } from "@/lib/api/automations/segment-drip"
-import { describeNextBatch } from "@/lib/broadcasts/drip"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
 import {
   joinedSegmentNode,
@@ -29,8 +27,8 @@ import { useLoad } from "@/lib/hooks/use-load"
  *
  * The switch decides whether the people already in the segment get the flow.
  * Off is the `joinedSegment` kind: only people who join from now on, straight
- * away. On is the `segmentDrip` kind: everyone already there a batch at a time,
- * then anyone who joins later. The switch changes the node's kind rather than
+ * away. On is the `segmentDrip` kind: everyone already there, then anyone who
+ * joins later, with a Drip step after it spacing them out. The switch changes the node's kind rather than
  * adding a setting, so every flow saved before the two were one card keeps its
  * kind and runs exactly as it did.
  */
@@ -73,7 +71,7 @@ export default function JoinedSegmentFields({
 
         <InspectorNote>
           {includeExisting
-            ? "Switching the flow on lets the people already in the segment in a batch at a time, then anyone who joins later. Each person goes through once, even if the flow is switched off and on again."
+            ? "Switching the flow on lets everyone already in the segment in, then anyone who joins later. Add a Drip step after this one to send to them a few at a time; the flow cannot go live without one. Each person goes through once, even if the flow is switched off and on again."
             : "Only people who join from now on start this flow, straight away. If more than 100 join at once the flow stops, in case the segment changed by mistake. Each person can start it once, even if they leave and rejoin."}
         </InspectorNote>
       </InspectorCard>
@@ -88,7 +86,7 @@ export default function JoinedSegmentFields({
   )
 }
 
-/** How far through the segment the saved flow is, and at what pace. */
+/** How far through the segment the saved flow is. */
 function SegmentDripProgressCard({
   automationId,
   segmentId,
@@ -103,8 +101,6 @@ function SegmentDripProgressCard({
     { keys: [automationId, segmentId] }
   )
   const progress = load.data
-
-  const nextBatch = progress ? describeNextBatch(progress.nextBatchAt) : null
 
   return (
     <InspectorCard icon={<ListChecksIcon />} title="Progress">
@@ -125,23 +121,11 @@ function SegmentDripProgressCard({
             {progress.waiting.toLocaleString()}{" "}
             {plural(progress.waiting, "person", "people")} still to go.
           </p>
-          {nextBatch ? (
-            <p className="text-muted-foreground">{nextBatch}.</p>
-          ) : null}
         </div>
       )}
 
       <InspectorNote>
-        {progress ? `${progress.pace} ` : null}
-        The pace is the drip rules in{" "}
-        <Link
-          to="/admin/settings/$tab"
-          params={{ tab: "email" }}
-          className="underline underline-offset-2 hover:text-foreground"
-        >
-          Settings &gt; Email
-        </Link>
-        , and its sending hours hold back the Waits in this flow too.
+        The pace is the Drip step's after this one.
       </InspectorNote>
     </InspectorCard>
   )

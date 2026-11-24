@@ -82,6 +82,22 @@ describe("renderBroadcastBlockHtml", () => {
     )
   })
 
+  it("leaves the name out when it is switched off, and puts it on the logo's label", () => {
+    const html = renderBroadcastBlockHtml(
+      block("header", { logoUrl: "https://example.com/logo.png", showName: false }),
+      { appName: "North & Star" }
+    )
+    expect(html).not.toContain("<p ")
+    expect(html).toContain('alt="North &amp; Star"')
+  })
+
+  it("still shows the name on a header with no logo, even switched off", () => {
+    const html = renderBroadcastBlockHtml(block("header", { showName: false }), {
+      appName: "North Star",
+    })
+    expect(html).toContain("North Star")
+  })
+
   it("adds useful fallback text to rich-text images without a description", () => {
     const missing = renderBroadcastBlockHtml(
       block("richText", { htmlContent: '<img src="https://x.dev/photo.png">' })

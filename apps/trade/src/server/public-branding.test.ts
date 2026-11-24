@@ -194,6 +194,55 @@ describe("public site branding", () => {
     })
   })
 
+  /**
+   * Run as one website, the Logo box on an app that brands each site saves on
+   * the site. The public pages and the tab have to read it from there, or the
+   * upload never shows (systemeverything.com, 16 Nov 2026).
+   */
+  it("uses the single site's logo on the platform address when sites are branded", async () => {
+    workspaceOptions.siteBranding = true
+    process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = ""
+    request.host = "localhost:3002"
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: { logo: "https://media.example.test/app.png" },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await insertWorkspace(database, {
+      name: "Only site",
+      settings: {
+        logo: "https://media.example.test/site.png",
+        logoDark: "https://media.example.test/site-dark.png",
+      },
+    })
+
+    expect(await readBranding(database as unknown as CustomShellDb)).toMatchObject({
+      favicon: "https://media.example.test/site.png",
+      logo: "https://media.example.test/site.png",
+      logoDark: "https://media.example.test/site-dark.png",
+    })
+  })
+
+  it("keeps the app-wide logo on the platform address when the one site has none", async () => {
+    workspaceOptions.siteBranding = true
+    process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = ""
+    request.host = "localhost:3002"
+    const timestamp = now()
+    await database.insert(customShellSettings).values({
+      key: DEFAULT_SETTINGS_KEY,
+      settings: { logo: "https://media.example.test/app.png" },
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    await insertWorkspace(database, { name: "Only site" })
+
+    expect(await readBranding(database as unknown as CustomShellDb)).toMatchObject({
+      logo: "https://media.example.test/app.png",
+    })
+  })
+
   it("uses the single site's public links on the platform address", async () => {
     process.env.CUSTOM_SHELL_WORKSPACE_BASE_DOMAIN = ""
     request.host = "localhost:3002"

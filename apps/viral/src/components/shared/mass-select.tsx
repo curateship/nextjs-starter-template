@@ -2,6 +2,7 @@ import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ListChecksIcon } fr
 import * as React from "react"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { RainbowEdge } from "@/components/shared/rainbow-edge"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
@@ -114,11 +115,7 @@ export function SelectedMenu({
 
   return (
     <Popover open={open} onOpenChange={openChange}>
-      <span className="relative inline-flex shrink-0 overflow-hidden rounded-lg p-px">
-        <span
-          aria-hidden
-          className="absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 animate-spin bg-[conic-gradient(#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6,#ec4899,#ef4444)] [animation-duration:2.5s] motion-reduce:animate-none"
-        />
+      <RainbowEdge>
         <PopoverTrigger asChild>
           <DashboardToolbarButton
             type="button"
@@ -131,7 +128,7 @@ export function SelectedMenu({
             <ChevronDownIcon className="size-4 text-muted-foreground" />
           </DashboardToolbarButton>
         </PopoverTrigger>
-      </span>
+      </RainbowEdge>
       <PopoverContent
         ref={content}
         align="end"

@@ -90,7 +90,13 @@ export function SideRows({
   const shown = all ? rows : rows.slice(0, ROWS_SHOWN)
   const picks = rows.some((row) => row.picked !== undefined)
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-0.5 p-1.5">
+    <div
+      // Opened by "Show all": the block's card lets its 28rem cap go while
+      // this is set, so the block grows down to its last row (Tyler, 18 Nov
+      // 2026: "this here doesnt extend down and show all").
+      data-side-rows-all={all && !showAll && rows.length > ROWS_SHOWN ? "" : undefined}
+      className="grid grid-cols-[minmax(0,1fr)] gap-0.5 p-1.5"
+    >
       {rows.length === 0 && empty ? <p className="px-2.5 py-1.5 text-sm text-muted-foreground">{empty}</p> : null}
       {shown.map((row) => {
         const inner = (

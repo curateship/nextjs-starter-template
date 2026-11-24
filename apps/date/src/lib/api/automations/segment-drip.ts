@@ -17,7 +17,7 @@ export const getSegmentDripProgressErrorMessage = createErrorMessage(
   "We could not work out how far through the segment this flow is. Please try again."
 )
 
-/** How many people the dripped start has let in, and when the next batch goes. */
+/** How many people the Segment start has let in, and how many are still to go. */
 const loadSegmentDripProgressFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(z.object({ automationId: z.string().min(1).max(36) }))

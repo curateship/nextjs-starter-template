@@ -1,6 +1,7 @@
 import * as React from "react"
 import { HandshakeIcon, NewspaperIcon, PencilIcon, PlusIcon, Trash2Icon, UserPlusIcon, UsersIcon } from "lucide-react"
 
+import { NewsletterPaceSettings } from "@/components/broadcasts/newsletter-pace-settings"
 import { CRM_APP_BLOCKS, CrmBlocksProvider, CrmSectionsBlock, type CrmBlocks } from "@/components/crm/crm-blocks"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { PageCover } from "@/components/shared/notes/page-cover"
@@ -57,7 +58,8 @@ import { cn } from "@/lib/utils"
  *
  * - **Header:** the collapse button, "CRM", the
  *   **+** that adds an address mail arrives at, and the ⋮ (CRM settings:
- *   General, Emails, and Widgets for Overview; System emails is a section
+ *   General, Emails (with how fast newsletters go out), and Widgets for
+ *   Overview; System emails is a section
  *   of its own since 9 Nov 2026).
  * - **Page:** one per site, written on like any page in the design, with the
  *   fixed Dashboards block that picks the section, and the "/" blocks: the
@@ -312,6 +314,14 @@ export function CrmPagePanel({
                           })
                         )}
                       </PickGroup>
+                      {/* How fast a newsletter goes out, moved here from
+                          Settings → Email (Tyler, 23 Nov 2026: "move the drip
+                          sending settings to the 3 dot dropdown"). In this
+                          tab rather than a fourth one, which would not fit. */}
+                      <section className="grid gap-2" aria-label="How fast newsletters go out">
+                        <h3 className="px-0.5 text-sm font-medium text-muted-foreground">How fast newsletters go out</h3>
+                        <NewsletterPaceSettings />
+                      </section>
                     </div>
                   ),
                   // Moved here from the left header's + (9 Nov 2026), which

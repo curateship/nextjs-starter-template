@@ -234,6 +234,75 @@ describe("Drip step", () => {
     )
     expect((await runs())[0].status).toBe("completed")
   })
+
+  it("counts the emails this flow sent through a sequence toward the bounce limit", async () => {
+    await addContact("sam")
+    await setAutomationEnabled(workspaceId, automationId, true, database)
+    await runAutomationTick(database)
+    const [flowRun] = await runs()
+
+    // The flow's Send sequence step put twenty people on a sequence, and the
+    // sequence's own runs sent the emails. One of them bounced: 5 in 100.
+    const timestamp = now()
+    const sequenceId = uuid()
+    await database.insert(customShellAutomations).values({
+      id: sequenceId,
+      workspaceId,
+      name: "Welcome emails",
+      kind: "sequence",
+      graph: EMPTY_AUTOMATION_GRAPH,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    for (let index = 0; index < 20; index += 1) {
+      const contactId = await addContact(`seq-${index}`, false)
+      if (index === 0) {
+        await database.update(customShellContacts).set({ status: "bounced" }).where(eq(customShellContacts.id, contactId))
+      }
+      const sequenceRunId = uuid()
+      await database.insert(customShellAutomationRuns).values({
+        id: sequenceRunId,
+        automationId: sequenceId,
+        workspaceId,
+        status: "completed",
+        currentNodeId: "email-1",
+        configSnapshot: flowRun.configSnapshot,
+        wakeAt: timestamp,
+        subjectContactId: contactId,
+        triggerKind: "sendSequence",
+        triggerKey: `run:${flowRun.id}:send:c:${contactId}`,
+        startedAt: timestamp,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      await database.insert(customShellAutomationDeliveries).values({
+        id: uuid(),
+        runId: sequenceRunId,
+        nodeId: "email-1",
+        contactId,
+        toEmail: `seq-${index}@example.test`,
+        subject: "Email 1",
+        status: "sent",
+        createdAt: timestamp,
+      })
+    }
+    // Sam's copy of the flow has the Send sequence step that started them.
+    const snapshot = flowRun.configSnapshot
+    await database
+      .update(customShellAutomationRuns)
+      .set({
+        configSnapshot: {
+          ...snapshot,
+          nodes: { ...snapshot.nodes, send: { kind: "sendSequence", settings: { sequenceId, sequenceName: "Welcome emails" } } },
+        },
+      })
+      .where(eq(customShellAutomationRuns.id, flowRun.id))
+    await runAutomationTick(database)
+
+    const [flow] = await database.select().from(customShellAutomations).where(eq(customShellAutomations.id, automationId))
+    expect(flow.enabled).toBe(false)
+    expect(flow.pausedReason).toMatch(/^Stopped on its own: 1 of the 20 people sent to so far bounced/)
+  })
 })
 
 describe("dripNextBatchAt", () => {

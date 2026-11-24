@@ -2,6 +2,7 @@ import {
   ActivityIcon,
   CalendarClockIcon,
   CircleAlertIcon,
+  ClockAlertIcon,
   GaugeIcon,
   GitMergeIcon,
   MailIcon,
@@ -139,6 +140,8 @@ function ShellNotificationIcon({
     return <UserCheckIcon className={className} />
   if (item.type === "automation_failed")
     return <CircleAlertIcon className={className} />
+  if (item.type === "automation_stalled")
+    return <ClockAlertIcon className={className} />
   if (item.type === "account_update")
     return <UserRoundCogIcon className={className} />
   if (item.type === "system_email_failed")

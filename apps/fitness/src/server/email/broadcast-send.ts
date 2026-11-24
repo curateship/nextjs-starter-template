@@ -27,7 +27,7 @@ import { markQuietContacts } from "@/server/people/quiet-contacts"
 import { db, type CustomShellDb } from "@/server/db"
 import { getEmailProvider } from "@/server/email/provider"
 import { emailBrandName, protectSentEmailLogos } from "@/server/email/branding"
-import { getSendableEmailConfig } from "@/server/email/settings"
+import { getEmailSetupProblem, getSendableEmailConfig } from "@/server/email/settings"
 import {
   customShellBroadcasts,
   customShellContacts,
@@ -205,7 +205,7 @@ async function validateReadyToSend(
   }
 
   const config = await getSendableEmailConfig(broadcast.workspaceId, database)
-  if (!config) throw new Error("EMAIL_NOT_CONFIGURED")
+  if (!config) throw new Error(await getEmailSetupProblem(broadcast.workspaceId, database))
 
   // Asked here, not inside the delivery loop. Every message carries a signed
   // unsubscribe link, so without the key there is nothing to send — and a
@@ -352,7 +352,7 @@ export async function sendTestBroadcast(
   if (blocks.length === 0) throw new Error("BLOCKS_REQUIRED")
 
   const config = await getSendableEmailConfig(workspaceId, database)
-  if (!config) throw new Error("EMAIL_NOT_CONFIGURED")
+  if (!config) throw new Error(await getEmailSetupProblem(workspaceId, database))
   if (!canBuildUnsubscribeLinks()) throw new Error("UNSUBSCRIBE_NOT_CONFIGURED")
 
   const html = renderBroadcastEmailHtml(blocks, {

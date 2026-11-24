@@ -1,13 +1,7 @@
-import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm"
+import { and, asc, eq, inArray, isNull, lte, sql, type SQL } from "drizzle-orm"
 
-import {
-  describeDripSchedule,
-  nextDripWindowOpen,
-  pickBatchSize,
-  pickWaitMs,
-  type DripConfig,
-} from "@/lib/broadcasts/drip"
 import { automationCompiledConfigSchema } from "@/lib/automations/compile"
+import { segmentStartMissingDrip } from "@/lib/automations/nodes/drip"
 import {
   readSegmentDrip,
   segmentDripNode,
@@ -18,31 +12,34 @@ import {
 } from "@/lib/automations/run"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { getDripDefaults } from "@/server/email/settings"
 import {
   getSegmentDefinition,
   segmentConditions,
 } from "@/server/people/contact-segments"
 import {
-  customShellAutomationDeliveries,
   customShellAutomationRuns,
   customShellAutomations,
   customShellAutomationSegmentEnrollments,
+  customShellAutomationSegmentSnapshot,
   customShellContacts,
 } from "@/server/schema"
 
 /**
- * Below this many sent emails a bounce rate says nothing. The same floor the
- * newsletter drip uses: three bounces out of four is a small list, not a bad
- * one.
+ * How many people the Segment start lets in per pass, at most, and never while
+ * this many of the flow's runs are already due and not yet walked. The engine
+ * walks 20 runs a pass, so letting twenty thousand in at once would queue a
+ * Drip step's next batch behind hours of new arrivals.
  */
-const BOUNCE_SAMPLE_MINIMUM = 20
+const LET_IN_PER_PASS = 100
 
-function triggerDetails(config: unknown) {
+function triggerDetails(config: unknown, { requireDrip = true } = {}) {
   const parsed = automationCompiledConfigSchema.safeParse(config)
   if (
     !parsed.success ||
-    automationTriggerKind(parsed.data) !== segmentDripNode.kind
+    automationTriggerKind(parsed.data) !== segmentDripNode.kind ||
+    // A flow saved live before Drip steps existed lets nobody in, rather than
+    // the whole segment at once (`segmentStartMissingDrip`).
+    (requireDrip && segmentStartMissingDrip(parsed.data))
   ) {
     return null
   }
@@ -53,61 +50,6 @@ function triggerDetails(config: unknown) {
   return settings.segmentId
     ? { config: parsed.data, entryNodeId, ...settings }
     : null
-}
-
-/** Whether this flow starts with the dripped segment start. */
-export function automationStartsWithSegmentDrip(config: unknown): boolean {
-  return triggerDetails(config) !== null
-}
-
-/** A repeatable number in [0, 1) from a string (FNV-1a). */
-function seededRandom(seed: string): () => number {
-  let hash = 0x811c9dc5
-  for (let index = 0; index < seed.length; index += 1) {
-    hash ^= seed.charCodeAt(index)
-    hash = Math.imul(hash, 0x01000193)
-  }
-  const value = (hash >>> 0) / 0x1_0000_0000
-  return () => value
-}
-
-/**
- * When this flow may let its next batch in.
- *
- * No column holds the answer. The last batch's time is already written down,
- * on the enrollment rows it made, and the gap after it is picked from the pace's
- * range with that time as the seed, so every pass of the ticker works out the
- * same gap rather than a fresh one each fifteen seconds. A flow nobody has been
- * let into yet may go now.
- */
-export function segmentDripNextBatchAt(
-  pace: DripConfig,
-  automationId: string,
-  lastBatchAt: Date | null,
-  at: Date
-): Date {
-  const earliest = lastBatchAt
-    ? new Date(
-        lastBatchAt.getTime() +
-          pickWaitMs(
-            pace,
-            seededRandom(`${automationId}:${lastBatchAt.toISOString()}`)
-          )
-      )
-    : at
-  return nextDripWindowOpen(pace, earliest > at ? earliest : at)
-}
-
-/**
- * The pace a dripped start uses: the workspace's drip rules from Settings >
- * Email, always on. Its own switch there is about newsletters; a dripped start
- * is never anything but paced.
- */
-export async function segmentDripPace(
-  workspaceId: string,
-  database: CustomShellDb = db
-): Promise<DripConfig> {
-  return { ...(await getDripDefaults(workspaceId, database)), enabled: true }
 }
 
 /**
@@ -130,49 +72,19 @@ function joinEnrollments(automationId: string) {
   )
 }
 
-async function lastBatchAt(
-  automationId: string,
-  database: CustomShellDb
-): Promise<Date | null> {
+/** How many of this flow's runs are due and not yet walked. */
+async function dueRuns(automationId: string, database: CustomShellDb, timestamp: Date) {
   const [row] = await database
-    .select({
-      at: sql<string | null>`max(${customShellAutomationSegmentEnrollments.startedAt})`,
-    })
-    .from(customShellAutomationSegmentEnrollments)
-    .where(eq(customShellAutomationSegmentEnrollments.automationId, automationId))
-  return row?.at ? new Date(row.at) : null
-}
-
-/**
- * How many of this flow's sent emails went to somebody whose address has since
- * bounced.
- *
- * Automation mail has no bounce stamp of its own. Resend's bounce report marks
- * the contact, so the contact's status is the record of it.
- */
-async function bounceCounts(automationId: string, database: CustomShellDb) {
-  const [row] = await database
-    .select({
-      sent: sql<number>`count(distinct ${customShellAutomationDeliveries.contactId})::int`,
-      bounced: sql<number>`count(distinct ${customShellAutomationDeliveries.contactId}) filter (where ${customShellContacts.status} = 'bounced')::int`,
-    })
-    .from(customShellAutomationDeliveries)
-    .innerJoin(
-      customShellAutomationRuns,
-      eq(customShellAutomationRuns.id, customShellAutomationDeliveries.runId)
-    )
-    .innerJoin(
-      customShellContacts,
-      eq(customShellContacts.id, customShellAutomationDeliveries.contactId)
-    )
+    .select({ total: sql<number>`count(*)::int` })
+    .from(customShellAutomationRuns)
     .where(
       and(
         eq(customShellAutomationRuns.automationId, automationId),
-        eq(customShellAutomationRuns.testRun, false),
-        eq(customShellAutomationDeliveries.status, "sent")
+        eq(customShellAutomationRuns.status, "active"),
+        lte(customShellAutomationRuns.wakeAt, timestamp)
       )
     )
-  return { sent: row?.sent ?? 0, bounced: row?.bounced ?? 0 }
+  return row?.total ?? 0
 }
 
 function contactLabel(contact: {
@@ -206,7 +118,7 @@ async function letInNextBatch(
 ): Promise<number> {
   return database.transaction(async (tx) => {
     // Two servers ticking at once take turns here. The second one sees the
-    // enrollments the first committed, so its next batch is not due yet.
+    // enrollments and runs the first committed, so it finds no one twice.
     await tx.execute(
       sql`select id from automations where id = ${automationId} for update`
     )
@@ -224,11 +136,8 @@ async function letInNextBatch(
     const trigger = triggerDetails(flow.compiledConfig)
     if (!trigger) return 0
 
-    const pace = await segmentDripPace(flow.workspaceId, tx)
-    const last = await lastBatchAt(flow.id, tx)
-    if (segmentDripNextBatchAt(pace, flow.id, last, timestamp) > timestamp) {
-      return 0
-    }
+    const room = LET_IN_PER_PASS - (await dueRuns(flow.id, tx, timestamp))
+    if (room <= 0) return 0
 
     const segment = await getSegmentDefinition(
       flow.workspaceId,
@@ -239,23 +148,6 @@ async function letInNextBatch(
       await stopFlow(
         flow.id,
         "The segment this flow lets in no longer exists.",
-        timestamp,
-        tx
-      )
-      return 0
-    }
-
-    // Checked before each batch rather than after, so the batch that tips it
-    // over is the last one: the bounces for a batch arrive minutes after it
-    // goes, by which time the next one is what this check would be stopping.
-    const bounces = await bounceCounts(flow.id, tx)
-    if (
-      bounces.sent >= BOUNCE_SAMPLE_MINIMUM &&
-      (bounces.bounced / bounces.sent) * 100 >= pace.bounceThresholdPercent
-    ) {
-      await stopFlow(
-        flow.id,
-        `Stopped on its own: ${bounces.bounced} of the ${bounces.sent} people sent to so far bounced, which is over your ${pace.bounceThresholdPercent} in 100 limit. Clean up the segment before switching it back on.`,
         timestamp,
         tx
       )
@@ -284,7 +176,7 @@ async function letInNextBatch(
       // Oldest first, so the people who have been on the list longest hear
       // first and the order is the same however often it is asked.
       .orderBy(asc(customShellContacts.createdAt), asc(customShellContacts.id))
-      .limit(pickBatchSize(pace))
+      .limit(room)
     if (batch.length === 0) return 0
 
     const reserved = await tx
@@ -338,7 +230,10 @@ async function letInNextBatch(
   })
 }
 
-/** Lets the next batch into every live dripped flow whose batch is due. */
+/**
+ * Lets the next few people into every live flow with this start, as many as
+ * the engine has room for. The pace is the flow's Drip step's job, not this.
+ */
 export async function runSegmentDripTriggers(
   database: CustomShellDb = db,
   options: { timestamp?: Date } = {}
@@ -353,16 +248,7 @@ export async function runSegmentDripTriggers(
     .from(customShellAutomations)
     .where(eq(customShellAutomations.enabled, true))
 
-  const due: typeof rows = []
-  for (const row of rows) {
-    if (!triggerDetails(row.compiledConfig)) continue
-    const pace = await segmentDripPace(row.workspaceId, database)
-    const last = await lastBatchAt(row.id, database)
-    if (segmentDripNextBatchAt(pace, row.id, last, timestamp) <= timestamp) {
-      due.push(row)
-    }
-  }
-
+  const due = rows.filter((row) => triggerDetails(row.compiledConfig))
   let started = 0
   for (const row of due) {
     started += await letInNextBatch(row.id, database, timestamp)
@@ -373,9 +259,6 @@ export async function runSegmentDripTriggers(
 export type SegmentDripProgress = {
   letIn: number
   waiting: number
-  /** Null when nothing is waiting or the flow is off. */
-  nextBatchAt: string | null
-  pace: string
 }
 
 /** What the start step's panel shows: how far through the segment it is. */
@@ -397,13 +280,14 @@ export async function segmentDripProgress(
     .limit(1)
   if (!flow) return null
 
-  const pace = await segmentDripPace(workspaceId, database)
   const [letIn] = await database
     .select({ total: sql<number>`count(*)::int` })
     .from(customShellAutomationSegmentEnrollments)
     .where(eq(customShellAutomationSegmentEnrollments.automationId, flow.id))
 
-  const trigger = triggerDetails(flow.compiledConfig)
+  // Counted even while the flow waits for a Drip step, so the card says how
+  // many are still to go.
+  const trigger = triggerDetails(flow.compiledConfig, { requireDrip: false })
   const segment = trigger
     ? await getSegmentDefinition(workspaceId, trigger.segmentId, database)
     : null
@@ -424,20 +308,68 @@ export async function segmentDripProgress(
     waiting = row?.total ?? 0
   }
 
-  const nextBatchAt =
-    flow.enabled && waiting > 0
-      ? segmentDripNextBatchAt(
-          pace,
-          flow.id,
-          await lastBatchAt(flow.id, database),
-          timestamp
-        ).toISOString()
-      : null
-
   return {
     letIn: letIn?.total ?? 0,
     waiting,
-    nextBatchAt,
-    pace: describeDripSchedule(pace),
+  }
+}
+
+/**
+ * Who is in the segment the moment Run is pressed on a flow that lets the
+ * segment in, so the Segment card can tell a newcomer from somebody who was
+ * already in it (Tyler, 23 Nov 2026: "New since run started"). Kept in the
+ * Segment start's own snapshot table; only a flow that starts with "Joined a
+ * segment" is ever scanned against it, and switching the flow off empties it.
+ */
+export async function recordSegmentAtStart(
+  flow: Pick<typeof customShellAutomations.$inferSelect, "id" | "workspaceId" | "compiledConfig">,
+  database: CustomShellDb,
+  timestamp: Date
+): Promise<void> {
+  const trigger = triggerDetails(flow.compiledConfig, { requireDrip: false })
+  if (!trigger) return
+  const segment = await getSegmentDefinition(flow.workspaceId, trigger.segmentId, database)
+  if (!segment) return
+  const conditions = await segmentConditions(flow.workspaceId, segment, database, timestamp)
+  await database.execute(sql`
+    insert into ${customShellAutomationSegmentSnapshot}
+      ("automation_id", "segment_id", "contact_id", "last_seen_at")
+    select ${flow.id}, ${trigger.segmentId}, ${customShellContacts.id}, ${timestamp}
+    from ${customShellContacts}
+    where ${conditions}
+    on conflict ("automation_id", "contact_id") do nothing
+  `)
+}
+
+export type SegmentStartReach = {
+  /** Reachable and not let in yet. Null on a start that never lets the whole segment in. */
+  stillToGo: number | null
+  /** In the segment but unsubscribed, bounced or marked as spam, so never let in. */
+  cannotBeEmailed: number
+}
+
+/** The Segment card's two counts of the segment itself, for either Segment start. */
+export async function segmentStartReach(
+  flow: Pick<typeof customShellAutomations.$inferSelect, "id" | "workspaceId">,
+  start: { kind: string; segmentId: string },
+  database: CustomShellDb,
+  timestamp: Date
+): Promise<SegmentStartReach | null> {
+  const segment = start.segmentId
+    ? await getSegmentDefinition(flow.workspaceId, start.segmentId, database)
+    : null
+  if (!segment) return null
+  const conditions = await segmentConditions(flow.workspaceId, segment, database, timestamp)
+  const [row] = await database
+    .select({
+      stillToGo: sql<number>`(count(*) filter (where ${customShellContacts.status} in ('subscribed', 'cold') and ${customShellAutomationSegmentEnrollments.contactId} is null))::int`,
+      cannotBeEmailed: sql<number>`(count(*) filter (where ${customShellContacts.status} not in ('subscribed', 'cold')))::int`,
+    })
+    .from(customShellContacts)
+    .leftJoin(customShellAutomationSegmentEnrollments, joinEnrollments(flow.id))
+    .where(conditions)
+  return {
+    stillToGo: start.kind === segmentDripNode.kind ? (row?.stillToGo ?? 0) : null,
+    cannotBeEmailed: row?.cannotBeEmailed ?? 0,
   }
 }

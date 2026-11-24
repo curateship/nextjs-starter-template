@@ -6,7 +6,12 @@ import {
   automationEntryNodeId,
   type AutomationRunStatus,
 } from "@/lib/automations/run"
+import { sendSequenceNode } from "@/lib/automations/nodes/send-sequence"
 import { db, type CustomShellDb } from "@/server/db"
+import {
+  sequenceProgressForFlowRuns,
+  type FlowRunSequenceProgress,
+} from "@/server/email/sequence-stats"
 import { currentWorkspaceId } from "@/server/people/workspaces"
 import {
   customShellAutomationDeliveries,
@@ -52,6 +57,12 @@ export type AutomationRunRow = {
   approvalStepName: string | null
   startedAt: Date
   finishedAt: Date | null
+  /**
+   * What the flow's Send sequence step started, for the Runs tab's Progress
+   * and Status columns. Left out for a flow with no Send sequence step; null
+   * when the step has not started anybody (yet, or ever).
+   */
+  sequence?: FlowRunSequenceProgress | null
 }
 
 export type AutomationRunStepRow = {
@@ -183,7 +194,24 @@ export async function listRunsForAutomation(
     .limit(RUNS_PAGE_SIZE)
     .offset(offset)
 
-  return toPage(rows)
+  const page = toPage(rows)
+  // Only a flow that sends a sequence gets the two columns (Tyler, 22 Nov
+  // 2026: "Only flows with Send sequence").
+  const sending = new Set(
+    rows.filter((row) => snapshotSendsSequence(row.run.configSnapshot)).map((row) => row.run.id)
+  )
+  if (sending.size === 0) return page
+  const progress = await sequenceProgressForFlowRuns([...sending], database)
+  for (const run of page.runs) {
+    if (sending.has(run.id)) run.sequence = progress.get(run.id) ?? null
+  }
+  return page
+}
+
+/** Whether the copy of the flow a run was given has a Send sequence step. */
+function snapshotSendsSequence(snapshot: unknown) {
+  const nodes = (snapshot as { nodes?: Record<string, { kind?: unknown }> } | null)?.nodes
+  return Boolean(nodes && Object.values(nodes).some((node) => node?.kind === sendSequenceNode.kind))
 }
 
 /**

@@ -1,3 +1,4 @@
+import { SequenceProgressBar, SequenceStatusBadge } from "@/components/broadcasts/sequence-progress"
 import { Chip, CrmTable, CrmTableRow, Dot, OpenBar } from "@/components/crm/crm-table"
 import { LoadMoreButton } from "@/components/shared/load-more-button"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
@@ -7,7 +8,7 @@ import { automationRunStatusLabel, type AutomationRunStatus } from "@/lib/automa
 import { formatDateTime } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 
-type Column = "run" | "flow" | "who" | "step" | "deadline" | "steps"
+type Column = "run" | "flow" | "who" | "progress" | "status" | "step" | "deadline" | "steps"
 
 /** A run's dot: blue going, amber waiting on you, green done, red failed, grey stopped. */
 const STATUS_DOT: Record<AutomationRunStatus, string> = {
@@ -49,7 +50,10 @@ function runWho(run: AutomationRunItem) {
  * picked "When and how it ended" after "The 2 runs panel is really
  * confusing").
  *
- * - **A flow's Runs tab** (`mode="flow"`): the line, Who, Steps.
+ * - **A flow's Runs tab** (`mode="flow"`): the line, Who, Steps. A flow with
+ *   a Send sequence step also gets Progress ("2 of 5" emails) and Status, the
+ *   person's one word (Tyler, 22 Nov 2026: "needs to have a col for
+ *   progression bar, status").
  * - **Waiting on you** (`mode="waiting"`): the line, Flow, Who, Step waiting,
  *   Deadline, the closest deadline first.
  *
@@ -76,6 +80,8 @@ export function RunsTable({
   empty: React.ReactNode
 }) {
   const waiting = mode === "waiting"
+  // The server only adds `sequence` to a flow that sends one.
+  const sequenceColumns = !waiting && runs.some((run) => run.sequence !== undefined)
   const columns: TableHeaderColumn<Column>[] = [
     // No 20rem floor, so the table fits a narrow middle: the line gives way
     // last, cut short with "…".
@@ -84,6 +90,12 @@ export function RunsTable({
       ? [{ key: "flow" as const, label: "Flow", sortable: false, column: "preview" as const, className: "hidden md:hidden @xl:table-cell" }]
       : []),
     { key: "who", label: "Who", sortable: false, column: "preview", className: "hidden md:hidden @2xl:table-cell" },
+    ...(sequenceColumns
+      ? [
+          { key: "progress" as const, label: "Progress", sortable: false, column: "meta" as const, className: "hidden md:hidden @lg:table-cell" },
+          { key: "status" as const, label: "Status", sortable: false, column: "meta" as const, className: "hidden md:hidden @md:table-cell" },
+        ]
+      : []),
     ...(waiting
       ? [
           { key: "step" as const, label: "Step waiting", sortable: false, column: "preview" as const, className: "hidden md:hidden @4xl:table-cell" },
@@ -138,6 +150,7 @@ export function RunsTable({
             <TableCell column="preview" className="hidden md:hidden @2xl:table-cell">
               <span className="block max-w-64 truncate text-muted-foreground">{runWho(run)}</span>
             </TableCell>
+            {sequenceColumns ? <SequenceCells sequence={run.sequence} /> : null}
             {waiting ? (
               <>
                 <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">
@@ -162,5 +175,36 @@ export function RunsTable({
         )
       })}
     </CrmTable>
+  )
+}
+
+/**
+ * The two sequence cells. One person shows their bar and word; a Run now that
+ * started a whole audience shows the summed bar and how many people.
+ */
+function SequenceCells({ sequence }: { sequence: AutomationRunItem["sequence"] }) {
+  if (!sequence) {
+    return (
+      <>
+        <TableCell column="mutedMeta" className="hidden md:hidden @lg:table-cell">-</TableCell>
+        <TableCell column="mutedMeta" className="hidden md:hidden @md:table-cell">-</TableCell>
+      </>
+    )
+  }
+  return (
+    <>
+      <TableCell column="meta" className="hidden md:hidden @lg:table-cell">
+        <SequenceProgressBar sent={sequence.emails_sent} total={sequence.emails_total} />
+      </TableCell>
+      <TableCell column="meta" className="hidden md:hidden @md:table-cell">
+        {sequence.status ? (
+          <SequenceStatusBadge status={sequence.status} />
+        ) : (
+          <span className="whitespace-nowrap text-muted-foreground">
+            {sequence.people.toLocaleString("en-US")} {plural(sequence.people, "person", "people")}
+          </span>
+        )}
+      </TableCell>
+    </>
   )
 }

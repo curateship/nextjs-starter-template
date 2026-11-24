@@ -20,6 +20,7 @@ import {
   customShellAutomationRuns,
   customShellAutomations,
   customShellAutomationSegmentEnrollments,
+  customShellAutomationSegmentSnapshot,
   customShellContacts,
 } from "@/server/schema"
 
@@ -310,5 +311,65 @@ export async function segmentDripProgress(
   return {
     letIn: letIn?.total ?? 0,
     waiting,
+  }
+}
+
+/**
+ * Who is in the segment the moment Run is pressed on a flow that lets the
+ * segment in, so the Segment card can tell a newcomer from somebody who was
+ * already in it (Tyler, 23 Nov 2026: "New since run started"). Kept in the
+ * Segment start's own snapshot table; only a flow that starts with "Joined a
+ * segment" is ever scanned against it, and switching the flow off empties it.
+ */
+export async function recordSegmentAtStart(
+  flow: Pick<typeof customShellAutomations.$inferSelect, "id" | "workspaceId" | "compiledConfig">,
+  database: CustomShellDb,
+  timestamp: Date
+): Promise<void> {
+  const trigger = triggerDetails(flow.compiledConfig, { requireDrip: false })
+  if (!trigger) return
+  const segment = await getSegmentDefinition(flow.workspaceId, trigger.segmentId, database)
+  if (!segment) return
+  const conditions = await segmentConditions(flow.workspaceId, segment, database, timestamp)
+  await database.execute(sql`
+    insert into ${customShellAutomationSegmentSnapshot}
+      ("automation_id", "segment_id", "contact_id", "last_seen_at")
+    select ${flow.id}, ${trigger.segmentId}, ${customShellContacts.id}, ${timestamp}
+    from ${customShellContacts}
+    where ${conditions}
+    on conflict ("automation_id", "contact_id") do nothing
+  `)
+}
+
+export type SegmentStartReach = {
+  /** Reachable and not let in yet. Null on a start that never lets the whole segment in. */
+  stillToGo: number | null
+  /** In the segment but unsubscribed, bounced or marked as spam, so never let in. */
+  cannotBeEmailed: number
+}
+
+/** The Segment card's two counts of the segment itself, for either Segment start. */
+export async function segmentStartReach(
+  flow: Pick<typeof customShellAutomations.$inferSelect, "id" | "workspaceId">,
+  start: { kind: string; segmentId: string },
+  database: CustomShellDb,
+  timestamp: Date
+): Promise<SegmentStartReach | null> {
+  const segment = start.segmentId
+    ? await getSegmentDefinition(flow.workspaceId, start.segmentId, database)
+    : null
+  if (!segment) return null
+  const conditions = await segmentConditions(flow.workspaceId, segment, database, timestamp)
+  const [row] = await database
+    .select({
+      stillToGo: sql<number>`(count(*) filter (where ${customShellContacts.status} in ('subscribed', 'cold') and ${customShellAutomationSegmentEnrollments.contactId} is null))::int`,
+      cannotBeEmailed: sql<number>`(count(*) filter (where ${customShellContacts.status} not in ('subscribed', 'cold')))::int`,
+    })
+    .from(customShellContacts)
+    .leftJoin(customShellAutomationSegmentEnrollments, joinEnrollments(flow.id))
+    .where(conditions)
+  return {
+    stillToGo: start.kind === segmentDripNode.kind ? (row?.stillToGo ?? 0) : null,
+    cannotBeEmailed: row?.cannotBeEmailed ?? 0,
   }
 }

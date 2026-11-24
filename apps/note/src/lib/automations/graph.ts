@@ -64,6 +64,7 @@ export type AutomationValidationError = {
     | "fan_out"
     | "empty"
     | "limit"
+    | "needs_drip"
   nodeId?: string
   edgeId?: string
   message: string

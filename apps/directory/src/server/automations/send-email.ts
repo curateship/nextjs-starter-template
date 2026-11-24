@@ -51,7 +51,7 @@ type SendEmailContext = {
 type Recipient = AutomationRecipient
 
 /** The closest upstream Audience step this run actually completed, if any. */
-async function audienceForRun(
+export async function audienceForRun(
   run: CustomShellAutomationRun,
   currentNodeId: string,
   database: CustomShellDb
@@ -214,7 +214,7 @@ async function emailProvider(
 }
 
 /** Keep a long send's five-minute engine claim alive while batches run. */
-async function refreshRunClaim(
+export async function refreshRunClaim(
   run: CustomShellAutomationRun,
   database: CustomShellDb,
   timestamp: Date
@@ -271,9 +271,9 @@ async function sendRecipient({
   const unsubscribeUrl = !includeUnsubscribe
     ? undefined
     : recipient.contactId
-      ? buildUnsubscribeUrl(recipient.contactId)
+      ? buildUnsubscribeUrl(recipient.contactId, id)
       : recipient.userId
-        ? buildAccountUnsubscribeUrl(recipient.userId)
+        ? buildAccountUnsubscribeUrl(recipient.userId, id)
         : undefined
   const subject = personalizeEmail(subjectTemplate, recipient, {
     html: false,

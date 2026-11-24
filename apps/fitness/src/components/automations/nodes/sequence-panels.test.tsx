@@ -46,6 +46,8 @@ vi.mock("@/lib/api/automations/segment-drip", () => ({
 
 import JoinedSegmentFields from "@/components/automations/nodes/joined-segment-panel"
 import WaitFields from "@/components/automations/nodes/wait-panel"
+import DripFields from "@/components/automations/nodes/drip-panel"
+import { dripNode } from "@/lib/automations/nodes/drip"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { AutomationNode } from "@/lib/automations/graph"
 
@@ -140,14 +142,8 @@ describe("the Wait panel", () => {
 })
 
 describe("the Segment panel", () => {
-  it("shows how far through the segment the flow is and where its pace is set", async () => {
-    const nextBatchAt = new Date(Date.now() + 20 * 60_000).toISOString()
-    api.loadProgress.mockResolvedValue({
-      letIn: 1240,
-      waiting: 7760,
-      nextBatchAt,
-      pace: "400–500 people at a time, 30–60 minutes apart, any time of day.",
-    })
+  it("shows how far through the segment the flow is and that its Drip step sets the pace", async () => {
+    api.loadProgress.mockResolvedValue({ letIn: 1240, waiting: 7760 })
     await draw(
       <JoinedSegmentFields
         node={startNode}
@@ -160,14 +156,8 @@ describe("the Segment panel", () => {
     expect(container.textContent).toContain(
       "1,240 let in, 7,760 people still to go."
     )
-    expect(container.textContent).toMatch(/Next batch at .+\./)
-    expect(container.textContent).toContain(
-      "400–500 people at a time, 30–60 minutes apart, any time of day."
-    )
-    const link = Array.from(container.querySelectorAll("a")).find((anchor) =>
-      anchor.textContent?.includes("Settings > Email")
-    )
-    expect(link?.getAttribute("href")).toBe("/admin/settings/email")
+    expect(container.textContent).toContain("The pace is the Drip step's after this one.")
+    expect(container.textContent).not.toContain("Settings > Email")
   })
 
   it("offers a retry when the progress cannot be read", async () => {
@@ -247,5 +237,58 @@ describe("the Segment panel", () => {
       ...startNode,
       kind: "joinedSegment",
     })
+  })
+})
+
+describe("the Drip panel", () => {
+  const node: AutomationNode = {
+    id: "drip",
+    kind: dripNode.kind,
+    x: 0,
+    y: 0,
+    settings: dripNode.createSettings() as AutomationNode["settings"],
+  }
+
+  it("shows the pace with no on/off box, and saves a change without one", async () => {
+    const onChange = vi.fn()
+    await draw(<DripFields node={node} onChange={onChange} />)
+
+    expect(container.textContent).not.toContain("Send it in batches instead of all at once")
+    const most = container.querySelector<HTMLInputElement>("#drip-drip-batch-max")!
+    expect(most.value).toBe("500")
+
+    await act(async () => typeInto(most, "450"))
+    const saved = onChange.mock.lastCall?.[0] as AutomationNode
+    expect(saved.settings).toMatchObject({ batchSizeMax: 450 })
+    expect(saved.settings).not.toHaveProperty("enabled")
+  })
+
+  it("keeps every other field when one box is cleared", async () => {
+    const onChange = vi.fn()
+    const saved: AutomationNode = {
+      ...node,
+      settings: {
+        ...node.settings,
+        skipWeekends: true,
+        timezone: "Europe/London",
+        windows: [{ start: "08:00", end: "13:00" }],
+      } as AutomationNode["settings"],
+    }
+    await draw(<DripFields node={saved} onChange={onChange} />)
+
+    const start = container.querySelector<HTMLInputElement>("#drip-drip-start-0")!
+    await act(async () => typeInto(start, ""))
+    const cleared = onChange.mock.lastCall?.[0] as AutomationNode
+    expect(cleared.settings).toMatchObject({
+      skipWeekends: true,
+      timezone: "Europe/London",
+      windows: [{ start: "", end: "13:00" }],
+      batchSizeMax: 500,
+    })
+
+    // Drawn again with the cleared box, nothing else falls back to a default.
+    await draw(<DripFields node={cleared} onChange={onChange} />)
+    expect(container.querySelector<HTMLInputElement>("#drip-drip-end-0")?.value).toBe("13:00")
+    expect(container.querySelector<HTMLButtonElement>("#drip-drip-weekends")?.getAttribute("aria-checked")).toBe("true")
   })
 })

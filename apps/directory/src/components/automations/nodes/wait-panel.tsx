@@ -87,9 +87,8 @@ export default function WaitFields({ node, onChange }: AutomationNodeFieldsProps
       </div>
 
       <InspectorNote>
-        In a flow that also sends to people already in its segment, a wait
-        that ends outside the sending hours in Settings &gt; Email carries on
-        at the next hour it is allowed to send. Switching the flow off stops everyone at
+        In a flow with a Drip step, a wait that ends outside the Drip's
+        sending hours carries on at the next hour it is allowed to send. Switching the flow off stops everyone at
         their next wait.
       </InspectorNote>
     </InspectorCard>

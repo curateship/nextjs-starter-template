@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, isNotNull } from "drizzle-orm"
 
-import { nextDripWindowOpen } from "@/lib/broadcasts/drip"
+import { DEFAULT_DRIP_CONFIG, nextDripWindowOpen } from "@/lib/broadcasts/drip"
+import { firstDripStep } from "@/lib/automations/nodes/drip"
 import {
   describeWaitLength,
   readWaitSettings,
@@ -12,11 +13,6 @@ import type {
   AutomationExecutor,
   AutomationExecutorResult,
 } from "@/server/automations/executors"
-import { workspaceForRun } from "@/server/automations/runs"
-import {
-  automationStartsWithSegmentDrip,
-  segmentDripPace,
-} from "@/server/automations/segment-drip"
 import {
   customShellAutomationDeliveries,
   customShellAutomationRuns,
@@ -69,7 +65,7 @@ async function waitingUntil(
  * So is a run of one of the CRM's sequences: a sequence has no switch, so it
  * is always off, and a flow's Send sequence step is what started it.
  */
-async function flowSwitchedOff(
+export async function flowSwitchedOff(
   run: CustomShellAutomationRun,
   database: CustomShellDb
 ): Promise<boolean> {
@@ -122,10 +118,10 @@ async function clickedEmailSubject(
  * Goes to sleep on the first visit and decides whether to carry on on the
  * second.
  *
- * The wake-up time is pushed into the sending hours when the flow starts with
- * the dripped segment start, so Email 2 cannot land at 3am because Email 1
- * went at 3pm two days and twelve hours earlier. A flow with any other start
- * has no sending hours to keep to and wakes at the exact time.
+ * In a flow with a Drip step, the wake-up time is pushed into that step's
+ * sending hours, so Email 2 cannot land at 3am because Email 1 went at 3pm two
+ * days and twelve hours earlier. A flow without one has no sending hours to
+ * keep to and wakes at the exact time.
  */
 export const executeWaitNode: AutomationExecutor = async ({
   database,
@@ -145,18 +141,16 @@ export const executeWaitNode: AutomationExecutor = async ({
   }
 
   if (!(await waitingUntil(run.id, nodeId, database))) {
-    const pace = await segmentDripPace(
-      await workspaceForRun(run, database),
-      database
-    )
+    const drip = firstDripStep(run.configSnapshot)
     const exact = new Date(now().getTime() + waitDurationMs(wait))
-    const until = automationStartsWithSegmentDrip(run.configSnapshot)
-      ? nextDripWindowOpen(pace, exact)
-      : exact
+    const until = drip ? nextDripWindowOpen(drip, exact) : exact
+    // A flow with no Drip has no timezone of its own; the default pace's is
+    // the one every site had before Drip steps.
+    const timezone = (drip ?? DEFAULT_DRIP_CONFIG).timezone
     return {
       type: "sleep",
       until,
-      summary: `Waiting ${length}, until ${formatScheduledInstant(until, pace.timezone)}.`,
+      summary: `Waiting ${length}, until ${formatScheduledInstant(until, timezone)}.`,
       output: { waitingUntil: until.toISOString() },
     }
   }

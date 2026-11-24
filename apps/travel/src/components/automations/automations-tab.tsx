@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { AutomationEditor, type EditorPane } from "@/components/automations/automation-editor"
+import { FlowRunButton } from "@/components/automations/flow-run-button"
 import { NewAutomationDropdown } from "@/components/automations/new-automation-dropdown"
 import { TestWithContactDialog } from "@/components/automations/test-with-contact-dialog"
 import type { CrmFrame } from "@/components/crm/crm-frame"
@@ -23,10 +24,9 @@ import type { TableHeaderColumn } from "@/components/shared/sortable-table-heade
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { DisabledReason } from "@/components/ui/disabled-reason"
-import { Switch } from "@/components/ui/switch"
 import { TableCell } from "@/components/ui/table"
 import { getAutomationRunErrorMessage, runAutomationNow } from "@/lib/api/automations/automation-runs"
+import { loadPeopleInLiveFlows } from "@/lib/api/automations/live-flow"
 import {
   saveAutomationTemplateGraph,
   type AutomationTemplateDetail,
@@ -105,7 +105,8 @@ function liveRank(automation: AutomationListItem): number {
  * - **The table:** every flow in the CRM's one table shape, two panels with
  *   no right panel. A press on a line opens its canvas in the middle at once,
  *   as Trade's Bots dashboard does ("clicking on the recipe should just go to
- *   the canvas"). Columns: Name, Live (its switch), Steps, Next run, Updated.
+ *   the canvas"). Columns: Name, Live (its Run button, which reads "Running
+ *   122 contacts" while the flow is on), Steps, Next run, Updated.
  *   The header has Search, Select, Pause all and New automation; the
  *   right-click menu has Mass select, Run now, Test with one person,
  *   Duplicate, Rename, then Delete.
@@ -141,6 +142,11 @@ export function AutomationsTab({
     setLastLoaded(page.automations)
     setAutomations(page.automations)
   }
+
+  const people = useLivePeople(
+    automations.filter((automation) => automation.enabled).map((automation) => automation.id),
+    () => void router.invalidate()
+  )
 
   const q = search.q ?? ""
   const sort: AutomationSort = search.sort ?? "updated"
@@ -594,6 +600,7 @@ export function AutomationsTab({
             <TableCell column="meta">
               <LiveCell
                 automation={automation}
+                people={people?.[automation.id] ?? null}
                 busy={liveId === automation.id}
                 disabled={liveId !== null}
                 onChange={(next) => void handleToggleLive(automation, next)}
@@ -635,17 +642,66 @@ export function AutomationsTab({
 }
 
 /**
- * Whether one flow acts on its own. A flow with no trigger step cannot be
- * switched on, so it says what it is instead. A flow already on can always be
- * switched off; switching one on needs a flow that compiles.
+ * How many people are in each live flow, read when the list opens and every
+ * five seconds while the page is in view and something is live, so each Run
+ * button's "Running 122 contacts" keeps up. One read covers every row. A flow
+ * the list shows as on that the read leaves out has switched itself off (the
+ * bounce limit, a deleted segment), so the list is read again with its reason.
+ */
+function useLivePeople(liveIds: string[], onSwitchedOff: () => void) {
+  const [people, setPeople] = React.useState<Record<string, number> | null>(null)
+  const latest = React.useRef({ liveIds, onSwitchedOff })
+  React.useEffect(() => {
+    latest.current = { liveIds, onSwitchedOff }
+  })
+  const anyLive = liveIds.length > 0
+  React.useEffect(() => {
+    if (!anyLive) return
+    let current = true
+    let timer: number | undefined
+    const read = () => {
+      window.clearTimeout(timer)
+      if (document.visibilityState === "hidden") return
+      loadPeopleInLiveFlows()
+        .then((next) => {
+          if (!current) return
+          setPeople(next)
+          if (latest.current.liveIds.some((id) => !(id in next))) latest.current.onSwitchedOff()
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (current) timer = window.setTimeout(read, 5_000)
+        })
+    }
+    const back = () => {
+      if (document.visibilityState === "visible") read()
+    }
+    read()
+    document.addEventListener("visibilitychange", back)
+    return () => {
+      current = false
+      window.clearTimeout(timer)
+      document.removeEventListener("visibilitychange", back)
+    }
+  }, [anyLive])
+  return people
+}
+
+/**
+ * Whether one flow acts on its own: its Run button, rainbow-edged with the
+ * people in it while it runs. A flow with no trigger step cannot be switched
+ * on, so it says what it is instead. A flow already on can always be stopped;
+ * starting one needs a flow that compiles.
  */
 function LiveCell({
   automation,
+  people,
   busy,
   disabled,
   onChange,
 }: {
   automation: AutomationListItem
+  people: number | null
   busy: boolean
   disabled: boolean
   onChange: (next: boolean) => void
@@ -653,24 +709,25 @@ function LiveCell({
   if (!automation.trigger_name) {
     return <span className="whitespace-nowrap text-xs text-muted-foreground">Runs by hand</span>
   }
-  const blocked = !automation.isValid && !automation.enabled
   const stalled = automation.enabled && !automation.isValid
   return (
-    // A press on the switch is the switch's, not the row's, which would open the canvas.
+    // A press on the button is the button's, not the row's, which would open the canvas.
     <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
-      <DisabledReason
-        disabled={blocked}
-        reason="This flow has something to fix before it can go live. Open it and check the steps marked in red."
-      >
-        <Switch
-          checked={automation.enabled}
-          // Held while its change saves; no circle beside it, because a
-          // loading circle sits only in a button (Tyler, 7 Nov 2026).
-          disabled={blocked || disabled || busy}
-          aria-label={`${automation.enabled ? "Stop" : "Start"} ${automation.name} reacting to ${automation.trigger_name}`}
-          onCheckedChange={onChange}
-        />
-      </DisabledReason>
+      <FlowRunButton
+        live={automation.enabled}
+        stalled={stalled}
+        people={people}
+        busy={busy}
+        disabled={disabled}
+        blockedReason={
+          automation.isValid
+            ? null
+            : "This flow has something to fix before it can go live. Open it and check the steps marked in red."
+        }
+        flowName={automation.name}
+        size="sm"
+        onChange={onChange}
+      />
       {stalled ? <span className="truncate text-xs text-destructive">On, but not running</span> : null}
       {!automation.enabled && automation.paused_reason ? (
         <span className="max-w-56 truncate text-xs text-destructive">{automation.paused_reason}</span>

@@ -29,6 +29,7 @@ import type {
   AutomationRunStepStatus,
 } from "@/lib/automations/run"
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
+import type { SequencePersonStatus } from "@/lib/broadcasts/sequence-progress"
 import { createErrorMessage } from "../error-message"
 
 export type { AutomationTestContact }
@@ -51,6 +52,17 @@ export type AutomationRunItem = {
   started_at: string
   finished_at: string | null
   is_test: boolean
+  /**
+   * What the flow's Send sequence step started. Left out for a flow with no
+   * such step; null when the step has not started anybody.
+   */
+  sequence?: {
+    people: number
+    emails_sent: number
+    emails_total: number
+    /** The one person's word; null when the step started many. */
+    status: SequencePersonStatus | null
+  } | null
 }
 
 export type AutomationRunStepItem = {
@@ -378,5 +390,15 @@ function serializeRun(run: AutomationRunRow): AutomationRunItem {
     started_at: run.startedAt.toISOString(),
     finished_at: run.finishedAt?.toISOString() ?? null,
     is_test: run.testRun,
+    ...(run.sequence === undefined
+      ? {}
+      : {
+          sequence: run.sequence && {
+            people: run.sequence.people,
+            emails_sent: run.sequence.emailsSent,
+            emails_total: run.sequence.emailsTotal,
+            status: run.sequence.status,
+          },
+        }),
   }
 }

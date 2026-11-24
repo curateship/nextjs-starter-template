@@ -89,6 +89,7 @@ describe("an app that adds nothing", () => {
       "flow-audience",
       "flow-send-sequence",
       "flow-wait",
+      "flow-drip",
       "flow-approval",
       "step-ai",
       "step-placeholder",

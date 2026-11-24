@@ -1,10 +1,14 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
-import { eq } from "drizzle-orm"
+import { and, eq, isNull } from "drizzle-orm"
 
 import { escapeHtml } from "@/lib/email/escape-html"
 import { appUrlFor } from "@/server/app-url"
 import { db, type CustomShellDb } from "@/server/db"
-import { customShellContacts, customShellUsers } from "@/server/schema"
+import {
+  customShellAutomationDeliveries,
+  customShellContacts,
+  customShellUsers,
+} from "@/server/schema"
 import { now } from "@/server/auth/security"
 
 /**
@@ -49,11 +53,41 @@ export function verifyUnsubscribeToken(contactId: string, token: string) {
   )
 }
 
-export function buildUnsubscribeUrl(contactId: string) {
-  const params = new URLSearchParams({
-    c: contactId,
-    t: unsubscribeToken(contactId),
-  })
+/**
+ * The email a link came from, signed on its own beside the person's token.
+ *
+ * An automation or sequence email adds `d`, its delivery id, and `s`, a
+ * signature over the person and that id, so the unsubscribe is counted on that
+ * email (Tyler, 22 Nov 2026: "unsubscribed per email"). `t` stays exactly what
+ * it always was, so links in emails sent before this keep working with no
+ * second path, and a newsletter's link carries no `d` at all.
+ */
+function deliveryToken(person: string, deliveryId: string) {
+  return createHmac("sha256", signingKey())
+    .update(`unsubscribe-delivery:${person}:${deliveryId}`, "utf8")
+    .digest("hex")
+    .slice(0, 32)
+}
+
+function verifyDeliveryToken(person: string, deliveryId: string, token: string) {
+  const expected = Buffer.from(deliveryToken(person, deliveryId), "utf8")
+  const provided = Buffer.from(token, "utf8")
+  return expected.length === provided.length && timingSafeEqual(expected, provided)
+}
+
+function withDelivery(params: URLSearchParams, person: string, deliveryId?: string) {
+  if (!deliveryId) return params
+  params.set("d", deliveryId)
+  params.set("s", deliveryToken(person, deliveryId))
+  return params
+}
+
+export function buildUnsubscribeUrl(contactId: string, deliveryId?: string) {
+  const params = withDelivery(
+    new URLSearchParams({ c: contactId, t: unsubscribeToken(contactId) }),
+    `c:${contactId}`,
+    deliveryId
+  )
   return appUrlFor(`/unsubscribe?${params.toString()}`)
 }
 
@@ -77,9 +111,37 @@ function verifyAccountUnsubscribeToken(userId: string, token: string) {
   return expected.length === provided.length && timingSafeEqual(expected, provided)
 }
 
-export function buildAccountUnsubscribeUrl(userId: string) {
-  const params = new URLSearchParams({ a: userId, t: accountUnsubscribeToken(userId) })
+export function buildAccountUnsubscribeUrl(userId: string, deliveryId?: string) {
+  const params = withDelivery(
+    new URLSearchParams({ a: userId, t: accountUnsubscribeToken(userId) }),
+    `a:${userId}`,
+    deliveryId
+  )
   return appUrlFor(`/unsubscribe?${params.toString()}`)
+}
+
+/**
+ * Marks the one automation email the link came from, first time only. The
+ * person check means a valid link can only ever mark that person's own email.
+ */
+async function stampDeliveryUnsubscribe(
+  deliveryId: string,
+  owner: { contactId: string } | { userId: string },
+  timestamp: Date,
+  database: CustomShellDb
+) {
+  await database
+    .update(customShellAutomationDeliveries)
+    .set({ unsubscribedAt: timestamp })
+    .where(
+      and(
+        eq(customShellAutomationDeliveries.id, deliveryId),
+        "contactId" in owner
+          ? eq(customShellAutomationDeliveries.contactId, owner.contactId)
+          : eq(customShellAutomationDeliveries.userId, owner.userId),
+        isNull(customShellAutomationDeliveries.unsubscribedAt)
+      )
+    )
 }
 
 /**
@@ -115,11 +177,23 @@ export async function handleUnsubscribeRequest(
   const contactId = url.searchParams.get("c") ?? ""
   const userId = url.searchParams.get("a") ?? ""
   const token = url.searchParams.get("t") ?? ""
+  const deliveryId = url.searchParams.get("d") ?? ""
+  const deliverySignature = url.searchParams.get("s") ?? ""
+  // A `d` that does not carry its own valid signature was changed by hand, so
+  // the whole link is refused rather than quietly counted on no email.
+  const deliveryOk = (person: string) =>
+    !deliveryId ||
+    (deliveryId.length <= 36 && verifyDeliveryToken(person, deliveryId, deliverySignature))
 
   // An account's link: automated mail goes off for that account. System
   // emails (verify, reset and the like) still go; they are not marketing.
   if (userId) {
-    if (userId.length > 36 || !token || !verifyAccountUnsubscribeToken(userId, token)) {
+    if (
+      userId.length > 36 ||
+      !token ||
+      !verifyAccountUnsubscribeToken(userId, token) ||
+      !deliveryOk(`a:${userId}`)
+    ) {
       return htmlResponse(
         "That link did not work",
         "This unsubscribe link is not one we recognise. If you got here from an email, try the link in the most recent one.",
@@ -141,6 +215,9 @@ export async function handleUnsubscribeRequest(
         .set({ automatedMailOffAt: timestamp })
         .where(eq(customShellUsers.id, userId))
     }
+    if (deliveryId) {
+      await stampDeliveryUnsubscribe(deliveryId, { userId }, timestamp, database)
+    }
     return htmlResponse(
       "Automated emails are off",
       "You will not get any more emails like this one. Emails about your account, such as a password reset, still come when you ask for them.",
@@ -152,7 +229,8 @@ export async function handleUnsubscribeRequest(
     !contactId ||
     contactId.length > 36 ||
     !token ||
-    !verifyUnsubscribeToken(contactId, token)
+    !verifyUnsubscribeToken(contactId, token) ||
+    !deliveryOk(`c:${contactId}`)
   ) {
     return htmlResponse(
       "That link did not work",
@@ -178,8 +256,11 @@ export async function handleUnsubscribeRequest(
     )
   }
 
+  const timestamp = now()
+  if (deliveryId) {
+    await stampDeliveryUnsubscribe(deliveryId, { contactId }, timestamp, database)
+  }
   if (contact.status !== "unsubscribed") {
-    const timestamp = now()
     await database
       .update(customShellContacts)
       .set({

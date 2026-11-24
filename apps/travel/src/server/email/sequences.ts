@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm"
 
 import { automationGraphSchema } from "@/lib/automations/graph"
 import { readSendSequence, sendSequenceNode } from "@/lib/automations/nodes/send-sequence"
@@ -11,7 +11,13 @@ import {
   type SequenceSteps,
 } from "@/lib/broadcasts/sequence-graph"
 import { uuid } from "@/server/auth/security"
+import {
+  listAutomationAudience,
+  type AutomationAudience,
+  type AutomationRecipient,
+} from "@/server/automations/audience"
 import { workspaceForRun } from "@/server/automations/runs"
+import { audienceForRun, refreshRunClaim } from "@/server/automations/send-email"
 import {
   createWorkspaceAutomation,
   deleteWorkspaceAutomations,
@@ -23,7 +29,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { emailBrandName, protectSentEmailLogos } from "@/server/email/branding"
 import { getEmailProvider } from "@/server/email/provider"
 import { composeFromAddress } from "@/server/email/send"
-import { getSendableEmailConfig } from "@/server/email/settings"
+import { getEmailSetupProblem, getSendableEmailConfig } from "@/server/email/settings"
 import { buildUnsubscribeUrl, canBuildUnsubscribeLinks } from "@/server/email/unsubscribe"
 import {
   customShellAutomationRuns,
@@ -236,7 +242,7 @@ export async function sendSequenceTestEmail(
   if (email.blocks.length === 0) throw new Error("BLOCKS_REQUIRED")
 
   const config = await getSendableEmailConfig(workspaceId, database)
-  if (!config) throw new Error("EMAIL_NOT_CONFIGURED")
+  if (!config) throw new Error(await getEmailSetupProblem(workspaceId, database))
   if (!canBuildUnsubscribeLinks()) throw new Error("UNSUBSCRIBE_NOT_CONFIGURED")
 
   const sampleContact = { email: input.toEmail, firstName: "Test", lastName: "Contact" }
@@ -258,14 +264,39 @@ export async function sendSequenceTestEmail(
   return result.success ? { ok: true } : { ok: false, error: result.error ?? "The test send did not go through" }
 }
 
+type NewSequenceRun = typeof customShellAutomationRuns.$inferInsert
+type NewSequenceRunSubject = {
+  contactId: string | null
+  userId: string | null
+  label: string | null
+  key: string
+}
+
+/** How many people one page of an audience starts at a time. */
+const START_BATCH_SIZE = 50
+
+/** The run's label for one person of an audience: name and address, like a trigger's. */
+function recipientLabel(recipient: AutomationRecipient) {
+  const name = [recipient.firstName, recipient.lastName].filter(Boolean).join(" ").trim()
+  return (name ? `${name} (${recipient.email})` : recipient.email).slice(0, 200)
+}
+
 /**
- * The Send sequence step: starts the sequence's own run for the flow's
- * person, at email 1, and says what it did for the flow's history. A test run
- * starts a test run of the sequence, which mails the tester's address.
+ * The Send sequence step: starts the sequence's own run, at email 1, and says
+ * what it did for the flow's history.
  *
- * The new run's key names the flow's run and step, and the database takes a
- * key once per automation, so a step that is retried after a crash cannot
- * start the same person twice.
+ * - **After an Audience step**, it starts the sequence for everybody in that
+ *   audience, one run each, the way Send email mails all of them. Anybody
+ *   already partway through this sequence is left where they are, so pressing
+ *   Run now twice does not send anyone email 1 again.
+ * - **Otherwise** it starts it for the run's one person, as a Segment trigger
+ *   or a test makes.
+ * - **A test run** is always the tester alone, even after an Audience step, so
+ *   pressing Test never puts a whole segment into the sequence.
+ *
+ * Each new run's key names the flow's run, the step and the person, and the
+ * database takes a key once per automation, so a step that is retried after a
+ * crash cannot start the same person twice.
  */
 export async function startSequenceForRun(
   input: {
@@ -279,19 +310,14 @@ export async function startSequenceForRun(
 ): Promise<string> {
   const { run, nodeId, now } = input
   const { sequenceId, sequenceName } = readSendSequence(input.settings)
-  const who = run.subjectLabel?.trim()
-  if (!run.subjectContactId && !run.subjectUserId) {
-    throw new Error(
-      "This run is not about one person, so there is nobody to send the sequence to. Start the flow from a step about one person, such as the Segment start."
-    )
-  }
+  const workspaceId = await workspaceForRun(run, database)
   const [sequence] = await database
     .select()
     .from(customShellAutomations)
     .where(
       and(
         eq(customShellAutomations.id, sequenceId),
-        eq(customShellAutomations.workspaceId, await workspaceForRun(run, database)),
+        eq(customShellAutomations.workspaceId, workspaceId),
         eq(customShellAutomations.kind, "sequence")
       )
     )
@@ -304,33 +330,157 @@ export async function startSequenceForRun(
   if (!inspected.compiledConfig || inspected.errors.length > 0 || !entry) {
     throw new Error(`The sequence “${sequence.name}” has an email that is not ready to send. Open it in CRM, Broadcasts, Sequences.`)
   }
-  await database
-    .insert(customShellAutomationRuns)
-    .values({
-      id: uuid(),
-      automationId: sequence.id,
-      userId: run.userId,
-      workspaceId: sequence.workspaceId,
-      status: "active",
-      currentNodeId: entry,
-      configSnapshot: inspected.compiledConfig,
-      wakeAt: now,
-      attempts: 0,
-      subjectContactId: run.subjectContactId,
-      subjectUserId: run.subjectUserId,
-      subjectLabel: run.subjectLabel,
-      testRun: input.testRun,
-      testRecipientEmail: run.testRecipientEmail,
-      triggerKind: sendSequenceNode.kind,
-      triggerKey: `run:${run.id}:${nodeId}`,
-      startedAt: now,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoNothing()
   const emails = sequenceFromGraph(inspected.graph)?.emails.length
   const count = emails ? ` (${emails} ${emails === 1 ? "email" : "emails"})` : ""
+  // Held in constants: the checks above do not reach inside the function below.
+  const configSnapshot = inspected.compiledConfig
+  const firstNodeId = entry
+
+  const newRun = (subject: NewSequenceRunSubject): NewSequenceRun => ({
+    id: uuid(),
+    automationId: sequence.id,
+    userId: run.userId,
+    workspaceId: sequence.workspaceId,
+    status: "active",
+    currentNodeId: firstNodeId,
+    configSnapshot,
+    wakeAt: now,
+    attempts: 0,
+    subjectContactId: subject.contactId,
+    subjectUserId: subject.userId,
+    subjectLabel: subject.label,
+    testRun: input.testRun,
+    testRecipientEmail: run.testRecipientEmail,
+    triggerKind: sendSequenceNode.kind,
+    triggerKey: subject.key,
+    startedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  })
+
+  const audience = input.testRun ? null : await audienceForRun(run, nodeId, database)
+  if (audience) {
+    return startSequenceForAudience({ run, nodeId, now, sequence, count, audience, workspaceId, newRun }, database)
+  }
+
+  const who = run.subjectLabel?.trim()
+  if (!run.subjectContactId && !run.subjectUserId) {
+    throw new Error(
+      "This run has no person to start the sequence for. Put an Audience step before Send sequence, or start the flow with the Segment trigger."
+    )
+  }
+  await database
+    .insert(customShellAutomationRuns)
+    .values(
+      newRun({
+        contactId: run.subjectContactId,
+        userId: run.subjectUserId,
+        label: run.subjectLabel,
+        key: `run:${run.id}:${nodeId}`,
+      })
+    )
+    .onConflictDoNothing()
   return input.testRun
     ? `Started a test of “${sequence.name}”${count} for ${who ?? "the test person"}. Its emails go to the test address.`
     : `Started “${sequence.name}”${count} for ${who ?? "this person"}.`
+}
+
+/**
+ * Everybody in the Audience step, 50 at a time, each on their own run of the
+ * sequence. Skips accounts that never confirmed their email, as Send email
+ * does, and anybody with an active run of this sequence already.
+ */
+async function startSequenceForAudience(
+  input: {
+    run: CustomShellAutomationRun
+    nodeId: string
+    now: Date
+    sequence: typeof customShellAutomations.$inferSelect
+    count: string
+    audience: AutomationAudience
+    workspaceId: string
+    newRun: (subject: NewSequenceRunSubject) => NewSequenceRun
+  },
+  database: CustomShellDb
+): Promise<string> {
+  const { run, nodeId, now, sequence, audience, workspaceId, newRun } = input
+  let started = 0
+  let alreadyIn = 0
+  let unconfirmed = 0
+  let after: { createdAt: Date; id: string } | undefined
+
+  while (true) {
+    const page = await listAutomationAudience(
+      audience,
+      workspaceId,
+      { limit: START_BATCH_SIZE, after, timestamp: now },
+      database
+    )
+    const confirmed = page.filter((recipient) => !recipient.userId || recipient.emailVerifiedAt)
+    unconfirmed += page.length - confirmed.length
+
+    const contactIds = confirmed.flatMap((recipient) => (recipient.contactId ? [recipient.contactId] : []))
+    const userIds = confirmed.flatMap((recipient) => (!recipient.contactId && recipient.userId ? [recipient.userId] : []))
+    const active = contactIds.length + userIds.length === 0
+      ? []
+      : await database
+          .select({
+            contactId: customShellAutomationRuns.subjectContactId,
+            userId: customShellAutomationRuns.subjectUserId,
+          })
+          .from(customShellAutomationRuns)
+          .where(
+            and(
+              eq(customShellAutomationRuns.automationId, sequence.id),
+              eq(customShellAutomationRuns.status, "active"),
+              eq(customShellAutomationRuns.testRun, false),
+              or(
+                contactIds.length ? inArray(customShellAutomationRuns.subjectContactId, contactIds) : undefined,
+                userIds.length ? inArray(customShellAutomationRuns.subjectUserId, userIds) : undefined
+              )
+            )
+          )
+    const busyContacts = new Set(active.flatMap((row) => (row.contactId ? [row.contactId] : [])))
+    const busyUsers = new Set(active.flatMap((row) => (row.userId ? [row.userId] : [])))
+
+    const rows = confirmed.flatMap((recipient) => {
+      const busy = recipient.contactId ? busyContacts.has(recipient.contactId) : busyUsers.has(recipient.userId ?? "")
+      if (busy) {
+        alreadyIn += 1
+        return []
+      }
+      const person = recipient.contactId ? `c:${recipient.contactId}` : `u:${recipient.userId}`
+      return [
+        newRun({
+          contactId: recipient.contactId,
+          userId: recipient.contactId ? null : recipient.userId,
+          label: recipientLabel(recipient),
+          key: `run:${run.id}:${nodeId}:${person}`,
+        }),
+      ]
+    })
+    if (rows.length > 0) {
+      const inserted = await database
+        .insert(customShellAutomationRuns)
+        .values(rows)
+        .onConflictDoNothing()
+        .returning({ id: customShellAutomationRuns.id })
+      started += inserted.length
+    }
+    await refreshRunClaim(run, database, new Date())
+
+    const last = page.at(-1)
+    if (!last || page.length < START_BATCH_SIZE) break
+    after = { createdAt: last.createdAt, id: last.cursorId }
+  }
+
+  const people = (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"}`
+  const skipped = [
+    alreadyIn ? `${people(alreadyIn)} already in it` : "",
+    unconfirmed ? `${people(unconfirmed)} who never confirmed their email` : "",
+  ].filter(Boolean)
+  const tail = skipped.length ? ` Skipped ${skipped.join(" and ")}.` : ""
+  return started === 0
+    ? `Nobody new to start on “${sequence.name}”.${tail}`
+    : `Started “${sequence.name}”${input.count} for ${people(started)}.${tail}`
 }

@@ -3,6 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 import { BookmarkIcon, BookmarkPlusIcon, CheckIcon, Loader2Icon, SettingsIcon, Trash2Icon, XIcon } from "lucide-react"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { RainbowEdge } from "@/components/shared/rainbow-edge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -53,16 +54,7 @@ const NO_VIEW = ""
  * for less motion. Nothing is drawn while no view is picked.
  */
 function ActiveEdge({ on, children }: { on: boolean; children: React.ReactNode }) {
-  if (!on) return children
-  return (
-    <span className="relative inline-flex shrink-0 overflow-hidden rounded-lg p-px">
-      <span
-        aria-hidden
-        className="absolute top-1/2 left-1/2 aspect-square w-[200%] -translate-x-1/2 -translate-y-1/2 animate-spin bg-[conic-gradient(#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6,#ec4899,#ef4444)] [animation-duration:2.5s] motion-reduce:animate-none"
-      />
-      {children}
-    </span>
-  )
+  return on ? <RainbowEdge>{children}</RainbowEdge> : children
 }
 
 function defaultDescribeError(error: unknown) {

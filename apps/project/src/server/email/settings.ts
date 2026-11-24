@@ -15,6 +15,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { customShellEmailSettings } from "@/server/schema"
 import { getAppLinkStatus, type AppLinkStatus } from "@/server/app-url"
+import { workspaceBaseDomain } from "@/server/workspaces/host"
 import {
   resolveSystemEmailSender,
   type SystemEmailSender,
@@ -616,6 +617,42 @@ export async function getAppEmailApiKey(
   return null
 }
 
+/**
+ * The key a newsletter, sequence or automation email sends with: the one saved
+ * in Settings → Email, or else the server's `CUSTOM_SHELL_RESEND_API_KEY`, the
+ * same key sign-up and reset emails already use. Without the second, a site
+ * whose key lives only on the server could send a sign-up link but not a test
+ * newsletter (systemeverything.com, 22 Nov 2026). A saved key nobody can read
+ * counts as no saved key.
+ *
+ * Only an app that is one site borrows the server's key. On an app serving many
+ * sites, each site's owner brings their own, so nobody mails their list on the
+ * operator's Resend account.
+ */
+function workspaceOrServerKey(encrypted: string | null | undefined) {
+  if (encrypted) {
+    try {
+      return decryptSecret(encrypted)
+    } catch {
+      // Fall through to the server's key.
+    }
+  }
+  if (workspaceBaseDomain()) return ""
+  return process.env.CUSTOM_SHELL_RESEND_API_KEY?.trim() ?? ""
+}
+
+/**
+ * Which piece is missing when `getSendableEmailConfig` says no, so the message
+ * names the box to fill in rather than always blaming the from address.
+ */
+export async function getEmailSetupProblem(
+  workspaceId: string,
+  database: CustomShellDb = db
+): Promise<"EMAIL_FROM_MISSING" | "EMAIL_KEY_MISSING"> {
+  const settings = await getEmailSettings(workspaceId, database)
+  return settings?.fromEmail ? "EMAIL_KEY_MISSING" : "EMAIL_FROM_MISSING"
+}
+
 export type SendableEmailConfig = {
   /** Empty outside production means "log it instead of sending it". */
   apiKey: string
@@ -640,16 +677,7 @@ export async function getSendableEmailConfig(
   const settings = await getEmailSettings(workspaceId, database)
   if (!settings?.fromEmail) return null
 
-  let apiKey = ""
-  if (settings.resendApiKeyEncrypted) {
-    try {
-      apiKey = decryptSecret(settings.resendApiKeyEncrypted)
-    } catch {
-      // A key we cannot read is the same as no key: refuse rather than send
-      // from a half-configured workspace.
-      return null
-    }
-  }
+  const apiKey = workspaceOrServerKey(settings.resendApiKeyEncrypted)
   if (!apiKey && isProduction()) return null
 
   const from = settings.fromName

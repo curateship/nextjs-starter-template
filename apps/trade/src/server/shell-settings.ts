@@ -205,15 +205,29 @@ export async function readBranding(
         ? await readSingleSitePageSettings(database)
         : parseWorkspaceSettings(undefined)
     const searchPage = pageForPath("/search")
+    // An app that brands each site saves the Logo box on the site, not
+    // app-wide. Run as one website, every address is that site, so its pages
+    // and tab wear the site's logo. Without this the upload was saved and
+    // never shown: systemeverything.com had no tab icon (Tyler, 16 Nov 2026).
+    // A site with no logo of its own still gets the app-wide one.
+    const singleSiteBrand =
+      answer.kind === "platform" &&
+      !workspaceDomainsEnabled &&
+      appUsesSiteBranding() &&
+      Boolean(workspaceSettings.logo)
 
     return {
       appName: globals.appName,
-      favicon: globals.favicon,
-      faviconDark: globals.faviconDark,
-      faviconSet: globals.faviconSet,
+      favicon: singleSiteBrand ? workspaceSettings.logo : globals.favicon,
+      faviconDark: singleSiteBrand
+        ? workspaceSettings.faviconDark
+        : globals.faviconDark,
+      faviconSet: singleSiteBrand
+        ? workspaceSettings.faviconSet
+        : globals.faviconSet,
       faviconMode: globals.faviconMode,
-      logo: globals.logo,
-      logoDark: globals.logoDark,
+      logo: singleSiteBrand ? workspaceSettings.logo : globals.logo,
+      logoDark: singleSiteBrand ? workspaceSettings.logoDark : globals.logoDark,
       shareImage: versionedShareImage(
         globals.shareImage,
         globals.shareImageVersion

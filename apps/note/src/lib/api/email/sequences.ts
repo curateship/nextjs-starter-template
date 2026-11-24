@@ -12,6 +12,7 @@ import {
   sendSequenceTestEmail as sendSequenceTestEmailRow,
   type SequenceRow,
 } from "@/server/email/sequences"
+import { sequenceStats, type SequenceStats } from "@/server/email/sequence-stats"
 import { adminGet, adminPost } from "@/server/guards"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
@@ -51,7 +52,8 @@ export const getSequenceErrorMessage = createErrorMessage(
     COPY_LIMIT: "Could not find a free name for the copy.",
     EMAIL_GONE: "That email is no longer in the sequence.",
     BLOCKS_REQUIRED: "Add something to the email before sending a test.",
-    EMAIL_NOT_CONFIGURED: "Email is not set up yet. Add a from-address in settings first.",
+    EMAIL_FROM_MISSING: "Add a Newsletter from address in Settings → Email first.",
+    EMAIL_KEY_MISSING: "Add a Resend API key in Settings → Email first.",
     UNSUBSCRIBE_NOT_CONFIGURED:
       "This server cannot sign unsubscribe links, so nothing can go out. Set CUSTOM_SHELL_SECRET_ENCRYPTION_KEY and try again.",
   },
@@ -102,6 +104,17 @@ const sendSequenceTestFn = createServerFn({ method: "POST" })
       toEmail: context.user.email,
     })
   )
+
+const loadSequenceStatsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(z.object({ id: idSchema }))
+  .handler(async ({ data, context }): Promise<SequenceStats> =>
+    sequenceStats(await workspaceIdForRequest(context.user.id), data.id)
+  )
+
+export function loadSequenceStats(id: string) {
+  return loadSequenceStatsFn({ data: { id } })
+}
 
 export function loadSequences() {
   return loadSequencesFn()

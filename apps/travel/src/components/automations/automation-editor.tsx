@@ -19,6 +19,9 @@ import { AutomationRunsPanel } from "@/components/automations/automation-runs-pa
 import { TestWithContactDialog } from "@/components/automations/test-with-contact-dialog"
 import { AutomationFlowCanvas } from "@/components/automations/automation-flow-canvas"
 import { AutomationInspector } from "@/components/automations/automation-inspector"
+import { FlowRunButton } from "@/components/automations/flow-run-button"
+import { LiveFlowPanel } from "@/components/automations/live-flow-panel"
+import { useLiveFlowReport, type LiveFlowPeriod } from "@/components/automations/use-live-flow-report"
 import { AutomationPalette } from "@/components/automations/automation-palette"
 import { RunRecord } from "@/components/automations/run-record"
 import { RunsTable } from "@/components/automations/runs-table"
@@ -50,7 +53,6 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ErrorRow } from "@/components/ui/error-row"
-import { Switch } from "@/components/ui/switch"
 import { compileAutomationGraph } from "@/lib/automations/compile"
 import type {
   AutomationCanvasStatus,
@@ -105,7 +107,8 @@ export type EditorPane = "canvas" | "runs"
  * and the flow takes the middle and, while something is picked, the right.
  *
  * - **Header:** no back arrow and no title; on the right the Canvas and Runs
- *   tabs (a template has no runs, so no tabs), the live switch, the app's own
+ *   tabs (a template has no runs, so no tabs), the Run button that switches
+ *   the flow on and off (`FlowRunButton`), the app's own
  *   status, Test with one person, Run, and the ⋮ with Rename, Duplicate and
  *   Delete. The bottom Runs panel the editor used to have is the Runs tab:
  *   this flow's runs only, tests included.
@@ -138,7 +141,7 @@ export function AutomationEditor({
   onDuplicate,
   onDelete,
 }: {
-  initial: Pick<AutomationDetail, "id" | "name" | "graph" | "enabled">
+  initial: Pick<AutomationDetail, "id" | "name" | "graph" | "enabled"> & Partial<Pick<AutomationDetail, "paused_reason">>
   initialFavoriteNodeKeys: string[]
   /** The step list's Templates tab. Left out, the list has no such tab. */
   initialTemplates?: AutomationTemplateListItem[]
@@ -226,7 +229,10 @@ export function AutomationEditor({
   const [testOpen, setTestOpen] = React.useState(false)
   const [preparingTest, setPreparingTest] = React.useState(false)
   const [live, setLive] = React.useState(initial.enabled)
+  // Why a safety check switched the flow off, shown beside Run until it goes again.
+  const [pausedReason, setPausedReason] = React.useState(initial.paused_reason ?? null)
   const [savingLive, setSavingLive] = React.useState(false)
+  const [period, setPeriod] = React.useState<LiveFlowPeriod>("all")
   const [menuOpen, setMenuOpen] = React.useState(false)
   // A step's right-click menu, at the pointer (Tyler, 9 Nov 2026: "enable
   // right click to delete node").
@@ -329,6 +335,21 @@ export function AutomationEditor({
     }
   }
 
+  // A live flow's numbers, for the Run button and the right panel. A flow
+  // that switched itself off (too many bounces, a deleted segment) is off
+  // here too, with its reason beside Run.
+  const liveFlow = useLiveFlowReport({
+    automationId: initial.id,
+    live: live && !templateMode,
+    period,
+    readAgain: startedRunId,
+    onReport: (report) => {
+      if (report.enabled) return
+      setLive(false)
+      setPausedReason(report.pausedReason)
+    },
+  })
+
   /** A run this canvas started: the Runs tab opens on it. */
   const showStartedRun = (startedId: string) => {
     setStartedRunId(startedId)
@@ -350,6 +371,7 @@ export function AutomationEditor({
       const saved = await setAutomationLive(initial.id, next)
       dismissErrorToast()
       setLive(saved.enabled)
+      setPausedReason(saved.paused_reason)
     } catch (error) {
       showErrorToast(getAutomationErrorMessage(error))
     } finally {
@@ -749,29 +771,24 @@ export function AutomationEditor({
       {templateMode ? null : (
         <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
           {triggerName ? (
-            <DisabledReason
-              disabled={!compiled.config && !live}
-              reason="Fix the steps marked in red before switching this flow on."
-            >
-              <label className="flex items-center gap-2 text-sm">
-                {/* On, but edited since into something that cannot run: the
-                    switch alone would read as "this is happening". */}
-                <span
-                  className={cn(
-                    "@max-4xl:sr-only",
-                    live && !compiled.config ? "text-destructive" : "text-muted-foreground"
-                  )}
-                >
-                  {!live ? "Off" : compiled.config ? "Live" : "On, but not running"}
-                </span>
-                <Switch
-                  checked={live}
-                  disabled={savingLive || (!compiled.config && !live)}
-                  aria-label={`${live ? "Stop" : "Start"} this flow reacting to ${triggerName}`}
-                  onCheckedChange={(next) => void handleLiveChange(next)}
-                />
-              </label>
-            </DisabledReason>
+            <>
+              {/* On, but edited since into something that cannot run, or
+                  switched off by a safety check: said beside the button. */}
+              {live && !compiled.config ? (
+                <span className="text-sm text-destructive @max-4xl:sr-only">On, but not running</span>
+              ) : !live && pausedReason ? (
+                <span className="max-w-56 truncate text-xs text-destructive @max-4xl:sr-only">{pausedReason}</span>
+              ) : null}
+              <FlowRunButton
+                live={live}
+                stalled={!compiled.config}
+                people={liveFlow.report?.inFlow ?? null}
+                busy={savingLive}
+                blockedReason={!compiled.config ? "Fix the steps marked in red before running this flow." : null}
+                flowName={name}
+                onChange={(next) => void handleLiveChange(next)}
+              />
+            </>
           ) : null}
           {/* The app's own controls: what its flow is right now, read first. */}
           <CanvasHeaderStatus automationId={initial.id} nodeKinds={nodeKinds} />
@@ -807,9 +824,16 @@ export function AutomationEditor({
                     : null
               }
             >
-              <Button type="button" disabled={paused || !compiled.config || running} onClick={() => void handleRunNow()}>
+              {/* Beside a flow's own Run button (a Time start has both), this
+                  one runs it once now and says so (Tyler, 23 Nov 2026). */}
+              <Button
+                type="button"
+                variant={triggerName ? "outline" : "default"}
+                disabled={paused || !compiled.config || running}
+                onClick={() => void handleRunNow()}
+              >
                 {running ? <Loader2Icon className="size-4 animate-spin" /> : <PlayIcon className="size-4" />}
-                Run
+                {triggerName ? "Run once" : "Run"}
               </Button>
             </DisabledReason>
           ) : null}
@@ -898,6 +922,13 @@ export function AutomationEditor({
     canvasCard
   )
 
+  // A live flow's right panel is its Statistics, whatever step is picked:
+  // turning Live on swaps the open step's settings for the numbers at once
+  // (Tyler, 23 Nov 2026: "If live is on the right panel should show runs total
+  // stats with a stats card", then "it doesnt change right away. I can still
+  // edit unless I refresh"). A step picked in the list to add it still shows
+  // its card, since that is how a step is added.
+  const showsStats = live && !templateMode && !previewNode
   const right = runsShown
     ? {
         label: "Run",
@@ -927,7 +958,22 @@ export function AutomationEditor({
           />
         ),
       }
-    : selectedNode
+    : showsStats
+      ? {
+          label: "Statistics",
+          showLabel: "Show the statistics",
+          content: (
+            <LiveFlowPanel
+              name={name}
+              report={liveFlow.report}
+              error={liveFlow.error}
+              period={period}
+              onPeriodChange={setPeriod}
+              focusNodeId={selectedNodeId}
+            />
+          ),
+        }
+      : selectedNode
       ? {
           label: "Step",
           showLabel: "Show the step",
@@ -952,7 +998,9 @@ export function AutomationEditor({
   return frame({
     ids: [],
     showMiddleFor: `${initial.id}|${pane}`,
-    showRightFor: runsShown ? runId : (previewNode?.id ?? selectedNodeId ?? undefined),
+    // The Statistics panel has no id here on purpose: on a phone, opening a
+    // live flow stays on its canvas rather than jumping to the numbers.
+    showRightFor: runsShown ? runId : (previewNode?.id ?? (showsStats ? undefined : selectedNodeId) ?? undefined),
     middle,
     // Bare for as long as a flow is open on a wide screen, whatever it shows:
     // the frame draws a bare middle with another element, and switching

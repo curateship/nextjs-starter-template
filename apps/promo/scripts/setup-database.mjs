@@ -29,13 +29,16 @@ const adminUser = Object.freeze({
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const envFile = path.join(root, ".env.local")
-const packageFile = path.join(root, "package.json")
 const scaffoldDatabaseFile = path.join(root, ".scaffold-database.json")
 
 await loadEnv(envFile)
 
-const packageJson = JSON.parse(await readFile(packageFile, "utf8"))
-const databaseName = databaseNameFor(packageJson.name)
+// The same name src/server/database-url.ts and drizzle.config.ts fall back to.
+// It stayed custom_shell when the folder and package were renamed to "shell"
+// on 17 Oct 2026, so the same Docker container and its data carry over. Every
+// app copied from the shell has its own CUSTOM_SHELL_DATABASE_URL in
+// .env.local, written by the Personal IDE, so this name is only the shell's.
+const databaseName = "custom_shell"
 const databasePort = process.env.CUSTOM_SHELL_POSTGRES_PORT || "54320"
 const configuredDatabaseUrl = process.env.CUSTOM_SHELL_DATABASE_URL
 const databaseUrl =
@@ -83,14 +86,6 @@ async function loadEnv(file) {
       process.env[key] = value
     }
   }
-}
-
-function databaseNameFor(packageName) {
-  const value = String(packageName || "app")
-    .trim()
-    .replace(/[^a-zA-Z0-9_]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-  return value || "app"
 }
 
 function startPostgres() {

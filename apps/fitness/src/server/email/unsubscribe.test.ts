@@ -9,8 +9,14 @@ import {
   handleUnsubscribeRequest,
   verifyUnsubscribeToken,
 } from "@/server/email/unsubscribe"
-import { customShellUsers } from "@/server/schema"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import {
+  customShellAutomationDeliveries,
+  customShellAutomationRuns,
+  customShellAutomations,
+  customShellContacts,
+  customShellUsers,
+} from "@/server/schema"
+import { createTestDatabase, insertUser, insertWorkspace } from "@/server/test-support"
 
 /**
  * The signing key is what makes an unsubscribe link ours rather than anybody's,
@@ -114,5 +120,70 @@ describe("an account's unsubscribe link", () => {
     expect((await open(ada.id, bobsToken)).status).toBe(400)
     expect((await open(ada.id, subscriberToken)).status).toBe(400)
     expect(await mailOff(db, ada.id)).toBeNull()
+  })
+})
+
+describe("an unsubscribe link from one automation email", () => {
+  const original = process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY
+    else process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = original
+  })
+
+  /** A subscriber with one automation email sent to them. */
+  async function setUp() {
+    process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "test-signing-key"
+    const db = (await createTestDatabase()).db as unknown as CustomShellDb
+    const workspaceId = (await insertWorkspace(db)).id
+    const owner = await insertUser(db, { role: "admin" })
+    const at = new Date()
+    await db.insert(customShellContacts).values({
+      id: "contact-1", workspaceId, email: "reader@example.test", status: "subscribed", createdAt: at, updatedAt: at,
+    })
+    await db.insert(customShellAutomations).values({
+      id: "sequence-1", workspaceId, userId: owner.id, name: "Welcome", kind: "sequence",
+      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      compiledConfig: { v: 1, kind: "automation", nodes: {}, edges: [] }, createdAt: at, updatedAt: at,
+    })
+    await db.insert(customShellAutomationRuns).values({
+      id: "run-1", automationId: "sequence-1", userId: owner.id, workspaceId, status: "active", currentNodeId: "email-one",
+      configSnapshot: { v: 1, kind: "automation", nodes: {}, edges: [] }, wakeAt: at, startedAt: at, createdAt: at, updatedAt: at,
+    })
+    await db.insert(customShellAutomationDeliveries).values({
+      id: "delivery-1", runId: "run-1", nodeId: "email-one", contactId: "contact-1",
+      toEmail: "reader@example.test", subject: "Welcome", status: "sent", createdAt: at,
+    })
+    const stamped = async () =>
+      (await db.select({ at: customShellAutomationDeliveries.unsubscribedAt }).from(customShellAutomationDeliveries))[0]?.at ?? null
+    const status = async () =>
+      (await db.select({ status: customShellContacts.status }).from(customShellContacts))[0]?.status
+    return { db, stamped, status }
+  }
+
+  it("counts the unsubscribe on the email it came from", async () => {
+    const { db, stamped, status } = await setUp()
+    const response = await handleUnsubscribeRequest(new Request(buildUnsubscribeUrl("contact-1", "delivery-1")), db)
+    expect(response.status).toBe(200)
+    expect(await status()).toBe("unsubscribed")
+    expect(await stamped()).not.toBeNull()
+  })
+
+  it("still unsubscribes from a link sent before emails were named, counting it on no email", async () => {
+    const { db, stamped, status } = await setUp()
+    const response = await handleUnsubscribeRequest(new Request(buildUnsubscribeUrl("contact-1")), db)
+    expect(response.status).toBe(200)
+    expect(await status()).toBe("unsubscribed")
+    expect(await stamped()).toBeNull()
+  })
+
+  it("refuses a link whose email was changed by hand", async () => {
+    const { db, stamped, status } = await setUp()
+    const url = new URL(buildUnsubscribeUrl("contact-1", "delivery-1"))
+    url.searchParams.set("d", "delivery-2")
+    const response = await handleUnsubscribeRequest(new Request(url), db)
+    expect(response.status).toBe(400)
+    expect(await status()).toBe("subscribed")
+    expect(await stamped()).toBeNull()
   })
 })

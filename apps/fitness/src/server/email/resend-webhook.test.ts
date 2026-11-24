@@ -192,6 +192,25 @@ describe("resend webhook", () => {
     expect(await contactStatus()).toBe("subscribed")
   })
 
+  it("records a bounce and a complaint on the automation email as well as on the contact", async () => {
+    for (const [type, created_at] of [
+      ["email.bounced", "2026-08-13T12:03:00.000Z"],
+      ["email.complained", "2026-08-13T12:04:00.000Z"],
+    ] as const) {
+      const body = JSON.stringify({ type, created_at, data: { email_id: "re_automation_1" } })
+      await handleResendWebhook(body, headersFor(body), db)
+    }
+
+    const [delivery] = await db
+      .select()
+      .from(customShellAutomationDeliveries)
+      .where(eq(customShellAutomationDeliveries.id, "automation-delivery-1"))
+    expect(delivery).toMatchObject({
+      bouncedAt: new Date("2026-08-13T12:03:00.000Z"),
+      complainedAt: new Date("2026-08-13T12:04:00.000Z"),
+    })
+  })
+
   it("records delivery, first open and first click once", async () => {
     const events = [
       ["email.delivered", "2026-08-13T12:00:00.000Z"],

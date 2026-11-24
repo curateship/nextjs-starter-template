@@ -2,7 +2,6 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { DEFAULT_DRIP_CONFIG, type DripConfig } from "@/lib/broadcasts/drip"
 import { compileAutomationGraph } from "@/lib/automations/compile"
 import {
   EMPTY_AUTOMATION_GRAPH,
@@ -13,14 +12,11 @@ import { segmentDripNode } from "@/lib/automations/nodes/segment-drip"
 import { setAutomationEnabled } from "@/server/automations/flows"
 import {
   runSegmentDripTriggers,
-  segmentDripNextBatchAt,
   segmentDripProgress,
 } from "@/server/automations/segment-drip"
 import { now, uuid } from "@/server/auth/security"
 import type { CustomShellDb } from "@/server/db"
-import { saveDripDefaults } from "@/server/email/settings"
 import {
-  customShellAutomationDeliveries,
   customShellAutomationRuns,
   customShellAutomations,
   customShellContactSegmentMembers,
@@ -43,15 +39,6 @@ let contactCount = 0
 /** A Monday, far enough out that no real clock ever reaches it. */
 const MONDAY_NOON = new Date("2099-01-05T12:00:00.000Z")
 const MINUTE = 60_000
-
-const PACE: DripConfig = {
-  ...DEFAULT_DRIP_CONFIG,
-  batchSizeMin: 2,
-  batchSizeMax: 2,
-  waitMinMinutes: 30,
-  waitMaxMinutes: 30,
-  timezone: "UTC",
-}
 
 beforeEach(async () => {
   const created = await createTestDatabase()
@@ -107,7 +94,6 @@ beforeEach(async () => {
     createdAt: timestamp,
     updatedAt: timestamp,
   })
-  await saveDripDefaults(workspaceId, PACE, database)
 })
 
 afterEach(async () => {
@@ -164,22 +150,60 @@ const tick = (minutes: number) =>
   runSegmentDripTriggers(database, { timestamp: at(minutes) })
 
 describe("Segment start with people already in it", () => {
-  it("lets the people already there in one batch at a time, oldest first", async () => {
+  it("lets everyone already there in at once, oldest first, with no pace of its own", async () => {
     const first = await addToSegment("first")
     const second = await addToSegment("second")
     const third = await addToSegment("third")
     await setAutomationEnabled(workspaceId, automationId, true, database)
 
-    expect(await tick(0)).toBe(2)
+    expect(await tick(0)).toBe(3)
     expect(await letInContactIds()).toEqual(
-      expect.arrayContaining([first, second])
+      expect.arrayContaining([first, second, third])
     )
+    expect(await tick(1)).toBe(0)
+  })
 
-    // The thirty-minute gap has not passed.
-    expect(await tick(29)).toBe(0)
-    expect(await tick(30)).toBe(1)
-    expect(await letInContactIds()).toContain(third)
-    expect(await tick(90)).toBe(0)
+  it("lets in 100 a pass, and no more while 100 of its runs wait to be walked", async () => {
+    for (let index = 0; index < 101; index += 1) {
+      await addToSegment(`person-${index}`)
+    }
+    await setAutomationEnabled(workspaceId, automationId, true, database)
+
+    expect(await tick(0)).toBe(100)
+    expect(await tick(1)).toBe(0)
+
+    // The engine walks them, so there is room again.
+    await database
+      .update(customShellAutomationRuns)
+      .set({ status: "completed" })
+      .where(eq(customShellAutomationRuns.automationId, automationId))
+    expect(await tick(2)).toBe(1)
+  })
+
+  it("lets nobody in when a flow saved live sends before any Drip step", async () => {
+    await addToSegment("sam")
+    // Written as it was stored before the Drip rule: the compiler refuses
+    // this flow now, so the stored copy is the only way it can be live.
+    await database
+      .update(customShellAutomations)
+      .set({
+        enabled: true,
+        compiledConfig: {
+          v: 1,
+          kind: "automation",
+          nodes: {
+            start: { kind: segmentDripNode.kind, settings: { segmentId, segmentName: "Pomoder list" } },
+            send: { kind: "sendEmail", settings: {} },
+          },
+          edges: [{ from: "start", sourcePort: "then", to: "send" }],
+        },
+      })
+      .where(eq(customShellAutomations.id, automationId))
+
+    expect(await tick(0)).toBe(0)
+    expect(await letInContactIds()).toEqual([])
+    // Left on, so people already partway through are not stopped.
+    expect((await flow()).enabled).toBe(true)
   })
 
   it("starts one run per person, about that person", async () => {
@@ -209,31 +233,13 @@ describe("Segment start with people already in it", () => {
     expect(await letInContactIds()).toEqual([quiet])
   })
 
-  it("sends nobody outside the sending hours or at the weekend", async () => {
-    await saveDripDefaults(
-      workspaceId,
-      { ...PACE, windows: [{ start: "09:00", end: "11:00" }], skipWeekends: true },
-      database
-    )
-    await addToSegment("sam")
-    await setAutomationEnabled(workspaceId, automationId, true, database)
-
-    // Monday noon is after the window closes.
-    expect(await tick(0)).toBe(0)
-    // Saturday 10am is inside the hours but on a weekend.
-    expect(await tick(5 * 24 * 60 - 2 * 60)).toBe(0)
-    // Tuesday 9am.
-    expect(await tick(21 * 60)).toBe(1)
-  })
-
-  it("puts people who join later at the back of the same queue", async () => {
+  it("lets in people who join later on the next pass", async () => {
     await addToSegment("first")
     await setAutomationEnabled(workspaceId, automationId, true, database)
     expect(await tick(0)).toBe(1)
 
     const later = await addToSegment("later")
-    expect(await tick(10)).toBe(0)
-    expect(await tick(30)).toBe(1)
+    expect(await tick(1)).toBe(1)
     expect(await letInContactIds()).toContain(later)
   })
 
@@ -267,90 +273,15 @@ describe("Segment start with people already in it", () => {
     })
   })
 
-  it("switches the flow off once too many of the people sent to bounce", async () => {
-    await saveDripDefaults(
-      workspaceId,
-      { ...PACE, batchSizeMin: 25, batchSizeMax: 25 },
-      database
-    )
-    for (let index = 0; index < 26; index += 1) {
-      await addToSegment(`person-${index}`)
-    }
-    await setAutomationEnabled(workspaceId, automationId, true, database)
-    expect(await tick(0)).toBe(25)
-
-    const runs = await database
-      .select()
-      .from(customShellAutomationRuns)
-      .where(eq(customShellAutomationRuns.automationId, automationId))
-    await database.insert(customShellAutomationDeliveries).values(
-      runs.map((run) => ({
-        id: uuid(),
-        runId: run.id,
-        nodeId: "next",
-        contactId: run.subjectContactId,
-        toEmail: "someone@example.test",
-        subject: "Email 1",
-        status: "sent",
-        createdAt: at(1),
-      }))
-    )
-    // 1 of 25 is 4 in 100, under the 5 in 100 limit, so the last person still
-    // gets in.
-    const bounced = runs.slice(0, 1).map((run) => run.subjectContactId!)
-    for (const contactId of bounced) {
-      await database
-        .update(customShellContacts)
-        .set({ status: "bounced" })
-        .where(eq(customShellContacts.id, contactId))
-    }
-    expect(await tick(30)).toBe(1)
-
-    await database
-      .update(customShellContacts)
-      .set({ status: "bounced" })
-      .where(eq(customShellContacts.id, runs[1].subjectContactId!))
-    await addToSegment("one-more")
-    expect(await tick(60)).toBe(0)
-    expect((await flow()).enabled).toBe(false)
-    expect((await flow()).pausedReason).toBe(
-      "Stopped on its own: 2 of the 25 people sent to so far bounced, which is over your 5 in 100 limit. Clean up the segment before switching it back on."
-    )
-  })
-
   it("says how far through the segment it is", async () => {
     await addToSegment("first")
     await addToSegment("second")
-    await addToSegment("third")
     await setAutomationEnabled(workspaceId, automationId, true, database)
     await tick(0)
+    await addToSegment("third")
 
     expect(
       await segmentDripProgress(workspaceId, automationId, database, at(5))
-    ).toEqual({
-      letIn: 2,
-      waiting: 1,
-      nextBatchAt: at(30).toISOString(),
-      pace: "2 people at a time, 30 minutes apart, any time of day.",
-    })
-  })
-})
-
-describe("segmentDripNextBatchAt", () => {
-  const pace = { ...PACE, waitMinMinutes: 30, waitMaxMinutes: 60 }
-
-  it("goes straight away for a flow nobody has been let into", () => {
-    expect(segmentDripNextBatchAt(pace, "flow", null, MONDAY_NOON)).toEqual(
-      MONDAY_NOON
-    )
-  })
-
-  it("picks the same gap every time it is asked about the same batch", () => {
-    const first = segmentDripNextBatchAt(pace, "flow", MONDAY_NOON, MONDAY_NOON)
-    const again = segmentDripNextBatchAt(pace, "flow", MONDAY_NOON, at(10))
-    expect(again).toEqual(first)
-    const gap = (first.getTime() - MONDAY_NOON.getTime()) / MINUTE
-    expect(gap).toBeGreaterThanOrEqual(30)
-    expect(gap).toBeLessThanOrEqual(60)
+    ).toEqual({ letIn: 2, waiting: 1 })
   })
 })

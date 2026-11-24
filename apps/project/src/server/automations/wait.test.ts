@@ -13,6 +13,7 @@ import {
   type AutomationGraph,
 } from "@/lib/automations/graph"
 import { placeholderNode } from "@/lib/automations/nodes/placeholder"
+import { dripNode, dripStepSettings } from "@/lib/automations/nodes/drip"
 import { segmentDripNode } from "@/lib/automations/nodes/segment-drip"
 import { waitNode } from "@/lib/automations/nodes/wait"
 import {
@@ -20,10 +21,8 @@ import {
   startAutomationTestRun,
 } from "@/server/automations/engine"
 import { setAutomationEnabled } from "@/server/automations/flows"
-import { runSegmentDripTriggers } from "@/server/automations/segment-drip"
 import { now, uuid } from "@/server/auth/security"
 import type { CustomShellDb } from "@/server/db"
-import { saveDripDefaults } from "@/server/email/settings"
 import {
   customShellAutomationDeliveries,
   customShellAutomationRuns,
@@ -66,15 +65,18 @@ beforeEach(async () => {
     createdAt: timestamp,
     updatedAt: timestamp,
   })
-  await saveDripDefaults(workspaceId, PACE, database)
 })
 
 afterEach(async () => {
   await client.close()
 })
 
-/** Segment start, then a 2-day Wait, then a placeholder standing in for Email 2. */
-async function insertSequence(stopOnClick = true) {
+/**
+ * Segment start, then a 2-day Wait, then a placeholder standing in for Email
+ * 2. With a pace, a Drip step comes after the Wait, so its sending hours are
+ * the flow's.
+ */
+async function insertSequence(stopOnClick = true, pace?: DripConfig) {
   const graph: AutomationGraph = {
     ...EMPTY_AUTOMATION_GRAPH,
     nodes: [
@@ -104,6 +106,10 @@ async function insertSequence(stopOnClick = true) {
       { id: "e1", from: "start", sourcePort: "then", to: "wait" },
       { id: "e2", from: "wait", sourcePort: "then", to: "email-2" },
     ],
+  }
+  if (pace) {
+    graph.nodes.push({ id: "drip", kind: dripNode.kind, x: 600, y: 0, settings: dripStepSettings(pace) })
+    graph.edges.push({ id: "e3", from: "email-2", sourcePort: "then", to: "drip" })
   }
   const compiled = compileAutomationGraph(graph)
   expect(compiled.errors).toEqual([])
@@ -206,18 +212,10 @@ describe("Wait", () => {
     ])
   })
 
-  it("wakes at the next sending hour when the wait ends outside them", async () => {
-    await insertSequence()
-    await addToSegment("sam")
-    await setAutomationEnabled(workspaceId, automationId, true, database)
-    // Let the person in at any hour, so the Wait is the only thing keeping to
-    // the hours below.
-    await runSegmentDripTriggers(database)
+  it("wakes at the next sending hour of the flow's Drip step when the wait ends outside them", async () => {
     const pace = { ...PACE, windows: [{ start: "09:00", end: "10:00" }] }
-    await saveDripDefaults(workspaceId, pace, database)
-
-    await runAutomationTick(database)
-    const asleep = await onlyRun()
+    await insertSequence(true, pace)
+    const asleep = await sleepingRun()
     expect(asleep.currentNodeId).toBe("wait")
     expect(isWithinDripWindow(pace, asleep.wakeAt)).toBe(true)
     expect(asleep.wakeAt.getTime()).toBeGreaterThanOrEqual(

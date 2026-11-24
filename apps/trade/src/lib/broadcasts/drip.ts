@@ -86,7 +86,7 @@ export const DRIP_TIMEZONE_OPTIONS = [
   { value: "UTC", label: "UTC" },
 ] as const
 
-function timezoneLabel(timezone: string): string {
+export function timezoneLabel(timezone: string): string {
   return (
     DRIP_TIMEZONE_OPTIONS.find((option) => option.value === timezone)?.label ??
     timezone

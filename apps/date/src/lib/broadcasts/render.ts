@@ -178,6 +178,7 @@ export function renderBroadcastBlockHtml(
         logoUrl,
         logoWidth,
         logoHeight,
+        showName,
         alignment,
         backgroundColor,
         paddingTop,
@@ -191,10 +192,14 @@ export function renderBroadcastBlockHtml(
       const appName = resolveAppName(options.appName)
       // The name is real text and comes first, so blocking the decorative logo
       // never leaves a nameless message. A short image label avoids making a
-      // screen reader repeat the app name twice.
-      const inner = `${renderAppName(appName, headerTextColor(backgroundColor), Boolean(logoUrl), renderStyle)}${
+      // screen reader repeat the app name twice. With the name switched off,
+      // the logo's label carries the name instead, so a blocked image still
+      // says who sent it. A header with no logo always shows the name, or it
+      // would be an empty band.
+      const nameShown = showName || !logoUrl
+      const inner = `${nameShown ? renderAppName(appName, headerTextColor(backgroundColor), Boolean(logoUrl), renderStyle) : ""}${
         logoUrl
-          ? `<img src="${escapeHtml(logoUrl)}" alt="Logo" width="${logoWidth}" style="width:${logoWidth}px;height:${logoHeight ? `${logoHeight}px` : "auto"};display:inline-block;vertical-align:middle;border:0;outline:none;" />`
+          ? `<img src="${escapeHtml(logoUrl)}" alt="${nameShown ? "Logo" : escapeHtml(appName)}" width="${logoWidth}" style="width:${logoWidth}px;height:${logoHeight ? `${logoHeight}px` : "auto"};display:inline-block;vertical-align:middle;border:0;outline:none;" />`
           : ""
       }`
       return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${paddingTop}px 20px ${paddingBottom}px 20px;text-align:${alignment};">${inner}</td></tr></table>`

@@ -29,11 +29,24 @@ const EVENT_STATUS: Record<string, "bounced" | "complained"> = {
   "email.complained": "complained",
 }
 
-const TRACKING_EVENTS = new Set([
-  "email.delivered",
-  "email.opened",
-  "email.clicked",
-])
+/**
+ * What an automation or sequence email records about itself, one column each.
+ * Bounces and complaints are stamped here as well as changing the contact, so
+ * a sequence can count them per email.
+ */
+const AUTOMATION_EVENT_COLUMN = {
+  "email.delivered": "deliveredAt",
+  "email.opened": "openedAt",
+  "email.clicked": "clickedAt",
+  "email.bounced": "bouncedAt",
+  "email.complained": "complainedAt",
+} as const satisfies Record<string, keyof typeof customShellAutomationDeliveries.$inferSelect>
+
+type AutomationEventType = keyof typeof AUTOMATION_EVENT_COLUMN
+
+function isAutomationEvent(type: string | undefined): type is AutomationEventType {
+  return Boolean(type && Object.hasOwn(AUTOMATION_EVENT_COLUMN, type))
+}
 
 export type ResendWebhookHeaders = {
   id: string | null
@@ -105,7 +118,8 @@ function eventTime(event: ResendEvent): Date {
 }
 
 /**
- * Stamps the first verified delivery, open or click on an automation email, and
+ * Stamps the first verified delivery, open, click, bounce or complaint on an
+ * automation email, and
  * puts whoever opened it back on the list if they had gone quiet.
  *
  * The signed secret identifies the workspace, and the join enforces that
@@ -119,7 +133,8 @@ async function applyAutomationTrackingEvent(
   event: ResendEvent,
   database: CustomShellDb
 ): Promise<number> {
-  if (!event.type || !TRACKING_EVENTS.has(event.type)) return 0
+  const type = event.type
+  if (!isAutomationEvent(type)) return 0
   const emailId = event.data?.email_id?.trim()
   if (!emailId || emailId.length > 255) return 0
 
@@ -140,18 +155,9 @@ async function applyAutomationTrackingEvent(
   if (ids.length === 0) return 0
 
   const timestamp = eventTime(event)
-  const column =
-    event.type === "email.delivered"
-      ? customShellAutomationDeliveries.deliveredAt
-      : event.type === "email.opened"
-        ? customShellAutomationDeliveries.openedAt
-        : customShellAutomationDeliveries.clickedAt
-  const values =
-    event.type === "email.delivered"
-      ? { deliveredAt: timestamp }
-      : event.type === "email.opened"
-        ? { openedAt: timestamp }
-        : { clickedAt: timestamp }
+  const field = AUTOMATION_EVENT_COLUMN[type]
+  const column = customShellAutomationDeliveries[field]
+  const values = { [field]: timestamp }
 
   const changed = await database
     .update(customShellAutomationDeliveries)
@@ -168,7 +174,7 @@ async function applyAutomationTrackingEvent(
     })
 
   let revived = 0
-  if (event.type === "email.opened" || event.type === "email.clicked") {
+  if (type === "email.opened" || type === "email.clicked") {
     for (const row of changed) {
       if (!row.contactId) continue
       revived += await clearQuietContact(workspaceId, row.contactId, database)
