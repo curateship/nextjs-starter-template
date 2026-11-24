@@ -189,7 +189,10 @@ described one of its two ways (Tyler: "join a segment only tells one thing").
 - **Only reachable people are let in.** Opted out, bouncing and spam-marked
   addresses never are. Somebody gone quiet is.
 - **Once per person, ever.** Switching the flow off and on, or leaving the
-  segment and coming back, never lets anyone in twice.
+  segment and coming back, never lets anyone in twice. Stop is the one
+  exception: whoever Stop took out is let in again from the top on the next
+  Run (Tyler, 24 Nov 2026: "Start over from the top";
+  [A running flow](live-flow.md)).
 - **Oldest contacts go first**, so the order is the same on every pass.
 - **The step's panel shows progress** when the switch is on: how many people
   are let in and how many are still to go. The pace is the Drip step's.
@@ -226,8 +229,9 @@ next step with the next batch.
   sent. At 20 or more emailed and over the limit, the flow goes off with the
   reason on it. The Drip card shows the count against the limit
   ([A running flow](live-flow.md)).
-- **Switching the flow off stops everyone still waiting** when their batch's
-  time comes, as it does at a Wait.
+- **A flow that switches itself off stops everyone still waiting** when
+  their batch's time comes, as it does at a Wait. Stop ends them at once and
+  Pause holds them where they are ([A running flow](live-flow.md)).
 - **Nothing new is stored.** A person's place is the `releaseAt` on the line
   the step writes when they go to sleep there, and the newest batch and how
   many it holds are read back from those lines
@@ -248,8 +252,9 @@ its own line, and decides whether to carry on.
   who clicked a link in any email this flow sent them ends there, and the
   history names the email. Resend does not say which link was clicked, so any
   click counts.
-- **Switching the flow off stops everyone at their next wait.** Otherwise the
-  only way to stop a running sequence would be to delete it. A run somebody
+- **A flow that switches itself off stops everyone at their next wait.**
+  Stop, by hand, ends them at once, and Pause holds them where they are
+  ([A running flow](live-flow.md)). A run somebody
   started by hand is not stopped, because a flow that only runs by hand is
   always off. Nor is a run of one of the CRM's sequences, which have no
   switch.

@@ -77,7 +77,8 @@ import {
   getAutomationErrorMessage,
   saveAutomation,
   saveAutomationFavorites,
-  setAutomationLive,
+  controlAutomation,
+  type FlowControl,
   type AutomationDetail,
 } from "@/lib/api/automations/automations"
 import {
@@ -141,7 +142,7 @@ export function AutomationEditor({
   onDuplicate,
   onDelete,
 }: {
-  initial: Pick<AutomationDetail, "id" | "name" | "graph" | "enabled"> & Partial<Pick<AutomationDetail, "paused_reason">>
+  initial: Pick<AutomationDetail, "id" | "name" | "graph" | "enabled"> & Partial<Pick<AutomationDetail, "paused_reason" | "paused_at">>
   initialFavoriteNodeKeys: string[]
   /** The step list's Templates tab. Left out, the list has no such tab. */
   initialTemplates?: AutomationTemplateListItem[]
@@ -229,9 +230,11 @@ export function AutomationEditor({
   const [testOpen, setTestOpen] = React.useState(false)
   const [preparingTest, setPreparingTest] = React.useState(false)
   const [live, setLive] = React.useState(initial.enabled)
+  // Paused by hand: still live, everyone held where they stand.
+  const [flowPaused, setFlowPaused] = React.useState(Boolean(initial.paused_at))
   // Why a safety check switched the flow off, shown beside Run until it goes again.
   const [pausedReason, setPausedReason] = React.useState(initial.paused_reason ?? null)
-  const [savingLive, setSavingLive] = React.useState(false)
+  const [savingLive, setSavingLive] = React.useState<FlowControl | null>(null)
   const [period, setPeriod] = React.useState<LiveFlowPeriod>("all")
   const [menuOpen, setMenuOpen] = React.useState(false)
   // A step's right-click menu, at the pointer (Tyler, 9 Nov 2026: "enable
@@ -342,8 +345,11 @@ export function AutomationEditor({
     automationId: initial.id,
     live: live && !templateMode,
     period,
-    readAgain: startedRunId,
+    // Read at once after a run starts and after Pause or Resume, not five seconds on.
+    readAgain: `${startedRunId}|${flowPaused}`,
     onReport: (report) => {
+      // Paused or resumed from another tab or the list, or stopped by a safety check.
+      setFlowPaused(report.paused !== null)
       if (report.enabled) return
       setLive(false)
       setPausedReason(report.pausedReason)
@@ -359,23 +365,26 @@ export function AutomationEditor({
   }
 
   /**
-   * The flow's own switch, and the only thing that makes a trigger act. The
-   * pending edit is saved first: switching on reads the compiled copy on the
-   * server, and a trigger typed a second ago is not in it yet.
+   * Run, Pause, Resume and Stop: the only things that make a trigger act or
+   * stop it. The pending edit is saved before Run: it reads the compiled copy
+   * on the server, and a trigger typed a second ago is not in it yet.
    */
-  const handleLiveChange = async (next: boolean) => {
-    if (savingLive) return
-    setSavingLive(true)
+  const handleFlowControl = async (action: FlowControl): Promise<boolean> => {
+    if (savingLive) return false
+    setSavingLive(action)
     try {
-      if (next && !(await saveNow())) return
-      const saved = await setAutomationLive(initial.id, next)
+      if (action === "run" && !(await saveNow())) return false
+      const saved = await controlAutomation(initial.id, action)
       dismissErrorToast()
       setLive(saved.enabled)
+      setFlowPaused(saved.paused_at !== null)
       setPausedReason(saved.paused_reason)
+      return true
     } catch (error) {
       showErrorToast(getAutomationErrorMessage(error))
+      return false
     } finally {
-      setSavingLive(false)
+      setSavingLive(null)
     }
   }
 
@@ -780,13 +789,13 @@ export function AutomationEditor({
                 <span className="max-w-56 truncate text-xs text-destructive @max-4xl:sr-only">{pausedReason}</span>
               ) : null}
               <FlowRunButton
-                live={live}
+                state={!live ? "off" : flowPaused ? "paused" : "running"}
                 stalled={!compiled.config}
                 people={liveFlow.report?.inFlow ?? null}
                 busy={savingLive}
                 blockedReason={!compiled.config ? "Fix the steps marked in red before running this flow." : null}
                 flowName={name}
-                onChange={(next) => void handleLiveChange(next)}
+                onAction={handleFlowControl}
               />
             </>
           ) : null}

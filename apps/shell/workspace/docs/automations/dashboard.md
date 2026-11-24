@@ -45,8 +45,10 @@ and the canvas cannot save one. A flow sends one with its Send sequence step
   pill away.
 - **The Live switch is a Run button** (Tyler, 23 Nov 2026: "Change the
   \"live\" switch to a button called \"Run\""), in an open flow's header and
-  in every row of the flows table. Running, it has a moving rainbow edge and
-  says how many people are in the flow ([A running flow](live-flow.md)).
+  in every row of the flows table. Running, it has a moving rainbow edge,
+  says how many people are in the flow, and holds a Pause and a Stop icon;
+  paused, it says Paused and holds Resume and Stop
+  ([A running flow](live-flow.md)).
 - **The step list is its own panel again** (Tyler, 9 Nov 2026: "dont put the
   add steps button in the bottom, return the left panel as it was before",
   then "where is the other left panel?"). The + Add step button by the zoom

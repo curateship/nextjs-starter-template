@@ -103,8 +103,11 @@ in `src/server/email/sequences.ts`). Its one setting is which sequence.
 - **A sequence has no switch, so its waits never stop for one.** The Wait step
   stops runs of a switched-off automation; a sequence is always off, so the
   Wait leaves runs of a sequence alone (`flowSwitchedOff` in
-  `src/server/automations/wait.ts`). Switching off the automation that sent
-  it does not stop a sequence already started.
+  `src/server/automations/wait.ts`). An automation that switches itself off
+  (its bounce limit, say) does not stop a sequence it already started.
+  Pressing Stop on the automation does: it ends every sequence run it
+  started, and Pause on it holds them until Resume
+  ([A running flow](../automations/live-flow.md)).
 - **An edit reaches people who start after it.** Each person keeps the emails
   as they were when they started, so someone partway through finishes the old
   version.
