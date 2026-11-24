@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { CategoryCombobox } from "@/components/directory/category-combobox"
+import { CustomFieldGroups } from "@/components/directory/custom-field-groups"
 import { ListingPicker } from "@/components/directory/listing-picker"
 import { DetailNote } from "@/components/directory/listings-dashboard/detail-rows"
 import {
@@ -14,7 +15,6 @@ import {
   type MenuAction,
 } from "@/components/directory/listings-dashboard/section-parts"
 import { EventDatesList, EventRepeatFields, SeriesDateNote } from "@/components/events/event-repeat-cards"
-import { EventCustomFieldGroups } from "@/components/events/event-custom-fields"
 import { EventScheduleRow } from "@/components/events/event-schedule-row"
 import { EventSignUpsFields } from "@/components/events/event-sign-ups-card"
 import { PostEditor } from "@/components/posts/post-editor"
@@ -670,7 +670,7 @@ function EventForm({
                   </PickRow>
                 </PickGroup>
 
-                <EventCustomFieldGroups sections={data.customSections} values={customValues} onChange={setCustomValues} />
+                <CustomFieldGroups noun="event" sections={data.customSections} values={customValues} onChange={setCustomValues} />
 
                 <PickGroup
                   title="Publishing"

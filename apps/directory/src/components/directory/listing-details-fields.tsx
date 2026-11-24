@@ -1,9 +1,6 @@
 import * as React from "react"
-import { ClockIcon, ImagesIcon, MapPinIcon } from "lucide-react"
 
-import { PanelCard } from "@/components/shared/panel-card"
 import { ImageUpload } from "@/components/shared/image-upload"
-import { WeekdayHoursFields } from "@/components/shared/weekday-hours-fields"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -11,60 +8,15 @@ import {
   coordinatesFromGoogleMapsUrl,
   MAX_LISTING_GALLERY_IMAGES,
   requireListingCoordinates,
-  type ListingHours,
 } from "@/lib/directory/listing-details"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-
-export function ListingDetailsFields({
-  gallery,
-  hours,
-  latitude,
-  longitude,
-  disabled,
-  onGalleryChange,
-  onHoursChange,
-  onLatitudeChange,
-  onLongitudeChange,
-  locationOpenWhen,
-}: {
-  gallery: string[]
-  hours: ListingHours
-  latitude: string
-  longitude: string
-  disabled: boolean
-  onGalleryChange: (gallery: string[]) => void
-  onHoursChange: (hours: ListingHours) => void
-  onLatitudeChange: (latitude: string) => void
-  onLongitudeChange: (longitude: string) => void
-  /**
-   * Opens the map card each time it turns true. The coordinates are checked
-   * before a save, and the message about them is no use at all if this card
-   * is folded away, pointing at a box nobody can see.
-   */
-  locationOpenWhen?: boolean
-}) {
-  return (
-    <>
-      <GalleryFields
-        gallery={gallery}
-        disabled={disabled}
-        onChange={onGalleryChange}
-      />
-      <HoursFields hours={hours} disabled={disabled} onChange={onHoursChange} />
-      <LocationFields
-        latitude={latitude}
-        longitude={longitude}
-        disabled={disabled}
-        openWhen={locationOpenWhen}
-        onLatitudeChange={onLatitudeChange}
-        onLongitudeChange={onLongitudeChange}
-      />
-    </>
-  )
-}
-
-function GalleryFields({
+/**
+ * A listing's photo gallery, as its own tab of the listing's ⋮ (Tyler, 24 Nov
+ * 2026: "move all the blocks into the 3 dot dropdown"). Columns follow the
+ * menu's own width, never the screen's.
+ */
+export function GalleryFields({
   gallery,
   disabled,
   onChange,
@@ -91,10 +43,10 @@ function GalleryFields({
   }
 
   return (
-    <PanelCard storageId="listing-gallery" icon={<ImagesIcon />} title="Photo gallery" meta={gallery.length || undefined}>
+    <div className="grid gap-4">
       <p className="text-sm text-muted-foreground">Up to twelve extra photos, shown below the featured photo in this order.</p>
-      {/* Columns from the panel's own width, never the screen's: the panel opens narrow. */}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-4">
+      {/* Two columns in the menu, wide enough for Move up and Move down side by side. */}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-4">
       {gallery.map((url, index) => (
         <div key={`${url}-${index}`} className="grid gap-2">
           <ImageUpload
@@ -139,43 +91,22 @@ function GalleryFields({
         />
       ) : null}
       </div>
-    </PanelCard>
+    </div>
   )
 }
 
-function HoursFields({
-  hours,
-  disabled,
-  onChange,
-}: {
-  hours: ListingHours
-  disabled: boolean
-  onChange: (hours: ListingHours) => void
-}) {
-  return (
-    <PanelCard storageId="listing-hours" icon={<ClockIcon />} title="Opening hours">
-      <p className="text-sm text-muted-foreground">Turn on each open day. Closed days stay off and show as closed publicly.</p>
-      <WeekdayHoursFields
-        idPrefix="listing-hours"
-        words={{ start: "Opens", end: "Closes" }}
-        newDay={{ open: "09:00", close: "17:00" }}
-        hours={hours}
-        disabled={disabled}
-        onChange={onChange}
-      />
-    </PanelCard>
-  )
-}
-
-function LocationFields({
+/**
+ * A listing's map pin, in the box its Map pin row opens in the listing's ⋮.
+ * The box is narrow, so the link and its button stack, and the two
+ * coordinates sit side by side.
+ */
+export function MapPinFields({
   latitude,
   longitude,
   disabled,
-  openWhen,
   onLatitudeChange,
   onLongitudeChange,
 }: {
-  openWhen?: boolean
   latitude: string
   longitude: string
   disabled: boolean
@@ -187,13 +118,13 @@ function LocationFields({
   const invalid = coordinatesAreInvalid(latitude, longitude)
 
   return (
-    <PanelCard storageId="listing-map" icon={<MapPinIcon />} title="Map pin" openWhen={openWhen}>
+    <div className="grid gap-4">
       <p className="text-sm text-muted-foreground">Paste a full Google Maps link to fill the exact point. No map appears without both coordinates.</p>
       <div className="grid gap-2">
         <FieldLabel htmlFor="listing-google-maps-url">
           Google Maps link
         </FieldLabel>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="grid gap-2">
           <Input
             id="listing-google-maps-url"
             type="url"
@@ -223,8 +154,8 @@ function LocationFields({
           </Button>
         </div>
       </div>
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <div className="grid gap-2 sm:flex-1">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="grid gap-2">
           <FieldLabel htmlFor="listing-latitude">Latitude</FieldLabel>
           <Input
             id="listing-latitude"
@@ -238,7 +169,7 @@ function LocationFields({
             }
           />
         </div>
-        <div className="grid gap-2 sm:flex-1">
+        <div className="grid gap-2">
           <FieldLabel htmlFor="listing-longitude">Longitude</FieldLabel>
           <Input
             id="listing-longitude"
@@ -269,7 +200,7 @@ function LocationFields({
           </Button>
         </div>
       ) : null}
-    </PanelCard>
+    </div>
   )
 }
 

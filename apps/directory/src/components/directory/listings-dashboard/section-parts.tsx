@@ -84,16 +84,19 @@ export type MenuAction = {
 /**
  * A record's ⋮ (the Admin 3 panel design, "The record ⋮"): one General tab
  * of grouped rows, then the action rows, then the red ones under a line.
- * 20.4rem wide.
+ * 20.4rem wide, or wider when more tabs need one row.
  */
 export function RecordMenu({
   label,
   groups,
   actions,
   tabs = [],
+  width = "20.4rem",
 }: {
   /** "Listing menu". */
   label: string
+  /** As a CSS length; a listing's five tabs need "26rem". */
+  width?: string
   /** `PickGroup`s of rows, already drawn. */
   groups?: React.ReactNode
   actions: MenuAction[]
@@ -111,7 +114,7 @@ export function RecordMenu({
     <TabbedMenu
       label={label}
       align="end"
-      width="20.4rem"
+      width={width}
       open={open}
       onOpenChange={setOpen}
       tabs={[

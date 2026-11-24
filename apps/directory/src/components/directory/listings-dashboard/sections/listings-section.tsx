@@ -3,6 +3,7 @@ import { CopyIcon, StoreIcon, TagIcon, Trash2Icon } from "lucide-react"
 
 import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
 import { CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
+import { ListingThumbnail } from "@/components/directory/listings-dashboard/listing-thumbnail"
 import { EmptyRecord } from "@/components/crm/record-frame"
 import type { ListingsLoaded } from "@/components/directory/listings-dashboard/load-section"
 import { NewListingDropdown } from "@/components/directory/listings-dashboard/new-listing-dropdown"
@@ -431,30 +432,6 @@ export function ListingsSection({ data, search, frame, onChanged }: SectionProps
       </>
     ),
   })
-}
-
-/**
- * The listing's featured photo before its name, 28px with rounded corners,
- * the size of a person's avatar in the CRM's rows (Tyler, 18 Nov 2026: "Add a
- * thumbnail for the listing"). One with no photo shows the shop icon on the
- * same grey square, so every name starts at the same place.
- */
-function ListingThumbnail({ url }: { url: string }) {
-  const [broken, setBroken] = React.useState(false)
-  return url && !broken ? (
-    <img
-      src={url}
-      alt=""
-      loading="lazy"
-      decoding="async"
-      onError={() => setBroken(true)}
-      className="size-7 shrink-0 rounded-md bg-muted object-cover"
-    />
-  ) : (
-    <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-      <StoreIcon className="size-3.5" />
-    </span>
-  )
 }
 
 /** What deleting takes with it, said before anything goes. */

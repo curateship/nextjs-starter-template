@@ -5,6 +5,9 @@ import { CopyIcon, CornerDownRightIcon, FolderTreeIcon, PlusIcon, StoreIcon, Tra
 import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
 import { CrmGroupRow, CrmTable, CrmTableRow } from "@/components/crm/crm-table"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
+import { DetailNote } from "@/components/directory/listings-dashboard/detail-rows"
+import { ListingThumbnail } from "@/components/directory/listings-dashboard/listing-thumbnail"
+import { PickSearchRow, RowText } from "@/components/directory/pick-search-row"
 import {
   AutoSaveWords,
   NoMatches,
@@ -19,13 +22,15 @@ import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
-import { PickMenuRow } from "@/components/shared/notes/pick-rows"
+import { PickRow } from "@/components/shared/notes/pick-rows"
 import { PanelCard } from "@/components/shared/panel-card"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableCell } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
@@ -37,11 +42,13 @@ import {
   saveNewCategory,
   type Category,
 } from "@/lib/api/directory/categories"
+import { getListingErrorMessage, loadCategoryListings } from "@/lib/api/directory/listings"
 import { categoryTreeOrder } from "@/lib/directory/category-tree"
 import { slugFromTitle } from "@/lib/directory/slugs"
 import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
+import { useLoad } from "@/lib/hooks/use-load"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useOpenRecord } from "@/lib/nav/list-search"
 
@@ -501,7 +508,13 @@ function NewCategoryDropdown({
   )
 }
 
-/** One category on the right: its words and photo, saving by themselves; its place in the tree in the ⋮. */
+/**
+ * One category on the right. Its words, photo and place in the tree are rows
+ * in the ⋮ (Tyler, 24 Nov 2026: "for categories. move this into the 3 dot
+ * dropdown"), and they save by themselves. The panel lists the listings
+ * filed under it ("Add a new block there to list all the listings linked to
+ * that catergory").
+ */
 function CategoryRecord({
   category,
   categories,
@@ -551,16 +564,100 @@ function CategoryRecord({
         <RecordMenu
           label="Category menu"
           groups={
-            <PickGroup title="Category">
-              <PickMenuRow
+            <PickGroup title="The category">
+              <PickRow label="Name" value={name.trim() ? <RowText>{name.trim()}</RowText> : "None"} empty={!ready}>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="category-name">Name</FieldLabel>
+                  <Input id="category-name" value={name} aria-invalid={!ready} onChange={(event) => setName(event.target.value)} />
+                </div>
+              </PickRow>
+              <PickRow label="Address part" value={<RowText>{savedSlug}</RowText>}>
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="category-slug" hint="The category page's address part, like coffee-tea.">
+                    Address part
+                  </FieldLabel>
+                  <Input
+                    id="category-slug"
+                    value={slug}
+                    onChange={(event) => setSlug(event.target.value)}
+                    onBlur={() => {
+                      const next = slug.trim() || slugFromTitle(name)
+                      setSlug(next)
+                      setSavedSlug(next)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") event.currentTarget.blur()
+                    }}
+                  />
+                </div>
+              </PickRow>
+              <PickRow
+                label="Page description"
+                value={description.trim() ? <RowText>{description.trim()}</RowText> : "None"}
+                empty={!description.trim()}
+              >
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="category-description" hint="Shown at the top of the category's public page. Optional.">
+                    Page description
+                  </FieldLabel>
+                  <Textarea
+                    id="category-description"
+                    rows={4}
+                    value={description}
+                    className="resize-none"
+                    onChange={(event) => setDescription(event.target.value)}
+                  />
+                </div>
+              </PickRow>
+              <PickRow
+                label="Search description"
+                value={metaDescription.trim() ? <RowText>{metaDescription.trim()}</RowText> : "None"}
+                empty={!metaDescription.trim()}
+              >
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <FieldLabel htmlFor="category-meta" hint="What a search result shows under the category title. Optional.">
+                      Search description
+                    </FieldLabel>
+                    <CharacterCount value={metaDescription} max={300} />
+                  </div>
+                  <Textarea
+                    id="category-meta"
+                    rows={4}
+                    maxLength={300}
+                    value={metaDescription}
+                    className="resize-none"
+                    onChange={(event) => setMetaDescription(event.target.value)}
+                  />
+                </div>
+              </PickRow>
+              <PickRow
+                label="Photo"
+                value={featuredImage ? <img src={featuredImage} alt="" className="size-6 rounded-md object-cover" /> : "None"}
+                empty={!featuredImage}
+              >
+                <ImageUpload
+                  label="Photo"
+                  hint="Shown on the category's card and at the top of its page."
+                  value={featuredImage}
+                  aspect="square"
+                  fit="cover"
+                  className="max-w-24"
+                  onChange={(url) => setFeaturedImage(url)}
+                />
+              </PickRow>
+              <PickSearchRow
                 label="Sits under"
                 value={parentName ?? "Nothing"}
                 empty={!parentName}
-                options={[
+                searchLabel="Search categories"
+                noMatch="No category matches."
+                choices={[
                   { value: "top", label: "Nothing, it is top level" },
                   ...parentChoicesFor(categories, category).map(({ category: row, depth }) => ({
                     value: row.id,
-                    label: `${" ".repeat(depth * 2)}${row.name}`,
+                    label: row.name,
+                    depth,
                   })),
                 ]}
                 selected={parentId ?? "top"}
@@ -575,64 +672,7 @@ function CategoryRecord({
           ]}
         />
       }
-      body={
-        <PanelCard storageId="category-basics" icon={<FolderTreeIcon />} title="The category" openWhen={!ready}>
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <FieldLabel htmlFor="category-name">Name</FieldLabel>
-              <Input id="category-name" value={name} aria-invalid={!ready} onChange={(event) => setName(event.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <FieldLabel htmlFor="category-slug" hint="The category page's address part, like coffee-tea.">
-                Address part
-              </FieldLabel>
-              <Input
-                id="category-slug"
-                value={slug}
-                onChange={(event) => setSlug(event.target.value)}
-                onBlur={() => {
-                  const next = slug.trim() || slugFromTitle(name)
-                  setSlug(next)
-                  setSavedSlug(next)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") event.currentTarget.blur()
-                }}
-              />
-            </div>
-            <div className="grid gap-2">
-              <FieldLabel htmlFor="category-description" hint="Shown at the top of the category's public page. Optional.">
-                Page description
-              </FieldLabel>
-              <Textarea id="category-description" rows={3} value={description} onChange={(event) => setDescription(event.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <FieldLabel htmlFor="category-meta" hint="What a search result shows under the category title. Optional.">
-                  Search description
-                </FieldLabel>
-                <CharacterCount value={metaDescription} max={300} />
-              </div>
-              <Textarea
-                id="category-meta"
-                rows={2}
-                maxLength={300}
-                value={metaDescription}
-                onChange={(event) => setMetaDescription(event.target.value)}
-              />
-            </div>
-            <ImageUpload
-              label="Photo"
-              hint="Shown on the category's card and at the top of its page."
-              value={featuredImage}
-              aspect="square"
-              fit="cover"
-              className="max-w-24"
-              onChange={(url) => setFeaturedImage(url)}
-            />
-          </div>
-        </PanelCard>
-      }
+      body={<CategoryListingsCard key={category.id} categoryId={category.id} />}
       footer={
         <>
           <FooterState>
@@ -648,5 +688,87 @@ function CategoryRecord({
         </>
       }
     />
+  )
+}
+
+/** How many more a press of Show more reads, and the most the card holds. */
+const LISTINGS_STEP = 25
+const LISTINGS_MOST = 200
+
+/**
+ * Every listing filed under the category, any status, A to Z, each drawn as
+ * the Listings table draws its row (Tyler, 24 Nov 2026: "the listing should
+ * look exactly like this"). Each opens on
+ * the Listings row, filtered to this category and on the listing's own tab.
+ * The first 25 show, Show more reads 25 more, and past 200 the footer's
+ * Open its listings is the way to the rest.
+ */
+function CategoryListingsCard({ categoryId }: { categoryId: string }) {
+  const navigate = useNavigate()
+  const [limit, setLimit] = React.useState(LISTINGS_STEP)
+  const read = useLoad(() => loadCategoryListings({ categoryId, limit }), getListingErrorMessage, {
+    keys: [categoryId, limit],
+  })
+  const data = read.data
+  return (
+    <PanelCard storageId="category-listings" icon={<StoreIcon />} title="Listings" meta={data?.total.toLocaleString()}>
+      {read.error ? (
+        <ErrorRow message={read.error} onRetry={read.retry} />
+      ) : !data ? (
+        <LoadingRow label="Reading its listings…" />
+      ) : !data.listings.length ? (
+        <DetailNote>No listing is filed under it yet. A listing's ⋮ picks its categories.</DetailNote>
+      ) : (
+        <div className="grid gap-2">
+          <div className="-mx-1.5 grid">
+            {data.listings.map((listing) => (
+              <button
+                key={listing.id}
+                type="button"
+                className="group flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                onClick={() =>
+                  void navigate({
+                    to: "/admin/listings",
+                    search: {
+                      category: categoryId,
+                      ...(listing.status === "published" ? {} : { status: listing.status }),
+                      open: listing.id,
+                    },
+                  })
+                }
+              >
+                {/* The Listings table's own row: its photo, the name grey and
+                    black while pointed at, and its categories under it. */}
+                <ListingThumbnail url={listing.featuredImage} />
+                <span className="grid min-w-0 leading-tight">
+                  <span className="line-clamp-1 min-w-0 break-all font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+                    {listing.title}
+                  </span>
+                  <span className="line-clamp-1 min-w-0 break-all text-xs text-muted-foreground">
+                    {listing.categories.length ? listing.categories.join(", ") : `/${listing.slug}`}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+          {data.listings.length < data.total ? (
+            limit < LISTINGS_MOST ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-fit"
+                onClick={() => setLimit((was) => Math.min(was + LISTINGS_STEP, LISTINGS_MOST))}
+              >
+                Show more
+              </Button>
+            ) : (
+              <DetailNote>
+                {(data.total - data.listings.length).toLocaleString()} more. Open its listings to see them all.
+              </DetailNote>
+            )
+          ) : null}
+        </div>
+      )}
+    </PanelCard>
   )
 }

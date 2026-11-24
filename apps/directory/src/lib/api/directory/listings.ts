@@ -142,6 +142,54 @@ export function loadListingsPage(input: {
   return loadListingsPageFn({ data: input })
 }
 
+/** One listing in a category's Listings card. */
+export type CategoryListing = {
+  id: string
+  title: string
+  slug: string
+  status: ListingStatus
+  featuredImage: string
+  categories: string[]
+}
+
+const loadCategoryListingsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .inputValidator(
+    z.object({
+      categoryId: z.string().min(1).max(36),
+      limit: z.number().int().min(1).max(200),
+    })
+  )
+  .handler(async ({ data, context }): Promise<{ listings: CategoryListing[]; total: number }> => {
+    const site = await workspaceIdForRequest(context.user.id)
+    // Every status, by name, unlike the Listings row's one tab at a time.
+    const { listings, total } = await listListings(site, {
+      categoryId: data.categoryId,
+      sort: "title",
+      direction: "asc",
+      limit: data.limit,
+    })
+    return {
+      listings: listings.map((listing) => ({
+        id: listing.id,
+        title: listing.title,
+        slug: listing.slug,
+        status: listing.status,
+        featuredImage: listing.featuredImage,
+        categories: listing.categories,
+      })),
+      total,
+    }
+  })
+
+/**
+ * The listings filed under a category, every status, A to Z: the first
+ * `limit` of them and how many there are in all.
+ */
+export function loadCategoryListings(input: { categoryId: string; limit: number }) {
+  return loadCategoryListingsFn({ data: input })
+}
+
 /** The edit form's whole load: the listing plus which categories it is in. */
 export type ListingForEdit = {
   listing: DirectoryListing

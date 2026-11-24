@@ -10,19 +10,22 @@ import {
 import { plural } from "@/lib/format/plural"
 
 /**
- * The site's own event fields in the event record's ⋮ (task events/07): one
+ * The site's own fields in a listing's or an event's ⋮ (task events/07): one
  * grey list per section, named after it, and one row per field showing its
  * answer. A row opens a small box with the field's control, the same as Title
- * or Tickets link in the list above. Every card of the record lives in the ⋮
- * (Tyler, 19 Nov 2026: "Move all these blocks into the right panel header 3
- * dot dropdown"), so these do too, rather than as cards in the panel the way
- * a listing's record has them.
+ * in the list above. Every card of both records lives in their ⋮ (Tyler, 19
+ * Nov 2026 for events, 24 Nov 2026 for listings: "Move all these blocks into
+ * the right panel header 3 dot dropdown"), so these do too. A section with no
+ * fields yet is left out.
  */
-export function EventCustomFieldGroups({
+export function CustomFieldGroups({
+  noun,
   sections,
   values,
   onChange,
 }: {
+  /** "listing" or "event", for the note under each list. */
+  noun: string
   sections: CustomSection[]
   values: CustomValues
   onChange: (values: CustomValues) => void
@@ -33,7 +36,7 @@ export function EventCustomFieldGroups({
       <PickGroup
         key={section.id}
         title={section.name}
-        after={<p className="px-0.5 text-xs text-muted-foreground">Only what is filled in shows on the event's page.</p>}
+        after={<p className="px-0.5 text-xs text-muted-foreground">Only what is filled in shows on the {noun}'s page.</p>}
       >
         {section.fields.map((field) => {
           const value = values[section.slug]?.[field.key]

@@ -589,8 +589,9 @@ shows "Age limit: 19+" in a box of its own.
   `src/lib/directory/custom-fields.ts`, shared with listings. The row is
   `FieldsSection` in
   `src/components/directory/listings-dashboard/sections/fields-section.tsx`
-  with `kind="event"`. The ⋮ lists are
-  `src/components/events/event-custom-fields.tsx`. The page reads them in
+  with `kind="event"`. The ⋮ lists are `CustomFieldGroups` in
+  `src/components/directory/custom-field-groups.tsx`, which a listing's ⋮
+  uses too. The page reads them in
   `readPublicEvent` in `src/server/events/public.ts`. The tests are the
   "event fields" part of `src/server/directory/custom-sections.test.ts` and
   two in `src/server/events/public.test.ts`.

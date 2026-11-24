@@ -36,9 +36,11 @@ export function WeekdayHoursFields({
   const updateDay = (day: ListingWeekday, next: ListingHours[ListingWeekday]) =>
     onChange({ ...hours, [day]: next })
 
+  // Columns follow the box it sits in, never the screen: a listing's hours
+  // sit in its narrow ⋮, where a day's two times go side by side under it.
   return (
-    <>
-      <div className="hidden grid-cols-[minmax(8rem,1fr)_1fr_1fr] gap-4 text-sm font-medium sm:grid">
+    <div className="@container grid gap-4">
+      <div className="hidden grid-cols-[minmax(8rem,1fr)_1fr_1fr] gap-4 text-sm font-medium @md:grid">
         <span>Day</span>
         <span>{words.start}</span>
         <span>{words.end}</span>
@@ -80,7 +82,7 @@ export function WeekdayHoursFields({
           Copy Monday to weekdays
         </Button>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -109,7 +111,7 @@ function WeekdayRow({
   const closeId = `${idPrefix}-${day}-close`
 
   return (
-    <div className="grid gap-2 sm:grid-cols-[minmax(8rem,1fr)_1fr_1fr] sm:items-end sm:gap-4">
+    <div className="grid gap-2 @md:grid-cols-[minmax(8rem,1fr)_1fr_1fr] @md:items-end @md:gap-4">
       <div className="flex h-8 items-center gap-2">
         <Checkbox
           id={`${idPrefix}-${day}`}
@@ -121,8 +123,9 @@ function WeekdayRow({
         />
         <Label htmlFor={`${idPrefix}-${day}`}>{name}</Label>
       </div>
+      <div className="grid grid-cols-2 gap-2 @md:contents">
       <div className="grid gap-2">
-        <Label htmlFor={openId} className="sm:sr-only">
+        <Label htmlFor={openId} className="@md:sr-only">
           {name} {start}
         </Label>
         <Input
@@ -136,7 +139,7 @@ function WeekdayRow({
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor={closeId} className="sm:sr-only">
+        <Label htmlFor={closeId} className="@md:sr-only">
           {name} {end}
         </Label>
         <Input
@@ -148,6 +151,7 @@ function WeekdayRow({
             value && onChange({ ...value, close: event.target.value })
           }
         />
+      </div>
       </div>
     </div>
   )

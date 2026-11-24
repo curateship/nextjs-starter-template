@@ -52,11 +52,13 @@ export function MenuLinksFields({
     onChange(links.map((link) => (link.id === id ? { ...link, ...patch } : link)))
 
   return (
-    <div className="grid gap-4">
+    // A row lays out by its own box, never the screen. In the listing's ⋮
+    // the kind sits beside ×, and the value beside its label under them.
+    <div className="@container grid gap-4">
       {links.map((link) => (
         <div
           key={link.id}
-          className="flex flex-col gap-4 sm:flex-row sm:items-start"
+          className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 @lg:flex @lg:flex-row @lg:items-start @lg:gap-4"
         >
           <Select
             value={link.type}
@@ -66,7 +68,7 @@ export function MenuLinksFields({
             }
           >
             <SelectTrigger
-              className="w-full sm:w-fit"
+              className="col-span-2 w-full @lg:w-fit"
               aria-label="What kind of link this is"
             >
               <SelectValue />
@@ -79,7 +81,7 @@ export function MenuLinksFields({
               ))}
             </SelectContent>
           </Select>
-          <div className="sm:flex-1">
+          <div className="col-start-1 row-start-2 @lg:flex-1">
             <Input
               value={link.value}
               placeholder={menuTypePlaceholder(link.type)}
@@ -88,7 +90,7 @@ export function MenuLinksFields({
               onChange={(event) => update(link.id, { value: event.target.value })}
             />
           </div>
-          <div className="sm:w-40">
+          <div className="col-start-2 row-start-2 @lg:w-40">
             <Input
               value={link.label}
               placeholder="Label (optional)"
@@ -102,6 +104,7 @@ export function MenuLinksFields({
             variant="ghost"
             size="icon"
             disabled={disabled}
+            className="col-start-3 row-start-1"
             aria-label="Remove this link"
             onClick={() => onChange(links.filter((row) => row.id !== link.id))}
           >
@@ -136,13 +139,15 @@ export function SocialLinksFields({
     onChange(links.map((link) => (link.id === id ? { ...link, ...patch } : link)))
 
   return (
-    <div className="grid gap-4">
+    // A row lays out by its own box, never the screen. In the listing's ⋮
+    // the platform, address and × still fit on one line.
+    <div className="@container grid gap-4">
       {links.map((link) => (
         <div
           key={link.id}
-          className="flex flex-col gap-4 sm:flex-row sm:items-start"
+          className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] gap-2 @lg:flex @lg:flex-row @lg:items-start @lg:gap-4"
         >
-          <div className="sm:w-40">
+          <div className="@lg:w-40">
             <Input
               value={link.platform}
               placeholder="Instagram"
@@ -153,7 +158,7 @@ export function SocialLinksFields({
               }
             />
           </div>
-          <div className="sm:flex-1">
+          <div className="@lg:flex-1">
             <Input
               value={link.url}
               placeholder="instagram.com/joesdiner"

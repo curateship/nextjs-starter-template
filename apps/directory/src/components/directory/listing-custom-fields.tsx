@@ -1,10 +1,9 @@
 import * as React from "react"
-import { ListPlusIcon, PlusIcon, XIcon } from "lucide-react"
+import { PlusIcon, XIcon } from "lucide-react"
 
 import { ImageUpload } from "@/components/shared/image-upload"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { CharacterCount } from "@/components/shared/character-count"
-import { PanelCard } from "@/components/shared/panel-card"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -33,87 +32,13 @@ import {
   type CustomSection,
   type CustomSimpleField,
   type CustomSimpleValue,
-  type CustomValues,
 } from "@/lib/directory/custom-fields"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 
 /**
- * The fields a site invented, on the listing form: one card per section, in
- * the order the admin arranged them, after everything built in. The event
- * record draws its own as rows in its ⋮ (`events/event-custom-fields.tsx`),
- * with `CustomFieldControl` from here.
- *
- * The form holds every field whether or not it has an answer — that is what a
- * form is for. Deciding which of them is empty enough to leave off the page is
- * the server's job on the way in, not this component's.
+ * One field the site invented, as its box in a listing's or an event's ⋮
+ * shows it (`custom-field-groups.tsx`).
  */
-export function ListingCustomFields({
-  sections,
-  values,
-  disabled,
-  onChange,
-}: {
-  sections: CustomSection[]
-  values: CustomValues
-  disabled: boolean
-  onChange: (values: CustomValues) => void
-}) {
-  if (!sections.length) return null
-
-  const setValue = (
-    section: CustomSection,
-    field: CustomField,
-    value: CustomFieldValue
-  ) =>
-    onChange({
-      ...values,
-      [section.slug]: { ...(values[section.slug] ?? {}), [field.key]: value },
-    })
-
-  return (
-    <>
-      {sections.map((section) => (
-        <PanelCard
-          key={section.id}
-          // Keyed on the section's own slug, which never changes, so which
-          // sections somebody keeps folded away survives renaming them.
-          storageId={`listing-section-${section.slug}`}
-          icon={<ListPlusIcon />}
-          title={section.name}
-        >
-          <p className="text-sm text-muted-foreground">Only what is filled in shows on the listing's page.</p>
-          {/* Two columns only where the panel itself is wide enough, never the screen. */}
-          <div
-            className={
-              section.layout === "two-column"
-                ? "@container grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4"
-                : "grid gap-4"
-            }
-          >
-          {section.fields.length ? (
-            section.fields.map((field) => (
-              <CustomFieldControl
-                key={field.id}
-                section={section}
-                field={field}
-                value={values[section.slug]?.[field.key]}
-                disabled={disabled}
-                onChange={(value) => setValue(section, field, value)}
-              />
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              This section has no fields yet. Add them in the Custom fields
-              row.
-            </p>
-          )}
-          </div>
-        </PanelCard>
-      ))}
-    </>
-  )
-}
-
 export function CustomFieldControl({
   section,
   field,

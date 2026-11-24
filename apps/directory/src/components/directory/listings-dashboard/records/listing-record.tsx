@@ -1,13 +1,13 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { BookOpenIcon, CopyIcon, EyeIcon, FileTextIcon, LinkIcon, StoreIcon, TagIcon, Trash2Icon, UserRoundIcon } from "lucide-react"
+import { BookOpenIcon, CopyIcon, EyeIcon, StoreIcon, Trash2Icon, UserRoundIcon } from "lucide-react"
 
 import { TextPickRow } from "@/components/crm/crm-record-menu"
 import { FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { CategoryCombobox } from "@/components/directory/category-combobox"
 import { MenuLinksFields, SocialLinksFields } from "@/components/directory/contact-links-fields"
-import { ListingCustomFields } from "@/components/directory/listing-custom-fields"
-import { ListingDetailsFields } from "@/components/directory/listing-details-fields"
+import { CustomFieldGroups } from "@/components/directory/custom-field-groups"
+import { GalleryFields, MapPinFields } from "@/components/directory/listing-details-fields"
 import { DetailNote, DetailRow, DetailRows } from "@/components/directory/listings-dashboard/detail-rows"
 import {
   AutoSaveWords,
@@ -16,12 +16,14 @@ import {
   useAutoSave,
   type MenuAction,
 } from "@/components/directory/listings-dashboard/section-parts"
+import { RowText } from "@/components/directory/pick-search-row"
 import { CharacterCount } from "@/components/shared/character-count"
 import { ImageUpload } from "@/components/shared/image-upload"
-import { PickMenuRow } from "@/components/shared/notes/pick-rows"
+import { PickMenuRow, PickRow } from "@/components/shared/notes/pick-rows"
 import { PanelCard } from "@/components/shared/panel-card"
 import { RecordPreviewLink } from "@/components/shared/record-preview-link"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
+import { WeekdayHoursFields } from "@/components/shared/weekday-hours-fields"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -65,11 +67,16 @@ import type { WrittenPageNode } from "@/lib/pages/written-page-body"
  *
  * - **Header:** the featured photo, the name and its status and address,
  *   the public page's link, the ⋮ and the collapse button.
- * - **⋮:** Status, Primary category and Display order as grouped rows, then
- *   Duplicate, then Delete in red.
- * - **Body:** the listing's own fields in the shell's panel cards, and three
- *   cards of facts about it: who looks after it with its reports and saves,
- *   its views, and where else it appears. Each fact opens its own record.
+ * - **⋮:** every field of the listing (Tyler, 24 Nov 2026: "for the
+ *   listings, move all the blocks into the 3 dot dropdown except this 3
+ *   blocks"), as the event's ⋮ has them. General has The listing, Where it
+ *   is, the site's own sections and Publishing as grey rows, then Duplicate,
+ *   then Delete in red. Photos, Hours, Links and Write-up are tabs of their
+ *   own, because they are lists and a long text, not single values. Five
+ *   tabs need it 26rem wide to sit on one row.
+ * - **Body:** only the three cards of facts about it: who looks after it
+ *   with its reports and saves, its views, and where else it appears. Each
+ *   fact opens its own record.
  * - **Footer:** whether it is saved, and Publish or Unpublish.
  */
 export function ListingRecord({
@@ -279,187 +286,257 @@ function ListingForm({
           <RecordPreviewLink word="listing" path={`/directory/${savedSlug}`} published={status !== "draft"} />
           <RecordMenu
             label="Listing menu"
+            width="26rem"
             actions={menuActions}
-            groups={
-              <PickGroup
-                title="Listing"
-                after={
-                  status === "closed" && closingSpotEnds ? (
-                    <p role="note" className="px-1 pt-1.5 text-xs text-muted-foreground">
-                      Closing ends its featured spot, paid until {formatDate(closingSpotEnds)}. No money is refunded.
+            tabs={[
+              {
+                value: "photos",
+                label: "Photos",
+                content: (
+                  <div className="p-3">
+                    <GalleryFields gallery={gallery} disabled={false} onChange={setGallery} />
+                  </div>
+                ),
+              },
+              {
+                value: "hours",
+                label: "Hours",
+                content: (
+                  <div className="grid gap-4 p-3">
+                    <p className="text-sm text-muted-foreground">
+                      Turn on each open day. Closed days stay off and show as closed publicly.
                     </p>
-                  ) : null
-                }
-              >
-                <PickMenuRow
-                  label="Status"
-                  value={DIRECTORY_LISTING_STATUS_LABELS[status]}
-                  options={DIRECTORY_LISTING_STATUSES.map((each) => ({
-                    value: each,
-                    label: DIRECTORY_LISTING_STATUS_LABELS[each],
-                  }))}
-                  selected={status}
-                  onPick={(next) => pickStatus(next as ListingStatus)}
-                />
-                <PickMenuRow
-                  label="Primary category"
-                  value={chosenCategories.find(({ category }) => category.id === primaryCategoryId)?.category.name ?? "None"}
-                  empty={!primaryCategoryId || !categoryIds.has(primaryCategoryId)}
-                  disabled={!chosenCategories.length}
-                  options={[
-                    { value: "none", label: "None" },
-                    ...chosenCategories.map(({ category }) => ({ value: category.id, label: category.name })),
-                  ]}
-                  selected={primaryCategoryId && categoryIds.has(primaryCategoryId) ? primaryCategoryId : "none"}
-                  onPick={(next) => setPrimaryCategoryId(next === "none" ? null : next)}
-                />
-                <TextPickRow
-                  label="Display order"
-                  value={displayOrder}
-                  inputMode="numeric"
-                  onCommit={(next) => setDisplayOrder(String(Number.parseInt(next, 10) || 0))}
-                />
-              </PickGroup>
+                    <WeekdayHoursFields
+                      idPrefix="listing-hours"
+                      words={{ start: "Opens", end: "Closes" }}
+                      newDay={{ open: "09:00", close: "17:00" }}
+                      hours={hours}
+                      disabled={false}
+                      onChange={setHours}
+                    />
+                  </div>
+                ),
+              },
+              {
+                value: "links",
+                label: "Links",
+                content: (
+                  <div className="grid gap-4 p-3">
+                    <MenuLinksFields links={menuLinks} disabled={false} onChange={setMenuLinks} />
+                    <SocialLinksFields links={socialLinks} disabled={false} onChange={setSocialLinks} />
+                  </div>
+                ),
+              },
+              {
+                value: "write-up",
+                label: "Write-up",
+                content: (
+                  <div className="p-3">
+                    <DocumentEditor value={body} onChange={setBody} placeholder="Write about this place…" />
+                  </div>
+                ),
+              },
+            ]}
+            groups={
+              <>
+                <PickGroup title="The listing">
+                  <PickRow label="Title" value={title.trim() ? <RowText>{title.trim()}</RowText> : "None"} empty={!title.trim()}>
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="listing-title">Title</FieldLabel>
+                      <Input id="listing-title" value={title} aria-invalid={!title.trim()} onChange={(event) => setTitle(event.target.value)} />
+                    </div>
+                  </PickRow>
+                  <PickRow label="Address part" value={<RowText>{savedSlug}</RowText>}>
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="listing-slug"
+                        hint="The public page's address part, like joes-diner. Changing it changes the page's address. Old links forward to the new one."
+                      >
+                        Address part
+                      </FieldLabel>
+                      <Input
+                        id="listing-slug"
+                        value={slug}
+                        onChange={(event) => setSlug(event.target.value)}
+                        onBlur={() => {
+                          const next = slug.trim() || slugFromTitle(title)
+                          setSlug(next)
+                          setSavedSlug(next)
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") event.currentTarget.blur()
+                        }}
+                      />
+                    </div>
+                  </PickRow>
+                  <PickRow label="Search description" value={metaDescription.trim() ? <RowText>{metaDescription.trim()}</RowText> : "None"} empty={!metaDescription.trim()}>
+                    <div className="grid gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <FieldLabel htmlFor="listing-meta" hint="What a search result shows under the title. A sentence or two.">
+                          Search description
+                        </FieldLabel>
+                        <CharacterCount value={metaDescription} max={LISTING_META_DESCRIPTION_MAX} />
+                      </div>
+                      <Textarea
+                        id="listing-meta"
+                        rows={4}
+                        maxLength={LISTING_META_DESCRIPTION_MAX}
+                        value={metaDescription}
+                        className="resize-none"
+                        onChange={(event) => setMetaDescription(event.target.value)}
+                      />
+                    </div>
+                  </PickRow>
+                  <PickRow
+                    label="Rating"
+                    value={ratingInvalid ? <span className="text-destructive">Not a rating</span> : rating.trim() || "None"}
+                    empty={!ratingInvalid && !rating.trim()}
+                  >
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="listing-rating" hint="Use a rating from a trusted editorial source. This is not a visitor review score.">
+                        Rating
+                      </FieldLabel>
+                      <Input
+                        id="listing-rating"
+                        inputMode="decimal"
+                        placeholder="4.3"
+                        className="max-w-32"
+                        value={rating}
+                        aria-invalid={ratingInvalid}
+                        onChange={(event) => setRating(event.target.value)}
+                      />
+                      {ratingInvalid ? <p className="text-xs text-destructive">{LISTING_RATING_ERROR}</p> : null}
+                    </div>
+                  </PickRow>
+                  <PickRow
+                    label="Featured photo"
+                    value={featuredImage ? <img src={featuredImage} alt="" className="size-6 rounded-md object-cover" /> : "None"}
+                    empty={!featuredImage}
+                  >
+                    <div className="grid gap-2">
+                      <FieldLabel hint="Shown on the listing's page and its card in the public list.">Featured photo</FieldLabel>
+                      <ImageUpload
+                        label="Featured photo"
+                        showLabel={false}
+                        value={featuredImage}
+                        onChange={(url) => setFeaturedImage(url)}
+                        aspect="square"
+                        fit="cover"
+                        className="max-w-24"
+                      />
+                    </div>
+                  </PickRow>
+                  <PickRow
+                    label="Categories"
+                    value={chosenCategories.length ? <RowText>{chosenCategories.map(({ category }) => category.name).join(", ")}</RowText> : "None"}
+                    empty={!chosenCategories.length}
+                  >
+                    <div className="grid gap-2">
+                      <FieldLabel htmlFor="listing-category">Categories</FieldLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Where visitors find it when browsing. The primary one, in the row below, is the category its breadcrumb names.
+                      </p>
+                      <CategoryCombobox
+                        idPrefix="listing-category"
+                        rows={orderedCategories}
+                        checked={categoryIds}
+                        disabled={false}
+                        onToggle={(id) =>
+                          setCategoryIds((current) => {
+                            const next = new Set(current)
+                            if (next.has(id)) next.delete(id)
+                            else next.add(id)
+                            return next
+                          })
+                        }
+                      />
+                    </div>
+                  </PickRow>
+                  <PickMenuRow
+                    label="Primary category"
+                    value={chosenCategories.find(({ category }) => category.id === primaryCategoryId)?.category.name ?? "None"}
+                    empty={!primaryCategoryId || !categoryIds.has(primaryCategoryId)}
+                    disabled={!chosenCategories.length}
+                    options={[
+                      { value: "none", label: "None" },
+                      ...chosenCategories.map(({ category }) => ({ value: category.id, label: category.name })),
+                    ]}
+                    selected={primaryCategoryId && categoryIds.has(primaryCategoryId) ? primaryCategoryId : "none"}
+                    onPick={(next) => setPrimaryCategoryId(next === "none" ? null : next)}
+                  />
+                </PickGroup>
+
+                <PickGroup title="Where it is">
+                  <PickRow label="Street address" value={address.trim() ? <RowText>{address.trim()}</RowText> : "None"} empty={!address.trim()}>
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor="listing-address"
+                        hint="Shown as text on the page. The Get directions link type in Links is what makes it clickable."
+                      >
+                        Street address
+                      </FieldLabel>
+                      <Input id="listing-address" value={address} onChange={(event) => setAddress(event.target.value)} />
+                    </div>
+                  </PickRow>
+                  <PickRow
+                    label="Map pin"
+                    value={
+                      mapProblem ? (
+                        <span className="text-destructive">Not finished</span>
+                      ) : latitude.trim() && longitude.trim() ? (
+                        `${latitude.trim()}, ${longitude.trim()}`
+                      ) : (
+                        "None"
+                      )
+                    }
+                    empty={!mapProblem && !(latitude.trim() && longitude.trim())}
+                  >
+                    <MapPinFields
+                      latitude={latitude}
+                      longitude={longitude}
+                      disabled={false}
+                      onLatitudeChange={setLatitude}
+                      onLongitudeChange={setLongitude}
+                    />
+                  </PickRow>
+                </PickGroup>
+
+                {/* In the site's own order, the same place they sit on the public page. */}
+                <CustomFieldGroups noun="listing" sections={customSections} values={customValues} onChange={setCustomValues} />
+
+                <PickGroup
+                  title="Publishing"
+                  after={
+                    status === "closed" && closingSpotEnds ? (
+                      <p role="note" className="px-0.5 text-xs text-muted-foreground">
+                        Closing ends its featured spot, paid until {formatDate(closingSpotEnds)}. No money is refunded.
+                      </p>
+                    ) : null
+                  }
+                >
+                  <PickMenuRow
+                    label="Status"
+                    value={DIRECTORY_LISTING_STATUS_LABELS[status]}
+                    options={DIRECTORY_LISTING_STATUSES.map((each) => ({
+                      value: each,
+                      label: DIRECTORY_LISTING_STATUS_LABELS[each],
+                    }))}
+                    selected={status}
+                    onPick={(next) => pickStatus(next as ListingStatus)}
+                  />
+                  <TextPickRow
+                    label="Display order"
+                    value={displayOrder}
+                    inputMode="numeric"
+                    onCommit={(next) => setDisplayOrder(String(Number.parseInt(next, 10) || 0))}
+                  />
+                </PickGroup>
+              </>
             }
           />
         </>
       }
-      body={
-        <>
-          <PanelCard storageId="listing-basics" icon={<StoreIcon />} title="The listing" openWhen={!title.trim() || ratingInvalid}>
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="listing-title">Title</FieldLabel>
-                <Input id="listing-title" value={title} aria-invalid={!title.trim()} onChange={(event) => setTitle(event.target.value)} />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="listing-slug"
-                  hint="The public page's address part, like joes-diner. Changing it changes the page's address. Old links forward to the new one."
-                >
-                  Address part
-                </FieldLabel>
-                <Input
-                  id="listing-slug"
-                  value={slug}
-                  onChange={(event) => setSlug(event.target.value)}
-                  onBlur={() => {
-                    const next = slug.trim() || slugFromTitle(title)
-                    setSlug(next)
-                    setSavedSlug(next)
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") event.currentTarget.blur()
-                  }}
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <FieldLabel htmlFor="listing-meta" hint="What a search result shows under the title. A sentence or two.">
-                    Search description
-                  </FieldLabel>
-                  <CharacterCount value={metaDescription} max={LISTING_META_DESCRIPTION_MAX} />
-                </div>
-                <Textarea
-                  id="listing-meta"
-                  rows={2}
-                  maxLength={LISTING_META_DESCRIPTION_MAX}
-                  value={metaDescription}
-                  onChange={(event) => setMetaDescription(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel htmlFor="listing-rating" hint="Use a rating from a trusted editorial source. This is not a visitor review score.">
-                  Rating
-                </FieldLabel>
-                <Input
-                  id="listing-rating"
-                  inputMode="decimal"
-                  placeholder="4.3"
-                  className="max-w-32"
-                  value={rating}
-                  aria-invalid={ratingInvalid}
-                  onChange={(event) => setRating(event.target.value)}
-                />
-                {ratingInvalid ? <p className="text-xs text-destructive">{LISTING_RATING_ERROR}</p> : null}
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel hint="Shown on the listing's page and its card in the public list.">Featured photo</FieldLabel>
-                <ImageUpload
-                  label="Featured photo"
-                  showLabel={false}
-                  value={featuredImage}
-                  onChange={(url) => setFeaturedImage(url)}
-                  aspect="square"
-                  fit="cover"
-                  className="max-w-24"
-                />
-              </div>
-            </div>
-          </PanelCard>
-
-          <ListingFactCards facts={facts} />
-
-          <ListingDetailsFields
-            gallery={gallery}
-            hours={hours}
-            latitude={latitude}
-            longitude={longitude}
-            disabled={false}
-            onGalleryChange={setGallery}
-            onHoursChange={setHours}
-            onLatitudeChange={setLatitude}
-            onLongitudeChange={setLongitude}
-            locationOpenWhen={Boolean(mapProblem)}
-          />
-
-          <PanelCard storageId="listing-categories" icon={<TagIcon />} title="Categories" meta={categoryIds.size || undefined}>
-            <div className="grid gap-2">
-              <p className="text-sm text-muted-foreground">
-                Where visitors find it when browsing. The primary one, in the ⋮, is the category its breadcrumb names.
-              </p>
-              <CategoryCombobox
-                idPrefix="listing-category"
-                rows={orderedCategories}
-                checked={categoryIds}
-                disabled={false}
-                onToggle={(id) =>
-                  setCategoryIds((current) => {
-                    const next = new Set(current)
-                    if (next.has(id)) next.delete(id)
-                    else next.add(id)
-                    return next
-                  })
-                }
-              />
-            </div>
-          </PanelCard>
-
-          <PanelCard storageId="listing-contact" icon={<LinkIcon />} title="Contact and links">
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="listing-address"
-                  hint="Shown as text on the page. The Get directions link type below is what makes it clickable."
-                >
-                  Street address
-                </FieldLabel>
-                <Input id="listing-address" value={address} onChange={(event) => setAddress(event.target.value)} />
-              </div>
-              <MenuLinksFields links={menuLinks} disabled={false} onChange={setMenuLinks} />
-              <SocialLinksFields links={socialLinks} disabled={false} onChange={setSocialLinks} />
-            </div>
-          </PanelCard>
-
-          <PanelCard storageId="listing-write-up" icon={<FileTextIcon />} title="Write-up">
-            <DocumentEditor value={body} onChange={setBody} placeholder="Write about this place…" />
-          </PanelCard>
-
-          {/* Last, in the site's own order: the same place they sit on the
-              public page, so the record reads like the result. */}
-          <ListingCustomFields sections={customSections} values={customValues} disabled={false} onChange={setCustomValues} />
-        </>
-      }
+      body={<ListingFactCards facts={facts} />}
       footer={
         <>
           <FooterState>
@@ -521,7 +598,7 @@ function OpenRow({
 function ListingFactCards({ facts }: { facts: { data: ListingRecordFacts | null; error: string | null; retry: () => void } }) {
   if (facts.error) return <ErrorRow message={facts.error} onRetry={facts.retry} />
   const data = facts.data
-  if (!data) return null
+  if (!data) return <LoadingRow label="Reading who looks after it, its views and where it appears…" />
   const elsewhere = data.guides.length + data.events.length + data.deals.length
   return (
     <>

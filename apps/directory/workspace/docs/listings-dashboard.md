@@ -176,19 +176,52 @@ opens the first row, and after that the dashboard remembers the record.
   then says its last changes were not saved. An address part
   saves when its box is left, never mid-word, because it moves the public
   page.
-- **The record ⋮** is one General tab: grouped rows (a listing's Status,
-  Primary category and Display order), then actions, then the red one under a
-  line.
+- **The record ⋮** has a General tab of grouped rows, then actions, then the
+  red one under a line.
+- **A listing's ⋮ holds every field of the listing** (Tyler, 24 Nov 2026:
+  "for the listings, move all the blocks into the 3 dot dropdown except this 3
+  blocks"), the way an event's ⋮ does:
+  - **General** has four kinds of grey rows. The listing: Title, Address
+    part, Search description, Rating, Featured photo, Categories and Primary
+    category. Where it is: Street address and Map pin. Then one list per
+    section of the site's own fields. Publishing: Status and Display order.
+    A row shows its value, and pressing it opens a small box with the field.
+    A rating that is not a number, or half a map pin, shows in red on its row.
+  - **Photos, Hours, Links and Write-up** are tabs of their own, because they
+    are lists and a long text, not single values. Links holds the menu links
+    and the social profiles.
+  - **The menu is 26rem wide**, so its five tabs sit on one row. Inside it,
+    a link's parts and a day's two times lay out by the menu's own width,
+    never the screen's.
 - **The footer** holds the record's state and its main button: Publish or
   Unpublish, Approve or Reject, Mark fixed or Dismiss, Put on sale, Send
   invitation.
-- **A listing** also shows three cards of facts about it, each opening its
-  own record:
+- **A listing's panel holds only three cards of facts about it**, each
+  opening its own record:
   - Owner, reports and saves: who looks after it, any waiting claim, its
     open reports, and how many people saved it.
   - Views: the last 7 days, 30 days, year and all time.
   - Where it appears: the guides it is in, its upcoming events and its live
     deals.
+- **A category's ⋮ holds its fields** (Tyler, 24 Nov 2026: "for categories.
+  move this into the 3 dot dropdown"). Its General tab is one grey list, The
+  category: Name, Address part, Page description, Search description, Photo
+  and Sits under. Then New category under it, Duplicate and Delete.
+- **Sits under opens a search box over the categories**, which scroll in a
+  ScrollArea rather than the browser's own bar (Tyler, 24 Nov 2026: "this
+  should use areascroll"). The tree shows by indent, typing narrows it to
+  the matches, and Enter picks the first. It is `PickSearchRow` in
+  `src/components/directory/pick-search-row.tsx`, built from the shell's row
+  so no shell file changes.
+- **A category's panel lists its listings** ("Add a new block there to list
+  all the listings linked to that catergory"). The Listings card counts every
+  listing filed under it, in any status, and lists them A to Z. Each looks
+  exactly like its row in the Listings table ("the listing should look
+  exactly like this"): its photo, the name in grey that turns black while
+  pointed at, and its categories under it. It shows 25, and each Show more reads
+  25 more, up to 200. Past that, Open its listings in the footer shows the
+  rest. Pressing a listing opens it on the Listings row, narrowed to this
+  category and on that listing's own status tab.
 - **An owner change** shows each field they touched twice: what the listing
   says now, then what they asked for.
 - **Links never leave the dashboard.** A claim, report, placement or saved
