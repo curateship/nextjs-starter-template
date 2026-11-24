@@ -204,9 +204,14 @@ the tab is hidden. Test runs never count.
   happened (green for let in or moved on, amber for waiting, blue for an email
   sent, violet for a sequence started, red for a problem, grey for anything
   else), the person's name in bold and what happened to them ("was let in
-  from the segment", "is waiting for its batch", "was sent “Welcome”"), their
-  address under it, and how long ago at the right. The words come from
-  `describeActivity` in `live-flow.ts`, not the step's own summary.
+  from the segment", "is waiting for the batch on Nov 27, 9:00 AM", "was
+  sent “Welcome”", "was added to “Welcome series”"), their address under it,
+  and how long ago at the right. Someone at a sequence's wait "will get email
+  2 Nov 27, 9:00 AM", numbered as the Emails tab numbers them; at a flow's
+  own Wait they are "waiting until" its end (Tyler, 24 Nov 2026: "waiting at
+  wait does not make sense. Nick was started also does not make sense", then
+  "Rename to "Tyler will get email # date""). The words come from `describeActivity` in `live-flow.ts`, not the
+  step's own summary.
 
 ## When a flow stops moving
 
