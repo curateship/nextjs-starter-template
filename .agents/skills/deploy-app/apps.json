@@ -175,5 +175,23 @@
     "database": {
       "uuid": "nufmzgsvjhlbedjyksycgbsv"
     }
+  },
+  "directory": {
+    "server": "de",
+    "project": "Directory",
+    "healthUrl": "https://directory.barelycompany.com/api/health",
+    "resources": [
+      {
+        "role": "web",
+        "uuid": "3sga9hloro15ilekduk8mkly"
+      },
+      {
+        "role": "worker",
+        "uuid": "6ony9pvux2xl02le5efldaas"
+      }
+    ],
+    "database": {
+      "uuid": "jgruodqfc51a2xcgnbhpf49s"
+    }
   }
 }

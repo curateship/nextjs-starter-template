@@ -10,6 +10,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 
 ## What is in this folder
 
+- `launch.md` — where the live site runs (server1, eatdrinktoronto.com, admin
+  at directory.barelycompany.com), every live value, and the release record.
 - `listings-dashboard.md` — the one three-panel Listings dashboard: its rows
   (Listings, Categories, Custom fields, Guides, the four queues, Featured
   plans, Placements, Saved lists, Outreach), the left page and its blocks, the
