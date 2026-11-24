@@ -12,7 +12,7 @@ list all the waiting on me steps." The task is
 ```
               Left: page          Middle                                   Right
 Automations   Dashboards block    flows table (a line opens its canvas)    none
-Open flow     Dashboards block    step list | canvas: Canvas and Runs      Statistics when live; when off,
+Open flow     Dashboards block    step list | canvas: Canvas and Runs      live panel when live; when off,
                                   tabs first, Live, Test, Run, ⋮ last      the step picked, or none
 Flow's Runs   Dashboards block    this flow's runs, tests included         the run open
 Template      Dashboards block    step list | canvas, "Template, <name>"   the step picked
@@ -30,18 +30,17 @@ and the canvas cannot save one. A flow sends one with its Send sequence step
   the page stays on the left. Header tabs **Canvas** and **Runs** replace the
   old bottom Runs panel. On a flow that is off, the right panel shows only
   once a step is picked.
-- **A live flow's right panel is its Statistics,** whatever step is picked
+- **A live flow's right panel is its live panel,** whatever step is picked
   (Tyler, 23 Nov 2026: "If live is on the right panel should show runs total
   stats with a stats card", then "it doesnt change right away. I can still
   edit unless I refresh"). Pressing Run swaps an open step's settings for
-  the panel at once, and stopping the flow brings the step back. Under the
-  Statistics card is a card for every step; the Send sequence card has
-  Emails, Activity and Dropped out tabs. All of it is read again every five
+  the panel at once, and stopping the flow brings the step back. It is a
+  card for every step; the Send sequence card has Emails and Activity tabs. All of it is read again every five
   seconds ([A running flow](live-flow.md)).
   Test runs are not counted. Pressing a step on the canvas of a live flow
   leaves the panel where it is and scrolls to that step's card; a step
   pressed in the step list, to add it, still shows its card with Add node.
-  On a phone, opening a live flow stays on the canvas; the Statistics are one
+  On a phone, opening a live flow stays on the canvas; the live panel is one
   pill away.
 - **The Live switch is a Run button** (Tyler, 23 Nov 2026: "Change the
   \"live\" switch to a button called \"Run\""), in an open flow's header and

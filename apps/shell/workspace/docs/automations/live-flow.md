@@ -81,8 +81,7 @@ are in `src/server/automations/flow-control.ts`.
   undone."
 - **Stop clears everything waiting to send.** In one go it switches the flow
   off and ends every unfinished run of it and of the sequences it started,
-  with "Stopped by hand" on each. They count under Stopped on the Statistics
-  card. A run inside a step as Stop lands finishes that step and goes no
+  with "Stopped by hand" on each. A run inside a step as Stop lands finishes that step and goes no
   further. A sequence run its flow run was starting at that moment ends the
   first time the background pass reaches it.
 - **Run again after Stop starts the stopped people over** (Tyler: "Start over
@@ -114,33 +113,27 @@ call, `liveFlowReport`, when the flow goes on, every five seconds while the
 page is in view, and at once when the tab comes back. Nothing is read while
 the tab is hidden. Test runs never count.
 
-- **Statistics** opens with one sentence of what the flow is doing now, such
-  as "40 people held at Drip, outside sending hours until Nov 24, 9:00 AM",
-  or "Live, waiting for somebody to start". Paused, it is a grey box with
-  a pause mark: "Paused. 23 people held where they are. Paused by Tyler,
-  2:30 PM." and Working now reads 0, everyone counted under Held. Then Runs in total, Completed out
-  of that total, and a bar each for Working now (due now), Held (asleep at a
-  Drip or Wait until a time still to come), Waiting (stopped at an approval
-  step), Failed and Stopped. Then the typical time from a person's start to
-  their finish. The sentence is in this card, not under the flow's name in the
-  header, because the panel's narrowest width cut it to a few letters there.
-  The card is in colour (Tyler, 23 Nov 2026: "add some colors to the
-  statistic card"): the sentence sits in a box with its first part in bold,
-  amber with a clock while people wait for a time, blue while they move, red
-  for a safety stop, grey while nobody is in it; Runs is a blue tile and
-  Completed a green one with a green bar; each bar row has its own colour on
-  a faint track of it (Working now blue, Held amber, Failed red, Waiting and
-  Stopped grey), and a row at nothing greys its label and count.
-- **The period** is the calendar button in the Statistics card's heading:
-  All time, Today or Last 7 days, with the choice after the card's title. It
-  narrows the totals in every card: runs, completed, failed, sent, opened,
-  clicked, let in, finished and dropped out. It never narrows the numbers
+- **The panel starts with the first step's card.** Until 24 Nov 2026 a
+  Statistics card came first, with run totals in tiles and a bar each for
+  Working now, Held, Waiting, Failed and Stopped, then a Status card with one
+  sentence of what the flow was doing. The bars counted only people on the
+  flow's own steps, so a flow whose people sat on its sequence read 0
+  everywhere while its button said "Running 2 contacts", and the step cards
+  already said the rest. Tyler took both out: "the stats card is redundent
+  anyways since the other cards say the same thing", then "remove the
+  statistic card ... i mean status card". The Run button says whether the
+  flow is running or paused and how many are in it.
+- **The period** is the calendar button in the panel's header, beside the
+  flow's name: All time, Today or Last 7 days, the button naming its choice
+  when it is not All time. It
+  narrows the totals in every card: passed, failed, sent, opened, clicked,
+  let in, finished and dropped out. It never narrows the numbers
   about now: who is in the flow, held, waiting, or next in line.
 - **One card per step, in the order the steps run.** Each says how many are
   on it now, how many passed, how many failed, and the newest failure in its
   own words.
 - **Pressing a step on the canvas** scrolls the panel to that step's card and
-  opens it. The Statistics panel stays.
+  opens it. The panel stays.
 
 ### The cards
 
