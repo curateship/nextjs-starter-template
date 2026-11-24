@@ -164,17 +164,22 @@ the tab is hidden. Test runs never count.
   amber in its heading while its sending hours are shut and people wait. It
   read "Paused" until 24 Nov 2026, when Pause became a button and the two
   could no longer share a word. Under the
-  heading, Waiting here (amber), Passed (green) and Failed (red, grey at
+  heading, Waiting for a batch (amber), Passed (green) and Failed (red, grey at
   nothing) as coloured tiles. Then the next batch with a clock mark: its
-  time, how many are held, and "Outside sending hours, resumes ..." when the
-  hours are why. The tiles meet the heading with no strip between: the card
+  time, its number and how many are held ("Batch 3 · 40 held now"), and
+  "Outside sending hours, resumes ..." when the
+  hours are why. With nobody held it reads "None, nobody is waiting for a batch",
+  and "Outside sending hours until ..." under it while the hours are shut. The tiles meet the heading with no strip between: the card
   body's top space from Panel cards is taken back above them. Then, each
   under a line: Schedule as three boxes (people at
   a time, minutes apart, sending hours and timezone, ", weekdays" when
   weekends are off); Bounces, "1 of 80 · 1.25%", over a bar that is full at
   the limit, where a red mark stands, so 1.25 in 100 against a limit of 5
-  fills a quarter of it; and the last five batches, a blue dot for one still
-  to go and grey for one gone. In the narrowest panel the tiles and the boxes
+  fills a quarter of it; and the last five batches, each "Batch 3" and its
+  time, a blue dot for one still to go and grey for one gone. Batches are
+  numbered from 1 since Run was last pressed, so a Stop and Run starts again
+  at batch 1 (Tyler, 24 Nov 2026: "I think it should what the batch sequence
+  is Like Batch 1 or 2"). In the narrowest panel the tiles and the boxes
   stack.
 - **Send sequence** (its Emails tab), drawn to Tyler's design of 23 Nov
   2026: "0 of 120 people finished" and "120 waiting" over a bar, finished in
@@ -204,7 +209,7 @@ the tab is hidden. Test runs never count.
   happened (green for let in or moved on, amber for waiting, blue for an email
   sent, violet for a sequence started, red for a problem, grey for anything
   else), the person's name in bold and what happened to them ("was let in
-  from the segment", "is waiting for the batch on Nov 27, 9:00 AM", "was
+  from the segment", "will go in batch 3 Nov 27, 9:00 AM", "was
   sent “Welcome”", "was added to “Welcome series”"), their address under it,
   and how long ago at the right. Someone at a sequence's wait "will get email
   2 Nov 27, 9:00 AM", numbered as the Emails tab numbers them; at a flow's
