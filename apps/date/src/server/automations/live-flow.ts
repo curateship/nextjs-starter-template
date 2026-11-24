@@ -37,6 +37,7 @@ import {
   customShellAutomationRunSteps,
   customShellAutomations,
   customShellAutomationSegmentSnapshot,
+  customShellUsers,
   type CustomShellAutomation,
 } from "@/server/schema"
 
@@ -171,6 +172,8 @@ export type LiveFlowActivity = {
 export type LiveFlowReport = {
   enabled: boolean
   pausedReason: string | null
+  /** Set while the flow is paused by hand: when, and who by. */
+  paused: { at: string; by: string | null } | null
   /** Everyone somewhere in the flow now, those on its sequences included. */
   inFlow: number
   stats: LiveFlowStats
@@ -695,21 +698,29 @@ export async function liveFlowReport(
     cards.push(card)
   }
 
+  const pausedBy = flow.pausedAt && flow.pausedBy
+    ? (await database.select({ name: customShellUsers.name }).from(customShellUsers).where(eq(customShellUsers.id, flow.pausedBy)).limit(1))[0]?.name ?? null
+    : null
   return {
     enabled: flow.enabled,
     pausedReason: flow.pausedReason,
+    paused: flow.pausedAt ? { at: flow.pausedAt.toISOString(), by: pausedBy } : null,
     inFlow,
-    stats,
+    // While paused nobody is working through a step: everyone due is held.
+    stats: flow.pausedAt ? { ...stats, workingNow: 0, held: stats.held + stats.workingNow } : stats,
     steps: cards,
     recent,
     droppedOut: dropped,
   }
 }
 
+/** A live flow on the Automations list: who is in it, and whether it is paused. */
+export type LiveFlowPeople = { people: number; paused: boolean }
+
 /** Everyone in each of this site's live flows now, for the Automations list's Run buttons. */
-export async function peopleInLiveFlows(workspaceId: string, database: CustomShellDb = db): Promise<Record<string, number>> {
+export async function peopleInLiveFlows(workspaceId: string, database: CustomShellDb = db): Promise<Record<string, LiveFlowPeople>> {
   const live = await database
-    .select({ id: customShellAutomations.id })
+    .select({ id: customShellAutomations.id, pausedAt: customShellAutomations.pausedAt })
     .from(customShellAutomations)
     .where(
       and(
@@ -719,5 +730,7 @@ export async function peopleInLiveFlows(workspaceId: string, database: CustomShe
       )
     )
   const people = await peopleInFlows(live.map((flow) => flow.id), database)
-  return Object.fromEntries(live.map((flow) => [flow.id, people.get(flow.id) ?? 0]))
+  return Object.fromEntries(
+    live.map((flow) => [flow.id, { people: people.get(flow.id) ?? 0, paused: flow.pausedAt !== null }])
+  )
 }

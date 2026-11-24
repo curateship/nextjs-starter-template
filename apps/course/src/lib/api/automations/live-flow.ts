@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { liveFlowReport, peopleInLiveFlows, type LiveFlowReport } from "@/server/automations/live-flow"
+import { liveFlowReport, peopleInLiveFlows, type LiveFlowPeople, type LiveFlowReport } from "@/server/automations/live-flow"
 import { adminGet } from "@/server/guards"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
@@ -11,6 +11,7 @@ export type {
   LiveFlowActivity,
   LiveFlowActivityKind,
   LiveFlowEmailRow,
+  LiveFlowPeople,
   LiveFlowReport,
   LiveFlowStats,
   LiveFlowStep,
@@ -42,10 +43,10 @@ const liveFlowReportFn = createServerFn({ method: "GET" })
     return report
   })
 
-/** How many people are in each of the site's live flows, by flow id. */
+/** How many people are in each of the site's live flows, and which are paused, by flow id. */
 const peopleInLiveFlowsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }): Promise<Record<string, number>> =>
+  .handler(async ({ context }): Promise<Record<string, LiveFlowPeople>> =>
     peopleInLiveFlows(await workspaceIdForRequest(context.user.id))
   )
 

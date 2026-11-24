@@ -14,6 +14,12 @@ import {
   setAutomationEnabled,
 } from "@/server/automations/flows"
 import {
+  pauseAutomation,
+  resumeAutomation,
+  stopAutomation,
+} from "@/server/automations/flow-control"
+import { runAutomationTick } from "@/server/automations/engine"
+import {
   requireCurrentWorkspace,
   parseWorkspaceSettings,
   saveWorkspaceAutomationFavorites,
@@ -49,6 +55,8 @@ export type AutomationListItem = {
   /** Whether this flow's trigger is live. Never about the Run button. */
   enabled: boolean
   paused_reason: string | null
+  /** When the live flow was paused, null while it is not. */
+  paused_at: string | null
   /** What it reacts to, or null when it only ever runs by hand. */
   trigger_name: string | null
   can_run_manually: boolean
@@ -65,6 +73,7 @@ export type AutomationDetail = {
   errors: AutomationValidationError[]
   enabled: boolean
   paused_reason: string | null
+  paused_at: string | null
   trigger_name: string | null
   can_run_manually: boolean
   next_run_at: string | null
@@ -94,6 +103,7 @@ export function toAutomationListItem(
     nodeCount,
     enabled: automation.enabled,
     paused_reason: automation.paused_reason,
+    paused_at: automation.paused_at,
     trigger_name: automation.trigger_name,
     can_run_manually: automation.can_run_manually,
     next_run_at: automation.next_run_at,
@@ -122,7 +132,11 @@ const saveSchema = automationIdSchema.extend({
   graph: automationGraphSchema,
 })
 const renameSchema = automationIdSchema.extend({ name: nameSchema })
-const enabledSchema = automationIdSchema.extend({ enabled: z.boolean() })
+/** What the Run button group asks of a flow. */
+export type FlowControl = "run" | "pause" | "resume" | "stop"
+const controlSchema = automationIdSchema.extend({
+  action: z.enum(["run", "pause", "resume", "stop"]),
+})
 const favoritesSchema = z.object({
   favoriteNodeKeys: z.array(z.string().min(1).max(64)).max(50),
 })
@@ -138,7 +152,8 @@ const automationErrorMessages: Record<string, string> = {
   SEGMENT_NOT_FOUND:
     "That segment no longer exists. Choose another one before turning the flow on.",
   FLOW_CHANGED:
-    "This flow changed while its live switch was being saved. Check it, then try again.",
+    "This flow changed while it was being started or stopped. Check it, then try again.",
+  NOT_LIVE: "This flow is not running any more. Reload the page to see where it stands.",
   NAME_REQUIRED: "Name the automation first.",
   NAME_TAKEN: "An automation with that name already exists.",
   COPY_LIMIT: "Could not find a free name for the copy.",
@@ -171,6 +186,7 @@ const loadAutomationsPageFn = createServerFn({ method: "GET" })
         nodeCount: row.nodeCount,
         enabled: row.enabled,
         paused_reason: row.pausedReason,
+        paused_at: row.pausedAt?.toISOString() ?? null,
         trigger_name: row.triggerName,
         can_run_manually: row.canRunManually,
         next_run_at: row.nextRunAt?.toISOString() ?? null,
@@ -263,20 +279,31 @@ const duplicateAutomationFn = createServerFn({ method: "POST" })
   })
 
 /**
- * Switches a flow's trigger on or off. Nothing about the Run button, which
- * works either way — that is a person asking for it.
+ * The Run button group: Run switches a flow's trigger on, Pause holds
+ * everyone in it, Resume lets them carry on, and Stop switches it off and
+ * ends every run of it and of the sequences it started
+ * (`server/automations/flow-control.ts`). Nothing about "Run once", which
+ * works either way: that is a person asking for one run.
+ *
+ * Resume walks a pass straight away, as resuming every automation does, so
+ * the held people move while the person who pressed it is watching. Who
+ * paused is `context.user.id`, never anything the browser sent.
  */
-const setAutomationEnabledFn = createServerFn({ method: "POST" })
+const controlAutomationFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
-  .inputValidator(enabledSchema)
+  .inputValidator(controlSchema)
   .handler(async ({ data, context }): Promise<AutomationDetail> => {
-    return serializeDetail(
-      await setAutomationEnabled(
-        await workspaceIdForRequest(context.user.id),
-        data.automationId,
-        data.enabled
-      )
-    )
+    const workspaceId = await workspaceIdForRequest(context.user.id)
+    const id = data.automationId
+    if (data.action === "run") return serializeDetail(await setAutomationEnabled(workspaceId, id, true))
+    if (data.action === "pause") return serializeDetail(await pauseAutomation(workspaceId, id, context.user.id))
+    if (data.action === "stop") return serializeDetail(await stopAutomation(workspaceId, id))
+    const resumed = await resumeAutomation(workspaceId, id)
+    // Already saved, so a failure in the walk is the ticker's to pick up.
+    await runAutomationTick().catch((error) => {
+      console.error("Automation tick after resuming a flow failed", error)
+    })
+    return serializeDetail(resumed)
   })
 
 const deleteAutomationsFn = createServerFn({ method: "POST" })
@@ -346,8 +373,8 @@ export function duplicateAutomation(automationId: string) {
   return duplicateAutomationFn({ data: { automationId } })
 }
 
-export function setAutomationLive(automationId: string, enabled: boolean) {
-  return setAutomationEnabledFn({ data: { automationId, enabled } })
+export function controlAutomation(automationId: string, action: FlowControl) {
+  return controlAutomationFn({ data: { automationId, action } })
 }
 
 export function deleteAutomations(automationIds: string[]) {
@@ -374,6 +401,7 @@ async function serializeDetail(
     errors: inspected.errors,
     enabled: row.enabled,
     paused_reason: row.pausedReason,
+    paused_at: row.pausedAt?.toISOString() ?? null,
     trigger_name: automationTriggerName(inspected),
     can_run_manually: inspected.compiledConfig
       ? automationCanStartManually(inspected.compiledConfig)

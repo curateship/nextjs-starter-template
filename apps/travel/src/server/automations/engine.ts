@@ -15,6 +15,7 @@ import { runTimeActivateTriggers } from "@/server/automations/time-triggers"
 import { runJoinedSegmentTriggers } from "@/server/automations/segment-triggers"
 import { runSegmentDripTriggers } from "@/server/automations/segment-drip"
 import { readAutomationsPaused } from "@/server/automations/pause"
+import { heldByPausedFlow, pausedOrStopped } from "@/server/automations/flow-control"
 import { automationSubjectLabel } from "@/server/automations/triggers"
 import {
   automationExecutorFor,
@@ -143,6 +144,9 @@ export async function runAutomationTick(database: CustomShellDb = db) {
           claimed_at IS NULL
           OR claimed_at < now() - interval '${sql.raw(String(CLAIM_TIMEOUT_MINUTES))} minutes'
         )
+        -- A paused flow's people, and those on a sequence it started, stand
+        -- still until Resume (see flow-control.ts).
+        AND NOT ${heldByPausedFlow}
       ORDER BY wake_at ASC
       LIMIT ${CLAIM_BATCH_SIZE}
       FOR UPDATE SKIP LOCKED
@@ -411,6 +415,23 @@ async function processRun(
   let attempts = run.attempts
 
   for (let step = 0; step < NODE_BUDGET_PER_TICK; step += 1) {
+    // Pause and Stop on this one flow, asked before every step for the same
+    // reason as the kill switch below: a Pause that lands mid-walk holds the
+    // run at the next step, not at the end of the pass.
+    const control = await pausedOrStopped(run, database)
+    if (control === "held") {
+      await release({ status: "active", attempts, wakeAt: now() })
+      return
+    }
+    if (control === "stopped") {
+      await release({
+        status: "canceled",
+        error: "Stopped by hand, with everyone else in the flow that started it.",
+        finishedAt: now(),
+      })
+      return
+    }
+
     const node = config.nodes[currentNodeId]
     if (!node) {
       await release({
@@ -762,7 +783,9 @@ export async function sweepExpiredApprovals(database: CustomShellDb = db) {
       and(
         eq(customShellAutomationRuns.status, "waiting_approval"),
         isNotNull(customShellAutomationRuns.approvalDeadlineAt),
-        lte(customShellAutomationRuns.approvalDeadlineAt, now())
+        lte(customShellAutomationRuns.approvalDeadlineAt, now()),
+        // A paused flow's deadlines stand still; Resume moves them on.
+        sql`not ${heldByPausedFlow}`
       )
     )
 
@@ -888,6 +911,9 @@ async function startAutomationRunRecord(
     )
     .limit(1)
   if (!automation) throw new Error("NOT_FOUND")
+  // The same reason for this one flow's Pause: a run started now would sit at
+  // its first step until Resume. A test is never held, so it may start.
+  if (!test && automation.pausedAt) throw new Error("FLOW_PAUSED")
 
   const inspected = inspectAutomation(automation)
   if (!inspected.compiledConfig || inspected.errors.length > 0) {

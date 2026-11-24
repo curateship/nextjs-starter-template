@@ -11,6 +11,7 @@ import {
   ListOrderedIcon,
   MailIcon,
   MailXIcon,
+  PauseIcon,
   WorkflowIcon,
 } from "lucide-react"
 
@@ -52,7 +53,12 @@ function when(iso: string) {
   return new Date(iso).getTime() - Date.now() < 12 * 3_600_000 ? formatClockTime(iso) : formatDateTime(iso)
 }
 
-type StatusTone = "amber" | "sky" | "red" | "muted"
+/** A moment gone: the time alone within the last 12 hours, the date and time before that. */
+function pausedWhen(iso: string) {
+  return Date.now() - new Date(iso).getTime() < 12 * 3_600_000 ? formatClockTime(iso) : formatDateTime(iso)
+}
+
+type StatusTone = "amber" | "sky" | "red" | "muted" | "paused"
 
 /** The status box's colours and mark, per tone, light and dark. */
 const STATUS_LOOK: Record<StatusTone, { box: string; icon: React.ReactNode }> = {
@@ -60,6 +66,7 @@ const STATUS_LOOK: Record<StatusTone, { box: string; icon: React.ReactNode }> = 
   sky: { box: "bg-sky-50 text-sky-900 dark:bg-sky-950/60 dark:text-sky-200", icon: <ActivityIcon /> },
   red: { box: "bg-red-50 text-red-900 dark:bg-red-950/60 dark:text-red-200", icon: <CircleAlertIcon /> },
   muted: { box: "bg-muted/60 text-muted-foreground", icon: <ClockIcon /> },
+  paused: { box: "bg-muted/60 text-foreground", icon: <PauseIcon /> },
 }
 
 /**
@@ -70,6 +77,14 @@ const STATUS_LOOK: Record<StatusTone, { box: string; icon: React.ReactNode }> = 
  */
 function liveFlowStatus(report: LiveFlowReport): { lead: string; rest: string; tone: StatusTone } {
   if (!report.enabled) return { lead: report.pausedReason ?? "Off", rest: "", tone: report.pausedReason ? "red" : "muted" }
+  if (report.paused) {
+    const by = report.paused.by ? ` by ${report.paused.by}` : ""
+    return {
+      lead: "Paused",
+      rest: `. ${report.inFlow > 0 ? `${people(report.inFlow)} held where they are` : "Nobody in it yet"}. Paused${by}, ${pausedWhen(report.paused.at)}.`,
+      tone: "paused",
+    }
+  }
   const drip = report.steps.find((step) => step.drip && step.held > 0)
   if (drip?.drip) {
     const next = drip.drip.outsideHoursUntil
@@ -568,13 +583,17 @@ function DripSection({ label, aside, children }: { label?: string; aside?: React
   )
 }
 
-/** "Paused" in the Drip card's heading while its sending hours are shut and people wait. */
+/**
+ * "Outside hours" in the Drip card's heading while its sending hours are shut
+ * and people wait. Never "Paused", which is what the flow says when somebody
+ * pressed Pause.
+ */
 function DripBadge({ step }: { step: LiveFlowStep }) {
   if (!step.drip?.outsideHoursUntil || step.held === 0) return null
   return (
     <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
       <span aria-hidden className="size-1.5 rounded-full bg-amber-500" />
-      Paused
+      Outside hours
     </span>
   )
 }

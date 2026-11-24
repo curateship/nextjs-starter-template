@@ -1029,6 +1029,16 @@ export const customShellAutomations = pgTable(
     liveSince: timestamp("live_since", { withTimezone: true }),
     /** When admins were told this flow stopped moving; cleared once nobody is late. */
     stallAlertedAt: timestamp("stall_alerted_at", { withTimezone: true }),
+    /**
+     * Set while a live flow is paused: nobody in it, or in a sequence it
+     * started, takes another step until Resume. Cleared by Resume, Stop and Run.
+     */
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    /** Who pressed Pause. */
+    pausedBy: varchar("paused_by", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
     /** The next scheduled occurrence, null while off or without a Time trigger. */
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -1051,6 +1061,9 @@ export const customShellAutomations = pgTable(
     index("ix_automations_enabled")
       .on(table.enabled)
       .where(sql`${table.enabled}`),
+    index("ix_automations_paused")
+      .on(table.pausedAt)
+      .where(sql`${table.pausedAt} is not null`),
     check("automations_kind_check", sql`${table.kind} in ('flow', 'sequence')`),
   ]
 )

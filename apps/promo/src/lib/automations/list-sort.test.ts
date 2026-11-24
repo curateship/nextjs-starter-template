@@ -16,6 +16,7 @@ function item(
     nodeCount,
     enabled: false,
     paused_reason: null,
+    paused_at: null,
     trigger_name: null,
     can_run_manually: false,
     next_run_at: null,

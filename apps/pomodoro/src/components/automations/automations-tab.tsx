@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { TableCell } from "@/components/ui/table"
 import { getAutomationRunErrorMessage, runAutomationNow } from "@/lib/api/automations/automation-runs"
-import { loadPeopleInLiveFlows } from "@/lib/api/automations/live-flow"
+import { loadPeopleInLiveFlows, type LiveFlowPeople } from "@/lib/api/automations/live-flow"
 import {
   saveAutomationTemplateGraph,
   type AutomationTemplateDetail,
@@ -36,7 +36,8 @@ import {
   duplicateAutomation,
   getAutomationErrorMessage,
   renameAutomation,
-  setAutomationLive,
+  controlAutomation,
+  type FlowControl,
   toAutomationListItem,
   type AutomationDetail,
   type AutomationListItem,
@@ -143,10 +144,7 @@ export function AutomationsTab({
     setAutomations(page.automations)
   }
 
-  const people = useLivePeople(
-    automations.filter((automation) => automation.enabled).map((automation) => automation.id),
-    () => void router.invalidate()
-  )
+  const people = useLivePeople(automations, () => void router.invalidate())
 
   const q = search.q ?? ""
   const sort: AutomationSort = search.sort ?? "updated"
@@ -203,7 +201,8 @@ export function AutomationsTab({
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [runningId, setRunningId] = React.useState<string | null>(null)
   const [testTarget, setTestTarget] = React.useState<AutomationListItem | null>(null)
-  const [liveId, setLiveId] = React.useState<string | null>(null)
+  // The row whose Run, Pause, Resume or Stop is saving, and which it is.
+  const [liveChange, setLiveChange] = React.useState<{ id: string; action: FlowControl } | null>(null)
   const [deleteTargets, setDeleteTargets] = React.useState<AutomationListItem[] | null>(null)
   const [runDelete, deleting] = useAsyncAction(getAutomationErrorMessage)
   const closingDeleteTargets = useLastValue(deleteTargets)
@@ -273,21 +272,20 @@ export function AutomationsTab({
     }
   }
 
-  /**
-   * Switches one flow's trigger on or off. Nothing is caught up on the way
-   * back on.
-   */
-  const handleToggleLive = async (automation: AutomationListItem, next: boolean) => {
-    if (liveId) return
-    setLiveId(automation.id)
+  /** One row's Run, Pause, Resume or Stop. Nothing is caught up on the way back on. */
+  const handleFlowControl = async (automation: AutomationListItem, action: FlowControl): Promise<boolean> => {
+    if (liveChange) return false
+    setLiveChange({ id: automation.id, action })
     try {
-      const saved = await setAutomationLive(automation.id, next)
+      const saved = await controlAutomation(automation.id, action)
       dismissErrorToast()
       setAutomations((current) => current.map((item) => (item.id === saved.id ? toAutomationListItem(saved) : item)))
+      return true
     } catch (error) {
       showErrorToast(getAutomationErrorMessage(error))
+      return false
     } finally {
-      setLiveId(null)
+      setLiveChange(null)
     }
   }
 
@@ -586,8 +584,10 @@ export function AutomationsTab({
               <span className="flex min-w-0 items-center gap-2">
                 <OpenBar />
                 <Dot
-                  className={automation.enabled ? "bg-emerald-500" : "bg-muted-foreground/40"}
-                  label={automation.enabled ? "Live" : "Off"}
+                  className={
+                    !automation.enabled ? "bg-muted-foreground/40" : automation.paused_at ? "bg-amber-500" : "bg-emerald-500"
+                  }
+                  label={!automation.enabled ? "Off" : automation.paused_at ? "Paused" : "Live"}
                 />
                 <span data-row-name="" className="truncate font-medium">
                   {automation.name}
@@ -600,10 +600,10 @@ export function AutomationsTab({
             <TableCell column="meta">
               <LiveCell
                 automation={automation}
-                people={people?.[automation.id] ?? null}
-                busy={liveId === automation.id}
-                disabled={liveId !== null}
-                onChange={(next) => void handleToggleLive(automation, next)}
+                people={people?.[automation.id]?.people ?? null}
+                busy={liveChange?.id === automation.id ? liveChange.action : null}
+                disabled={liveChange !== null}
+                onAction={(action) => handleFlowControl(automation, action)}
               />
             </TableCell>
             <TableCell column="preview" className="hidden md:hidden @xl:table-cell">
@@ -644,17 +644,19 @@ export function AutomationsTab({
 /**
  * How many people are in each live flow, read when the list opens and every
  * five seconds while the page is in view and something is live, so each Run
- * button's "Running 122 contacts" keeps up. One read covers every row. A flow
- * the list shows as on that the read leaves out has switched itself off (the
- * bounce limit, a deleted segment), so the list is read again with its reason.
+ * button's "Running 122 contacts" keeps up. One read covers every row. When
+ * the read disagrees with a row, the list is read again: a flow left out has
+ * switched itself off (the bounce limit, a deleted segment) and comes back
+ * with its reason, and a flow paused or resumed from its canvas in another
+ * tab comes back with its new state.
  */
-function useLivePeople(liveIds: string[], onSwitchedOff: () => void) {
-  const [people, setPeople] = React.useState<Record<string, number> | null>(null)
-  const latest = React.useRef({ liveIds, onSwitchedOff })
+function useLivePeople(automations: AutomationListItem[], onChanged: () => void) {
+  const [people, setPeople] = React.useState<Record<string, LiveFlowPeople> | null>(null)
+  const latest = React.useRef({ automations, onChanged })
   React.useEffect(() => {
-    latest.current = { liveIds, onSwitchedOff }
+    latest.current = { automations, onChanged }
   })
-  const anyLive = liveIds.length > 0
+  const anyLive = automations.some((automation) => automation.enabled)
   React.useEffect(() => {
     if (!anyLive) return
     let current = true
@@ -666,7 +668,11 @@ function useLivePeople(liveIds: string[], onSwitchedOff: () => void) {
         .then((next) => {
           if (!current) return
           setPeople(next)
-          if (latest.current.liveIds.some((id) => !(id in next))) latest.current.onSwitchedOff()
+          const changed = latest.current.automations.some(
+            (automation) =>
+              automation.enabled && (!next[automation.id] || next[automation.id]!.paused !== (automation.paused_at !== null))
+          )
+          if (changed) latest.current.onChanged()
         })
         .catch(() => {})
         .finally(() => {
@@ -698,13 +704,13 @@ function LiveCell({
   people,
   busy,
   disabled,
-  onChange,
+  onAction,
 }: {
   automation: AutomationListItem
   people: number | null
-  busy: boolean
+  busy: FlowControl | null
   disabled: boolean
-  onChange: (next: boolean) => void
+  onAction: (action: FlowControl) => Promise<boolean>
 }) {
   if (!automation.trigger_name) {
     return <span className="whitespace-nowrap text-xs text-muted-foreground">Runs by hand</span>
@@ -714,7 +720,7 @@ function LiveCell({
     // A press on the button is the button's, not the row's, which would open the canvas.
     <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
       <FlowRunButton
-        live={automation.enabled}
+        state={!automation.enabled ? "off" : automation.paused_at ? "paused" : "running"}
         stalled={stalled}
         people={people}
         busy={busy}
@@ -726,7 +732,7 @@ function LiveCell({
         }
         flowName={automation.name}
         size="sm"
-        onChange={onChange}
+        onAction={onAction}
       />
       {stalled ? <span className="truncate text-xs text-destructive">On, but not running</span> : null}
       {!automation.enabled && automation.paused_reason ? (

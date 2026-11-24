@@ -99,6 +99,23 @@ export async function runTimeActivateTriggers(
       if (!claimed || !config || !entryNodeId || !schedule || missed) {
         return false
       }
+      // A paused flow holds its scheduled run at the start. A daily flow
+      // paused for a week keeps one, not seven, so Resume sends it once.
+      if (automation.pausedAt) {
+        const [held] = await tx
+          .select({ id: customShellAutomationRuns.id })
+          .from(customShellAutomationRuns)
+          .where(
+            and(
+              eq(customShellAutomationRuns.automationId, automation.id),
+              eq(customShellAutomationRuns.triggerKind, timeActivateNode.kind),
+              eq(customShellAutomationRuns.status, "active"),
+              eq(customShellAutomationRuns.testRun, false)
+            )
+          )
+          .limit(1)
+        if (held) return false
+      }
 
       const [run] = await tx
         .insert(customShellAutomationRuns)

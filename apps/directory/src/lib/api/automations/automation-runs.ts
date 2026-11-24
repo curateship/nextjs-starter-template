@@ -148,6 +148,8 @@ const runErrorMessages: Record<string, string> = {
     "That run was already decided — somebody else got there first, or the deadline passed.",
   AUTOMATIONS_PAUSED:
     "Every automation is paused right now, so nothing new can be started. Resume them first.",
+  FLOW_PAUSED:
+    "This flow is paused, so a run started now would wait at its first step. Resume it first.",
   CONTACT_NOT_FOUND:
     "That contact can no longer be emailed. Choose another contact and try again.",
 }

@@ -56,6 +56,8 @@ export type AutomationListRow = {
   nodeCount: number
   enabled: boolean
   pausedReason: string | null
+  /** Set while the live flow is paused (`flow-control.ts`). */
+  pausedAt: Date | null
   /** What the flow reacts to, in the palette's own words. Null when nothing. */
   triggerName: string | null
   canRunManually: boolean
@@ -166,6 +168,7 @@ export async function listWorkspaceAutomations(
       nodeCount: inspected.graph.nodes.length,
       enabled: row.enabled,
       pausedReason: row.pausedReason,
+      pausedAt: row.pausedAt,
       triggerName: automationTriggerName(inspected),
       canRunManually: inspected.compiledConfig
         ? automationCanStartManually(inspected.compiledConfig)
@@ -243,7 +246,8 @@ export async function setAutomationEnabled(
         pausedReason: transitioning || enabled ? null : current.pausedReason,
         // The Segment card counts who is new since this moment.
         ...(enabled && transitioning ? { liveSince: timestamp } : {}),
-        ...(transitioning ? { stallAlertedAt: null } : {}),
+        // Run and Stop both end a pause.
+        ...(transitioning ? { stallAlertedAt: null, pausedAt: null, pausedBy: null } : {}),
         nextRunAt,
         updatedAt: timestamp,
       })

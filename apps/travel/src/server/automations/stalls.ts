@@ -58,6 +58,8 @@ export async function alertStalledFlows(
     .where(
       and(
         eq(customShellAutomations.enabled, true),
+        // A paused flow's people are meant to stand still.
+        isNull(customShellAutomations.pausedAt),
         eq(customShellAutomations.kind, "flow"),
         eq(customShellAutomationRuns.status, "active"),
         eq(customShellAutomationRuns.testRun, false),

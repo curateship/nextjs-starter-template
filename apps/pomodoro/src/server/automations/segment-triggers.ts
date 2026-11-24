@@ -263,7 +263,7 @@ async function scanFlow(
         .update(customShellAutomations)
         .set({
           enabled: false,
-          pausedReason: `Paused because more than ${SEGMENT_ARRIVAL_LIMIT} people joined at once.`,
+          pausedReason: `Stopped on its own: more than ${SEGMENT_ARRIVAL_LIMIT} people joined the segment at once.`,
           updatedAt: timestamp,
         })
         .where(eq(customShellAutomations.id, flow.id))

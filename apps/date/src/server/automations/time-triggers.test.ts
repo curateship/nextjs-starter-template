@@ -160,6 +160,30 @@ describe("Time trigger scheduling", () => {
     ).toMatch(/T09:00$/)
   })
 
+  it("holds one scheduled run while the flow is paused, not one per missed day", async () => {
+    const flow = await insertScheduledFlow({
+      schedule: { frequency: "daily", time: "09:00", timezone: "UTC" },
+      nextRunAt: new Date("2026-08-10T09:00:00.000Z"),
+    })
+    await database
+      .update(customShellAutomations)
+      .set({ pausedAt: new Date("2026-08-10T08:00:00.000Z") })
+      .where(eq(customShellAutomations.id, flow.id))
+
+    // Three mornings pass while paused.
+    for (const day of ["10", "11", "12"]) {
+      await runTimeActivateTriggers(database, new Date(`2026-08-${day}T09:00:10.000Z`))
+    }
+
+    const runs = await database
+      .select()
+      .from(customShellAutomationRuns)
+      .where(eq(customShellAutomationRuns.automationId, flow.id))
+    expect(runs).toHaveLength(1)
+    const [saved] = await database.select().from(customShellAutomations).where(eq(customShellAutomations.id, flow.id))
+    expect(saved.nextRunAt?.toISOString()).toBe("2026-08-13T09:00:00.000Z")
+  })
+
   it("starts a due flow and advances it past the current tick", async () => {
     const due = new Date("2026-08-10T09:00:00.000Z")
     const tick = new Date("2026-08-10T09:00:10.000Z")
