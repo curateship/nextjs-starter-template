@@ -80,6 +80,8 @@ export type SequenceEmailStats = {
   bounced: number
   complained: number
   unsubscribed: number
+  /** People whose next email this is: about to be sent it, or waiting out the gap before it. */
+  waiting: number
 }
 
 export type SequenceStats = {
@@ -90,7 +92,7 @@ export type SequenceStats = {
   byEmail: Record<string, SequenceEmailStats>
 }
 
-const EMPTY: SequenceEmailStats = { sent: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, unsubscribed: 0 }
+const EMPTY: SequenceEmailStats = { sent: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, unsubscribed: 0, waiting: 0 }
 
 /** The sequence's numbers: people, finished, and each email's outcomes. Test runs never count. */
 export async function sequenceStats(
@@ -121,11 +123,24 @@ export async function sequenceStats(
     .where(realRunsOf(sequenceId))
     .groupBy(deliveries.nodeId)
 
+  // Each person still going is on one step: an email about to go, or the wait
+  // before an email (`wait-<id>` comes before `email-<id>`).
+  const going = await database
+    .select({ nodeId: runs.currentNodeId, people: sql<number>`count(*)::int` })
+    .from(runs)
+    .where(and(realRunsOf(sequenceId), eq(runs.status, "active")))
+    .groupBy(runs.currentNodeId)
+
   const byEmail: Record<string, SequenceEmailStats> = {}
   const totals = { ...EMPTY }
   for (const { nodeId, ...counts } of rows) {
-    byEmail[nodeId] = counts
-    for (const key of Object.keys(totals) as (keyof SequenceEmailStats)[]) totals[key] += counts[key]
+    byEmail[nodeId] = { ...counts, waiting: 0 }
+    for (const key of Object.keys(counts) as (keyof typeof counts)[]) totals[key] += counts[key]
+  }
+  for (const row of going) {
+    const emailNodeId = row.nodeId.replace(/^wait-/, "email-")
+    byEmail[emailNodeId] = { ...(byEmail[emailNodeId] ?? EMPTY), waiting: (byEmail[emailNodeId]?.waiting ?? 0) + row.people }
+    totals.waiting += row.people
   }
   return { people: people?.people ?? 0, finished: people?.finished ?? 0, totals, byEmail }
 }

@@ -148,14 +148,21 @@ describe("sequenceStats", () => {
       .update(customShellAutomationRuns)
       .set({ status: "completed" })
       .where(eq(customShellAutomationRuns.id, ann.run.id))
+    // Bo has had Email 1 and waits out the gap before Email 2; Cy has had nothing yet.
+    await database
+      .update(customShellAutomationRuns)
+      .set({ currentNodeId: "wait-two" })
+      .where(eq(customShellAutomationRuns.id, bo.run.id))
+    await enrol(sequence.id, "cy")
 
     const stats = await sequenceStats(workspaceId, sequence.id, database)
 
-    expect(stats.people).toBe(2)
+    expect(stats.people).toBe(3)
     expect(stats.finished).toBe(1)
-    expect(stats.byEmail["email-one"]).toEqual({ sent: 2, opened: 1, clicked: 1, bounced: 1, complained: 0, unsubscribed: 0 })
-    expect(stats.byEmail["email-two"]).toEqual({ sent: 1, opened: 0, clicked: 0, bounced: 0, complained: 0, unsubscribed: 1 })
-    expect(stats.totals).toEqual({ sent: 3, opened: 1, clicked: 1, bounced: 1, complained: 0, unsubscribed: 1 })
+    expect(stats.byEmail["email-one"]).toEqual({ sent: 2, opened: 1, clicked: 1, bounced: 1, complained: 0, unsubscribed: 0, waiting: 1 })
+    expect(stats.byEmail["email-two"]).toEqual({ sent: 1, opened: 0, clicked: 0, bounced: 0, complained: 0, unsubscribed: 1, waiting: 1 })
+    expect(stats.byEmail["email-three"]).toBeUndefined()
+    expect(stats.totals).toEqual({ sent: 3, opened: 1, clicked: 1, bounced: 1, complained: 0, unsubscribed: 1, waiting: 2 })
   })
 
   it("refuses another site's sequence", async () => {

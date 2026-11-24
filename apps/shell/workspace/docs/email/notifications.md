@@ -6,7 +6,8 @@ Notifications are private, in-app messages for one user. They cover:
 - Announcements.
 - AI allowance warnings.
 - Account updates and system email failures.
-- Automation approvals and failures.
+- Automation approvals and failures, and a live flow that stopped moving
+  ([A running flow](../automations/live-flow.md)).
 - Activity an app records about the reader's own doing.
 
 The last kind, `app_activity`, is how an app built on the shell puts a sentence

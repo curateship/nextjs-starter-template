@@ -30,6 +30,7 @@ local setup docs.
 
 - [Automations](automations/overview.md)
 - [The Automations dashboard](automations/dashboard.md): Automations, Runs and Waiting on you in the Admin 3 panel design
+- [A running flow](automations/live-flow.md): the Run button, a card for every step on the right panel, and the bell when a flow stops moving
 - [Automation run refresh](automations/run-refresh.md)
 - [App-owned automation run results](automations/app-owned-run-results.md)
 

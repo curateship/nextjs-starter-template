@@ -8,7 +8,8 @@ there an admin can:
 - Create a flow from a blank canvas or template.
 - Search, duplicate, rename, and delete flows.
 - Test a flow against one contact.
-- Turn a flow live or take it offline.
+- Turn a flow on with its Run button, see what it is doing, and stop it
+  ([A running flow](live-flow.md)).
 
 A flow's canvas saves 700 milliseconds after the last change. The editor
 compiles and validates the graph before a run can start. It saves with
@@ -215,12 +216,16 @@ next step with the next batch.
   pace, and for a while the two share batches. A place, once given, keeps its
   time.
 - **The bounce limit switches the flow off.** Once a batch, when its first
-  person goes on, it counts the people this flow has emailed whose address has
-  since bounced. The rest of the batch reuse that answer, held in the server's
-  memory, so twenty thousand people do not each read every email sent. At 20 or
-  more emailed and over the limit, the flow goes off with the reason on it.
-  Automation emails carry no bounce stamp of their own, so the contact's
-  Bouncing status is the record.
+  person goes on, it counts the people this flow has emailed whose email has
+  since bounced. The emails its Send sequence steps caused count too: they go
+  out on the sequence's own runs, and before 23 Nov 2026 the limit missed them,
+  so a Segment, Drip, Send sequence flow could never stop itself. A bounce is
+  the email's own stamp from Resend's report, or the contact marked Bouncing
+  by any other send. The rest of the batch reuse that answer, held in the
+  server's memory, so twenty thousand people do not each read every email
+  sent. At 20 or more emailed and over the limit, the flow goes off with the
+  reason on it. The Drip card shows the count against the limit
+  ([A running flow](live-flow.md)).
 - **Switching the flow off stops everyone still waiting** when their batch's
   time comes, as it does at a Wait.
 - **Nothing new is stored.** A person's place is the `releaseAt` on the line

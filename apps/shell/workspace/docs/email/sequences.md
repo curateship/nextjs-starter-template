@@ -35,6 +35,14 @@ shell's own pieces, as the newsletter panel is (Tyler, 16 Nov 2026:
   "No subject yet") and when it goes ("Right away", "3 days later"). The
   card's + adds an email at the end. It shows when the card is pointed at, as
   every panel card's buttons do.
+- **Under each email, a grey line of what became of it:** "120 sent · 48%
+  opened · 12% clicked · 400 waiting", only the numbers that are not zero.
+  Waiting is the people whose next email this is, about to be sent it or
+  waiting out the gap before it, so each person is counted once (Tyler,
+  23 Nov 2026: "how many are waiting"). Before anything has gone it reads "Not
+  sent yet". It counts every flow that uses the sequence; a live flow's own
+  Send sequence card counts only its own people
+  ([A running flow](../automations/live-flow.md)).
 - **A row's ⋯** has Change the wait, Add an email after, Move up, Move down
   and Delete. The first email has no wait to change, because it goes the
   moment the person reaches the automation's step. A move or a delete keeps

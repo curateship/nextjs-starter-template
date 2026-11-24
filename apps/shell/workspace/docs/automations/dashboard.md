@@ -33,17 +33,20 @@ and the canvas cannot save one. A flow sends one with its Send sequence step
 - **A live flow's right panel is its Statistics,** whatever step is picked
   (Tyler, 23 Nov 2026: "If live is on the right panel should show runs total
   stats with a stats card", then "it doesnt change right away. I can still
-  edit unless I refresh"). Turning Live on swaps an open step's settings for
-  the card at once, and turning it off brings the step back. The card is
-  drawn like a sequence's Statistics card: Runs in total, Completed out of that total, then a bar each for
-  Running, Waiting (stopped at an approval step), Failed and Stopped
-  (rejected, timed out or canceled). Test runs are not counted. Pressing a
-  step on the canvas of a live flow leaves the card where it is; a step
+  edit unless I refresh"). Pressing Run swaps an open step's settings for
+  the panel at once, and stopping the flow brings the step back. Under the
+  Statistics card is a card for every step; the Send sequence card has
+  Emails, Activity and Dropped out tabs. All of it is read again every five
+  seconds ([A running flow](live-flow.md)).
+  Test runs are not counted. Pressing a step on the canvas of a live flow
+  leaves the panel where it is and scrolls to that step's card; a step
   pressed in the step list, to add it, still shows its card with Add node.
-  The numbers are read when the panel opens and again after Run
-  (`automation-run-stats.tsx`, counted by `automationRunStats` in
-  `src/server/automations/runs.ts`). On a phone, opening a live flow stays on
-  the canvas; the Statistics are one pill away.
+  On a phone, opening a live flow stays on the canvas; the Statistics are one
+  pill away.
+- **The Live switch is a Run button** (Tyler, 23 Nov 2026: "Change the
+  \"live\" switch to a button called \"Run\""), in an open flow's header and
+  in every row of the flows table. Running, it has a moving rainbow edge and
+  says how many people are in the flow ([A running flow](live-flow.md)).
 - **The step list is its own panel again** (Tyler, 9 Nov 2026: "dont put the
   add steps button in the bottom, return the left panel as it was before",
   then "where is the other left panel?"). The + Add step button by the zoom
@@ -125,7 +128,7 @@ and the canvas cannot save one. A flow sends one with its Send sequence step
 - **The table:** the CRM's table shape, two panels. A press on a line opens
   its canvas at once. Names are grey, dark when pointed at or picked, with
   the sliding bar before the picked one and a dot: green when live, grey when
-  off. Columns: Name, Live (its switch, or "Runs by hand"), Steps, Next run,
+  off. Columns: Name, Live (its Run button, or "Runs by hand"), Steps, Next run,
   Updated. Every column sorts. On a narrow middle the name gives way and the
   columns after Live drop out.
 - **The header:** Search, Select (Mass select), the "Delete (N)" button
@@ -153,8 +156,10 @@ and the canvas cannot save one. A flow sends one with its Send sequence step
   comes back. Each card is the step's icon, its name, and one line of its
   description.
 - **The header:** no back arrow and no title. The Canvas and Runs tabs first
-  (Runs with its count), then on the right the live switch, the app's own status
-  (`canvasHeaderStatus`), Test, Run, and the ⋮ with Rename, Duplicate, and
+  (Runs with its count), then on the right the Run button that switches the
+  flow on and off, the app's own status (`canvasHeaderStatus`), Test, the
+  button that runs the flow once (Run, or "Run once" beside a Time start's
+  Run button), and the ⋮ with Rename, Duplicate, and
   Delete under a line. Automations in the Dashboards block, or the browser's
   Back, returns to the table with the same line picked.
 - **Canvas:** the steps, saved 700ms after the last change, and again on

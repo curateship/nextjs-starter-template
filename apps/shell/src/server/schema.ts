@@ -460,7 +460,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed', 'app_activity', 'crm_follow_up', 'crm_mail_arrived')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'automation_stalled', 'account_update', 'system_email_failed', 'app_activity', 'crm_follow_up', 'crm_mail_arrived')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -1025,6 +1025,10 @@ export const customShellAutomations = pgTable(
     enabled: boolean("enabled").notNull().default(false),
     /** Why a safety check switched this flow off; cleared by the next manual toggle. */
     pausedReason: text("paused_reason"),
+    /** When Run was last pressed. The Segment card counts who is new since. */
+    liveSince: timestamp("live_since", { withTimezone: true }),
+    /** When admins were told this flow stopped moving; cleared once nobody is late. */
+    stallAlertedAt: timestamp("stall_alerted_at", { withTimezone: true }),
     /** The next scheduled occurrence, null while off or without a Time trigger. */
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -1251,6 +1255,7 @@ export const customShellAutomationRuns = pgTable(
       table.startedAt
     ),
     index("ix_automation_runs_automation").on(table.automationId),
+    index("ix_automation_runs_automation_node").on(table.automationId, table.currentNodeId),
   ]
 )
 

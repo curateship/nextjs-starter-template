@@ -13,6 +13,7 @@ import type {
   AutomationExecutor,
   AutomationExecutorResult,
 } from "@/server/automations/executors"
+import { flowSequenceIds, realRunsOfFlowAndItsSequences } from "@/server/automations/flow-runs"
 import { flowSwitchedOff } from "@/server/automations/wait"
 import {
   customShellAutomationDeliveries,
@@ -42,7 +43,7 @@ import {
  * Below this many sent emails a bounce rate says nothing: three bounces out
  * of four is a small list, not a bad one. The same floor newsletters use.
  */
-const BOUNCE_SAMPLE_MINIMUM = 20
+export const DRIP_BOUNCE_SAMPLE_MINIMUM = 20
 
 /** A repeatable number in [0, 1) from a string (FNV-1a). */
 function seededRandom(seed: string): () => number {
@@ -85,10 +86,10 @@ async function placeOf(runId: string, nodeId: string, database: CustomShellDb) {
   return row?.releaseAt ?? null
 }
 
-/** The newest batch this step has handed places in, and how many it holds. */
-async function lastBatch(automationId: string, nodeId: string, database: CustomShellDb) {
+/** The newest batches this step has handed places in, newest first, and how many each holds. */
+export async function dripBatches(automationId: string, nodeId: string, database: CustomShellDb, limit: number) {
   const releaseAt = sql<string>`${customShellAutomationRunSteps.output}->>'releaseAt'`
-  const [row] = await database
+  return database
     .select({ releaseAt, places: sql<number>`count(*)::int` })
     .from(customShellAutomationRunSteps)
     .innerJoin(customShellAutomationRuns, eq(customShellAutomationRuns.id, customShellAutomationRunSteps.runId))
@@ -102,28 +103,34 @@ async function lastBatch(automationId: string, nodeId: string, database: CustomS
     )
     .groupBy(releaseAt)
     .orderBy(sql`${releaseAt} desc`)
-    .limit(1)
-  return row ? { releaseAt: row.releaseAt, places: row.places } : null
+    .limit(limit)
+}
+
+/** The newest batch this step has handed places in, and how many it holds. */
+async function lastBatch(automationId: string, nodeId: string, database: CustomShellDb) {
+  const [row] = await dripBatches(automationId, nodeId, database, 1)
+  return row ?? null
 }
 
 /**
- * How many of this flow's sent emails went to somebody whose address has since
- * bounced. Automation mail has no bounce stamp of its own; Resend's bounce
- * report marks the contact, so the contact's status is the record of it.
+ * How many people this flow has emailed, and how many of them bounced. The
+ * emails its Send sequence steps caused count too, since they went out on the
+ * sequence's own runs (`realRunsOfFlowAndItsSequences`). A bounce is the
+ * email's own stamp from Resend's report, or the contact marked bounced by
+ * any other send.
  */
-async function bounceCounts(automationId: string, database: CustomShellDb) {
+export async function dripBounceCounts(automationId: string, sequenceIds: string[], database: CustomShellDb) {
   const [row] = await database
     .select({
       sent: sql<number>`count(distinct ${customShellAutomationDeliveries.contactId})::int`,
-      bounced: sql<number>`count(distinct ${customShellAutomationDeliveries.contactId}) filter (where ${customShellContacts.status} = 'bounced')::int`,
+      bounced: sql<number>`count(distinct ${customShellAutomationDeliveries.contactId}) filter (where ${customShellContacts.status} = 'bounced' or ${customShellAutomationDeliveries.bouncedAt} is not null)::int`,
     })
     .from(customShellAutomationDeliveries)
     .innerJoin(customShellAutomationRuns, eq(customShellAutomationRuns.id, customShellAutomationDeliveries.runId))
     .innerJoin(customShellContacts, eq(customShellContacts.id, customShellAutomationDeliveries.contactId))
     .where(
       and(
-        eq(customShellAutomationRuns.automationId, automationId),
-        eq(customShellAutomationRuns.testRun, false),
+        realRunsOfFlowAndItsSequences(automationId, database, sequenceIds),
         eq(customShellAutomationDeliveries.status, "sent")
       )
     )
@@ -138,12 +145,18 @@ async function bounceCounts(automationId: string, database: CustomShellDb) {
  */
 const bounceVerdicts = new Map<string, boolean>()
 
-async function overBounceLimit(batchKey: string, automationId: string, pace: DripConfig, database: CustomShellDb) {
+async function overBounceLimit(
+  batchKey: string,
+  automationId: string,
+  sequenceIds: string[],
+  pace: DripConfig,
+  database: CustomShellDb
+) {
   const known = bounceVerdicts.get(batchKey)
   if (known !== undefined) return known
-  const bounces = await bounceCounts(automationId, database)
+  const bounces = await dripBounceCounts(automationId, sequenceIds, database)
   const over =
-    bounces.sent >= BOUNCE_SAMPLE_MINIMUM &&
+    bounces.sent >= DRIP_BOUNCE_SAMPLE_MINIMUM &&
     (bounces.bounced / bounces.sent) * 100 >= pace.bounceThresholdPercent
   if (bounceVerdicts.size >= 1000) bounceVerdicts.clear()
   bounceVerdicts.set(batchKey, over)
@@ -208,8 +221,10 @@ export const executeDripNode: AutomationExecutor = async ({
   // Once a batch, when its first person goes on: bounces arrive minutes after
   // the emails, so the batch after the one that tipped it over is the one
   // stopped. The rest of the batch reuse the answer.
-  if (await overBounceLimit(`${nodeKey}:${place}`, run.automationId, pace, database)) {
-    const bounces = await bounceCounts(run.automationId, database)
+  // The sequences this run's copy of the flow sends, whose emails count too.
+  const sequenceIds = flowSequenceIds(run.configSnapshot)
+  if (await overBounceLimit(`${nodeKey}:${place}`, run.automationId, sequenceIds, pace, database)) {
+    const bounces = await dripBounceCounts(run.automationId, sequenceIds, database)
     const reason = `Stopped on its own: ${bounces.bounced} of the ${bounces.sent} people sent to so far bounced, which is over the Drip step's ${pace.bounceThresholdPercent} in 100 limit. Clean up who this flow sends to before switching it back on.`
     await database
       .update(customShellAutomations)

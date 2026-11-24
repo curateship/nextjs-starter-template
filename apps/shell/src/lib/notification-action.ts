@@ -62,9 +62,11 @@ export function notificationAction(item: NotificationItem): NotificationAction {
   // The run opens on the Automations dashboard's right panel: an approval in
   // Waiting on you, where Approve and Reject are, and a failure on its flow's
   // Runs tab, its failed step marked (Tyler, 9 Nov 2026).
+  // A stalled flow opens on the run that has been late longest.
   if (
     item.type === "automation_approval" ||
-    item.type === "automation_failed"
+    item.type === "automation_failed" ||
+    item.type === "automation_stalled"
   ) {
     return item.automation_run_id && item.automation_id
       ? {

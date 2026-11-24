@@ -498,7 +498,7 @@ function EmailRow({
           {stats !== undefined ? (
             // Wraps rather than cuts: the numbers are the point of the line.
             <span className="text-xs text-muted-foreground">
-              {sequenceEmailLine(stats ?? { sent: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, unsubscribed: 0 })}
+              {sequenceEmailLine(stats ?? { sent: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, unsubscribed: 0, waiting: 0 })}
             </span>
           ) : null}
         </span>
