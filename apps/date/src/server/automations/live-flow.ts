@@ -37,7 +37,6 @@ import {
   customShellAutomationRunSteps,
   customShellAutomations,
   customShellAutomationSegmentSnapshot,
-  customShellUsers,
   type CustomShellAutomation,
 } from "@/server/schema"
 
@@ -69,23 +68,6 @@ const RECENT_LIMIT = 10
 const DRIP_BATCHES_SHOWN = 5
 /** The days the Segment card's chart covers, today included. */
 const ARRIVAL_DAYS = 7
-
-export type LiveFlowStats = {
-  /** Every run in the period. */
-  total: number
-  completed: number
-  /** On a step that is due now, being walked or about to be. */
-  workingNow: number
-  /** Asleep at a Drip or Wait step until a time still to come. */
-  held: number
-  /** Stopped at an approval step for somebody to answer. */
-  waiting: number
-  failed: number
-  /** Rejected at an approval step, timed out there, or canceled. */
-  stopped: number
-  /** The typical time from a person's start to their finish, over those who finished. */
-  typicalSeconds: number | null
-}
 
 export type LiveFlowEmailRow = {
   nodeId: string
@@ -177,11 +159,10 @@ export type LiveFlowActivity = {
 export type LiveFlowReport = {
   enabled: boolean
   pausedReason: string | null
-  /** Set while the flow is paused by hand: when, and who by. */
-  paused: { at: string; by: string | null } | null
+  /** Paused by hand, so the Run button reads Paused. */
+  paused: boolean
   /** Everyone somewhere in the flow now, those on its sequences included. */
   inFlow: number
-  stats: LiveFlowStats
   steps: LiveFlowStep[]
   recent: LiveFlowActivity[]
   /** People who left the list after this flow emailed them. */
@@ -241,40 +222,6 @@ export async function peopleInFlows(automationIds: string[], database: CustomShe
     people.set(row.automationId, (people.get(row.automationId) ?? 0) + row.people)
   }
   return people
-}
-
-/** The flow's real runs by status, and the typical time through. */
-async function runStats(automationId: string, from: Date | null, at: Date, database: CustomShellDb): Promise<LiveFlowStats> {
-  const real = and(eq(runs.automationId, automationId), eq(runs.testRun, false))
-  const [inPeriod] = await database
-    .select({
-      total: sql<number>`count(*)::int`,
-      completed: sql<number>`(count(*) filter (where ${runs.status} = 'completed'))::int`,
-      failed: sql<number>`(count(*) filter (where ${runs.status} = 'failed'))::int`,
-      stopped: sql<number>`(count(*) filter (where ${runs.status} in ('rejected', 'canceled')))::int`,
-      typicalSeconds: sql<number | null>`percentile_cont(0.5) within group (order by extract(epoch from ${runs.finishedAt} - ${runs.startedAt})) filter (where ${runs.status} = 'completed' and ${runs.finishedAt} is not null)`,
-    })
-    .from(runs)
-    .where(and(real, since(runs.startedAt, from)))
-  const [rightNow] = await database
-    .select({
-      workingNow: sql<number>`(count(*) filter (where ${runs.status} = 'active' and ${runs.wakeAt} <= ${instant(at)}))::int`,
-      held: sql<number>`(count(*) filter (where ${runs.status} = 'active' and ${runs.wakeAt} > ${instant(at)}))::int`,
-      waiting: sql<number>`(count(*) filter (where ${runs.status} = 'waiting_approval'))::int`,
-    })
-    .from(runs)
-    .where(and(real, inArray(runs.status, ["active", "waiting_approval"])))
-  const typical = inPeriod?.typicalSeconds == null ? null : Number(inPeriod.typicalSeconds)
-  return {
-    total: inPeriod?.total ?? 0,
-    completed: inPeriod?.completed ?? 0,
-    failed: inPeriod?.failed ?? 0,
-    stopped: inPeriod?.stopped ?? 0,
-    workingNow: rightNow?.workingNow ?? 0,
-    held: rightNow?.held ?? 0,
-    waiting: rightNow?.waiting ?? 0,
-    typicalSeconds: typical === null ? null : Math.round(typical),
-  }
 }
 
 /** Who is on each step now, by the step their run is on. */
@@ -745,8 +692,7 @@ export async function liveFlowReport(
       dripSteps.map(async (nodeId) => [nodeId, await numberedDripBatches(flow.id, nodeId, flow.liveSince, database)] as const)
     )
   )
-  const [stats, onSteps, outcomes, ownEmails, recent, dropped] = await Promise.all([
-    runStats(flow.id, from, at, database),
+  const [onSteps, outcomes, ownEmails, recent, dropped] = await Promise.all([
     peopleOnSteps(flow.id, at, database),
     stepOutcomes(flow.id, from, database),
     emailOutcomes(and(eq(runs.automationId, flow.id), eq(runs.testRun, false)) as SQL, from, database),
@@ -786,16 +732,11 @@ export async function liveFlowReport(
     cards.push(card)
   }
 
-  const pausedBy = flow.pausedAt && flow.pausedBy
-    ? (await database.select({ name: customShellUsers.name }).from(customShellUsers).where(eq(customShellUsers.id, flow.pausedBy)).limit(1))[0]?.name ?? null
-    : null
   return {
     enabled: flow.enabled,
     pausedReason: flow.pausedReason,
-    paused: flow.pausedAt ? { at: flow.pausedAt.toISOString(), by: pausedBy } : null,
+    paused: flow.pausedAt !== null,
     inFlow,
-    // While paused nobody is working through a step: everyone due is held.
-    stats: flow.pausedAt ? { ...stats, workingNow: 0, held: stats.held + stats.workingNow } : stats,
     steps: cards,
     recent,
     droppedOut: dropped,

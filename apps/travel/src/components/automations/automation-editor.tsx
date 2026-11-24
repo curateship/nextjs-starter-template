@@ -349,7 +349,7 @@ export function AutomationEditor({
     readAgain: `${startedRunId}|${flowPaused}`,
     onReport: (report) => {
       // Paused or resumed from another tab or the list, or stopped by a safety check.
-      setFlowPaused(report.paused !== null)
+      setFlowPaused(report.paused)
       if (report.enabled) return
       setLive(false)
       setPausedReason(report.pausedReason)

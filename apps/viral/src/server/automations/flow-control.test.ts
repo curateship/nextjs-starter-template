@@ -226,8 +226,7 @@ describe("Pause", () => {
 
     expect(await alertStalledFlows(database, { force: true })).toBe(0)
     const report = (await liveFlowReport(workspaceId, flowId, {}, database))!
-    expect(report.paused).toMatchObject({ by: "Tyler" })
-    expect(report.stats).toMatchObject({ workingNow: 0, held: 1 })
+    expect(report.paused).toBe(true)
     expect(await peopleInLiveFlows(workspaceId, database)).toEqual({ [flowId]: { people: 1, paused: true } })
   })
 

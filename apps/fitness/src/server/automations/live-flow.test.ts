@@ -177,8 +177,8 @@ async function insertRun(values: {
   return id
 }
 
-async function insertStep(runId: string, nodeId: string, status: "completed" | "failed", error?: string) {
-  const timestamp = now()
+async function insertStep(runId: string, nodeId: string, status: "completed" | "failed", error?: string, at = now()) {
+  const timestamp = at
   await database.insert(customShellAutomationRunSteps).values({
     id: uuid(),
     runId,
@@ -249,7 +249,7 @@ describe("liveFlowReport", () => {
     expect(sequence.emails[0].opened).toBe(2)
   })
 
-  it("splits Running into working now and held, and leaves test runs out", async () => {
+  it("counts who is on each step and held there, and leaves test runs out", async () => {
     await insertRun({ node: "drip", wakeAt: new Date(Date.now() + HOUR) })
     await insertRun({ node: "drip", wakeAt: new Date(Date.now() + HOUR) })
     await insertRun({ node: "start", wakeAt: new Date(Date.now() - 1000) })
@@ -257,9 +257,7 @@ describe("liveFlowReport", () => {
     await insertRun({ node: "drip", status: "failed" })
     await insertRun({ node: "drip", wakeAt: new Date(Date.now() + HOUR), test: true })
 
-    const { stats, steps } = (await liveFlowReport(workspaceId, flowId, {}, database))!
-    expect(stats).toMatchObject({ total: 5, completed: 1, workingNow: 1, held: 2, waiting: 0, failed: 1, stopped: 0 })
-    expect(stats.typicalSeconds).toBe(7200)
+    const { steps } = (await liveFlowReport(workspaceId, flowId, {}, database))!
     expect(steps.map((step) => step.nodeId)).toEqual(["start", "drip", "send"])
     const drip = steps.find((step) => step.nodeId === "drip")!
     expect(drip.onNow).toBe(2)
@@ -284,13 +282,15 @@ describe("liveFlowReport", () => {
   })
 
   it("narrows the totals to the period, never the numbers about now", async () => {
-    await insertRun({ node: "drip", status: "completed", startedAt: new Date(Date.now() - 10 * 24 * HOUR), finishedAt: new Date() })
-    await insertRun({ node: "drip", wakeAt: new Date(Date.now() + HOUR), startedAt: new Date(Date.now() - 10 * 24 * HOUR) })
+    const longAgo = new Date(Date.now() - 10 * 24 * HOUR)
+    const through = await insertRun({ node: "send", status: "completed", startedAt: longAgo, finishedAt: longAgo })
+    await insertStep(through, "drip", "completed", undefined, longAgo)
+    await insertRun({ node: "drip", wakeAt: new Date(Date.now() + HOUR), startedAt: longAgo })
 
-    const { stats } = (await liveFlowReport(workspaceId, flowId, { since: new Date(Date.now() - 7 * 24 * HOUR) }, database))!
-    expect(stats.total).toBe(0)
-    expect(stats.completed).toBe(0)
-    expect(stats.held).toBe(1)
+    const { steps } = (await liveFlowReport(workspaceId, flowId, { since: new Date(Date.now() - 7 * 24 * HOUR) }, database))!
+    const drip = steps.find((step) => step.nodeId === "drip")!
+    expect(drip.passed).toBe(0)
+    expect(drip.held).toBe(1)
   })
 
   it("tells people new since Run from people already in the segment, and counts who can never be let in", async () => {

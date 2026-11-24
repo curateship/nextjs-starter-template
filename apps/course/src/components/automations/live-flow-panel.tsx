@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   ActivityIcon,
-  BarChart3Icon,
   CalendarRangeIcon,
   CheckIcon,
   CircleAlertIcon,
@@ -11,7 +10,6 @@ import {
   ListOrderedIcon,
   MailIcon,
   MailXIcon,
-  PauseIcon,
   WorkflowIcon,
 } from "lucide-react"
 
@@ -31,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { LIVE_FLOW_PERIODS, type LiveFlowPeriod } from "@/components/automations/use-live-flow-report"
 import type {
   LiveFlowActivityKind,
@@ -40,7 +39,7 @@ import type {
 } from "@/lib/api/automations/live-flow"
 import { automationNodeIcon } from "@/lib/automations/node-registry"
 import { waitNode } from "@/lib/automations/nodes/wait"
-import { formatClockTime, formatDateTime, formatDuration, formatShortTimeAgo } from "@/lib/format/format-time"
+import { formatClockTime, formatDateTime, formatShortTimeAgo } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
 
@@ -58,110 +57,6 @@ function nearTime(iso: string) {
   return Math.abs(Date.now() - new Date(iso).getTime()) < 12 * 3_600_000 ? formatClockTime(iso) : formatDateTime(iso)
 }
 
-type StatusTone = "amber" | "sky" | "red" | "muted" | "paused"
-
-/** The status box's colours and mark, per tone, light and dark. */
-const STATUS_LOOK: Record<StatusTone, { box: string; icon: React.ReactNode }> = {
-  amber: { box: "bg-amber-50 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200", icon: <ClockIcon /> },
-  sky: { box: "bg-sky-50 text-sky-900 dark:bg-sky-950/60 dark:text-sky-200", icon: <ActivityIcon /> },
-  red: { box: "bg-red-50 text-red-900 dark:bg-red-950/60 dark:text-red-200", icon: <CircleAlertIcon /> },
-  muted: { box: "bg-muted/60 text-muted-foreground", icon: <ClockIcon /> },
-  paused: { box: "bg-muted/60 text-foreground", icon: <PauseIcon /> },
-}
-
-/**
- * What the flow is doing now, as one sentence whose first part is bold (Tyler,
- * 23 Nov 2026, picked "Status line", then drew it as an amber box: "40 people
- * held at Drip, outside sending hours until 9:00 AM"). Amber while people
- * wait for a time, blue while they move, grey while nobody is in it.
- */
-function liveFlowStatus(report: LiveFlowReport): { lead: string; rest: string; tone: StatusTone } {
-  if (!report.enabled) return { lead: report.pausedReason ?? "Off", rest: "", tone: report.pausedReason ? "red" : "muted" }
-  if (report.paused) {
-    const by = report.paused.by ? ` by ${report.paused.by}` : ""
-    return {
-      lead: "Paused",
-      rest: `. ${report.inFlow > 0 ? `${people(report.inFlow)} held where they are` : "Nobody in it yet"}. Paused${by}, ${nearTime(report.paused.at)}.`,
-      tone: "paused",
-    }
-  }
-  const drip = report.steps.find((step) => step.drip && step.held > 0)
-  if (drip?.drip) {
-    const next = drip.drip.outsideHoursUntil
-      ? `outside sending hours until ${when(drip.drip.outsideHoursUntil)}`
-      : drip.nextMoveAt
-        ? `next batch ${when(drip.nextMoveAt)}`
-        : "next batch soon"
-    return { lead: `${people(drip.held)} held at ${drip.name}`, rest: `, ${next}`, tone: "amber" }
-  }
-  if (report.stats.workingNow > 0) return { lead: people(report.stats.workingNow), rest: " moving through the steps now", tone: "sky" }
-  if (report.stats.waiting > 0) return { lead: people(report.stats.waiting), rest: " waiting for an approval", tone: "amber" }
-  const sleeping = report.steps.find((step) => step.held > 0 && step.nextMoveAt)
-  if (sleeping?.nextMoveAt) return { lead: `${people(report.inFlow)} in it`, rest: `, the next moves on ${when(sleeping.nextMoveAt)}`, tone: "amber" }
-  if (report.inFlow > 0) return { lead: `${people(report.inFlow)} in it`, rest: "", tone: "sky" }
-  const toGo = report.steps[0]?.segment?.stillToGo
-  if (toGo) return { lead: `${people(toGo)} still to let in`, rest: " from the segment", tone: "sky" }
-  return { lead: "Live", rest: ", waiting for somebody to start", tone: "muted" }
-}
-
-/** The status sentence in its coloured box. */
-function StatusBox({ report }: { report: LiveFlowReport }) {
-  const status = liveFlowStatus(report)
-  const look = STATUS_LOOK[status.tone]
-  return (
-    <p className={cn("flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-sm leading-snug", look.box)}>
-      <span aria-hidden className="mt-0.5 flex shrink-0 [&_svg]:size-4">{look.icon}</span>
-      <span className="min-w-0">
-        <span className="font-semibold">{status.lead}</span>
-        {status.rest}
-      </span>
-    </p>
-  )
-}
-
-type BarTone = "blue" | "amber" | "grey" | "red"
-
-/** A bar row's fill, faint track, and count colour. A row at nothing is grey whatever its colour. */
-const BAR_LOOK: Record<BarTone, { fill: string; track: string; count: string }> = {
-  blue: { fill: "bg-blue-500", track: "bg-blue-100 dark:bg-blue-950", count: "text-blue-700 dark:text-blue-300" },
-  amber: { fill: "bg-amber-500", track: "bg-amber-100 dark:bg-amber-950", count: "text-amber-700 dark:text-amber-300" },
-  grey: { fill: "bg-muted-foreground", track: "bg-muted", count: "text-foreground" },
-  red: { fill: "bg-red-500", track: "bg-red-100 dark:bg-red-950", count: "text-red-700 dark:text-red-300" },
-}
-
-/**
- * A label, a bar in its own colour on a faint track of the same colour, and
- * the count (Tyler, 23 Nov 2026: "add some colors to the statistic card").
- * A row with nobody in it greys its label and count.
- */
-function BarRows({ rows, max }: { rows: { label: string; count: number; tone: BarTone }[]; max: number }) {
-  return (
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3">
-      {rows.map((row) => {
-        const look = BAR_LOOK[row.tone]
-        return (
-          <React.Fragment key={row.label}>
-            <dt className={cn("text-sm", row.count ? "text-foreground" : "text-muted-foreground")}>{row.label}</dt>
-            <div
-              role="meter"
-              aria-label={row.label}
-              aria-valuenow={row.count}
-              aria-valuemin={0}
-              aria-valuemax={max}
-              className={cn("h-1.5 overflow-hidden rounded-full", look.track)}
-            >
-              <div className={cn("h-full rounded-full", look.fill)} style={{ width: `${max ? Math.min(100, (row.count / max) * 100) : 0}%` }} />
-            </div>
-            <dd className={cn("text-right text-sm tabular-nums", row.count ? cn("font-semibold", look.count) : "text-muted-foreground")}>
-              {number(row.count)}
-            </dd>
-          </React.Fragment>
-        )
-      })}
-    </dl>
-  )
-}
-
 /** Plain label and value lines. */
 function Facts({ rows }: { rows: { label: string; value: React.ReactNode }[] }) {
   return (
@@ -176,63 +71,31 @@ function Facts({ rows }: { rows: { label: string; value: React.ReactNode }[] }) 
   )
 }
 
-/** Runs in blue and Completed in green, the second with a bar of the first. */
-function Tiles({
-  first,
-  second,
-}: {
-  first: { label: string; value: number; note: string }
-  second: { label: string; value: number; of: number }
-}) {
+/**
+ * Which period the cards' totals cover, in the panel's header. An icon, so
+ * the flow's name keeps its room; filled while it narrows to Today or 7 days,
+ * and its tooltip names the choice.
+ */
+function PeriodMenu({ period, onPeriodChange }: { period: LiveFlowPeriod; onPeriodChange: (period: LiveFlowPeriod) => void }) {
+  const picked = LIVE_FLOW_PERIODS.find((choice) => choice.value === period)?.label ?? "All time"
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <div className="grid content-start gap-0.5 rounded-lg bg-blue-50 p-3 text-blue-900 dark:bg-blue-950/60 dark:text-blue-200">
-        <span className="text-xs text-blue-700 dark:text-blue-300">{first.label}</span>
-        <span className="text-2xl font-semibold tabular-nums">{number(first.value)}</span>
-        <span className="text-xs text-blue-700 dark:text-blue-300">{first.note}</span>
-      </div>
-      <div className="grid content-start gap-0.5 rounded-lg bg-emerald-50 p-3 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200">
-        <span className="text-xs text-emerald-700 dark:text-emerald-300">{second.label}</span>
-        <span className="flex items-baseline gap-1">
-          <span className="text-2xl font-semibold tabular-nums">{number(second.value)}</span>
-          <span className="text-xs tabular-nums text-emerald-700 dark:text-emerald-300">/ {number(second.of)}</span>
-        </span>
-        <div
-          role="meter"
-          aria-label={second.label}
-          aria-valuenow={second.value}
-          aria-valuemin={0}
-          aria-valuemax={second.of}
-          aria-valuetext={`${second.value} of ${second.of}`}
-          className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-emerald-100 dark:bg-emerald-900"
-        >
-          <div
-            className="h-full rounded-full bg-emerald-500"
-            style={{ width: `${second.of ? Math.min(100, (second.value / second.of) * 100) : 0}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/** Which period the totals cover, from the Statistics card's heading. */
-function PeriodMenu({
-  period,
-  onPeriodChange,
-  onOpenChange,
-}: {
-  period: LiveFlowPeriod
-  onPeriodChange: (period: LiveFlowPeriod) => void
-  onOpenChange: (open: boolean) => void
-}) {
-  return (
-    <DropdownMenu onOpenChange={onOpenChange}>
-      <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label="Which period the totals cover" className="text-muted-foreground">
-          <CalendarRangeIcon className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant={period === "all" ? "ghost" : "secondary"}
+              size="icon-sm"
+              aria-label={`Which period the totals cover: ${picked}`}
+              className={period === "all" ? "text-muted-foreground" : undefined}
+            >
+              <CalendarRangeIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Totals: {picked}</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end" className="min-w-44">
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Count totals from</DropdownMenuLabel>
         {LIVE_FLOW_PERIODS.map((choice) => (
@@ -243,60 +106,6 @@ function PeriodMenu({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
-
-/**
- * The Statistics card: what the flow is doing now in one sentence, then every
- * run and how they stand. The sentence sits here rather than under the
- * flow's name in the header, where the panel's narrowest width cut it to a
- * few letters. The period, from the card's heading, narrows every card's
- * totals.
- */
-function StatisticsCard({
-  report,
-  period,
-  onPeriodChange,
-}: {
-  report: LiveFlowReport
-  period: LiveFlowPeriod
-  onPeriodChange: (period: LiveFlowPeriod) => void
-}) {
-  const { stats } = report
-  const [menuOpen, setMenuOpen] = React.useState(false)
-  return (
-    <PanelCard
-      icon={<BarChart3Icon />}
-      storageId="automation-run-stats"
-      title="Statistics"
-      meta={period === "all" ? undefined : LIVE_FLOW_PERIODS.find((choice) => choice.value === period)?.label}
-      action={<PeriodMenu period={period} onPeriodChange={onPeriodChange} onOpenChange={setMenuOpen} />}
-      actionOpen={menuOpen}
-    >
-      <div className="grid gap-4">
-        <StatusBox report={report} />
-        <Tiles
-          first={{ label: "Runs", value: stats.total, note: "in total" }}
-          second={{ label: "Completed", value: stats.completed, of: stats.total }}
-        />
-        {/* "Held" is somebody asleep at a Drip or Wait until a time still to
-            come; "Working now" is due now (Tyler, 23 Nov 2026, picked "Split
-            Running"). The bars are out of everyone in the flow now. */}
-        <BarRows
-          max={Math.max(stats.total, stats.workingNow + stats.held + stats.waiting)}
-          rows={[
-            { label: "Working now", count: stats.workingNow, tone: "blue" },
-            { label: "Held", count: stats.held, tone: "amber" },
-            { label: "Waiting", count: stats.waiting, tone: "grey" },
-            { label: "Failed", count: stats.failed, tone: "red" },
-            { label: "Stopped", count: stats.stopped, tone: "grey" },
-          ]}
-        />
-        {stats.typicalSeconds !== null ? (
-          <Facts rows={[{ label: "Typical time through", value: formatDuration(stats.typicalSeconds * 1000) }]} />
-        ) : null}
-      </div>
-    </PanelCard>
   )
 }
 
@@ -895,10 +704,10 @@ function ActivityCard({ report }: { report: LiveFlowReport }) {
 /**
  * A live flow's right panel (Tyler, 23 Nov 2026: "Below the statistic card,
  * there should be cards for each of the module that shows information
- * pertaining that node"): Statistics, one card per step in the order the
+ * pertaining that node"): Status, one card per step in the order the
  * steps run. The last Send sequence card has Emails and Activity tabs; a
  * flow without one ends with an Activity card. The period, picked from the
- * Statistics card's heading, narrows the totals, never the numbers about now.
+ * Status card's heading, narrows the totals, never the numbers about now.
  * A step pressed on the canvas scrolls to its card and opens it.
  */
 export function LiveFlowPanel({
@@ -930,11 +739,13 @@ export function LiveFlowPanel({
     <RecordFrame
       avatar={<WorkflowIcon aria-hidden />}
       title={name}
-      hideLabel="Hide the statistics"
+      // Tyler, 24 Nov 2026: "remove the statistic card". The period it held
+      // moved up here, beside the panel's name.
+      actions={<PeriodMenu period={period} onPeriodChange={onPeriodChange} />}
+      hideLabel="Hide the live panel"
       body={
         report ? (
           <>
-            <StatisticsCard report={report} period={period} onPeriodChange={onPeriodChange} />
             {report.steps.map((step) => (
               <StepCard
                 key={step.nodeId}
