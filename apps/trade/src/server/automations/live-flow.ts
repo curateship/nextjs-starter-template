@@ -166,6 +166,11 @@ export type LiveFlowActivity = {
   email: string | null
   /** What happened, after the name: "was let in from the segment". */
   action: string
+  /**
+   * When a wait ends, for a line about someone still waiting. The panel
+   * writes it after the action: "will get email 2 Nov 27, 9:00 AM".
+   */
+  until: string | null
   at: string
 }
 
@@ -540,11 +545,15 @@ export function describeActivity(step: {
   output: Record<string, unknown> | null
   stepName: string
   subject: string | null
+  /** On a sequence's wait: the number of the email it waits to send. */
+  nextEmail?: number | null
   runStatus: string
   runNodeId: string
-}): { kind: LiveFlowActivityKind; action: string } {
+}): { kind: LiveFlowActivityKind; action: string; until?: string } {
   if (step.status !== "completed") return { kind: "failed", action: `hit a problem at ${step.stepName}` }
-  const asleep = Boolean(step.output && ("releaseAt" in step.output || "waitingUntil" in step.output))
+  const releaseAt = typeof step.output?.releaseAt === "string" ? step.output.releaseAt : null
+  const waitingUntil = typeof step.output?.waitingUntil === "string" ? step.output.waitingUntil : null
+  const asleep = Boolean(releaseAt || waitingUntil)
   // Finished the flow on a step that normally passes people on: the flow was
   // switched off while they waited, or a click or the bounce limit ended it.
   const endedHere = step.runStatus === "completed" && step.runNodeId === step.nodeId && !asleep
@@ -553,17 +562,25 @@ export function describeActivity(step: {
     case joinedSegmentNode.kind:
       return { kind: "letIn", action: "was let in from the segment" }
     case dripNode.kind:
-      if (asleep) return { kind: "waiting", action: "is waiting for its batch" }
-      return endedHere ? { kind: "stopped", action: "stopped at Drip" } : { kind: "movedOn", action: "went on with its batch" }
+      if (releaseAt) return { kind: "waiting", action: "is waiting for the batch on", until: releaseAt }
+      return endedHere ? { kind: "stopped", action: "stopped at Drip" } : { kind: "movedOn", action: "went through the Drip" }
     case waitNode.kind:
-      if (asleep) return { kind: "waiting", action: `is waiting at ${step.stepName}` }
+      // Tyler, 24 Nov 2026: "waiting at wait does not make sense", then
+      // "Rename to "Tyler will get email # date"". A sequence's wait comes
+      // before an email, so the line gives its number.
+      if (waitingUntil) {
+        return step.nextEmail
+          ? { kind: "waiting", action: `will get email ${step.nextEmail}`, until: waitingUntil }
+          : { kind: "waiting", action: "is waiting until", until: waitingUntil }
+      }
       return endedHere ? { kind: "stopped", action: `stopped at ${step.stepName}` } : { kind: "movedOn", action: "finished waiting" }
     case sendEmailNode.kind:
       return /^Emailed 0\b/.test(step.summary) || /could not receive|not sent/i.test(step.summary)
         ? { kind: "notSent", action: `was not sent ${quoted(step.subject, "the email")}` }
         : { kind: "sent", action: `was sent ${quoted(step.subject, "an email")}` }
     case sendSequenceNode.kind:
-      return { kind: "started", action: `was started on ${quoted(step.subject, "a sequence")}` }
+      // Tyler, 24 Nov 2026: "Nick was started also does not make sense".
+      return { kind: "started", action: `was added to ${quoted(step.subject, "a sequence")}` }
     case waitForApprovalNode.kind:
       return { kind: "waiting", action: "is waiting for an approval" }
     default:
@@ -585,6 +602,7 @@ async function recentActivity(automationId: string, sequenceIds: string[], datab
       summary: steps.summary,
       output: steps.output,
       settings,
+      automationId: runs.automationId,
       label: runs.subjectLabel,
       runStatus: runs.status,
       runNodeId: runs.currentNodeId,
@@ -595,6 +613,17 @@ async function recentActivity(automationId: string, sequenceIds: string[], datab
     .where(realRunsOfFlowAndItsSequences(automationId, database, sequenceIds))
     .orderBy(desc(steps.finishedAt), desc(steps.id))
     .limit(RECENT_LIMIT)
+  // Each sequence's emails by number, as its Emails tab counts them. A
+  // sequence's wait is `wait-<email>`, right before `email-<email>`.
+  const sequences = sequenceIds.length
+    ? await database.select().from(customShellAutomations).where(inArray(customShellAutomations.id, sequenceIds))
+    : []
+  const emailNumbers = new Map(
+    sequences.map((sequence) => [
+      sequence.id,
+      new Map((sequenceFromGraph(inspectAutomation(sequence).graph)?.emails ?? []).map((email, index) => [email.id, index + 1])),
+    ])
+  )
   return rows.map((row) => {
     const nodeSettings = row.settings ?? {}
     const text = (key: string) => (typeof nodeSettings[key] === "string" ? (nodeSettings[key] as string) : null)
@@ -603,10 +632,13 @@ async function recentActivity(automationId: string, sequenceIds: string[], datab
       output: (row.output as Record<string, unknown> | null) ?? null,
       stepName: automationNodeName({ id: row.nodeId, kind: row.kind, x: 0, y: 0, settings: nodeSettings as never }),
       subject: row.kind === sendSequenceNode.kind ? text("sequenceName") : text("subject"),
+      nextEmail: row.nodeId.startsWith("wait-") ? emailNumbers.get(row.automationId)?.get(row.nodeId.slice("wait-".length)) : null,
     })
     return {
       id: row.id,
-      ...described,
+      kind: described.kind,
+      action: described.action,
+      until: described.until ?? null,
       ...splitSubjectLabel(row.label),
       at: row.at.toISOString(),
     }

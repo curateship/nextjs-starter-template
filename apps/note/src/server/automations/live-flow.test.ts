@@ -384,12 +384,15 @@ describe("Recent activity's lines", () => {
 
   it("says what happened at each kind of step", () => {
     expect(describeActivity({ ...step, kind: "segmentDrip", nodeId: "start" })).toEqual({ kind: "letIn", action: "was let in from the segment" })
-    expect(describeActivity({ ...step, kind: "drip", output: { releaseAt: "2099-01-01T09:00:00.000Z" } })).toEqual({ kind: "waiting", action: "is waiting for its batch" })
-    expect(describeActivity({ ...step, kind: "drip" })).toEqual({ kind: "movedOn", action: "went on with its batch" })
+    expect(describeActivity({ ...step, kind: "drip", output: { releaseAt: "2099-01-01T09:00:00.000Z" } })).toEqual({ kind: "waiting", action: "is waiting for the batch on", until: "2099-01-01T09:00:00.000Z" })
+    expect(describeActivity({ ...step, kind: "drip" })).toEqual({ kind: "movedOn", action: "went through the Drip" })
+    const asleep = { ...step, kind: "wait", nodeId: "wait-two", stepName: "Wait", output: { waitingUntil: "2099-01-03T09:00:00.000Z" } }
+    expect(describeActivity({ ...asleep, nextEmail: 2 })).toEqual({ kind: "waiting", action: "will get email 2", until: "2099-01-03T09:00:00.000Z" })
+    expect(describeActivity({ ...asleep, nextEmail: null })).toEqual({ kind: "waiting", action: "is waiting until", until: "2099-01-03T09:00:00.000Z" })
     expect(describeActivity({ ...step, kind: "drip", runStatus: "completed", runNodeId: "drip" })).toEqual({ kind: "stopped", action: "stopped at Drip" })
     expect(describeActivity({ ...step, kind: "sendEmail", nodeId: "email-one", subject: "Welcome", summary: "Emailed 1, 0 failed, 0 skipped." })).toEqual({ kind: "sent", action: "was sent “Welcome”" })
     expect(describeActivity({ ...step, kind: "sendEmail", nodeId: "email-one", subject: "Welcome", summary: "Emailed 0, 0 failed, the person could not receive email." })).toEqual({ kind: "notSent", action: "was not sent “Welcome”" })
-    expect(describeActivity({ ...step, kind: "sendSequence", nodeId: "send", subject: "Welcome series" })).toEqual({ kind: "started", action: "was started on “Welcome series”" })
+    expect(describeActivity({ ...step, kind: "sendSequence", nodeId: "send", subject: "Welcome series" })).toEqual({ kind: "started", action: "was added to “Welcome series”" })
     expect(describeActivity({ ...step, kind: "webhook", stepName: "Webhook", status: "failed" })).toEqual({ kind: "failed", action: "hit a problem at Webhook" })
   })
 })

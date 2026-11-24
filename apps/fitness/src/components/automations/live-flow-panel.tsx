@@ -803,7 +803,10 @@ function ActivityList({ report }: { report: LiveFlowReport }) {
             <span className="grid min-w-0 gap-0.5">
               <span className="text-sm leading-snug">
                 <span className="font-semibold">{item.name ?? "A run started by hand"}</span>{" "}
-                <span className="text-muted-foreground">{item.action}</span>
+                <span className="text-muted-foreground">
+                  {item.action}
+                  {item.until ? ` ${formatDateTime(item.until)}` : ""}
+                </span>
               </span>
               {item.email ? <span className="truncate text-xs text-muted-foreground">{item.email}</span> : null}
             </span>
