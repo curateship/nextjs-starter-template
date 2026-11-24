@@ -53,9 +53,9 @@ function when(iso: string) {
   return new Date(iso).getTime() - Date.now() < 12 * 3_600_000 ? formatClockTime(iso) : formatDateTime(iso)
 }
 
-/** A moment gone: the time alone within the last 12 hours, the date and time before that. */
-function pausedWhen(iso: string) {
-  return Date.now() - new Date(iso).getTime() < 12 * 3_600_000 ? formatClockTime(iso) : formatDateTime(iso)
+/** The time alone within 12 hours either side of now, the date and time further off. */
+function nearTime(iso: string) {
+  return Math.abs(Date.now() - new Date(iso).getTime()) < 12 * 3_600_000 ? formatClockTime(iso) : formatDateTime(iso)
 }
 
 type StatusTone = "amber" | "sky" | "red" | "muted" | "paused"
@@ -81,7 +81,7 @@ function liveFlowStatus(report: LiveFlowReport): { lead: string; rest: string; t
     const by = report.paused.by ? ` by ${report.paused.by}` : ""
     return {
       lead: "Paused",
-      rest: `. ${report.inFlow > 0 ? `${people(report.inFlow)} held where they are` : "Nobody in it yet"}. Paused${by}, ${pausedWhen(report.paused.at)}.`,
+      rest: `. ${report.inFlow > 0 ? `${people(report.inFlow)} held where they are` : "Nobody in it yet"}. Paused${by}, ${nearTime(report.paused.at)}.`,
       tone: "paused",
     }
   }
@@ -599,7 +599,7 @@ function DripBadge({ step }: { step: LiveFlowStep }) {
 }
 
 /**
- * The Drip card, drawn to Tyler's design of 23 Nov 2026: Waiting here, Passed
+ * The Drip card, drawn to Tyler's design of 23 Nov 2026: Waiting for a batch, Passed
  * and Failed as coloured tiles under the heading, then the next batch, the
  * pace as three boxes, the bounces against the limit, and the last batches,
  * each under a line.
@@ -608,13 +608,17 @@ function DripDetails({ step }: { step: LiveFlowStep }) {
   const drip = step.drip!
   const { bounce, pace } = drip
   const rate = bounce.sent ? (bounce.bounced / bounce.sent) * 100 : 0
+  // The batch the soonest held person goes in, by its time.
+  const nextAt = step.nextMoveAt ? new Date(step.nextMoveAt).getTime() : null
+  const nextBatch = drip.batches.find((batch) => new Date(batch.releaseAt).getTime() === nextAt) ?? null
   return (
     // Up by the body's own top space (Settings → Styling → Panel cards), so
     // the tiles' coloured edges meet the heading with no strip between.
     <div className="-mt-[var(--shell-panel-card-tile-top,0px)] grid grid-cols-[minmax(0,1fr)] gap-4">
       <ColourTiles
         tiles={[
-          { label: "Waiting here", count: step.held, tone: "amber" },
+          // Tyler, 24 Nov 2026, of "Waiting here": "waiting where exactly?"
+          { label: "Waiting for a batch", count: step.held, tone: "amber" },
           { label: "Passed", count: step.passed, tone: "green" },
           { label: "Failed", count: step.failed, tone: step.failed ? "red" : "muted" },
         ]}
@@ -628,7 +632,10 @@ function DripDetails({ step }: { step: LiveFlowStep }) {
             <span className="text-xs text-muted-foreground">Next batch</span>
             <span className="flex flex-wrap items-baseline gap-x-2">
               <span className="text-xl font-semibold tabular-nums">{when(step.nextMoveAt)}</span>
-              <span className="text-sm text-muted-foreground">{number(step.held)} held now</span>
+              <span className="text-sm text-muted-foreground">
+                {nextBatch ? `Batch ${nextBatch.number} · ` : ""}
+                {number(step.held)} held now
+              </span>
             </span>
             {drip.outsideHoursUntil ? (
               <span className="text-xs text-muted-foreground">Outside sending hours, resumes {when(drip.outsideHoursUntil)}.</span>
@@ -637,7 +644,12 @@ function DripDetails({ step }: { step: LiveFlowStep }) {
         ) : (
           <span className="grid min-w-0 gap-0.5">
             <span className="text-xs text-muted-foreground">Next batch</span>
-            <span className="text-sm">Nobody is waiting for one. The next person goes at once.</span>
+            {/* Tyler, 24 Nov 2026: "the text here makes no sense", of "Nobody
+                is waiting for one. The next person goes at once." */}
+            <span className="text-sm">None, nobody is waiting for a batch</span>
+            {drip.outsideHoursUntil ? (
+              <span className="text-xs text-muted-foreground">Outside sending hours until {when(drip.outsideHoursUntil)}.</span>
+            ) : null}
           </span>
         )}
       </div>
@@ -674,7 +686,7 @@ function DripDetails({ step }: { step: LiveFlowStep }) {
             aria-valuenow={Number(rate.toFixed(2))}
             aria-valuemin={0}
             aria-valuemax={bounce.limitPercent}
-            aria-valuetext={`${bounce.bounced} of ${bounce.sent} bounced, the flow pauses at ${bounce.limitPercent} in 100`}
+            aria-valuetext={`${bounce.bounced} of ${bounce.sent} bounced, the flow stops itself at ${bounce.limitPercent} in 100`}
             className="relative h-2 rounded-full bg-muted"
           >
             <span
@@ -687,8 +699,8 @@ function DripDetails({ step }: { step: LiveFlowStep }) {
             <span className="text-muted-foreground">0%</span>
             <span className={cn("text-right", bounce.sent < bounce.minimum ? "text-muted-foreground" : "text-red-700 dark:text-red-400")}>
               {bounce.sent < bounce.minimum
-                ? `The flow pauses at ${bounce.limitPercent} in 100 bounced, once ${bounce.minimum} people have been emailed.`
-                : `The flow pauses at ${bounce.limitPercent} in 100 bounced.`}
+                ? `The flow stops itself at ${bounce.limitPercent} in 100 bounced, once ${bounce.minimum} people have been emailed.`
+                : `The flow stops itself at ${bounce.limitPercent} in 100 bounced.`}
             </span>
           </div>
         </div>
@@ -700,7 +712,11 @@ function DripDetails({ step }: { step: LiveFlowStep }) {
               <li key={batch.releaseAt} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
                 {/* Blue for a batch still to go, grey for one gone. */}
                 <span aria-hidden className={cn("size-2 rounded-full", stillToCome(batch.releaseAt) ? "bg-blue-500" : "bg-muted-foreground/30")} />
-                <span className="truncate">{formatDateTime(batch.releaseAt)}</span>
+                {/* Two lines, so the narrowest panel keeps the number and the time. */}
+                <span className="grid min-w-0">
+                  <span className="font-medium">Batch {batch.number}</span>
+                  <span className="truncate text-xs text-muted-foreground">{nearTime(batch.releaseAt)}</span>
+                </span>
                 <span className="font-semibold tabular-nums">{people(batch.size)}</span>
               </li>
             ))}

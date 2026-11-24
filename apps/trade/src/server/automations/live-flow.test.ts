@@ -308,6 +308,40 @@ describe("liveFlowReport", () => {
     expect(start.segment!.perDay.at(-1)!.letIn).toBe(3)
   })
 
+  it("numbers the Drip's batches from 1 since Run was last pressed, newest first", async () => {
+    const ranAt = new Date(Date.now() - 3 * HOUR)
+    await database.update(customShellAutomations).set({ liveSince: ranAt }).where(eq(customShellAutomations.id, flowId))
+    const place = async (releaseAt: Date) => {
+      const runId = await insertRun({ node: "drip", wakeAt: releaseAt })
+      await database.insert(customShellAutomationRunSteps).values({
+        id: uuid(),
+        runId,
+        nodeId: "drip",
+        kind: "drip",
+        status: "completed",
+        summary: "Waiting for its batch.",
+        output: { releaseAt: releaseAt.toISOString() },
+        startedAt: now(),
+        finishedAt: now(),
+      })
+    }
+    // Before Run: not counted.
+    await place(new Date(Date.now() - 5 * HOUR))
+    const first = new Date(Date.now() - 2 * HOUR)
+    const second = new Date(Date.now() + HOUR)
+    await place(first)
+    await place(first)
+    await place(second)
+
+    const report = (await liveFlowReport(workspaceId, flowId, {}, database))!
+    const drip = report.steps.find((step) => step.nodeId === "drip")!.drip!
+    expect(drip.batches).toEqual([
+      { releaseAt: second.toISOString(), size: 1, number: 2 },
+      { releaseAt: first.toISOString(), size: 2, number: 1 },
+    ])
+    expect(report.recent.find((line) => line.until === second.toISOString())?.action).toBe("will go in batch 2")
+  })
+
   it("is null for another site's flow", async () => {
     const other = (await insertWorkspace(database)).id
     expect(await liveFlowReport(other, flowId, {}, database)).toBeNull()
@@ -386,6 +420,7 @@ describe("Recent activity's lines", () => {
     expect(describeActivity({ ...step, kind: "segmentDrip", nodeId: "start" })).toEqual({ kind: "letIn", action: "was let in from the segment" })
     expect(describeActivity({ ...step, kind: "drip", output: { releaseAt: "2099-01-01T09:00:00.000Z" } })).toEqual({ kind: "waiting", action: "is waiting for the batch on", until: "2099-01-01T09:00:00.000Z" })
     expect(describeActivity({ ...step, kind: "drip" })).toEqual({ kind: "movedOn", action: "went through the Drip" })
+    expect(describeActivity({ ...step, kind: "drip", batch: 3, output: { releaseAt: "2099-01-01T09:00:00.000Z" } })).toEqual({ kind: "waiting", action: "will go in batch 3", until: "2099-01-01T09:00:00.000Z" })
     const asleep = { ...step, kind: "wait", nodeId: "wait-two", stepName: "Wait", output: { waitingUntil: "2099-01-03T09:00:00.000Z" } }
     expect(describeActivity({ ...asleep, nextEmail: 2 })).toEqual({ kind: "waiting", action: "will get email 2", until: "2099-01-03T09:00:00.000Z" })
     expect(describeActivity({ ...asleep, nextEmail: null })).toEqual({ kind: "waiting", action: "is waiting until", until: "2099-01-03T09:00:00.000Z" })

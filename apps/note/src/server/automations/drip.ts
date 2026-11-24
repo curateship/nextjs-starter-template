@@ -87,7 +87,7 @@ async function placeOf(runId: string, nodeId: string, database: CustomShellDb) {
 }
 
 /** The newest batches this step has handed places in, newest first, and how many each holds. */
-export async function dripBatches(automationId: string, nodeId: string, database: CustomShellDb, limit: number) {
+async function dripBatches(automationId: string, nodeId: string, database: CustomShellDb, limit: number) {
   const releaseAt = sql<string>`${customShellAutomationRunSteps.output}->>'releaseAt'`
   return database
     .select({ releaseAt, places: sql<number>`count(*)::int` })

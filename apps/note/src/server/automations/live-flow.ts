@@ -21,7 +21,7 @@ import {
 import { sequenceFromGraph } from "@/lib/broadcasts/sequence-graph"
 import { now as currentTime } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { dripBatches, dripBounceCounts, DRIP_BOUNCE_SAMPLE_MINIMUM } from "@/server/automations/drip"
+import { dripBounceCounts, DRIP_BOUNCE_SAMPLE_MINIMUM } from "@/server/automations/drip"
 import { inspectAutomation } from "@/server/automations/flows"
 import {
   flowSequenceIds,
@@ -127,8 +127,8 @@ export type LiveFlowStep = {
     /** When the sending hours open next, while they are shut. */
     outsideHoursUntil: string | null
     bounce: { sent: number; bounced: number; limitPercent: number; minimum: number }
-    /** Newest first. */
-    batches: { releaseAt: string; size: number }[]
+    /** Newest first, each numbered from 1 since Run was last pressed. */
+    batches: { releaseAt: string; size: number; number: number }[]
   }
   sequence?: {
     sequenceId: string
@@ -418,20 +418,50 @@ export function dripPace(pace: DripConfig): NonNullable<LiveFlowStep["drip"]>["p
   }
 }
 
-/** The Drip card: its pace in words, whether its hours are shut, its bounces and batches. */
-async function dripCard(
+type NumberedBatch = { releaseAt: string; size: number; number: number }
+
+/**
+ * Every batch a Drip step has handed places in since Run was last pressed,
+ * oldest first and numbered from 1 (Tyler, 24 Nov 2026: "I think it should
+ * what the batch sequence is Like Batch 1 or 2"). A Stop and Run starts the
+ * count again.
+ */
+async function numberedDripBatches(
   automationId: string,
   nodeId: string,
+  since: Date | null,
+  database: CustomShellDb
+): Promise<NumberedBatch[]> {
+  const releaseAt = sql<string>`${steps.output}->>'releaseAt'`
+  const rows = await database
+    .select({ releaseAt, places: sql<number>`count(*)::int` })
+    .from(steps)
+    .innerJoin(runs, eq(runs.id, steps.runId))
+    .where(
+      and(
+        eq(runs.automationId, automationId),
+        eq(runs.testRun, false),
+        eq(steps.nodeId, nodeId),
+        sql`${steps.output} ? 'releaseAt'`,
+        since ? sql`(${steps.output}->>'releaseAt')::timestamptz >= ${instant(since)}` : undefined
+      )
+    )
+    .groupBy(releaseAt)
+    .orderBy(sql`(${steps.output}->>'releaseAt')::timestamptz asc`)
+  return rows.map((row, index) => ({ releaseAt: new Date(row.releaseAt).toISOString(), size: row.places, number: index + 1 }))
+}
+
+/** The Drip card: its pace in words, whether its hours are shut, its bounces and batches. */
+async function dripCard(
   settings: Record<string, unknown>,
+  automationId: string,
   sequenceIds: string[],
+  batches: NumberedBatch[],
   at: Date,
   database: CustomShellDb
 ): Promise<NonNullable<LiveFlowStep["drip"]>> {
   const pace = readDripStep(settings)
-  const [bounces, batches] = await Promise.all([
-    dripBounceCounts(automationId, sequenceIds, database),
-    dripBatches(automationId, nodeId, database, DRIP_BATCHES_SHOWN),
-  ])
+  const bounces = await dripBounceCounts(automationId, sequenceIds, database)
   return {
     pace: dripPace(pace),
     outsideHoursUntil: isWithinDripWindow(pace, at) ? null : nextDripWindowOpen(pace, at).toISOString(),
@@ -441,7 +471,7 @@ async function dripCard(
       limitPercent: pace.bounceThresholdPercent,
       minimum: DRIP_BOUNCE_SAMPLE_MINIMUM,
     },
-    batches: batches.map((batch) => ({ releaseAt: batch.releaseAt, size: batch.places })),
+    batches: batches.slice(-DRIP_BATCHES_SHOWN).reverse(),
   }
 }
 
@@ -545,6 +575,8 @@ export function describeActivity(step: {
   output: Record<string, unknown> | null
   stepName: string
   subject: string | null
+  /** At a Drip: the number of the batch the person goes in. */
+  batch?: number | null
   /** On a sequence's wait: the number of the email it waits to send. */
   nextEmail?: number | null
   runStatus: string
@@ -562,7 +594,11 @@ export function describeActivity(step: {
     case joinedSegmentNode.kind:
       return { kind: "letIn", action: "was let in from the segment" }
     case dripNode.kind:
-      if (releaseAt) return { kind: "waiting", action: "is waiting for the batch on", until: releaseAt }
+      if (releaseAt) {
+        return step.batch
+          ? { kind: "waiting", action: `will go in batch ${step.batch}`, until: releaseAt }
+          : { kind: "waiting", action: "is waiting for the batch on", until: releaseAt }
+      }
       return endedHere ? { kind: "stopped", action: "stopped at Drip" } : { kind: "movedOn", action: "went through the Drip" }
     case waitNode.kind:
       // Tyler, 24 Nov 2026: "waiting at wait does not make sense", then
@@ -588,8 +624,21 @@ export function describeActivity(step: {
   }
 }
 
+/** The number of the batch a Drip step's line put its person in, if it is one since Run. */
+function batchNumber(batches: NumberedBatch[] | undefined, output: unknown): number | null {
+  const releaseAt = output && typeof output === "object" ? (output as Record<string, unknown>).releaseAt : null
+  if (!batches || typeof releaseAt !== "string") return null
+  const time = new Date(releaseAt).getTime()
+  return batches.find((batch) => new Date(batch.releaseAt).getTime() === time)?.number ?? null
+}
+
 /** The newest things the flow and its sequences did, with who they were about. */
-async function recentActivity(automationId: string, sequenceIds: string[], database: CustomShellDb): Promise<LiveFlowActivity[]> {
+async function recentActivity(
+  automationId: string,
+  sequenceIds: string[],
+  batchesByStep: Map<string, NumberedBatch[]>,
+  database: CustomShellDb
+): Promise<LiveFlowActivity[]> {
   // The step's settings from the run's own copy of the flow, without an
   // email's blocks, which would ship a whole email per line.
   const settings = sql<Record<string, unknown> | null>`(${runs.configSnapshot} -> 'nodes' -> ${steps.nodeId} -> 'settings') - 'blocks'`
@@ -633,6 +682,7 @@ async function recentActivity(automationId: string, sequenceIds: string[], datab
       stepName: automationNodeName({ id: row.nodeId, kind: row.kind, x: 0, y: 0, settings: nodeSettings as never }),
       subject: row.kind === sendSequenceNode.kind ? text("sequenceName") : text("subject"),
       nextEmail: row.nodeId.startsWith("wait-") ? emailNumbers.get(row.automationId)?.get(row.nodeId.slice("wait-".length)) : null,
+      batch: batchNumber(batchesByStep.get(row.nodeId), row.output),
     })
     return {
       id: row.id,
@@ -689,12 +739,18 @@ export async function liveFlowReport(
   const order = config ? stepsInOrder(config) : []
   const sequenceIds = flowSequenceIds(config)
 
+  const dripSteps = order.filter((nodeId) => config!.nodes[nodeId]?.kind === dripNode.kind)
+  const batchesByStep = new Map(
+    await Promise.all(
+      dripSteps.map(async (nodeId) => [nodeId, await numberedDripBatches(flow.id, nodeId, flow.liveSince, database)] as const)
+    )
+  )
   const [stats, onSteps, outcomes, ownEmails, recent, dropped] = await Promise.all([
     runStats(flow.id, from, at, database),
     peopleOnSteps(flow.id, at, database),
     stepOutcomes(flow.id, from, database),
     emailOutcomes(and(eq(runs.automationId, flow.id), eq(runs.testRun, false)) as SQL, from, database),
-    recentActivity(flow.id, sequenceIds, database),
+    recentActivity(flow.id, sequenceIds, batchesByStep, database),
     droppedOut(flow.id, sequenceIds, from, database),
   ])
 
@@ -720,7 +776,7 @@ export async function liveFlowReport(
       const segmentId = typeof node.settings.segmentId === "string" ? node.settings.segmentId : ""
       card.segment = await segmentCard(flow, { kind: node.kind, segmentId }, at, database)
     } else if (node.kind === dripNode.kind) {
-      card.drip = await dripCard(flow.id, nodeId, node.settings, sequenceIds, at, database)
+      card.drip = await dripCard(node.settings, flow.id, sequenceIds, batchesByStep.get(nodeId) ?? [], at, database)
     } else if (node.kind === sendSequenceNode.kind) {
       card.sequence = await sequenceCard(flow, nodeId, node.settings, before, from, database)
     } else if (node.kind === sendEmailNode.kind) {
