@@ -324,7 +324,7 @@ export function AutoSaveWords({ state, ready, why }: { state: AutoSaveState; rea
 const authenticatedRoute = getRouteApi("/_authenticated")
 
 /** The keys a row's filters are kept under; never the words typed, the page or the open record. */
-const FILTER_KEYS = ["status", "kind", "sort", "direction", "days", "size"] as const
+const FILTER_KEYS = ["status", "kind", "gap", "sort", "direction", "days", "size"] as const
 
 /**
  * Each row's filters, remembered per person and site in this browser

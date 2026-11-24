@@ -9,6 +9,8 @@ import {
 } from "@/components/directory/contact-links-fields"
 import { FeaturedPlansPopover } from "@/components/directory/featured-plans-popover"
 import { ListingViewsPanel } from "@/components/directory/listing-views-panel"
+import { rankSentence } from "@/lib/directory/listing-rank"
+import { hasNoPhoto } from "@/lib/directory/needs-work"
 import { OwnerEventsCard } from "@/components/events/owner-events"
 import { OwnerDealsCard } from "@/components/promotions/owner-deals"
 import { ImageUpload } from "@/components/shared/image-upload"
@@ -249,6 +251,12 @@ function OwnedListingCard({ listing }: { listing: OwnedListing }) {
             uploader rather than a second one — the label sits outside the cap
             or it wraps. */}
         <div className="grid gap-2">
+          {/* The one gap an owner can fill from here (Tyler, 24 Nov 2026: "Only gaps they can fix"). */}
+          {hasNoPhoto(listing) ? (
+            <p className="text-sm text-muted-foreground">
+              Your listing has no photo yet. Add one here, then send the change for approval.
+            </p>
+          ) : null}
           <div className="max-w-24">
             <ImageUpload
               label="Photo"
@@ -320,6 +328,8 @@ function OwnedListingCard({ listing }: { listing: OwnedListing }) {
           key={`${listing.featured.active}:${listing.featured.endsAt}`}
           listingId={listing.listingId}
           featured={listing.featured}
+          // Where it stands in its category, beside the button that sells the top spot (Tyler's pick, 24 Nov 2026).
+          note={listing.rank ? rankSentence(listing.rank) : null}
         />
         <ListingBadgeBuilder listing={listing} />
       </CardContent>
@@ -441,12 +451,16 @@ function ListingBadgeBuilder({ listing }: { listing: OwnedListing }) {
 export function FeaturedPurchase({
   listingId,
   featured,
+  note = null,
 }: {
   listingId: string
   featured: OwnedListing["featured"]
+  /** One line above the button, such as where the listing ranks. */
+  note?: string | null
 }) {
   return (
     <div className="border-t pt-4">
+      {note ? <p className="mb-2 text-sm font-medium">{note}</p> : null}
       <FeaturedPlansPopover
         featuredNow={featured.active}
         noun="listing"

@@ -38,6 +38,19 @@ describe("owner featured status", () => {
     expect(document.body.textContent).toContain(active ? "This listing is already featured." : "This site is not offering featured placement yet.")
   })
 
+  it("says where the listing ranks above the button, and nothing when there is no rank", async () => {
+    await act(async () =>
+      root.render(
+        <FeaturedPurchase listingId="listing" featured={{ active: false, endsAt: null }} note="2nd most viewed in Soup over the last 30 days." />
+      )
+    )
+    const line = host.querySelector("p")
+    expect(line?.textContent).toBe("2nd most viewed in Soup over the last 30 days.")
+    expect(line?.nextElementSibling?.textContent).toContain("Feature this listing")
+    await act(async () => root.render(<FeaturedPurchase listingId="listing" featured={{ active: false, endsAt: null }} note={null} />))
+    expect(host.querySelector("p")).toBeNull()
+  })
+
   it("keeps known status on a load failure and allows retry", async () => {
     vi.mocked(loadFeaturedPurchase).mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce({ active: false, plans: [] })
     await act(async () => root.render(<FeaturedPurchase listingId="listing" featured={{ active: true, endsAt: null }} />))

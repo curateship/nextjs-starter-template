@@ -8,6 +8,7 @@ import {
 import { DIRECTORY_LISTING_STATUSES } from "@/lib/directory/listing-status"
 import { LISTING_REPORT_STATUSES, REPORT_KINDS, type ReportKind } from "@/lib/directory/report-reasons"
 import { EDIT_REQUEST_STATUSES, REVIEW_STATUSES } from "@/lib/directory/review-status"
+import { NEEDS_WORK_GAPS, type NeedsWorkGap } from "@/lib/directory/needs-work"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { PROMOTION_SORT_COLUMNS, type PromotionSortColumn } from "@/lib/promotions/promotion-sort"
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
@@ -23,8 +24,10 @@ import { readDirection, readOneOf, readPage, readSearchText } from "@/lib/nav/li
  *
  * The rows, in Tyler's order (records first, then the queues): Overview,
  * Listings, Categories, Custom fields, Guides, Promotions, Submissions,
- * Claims, Owner changes, Deals from owners, Reports, Featured plans,
- * Placements, Saved lists, Outreach. Promotions and Deals from owners moved
+ * Claims, Owner changes, Deals from owners, Reports, Duplicates, Needs work,
+ * Featured plans, Placements, Saved lists, Outreach. Duplicates and Needs
+ * work joined the queues on 24 Nov 2026 (Tyler's picks: "Merge duplicate
+ * listings", "Needs work list"). Promotions and Deals from owners moved
  * in on 18 Nov 2026 too (Tyler: "we have to move promotions in the new
  * dashboard too").
  */
@@ -41,6 +44,8 @@ export const LISTINGS_SECTIONS = [
   "changes",
   "dealRequests",
   "reports",
+  "duplicates",
+  "needsWork",
   "plans",
   "placements",
   "saved",
@@ -66,6 +71,8 @@ export const LISTINGS_SECTION_LABELS: Record<ListingsSection, string> = {
   changes: "Owner changes",
   dealRequests: "Deals from owners",
   reports: "Reports",
+  duplicates: "Duplicates",
+  needsWork: "Needs work",
   plans: "Featured plans",
   placements: "Placements",
   saved: "Saved lists",
@@ -108,6 +115,8 @@ export type ListingsSearch = {
   days?: ListingViewRange
   /** Listings: one category, picked in the Categories block or from a category's count. */
   category?: string
+  /** Needs work: only listings missing this. */
+  gap?: NeedsWorkGap
   page?: number
   size?: number
 }
@@ -134,6 +143,8 @@ export function readListingsSearch(search: Record<string, unknown>): ListingsSea
   const days = readListingViewRange(search.days)
   if (days !== undefined && days !== "all") out.days = days
   if (typeof search.category === "string" && ID.test(search.category)) out.category = search.category
+  const gap = readOneOf(search.gap, NEEDS_WORK_GAPS)
+  if (gap) out.gap = gap
   const page = readPage(search.page)
   if (page) out.page = page
   if (readOneOf(String(search.size), DASHBOARD_ROWS_PER_PAGE_OPTIONS.map(String))) out.size = Number(search.size)

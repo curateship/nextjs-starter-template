@@ -35,12 +35,23 @@ import type { EventWhen } from "@/lib/events/event-time"
 export type DirectoryFrontPageAnswer =
   { host: "site" } | { host: "platform"; signedIn: boolean }
 
+/**
+ * How many views in the last 7 days a listing needs before "Most viewed this
+ * week" ranks it (Tyler's pick, 24 Nov 2026: "Popular this week row"). Below
+ * it, a quiet week would fill the row with listings seen once.
+ */
+export const POPULAR_MIN_WEEK_VIEWS = 5
+
+/** How many days "this week" counts, today included. */
+export const POPULAR_WEEK_DAYS = 7
+
 /** How a row picks and orders its listings. The first one is the default. */
 export const DIRECTORY_FRONT_PAGE_SORTS = [
   "newest",
   "featured",
   "rating",
   "name",
+  "popular",
 ] as const
 
 export type DirectoryFrontPageSort = (typeof DIRECTORY_FRONT_PAGE_SORTS)[number]
@@ -53,6 +64,7 @@ export const DIRECTORY_FRONT_PAGE_SORT_LABELS: Record<
   featured: "Featured only",
   rating: "Top rated first",
   name: "A to Z",
+  popular: "Most viewed this week",
 }
 
 /**
@@ -68,6 +80,7 @@ export const DIRECTORY_FRONT_PAGE_SORT_HINTS: Record<
   featured: "Only listings with paid placement running right now.",
   rating: "Highest rated first. Unrated listings come last.",
   name: "Alphabetical by title.",
+  popular: `Most views over the last 7 days, counting only listings with at least ${POPULAR_MIN_WEEK_VIEWS}. The newest fill any spots left.`,
 }
 
 /** How a row draws its listings. The first one is the default. */

@@ -42,6 +42,7 @@ import {
 import {
   publicListingCardsByIds,
   type PublicListingCard,
+  type PublicMapPin,
   type PublicSite,
   type VisitorSite,
 } from "@/server/directory/public"
@@ -54,6 +55,10 @@ import {
   directoryGuides,
   directoryListings,
 } from "@/server/directory/schema"
+import {
+  directoryMapDisplayKey,
+  directorySettingsFor,
+} from "@/server/directory/settings"
 import {
   firstFreeSlug as firstFreeSlugRule,
   requireFreeSlug as requireFreeSlugRule,
@@ -541,6 +546,59 @@ export type PublicGuidePage = {
   /** The published listings, in the guide's order, as browse-grid cards. */
   listings: PublicListingCard[]
   shareImageVersion: string
+  /**
+   * The map above the list, or null: the site's map switched off, no map key,
+   * or fewer than two of its listings with a place on the map (Tyler's pick,
+   * 24 Nov 2026: "A map on a guide").
+   */
+  map: { apiKey: string; pins: PublicMapPin[] } | null
+}
+
+/** A guide's map needs at least this many pins; one pin is not a map worth drawing. */
+const GUIDE_MAP_MIN_PINS = 2
+
+/**
+ * The guide's listings that have both coordinates, as pins, in the guide's
+ * order. Asked only when the site's map is switched on, the same rule the
+ * browse map keeps: a site that never switched it on must not hand out its
+ * listings' coordinates.
+ */
+async function guidePins(
+  siteId: string,
+  listings: PublicListingCard[],
+  database: CustomShellDb
+): Promise<PublicMapPin[]> {
+  if (listings.length < GUIDE_MAP_MIN_PINS) return []
+  const settings = await directorySettingsFor(siteId, database)
+  if (!settings.mapEnabled) return []
+  const rows = await database
+    .select({
+      id: directoryListings.id,
+      latitude: directoryListings.latitude,
+      longitude: directoryListings.longitude,
+    })
+    .from(directoryListings)
+    .where(
+      and(
+        eq(directoryListings.workspaceId, siteId),
+        inArray(
+          directoryListings.id,
+          listings.map((listing) => listing.id)
+        )
+      )
+    )
+  const at = new Map(rows.map((row) => [row.id, row]))
+  return listings.flatMap((listing) => {
+    const point = at.get(listing.id)
+    if (point?.latitude == null || point.longitude == null) return []
+    return [
+      {
+        ...listing,
+        latitude: Number(point.latitude),
+        longitude: Number(point.longitude),
+      },
+    ]
+  })
 }
 
 function toPublicGuide(row: GuideRow): PublicGuide {
@@ -581,11 +639,14 @@ function guideShareInput(
   }
 }
 
+/** What is cached for a guide's page: everything but the map key, which is read after. */
+type CachedGuidePage = Omit<PublicGuidePage, "map"> & { pins: PublicMapPin[] }
+
 async function readPublicGuideUncached(
   site: VisitorSite,
   slug: string,
   database: CustomShellDb
-): Promise<PublicGuidePage | null> {
+): Promise<CachedGuidePage | null> {
   const [row] = await database
     .select()
     .from(directoryGuides)
@@ -605,6 +666,7 @@ async function readPublicGuideUncached(
     site: { name: site.name, url: site.url },
     guide: toPublicGuide(row),
     listings,
+    pins: await guidePins(site.id, listings, database),
     shareImageVersion: listingShareImageVersion(
       guideShareInput(site, row, listings.length)
     ),
@@ -616,12 +678,12 @@ async function readPublicGuideUncached(
  * and another site's guide alike, so a draft cannot be told apart from a guide
  * never written.
  */
-export function readPublicGuide(
+export async function readPublicGuide(
   site: VisitorSite,
   slug: string,
   database: CustomShellDb = db
 ): Promise<PublicGuidePage | null> {
-  return cachedPublicDirectoryRead(
+  const page = await cachedPublicDirectoryRead(
     site.id,
     "guide",
     {
@@ -630,6 +692,15 @@ export function readPublicGuide(
     },
     () => readPublicGuideUncached(site, slug, database)
   )
+  if (!page) return null
+  const { pins, ...rest } = page
+  // Read after the cache, as the browse map's key is: a key pasted a minute
+  // ago reaches the next visitor, not the one after the cache runs out.
+  const apiKey =
+    pins.length >= GUIDE_MAP_MIN_PINS
+      ? await directoryMapDisplayKey(site.id, database)
+      : null
+  return { ...rest, map: apiKey ? { apiKey, pins } : null }
 }
 
 /** The most guides the Guides page draws. No site writes this many. */

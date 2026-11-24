@@ -1,5 +1,6 @@
 import { and, asc, eq, gt, gte, inArray, lt, sql } from "drizzle-orm"
 
+import { RANK_DAYS, rankToShow, type ListingRank } from "@/lib/directory/listing-rank"
 import type { ListingViewRange } from "@/lib/directory/listing-sort"
 import { db, type CustomShellDb } from "@/server/db"
 import { directoryClaims, directoryListings } from "@/server/directory/schema"
@@ -169,4 +170,60 @@ export async function listingViewCounts(
     .groupBy(directoryListings.id)
 
   return new Map(rows.map((row) => [row.id, row.views]))
+}
+
+/**
+ * Where one listing stands in its primary category over the last 30 days,
+ * or null when nothing is worth saying (`lib/directory/listing-rank.ts` has
+ * the rule). Published listings only, on both sides: a draft has no page to
+ * count, and another site's listings never come into it.
+ */
+export async function listingCategoryRank(
+  siteId: string,
+  listingId: string,
+  database: CustomShellDb = db,
+  at: Date = now()
+): Promise<ListingRank | null> {
+  const firstDay = trafficDay(new Date(at.getTime() - (RANK_DAYS - 1) * DAY_MS))
+  const result = await database.execute(sql`
+    WITH home AS (
+      SELECT relationship.category_id, category.name
+      FROM category_relationships relationship
+      INNER JOIN categories category ON category.id = relationship.category_id
+      INNER JOIN directory_listings own ON own.id = relationship.content_id AND own.status = 'published'
+      WHERE relationship.workspace_id = ${siteId}
+        AND relationship.content_type = 'directory_listing'
+        AND relationship.content_id = ${listingId}
+      ORDER BY relationship.is_primary DESC, category.display_order ASC, category.name ASC
+      LIMIT 1
+    ),
+    peers AS (
+      SELECT listing.id, coalesce(sum(facts.views), 0)::int AS views
+      FROM category_relationships relationship
+      INNER JOIN directory_listings listing
+        ON listing.id = relationship.content_id
+       AND listing.workspace_id = ${siteId}
+       AND listing.status = 'published'
+      LEFT JOIN traffic_daily_facts facts
+        ON facts.workspace_id = ${siteId}
+       AND facts.dimension = 'path'
+       AND facts.key = '/directory/' || listing.slug
+       AND facts.day >= ${firstDay}
+      WHERE relationship.workspace_id = ${siteId}
+        AND relationship.content_type = 'directory_listing'
+        AND relationship.category_id = (SELECT category_id FROM home)
+      GROUP BY listing.id
+    )
+    SELECT
+      (SELECT name FROM home) AS category,
+      own.views,
+      (SELECT count(*) FROM peers WHERE peers.views > own.views)::int + 1 AS position,
+      (SELECT count(*) FROM peers)::int AS peers
+    FROM peers own
+    WHERE own.id = ${listingId}
+  `)
+  const row = result.rows[0] as { category: string; views: number; position: number; peers: number } | undefined
+  return rankToShow(
+    row ? { category: row.category, views: Number(row.views), position: Number(row.position), peers: Number(row.peers) } : null
+  )
 }

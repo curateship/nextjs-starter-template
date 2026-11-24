@@ -8,6 +8,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -1227,3 +1228,37 @@ export const directoryListingPages = pgTable("directory_listing_pages", {
   sections: jsonb("sections").$type<{ hidden?: unknown; order?: unknown }>().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })
+
+/**
+ * Two listings an admin said are not the same place, so the Duplicates row
+ * stops showing them. Stored once, the smaller id first. Migration 0163.
+ */
+export const directoryListingNotDuplicates = pgTable(
+  "directory_listing_not_duplicates",
+  {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    firstListingId: varchar("first_listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    secondListingId: varchar("second_listing_id", { length: 36 })
+      .notNull()
+      .references(() => directoryListings.id, { onDelete: "cascade" }),
+    decidedByUserId: varchar("decided_by_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.workspaceId, table.firstListingId, table.secondListingId],
+    }),
+    index("ix_directory_listing_not_duplicates_second").on(table.secondListingId),
+    check(
+      "directory_listing_not_duplicates_order_check",
+      sql`${table.firstListingId} < ${table.secondListingId}`
+    ),
+  ]
+)

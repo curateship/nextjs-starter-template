@@ -24,6 +24,7 @@ import { currentAddressFor } from "@/server/directory/old-addresses"
 import type { VisitorSite } from "@/server/directory/public"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import { customShellWorkspaces } from "@/server/schema"
+import { saveDirectoryMapDisplayKey, saveDirectoryMapEnabled } from "@/server/directory/settings"
 import {
   createTestDatabase,
   insertWorkspace,
@@ -154,6 +155,52 @@ describe("the guide window", () => {
 
     const { guides } = await listGuides(alpha.id, {}, database)
     expect(guides.map((row) => [row.listings, row.shown])).toEqual([[2, 1]])
+  })
+})
+
+describe("the map on a guide's page", () => {
+  // The map key is kept encrypted, as public-map.test.ts sets it up.
+  const ENCRYPTION_ENV = "CUSTOM_SHELL_SECRET_ENCRYPTION_KEY"
+  const originalSecret = process.env[ENCRYPTION_ENV]
+  beforeEach(() => {
+    process.env[ENCRYPTION_ENV] = "test-secret-any-string-works"
+  })
+  afterEach(() => {
+    if (originalSecret === undefined) delete process.env[ENCRYPTION_ENV]
+    else process.env[ENCRYPTION_ENV] = originalSecret
+  })
+
+  async function placed(title: string, latitude: number | null, longitude: number | null) {
+    const made = await listing(alpha, title)
+    return updateListing(alpha.id, made.id, { latitude, longitude }, database)
+  }
+
+  it("pins the listings that have a place, in the guide's order, only while the site's map is on and has a key", async () => {
+    const north = await placed("North", 43.7, -79.4)
+    const nowhere = await placed("Nowhere", null, null)
+    const south = await placed("South", 43.6, -79.38)
+    await guide(alpha, "Mapped", [south.id, nowhere.id, north.id])
+
+    // Off, and then on with no key: no map either way, and no coordinates handed out.
+    expect((await readPublicGuide(alpha, "mapped", database))?.map).toBeNull()
+    await saveDirectoryMapEnabled(alpha.id, true, database)
+    resetPublicDirectoryCacheForTests()
+    expect((await readPublicGuide(alpha, "mapped", database))?.map).toBeNull()
+
+    await saveDirectoryMapDisplayKey(alpha.id, "not-a-real-key-1234", database)
+    const page = await readPublicGuide(alpha, "mapped", database)
+    expect(page?.map?.apiKey).toBe("not-a-real-key-1234")
+    expect(slugs(page?.map?.pins ?? [])).toEqual(["south", "north"])
+    expect(page?.map?.pins[0]).toMatchObject({ latitude: 43.6, longitude: -79.38 })
+  })
+
+  it("draws no map when fewer than two listings have a place", async () => {
+    const one = await placed("Only One", 43.7, -79.4)
+    const other = await placed("No Place", null, null)
+    await guide(alpha, "Thin", [one.id, other.id])
+    await saveDirectoryMapEnabled(alpha.id, true, database)
+    await saveDirectoryMapDisplayKey(alpha.id, "not-a-real-key-1234", database)
+    expect((await readPublicGuide(alpha, "thin", database))?.map).toBeNull()
   })
 })
 

@@ -10,8 +10,11 @@
 - Counts use each listing's current `/directory/<slug>` address and the site's
   existing traffic facts. Views from before a rename stay with the old address.
 - Counts and listing rows stay within the currently selected site.
-- This feature intentionally has no ranking card, charts, daily breakdown, or
-  visitor identities. The Traffic screen remains the home for broader analysis.
+- Admin → Listings has no ranking card, charts, daily breakdown, or visitor
+  identities. The Traffic screen remains the home for broader analysis.
+- The same figures rank an owner's listing in its category on My listings
+  (`where-my-listing-ranks.md`) and order a front page row by "Most viewed
+  this week" (`home-page-rows.md`).
 
 ## Test road map
 

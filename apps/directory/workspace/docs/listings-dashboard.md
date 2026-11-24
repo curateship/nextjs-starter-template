@@ -33,6 +33,8 @@ queues:
 | Owner changes | Changes owners asked for | Waiting ones |
 | Deals from owners | Deals and changes owners sent | Waiting ones |
 | Reports | Problems visitors reported | Open ones |
+| Duplicates | Pairs of listings that look like the same place | Every pair |
+| Needs work | Published listings missing a photo, hours, a write-up or a category | Every one |
 | Featured plans | What the site sells the top of its pages for | Every plan |
 | Placements | Featured spots sold | Running ones |
 | Saved lists | Visitors' saved lists | Every list |
@@ -46,6 +48,9 @@ queues:
   have to move promotions in the new dashboard too"), since every deal
   belongs to one listing. `workspace/docs/promotions.md` says what is
   particular to them.
+- **Duplicates and Needs work joined on 24 Nov 2026** (Tyler's picks: "Merge
+  duplicate listings", "Needs work list"), after Reports. Neither has Mass
+  select. `duplicate-listings.md` and `needs-work.md` say how each works.
 - **Owner changes has a row of its own.** It was the second table on the old
   Claims page, and a row has one header only.
 - **Old addresses forward.** `/admin/listing-fields`, `listing-submissions`,

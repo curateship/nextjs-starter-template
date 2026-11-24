@@ -3,6 +3,8 @@ import { sql } from "drizzle-orm"
 import { cleanContactLinks } from "@/lib/directory/contact-links"
 import {
   browseSortForFrontPageSort,
+  POPULAR_MIN_WEEK_VIEWS,
+  POPULAR_WEEK_DAYS,
   type DirectoryFrontPageListing,
 } from "@/lib/directory/front-page"
 import {
@@ -28,6 +30,8 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import { siteById } from "@/server/directory/public"
+import { now } from "@/server/auth/security"
+import { trafficDay } from "@/server/traffic"
 import {
   directoryMapDisplayKey,
   siteTimeZone,
@@ -99,6 +103,11 @@ type ListingRow = {
   featured: boolean
 }
 
+/** The first day "this week" counts, today being the last of its seven. */
+function firstWeekDay(at: Date = now()) {
+  return trafficDay(new Date(at.getTime() - (POPULAR_WEEK_DAYS - 1) * 24 * 60 * 60 * 1000))
+}
+
 /**
  * One row's listings: this site's published ones, narrowed to the row's
  * category, in the row's order, capped at the row's count.
@@ -130,6 +139,19 @@ async function readRowListings(
         AND fe.starts_at <= now()
         AND fe.ends_at > now()
       GROUP BY fe.listing_id
+    ),
+    -- Only read for "Most viewed this week". Admins' own visits are never
+    -- counted (routes/api/v1/traffic/view.ts), so this is visitors alone.
+    week_views AS (
+      SELECT facts.key, sum(facts.views)::int AS views
+      FROM traffic_daily_facts facts
+      WHERE ${settings.sort} = 'popular'
+        AND facts.workspace_id = ${workspaceId}
+        AND facts.dimension = 'path'
+        AND facts.day >= ${firstWeekDay()}
+        AND facts.key LIKE '/directory/%'
+      GROUP BY facts.key
+      HAVING sum(facts.views) >= ${POPULAR_MIN_WEEK_VIEWS}
     )
     SELECT
       listing.id,
@@ -154,6 +176,7 @@ async function readRowListings(
       (feature.listing_id IS NOT NULL) AS featured
     FROM directory_listings listing
     LEFT JOIN active_feature feature ON feature.listing_id = listing.id
+    LEFT JOIN week_views popular ON popular.key = '/directory/' || listing.slug
     LEFT JOIN LATERAL (
       SELECT category.name, category.slug
       FROM category_relationships relationship
@@ -196,6 +219,8 @@ async function readRowListings(
       CASE WHEN ${settings.sort} = 'featured' THEN feature.priority END DESC NULLS LAST,
       CASE WHEN ${settings.sort} = 'rating' THEN listing.rating END DESC NULLS LAST,
       CASE WHEN ${settings.sort} = 'name' THEN listing.title END ASC,
+      -- The most viewed first, then the newest fill the rest of the row.
+      popular.views DESC NULLS LAST,
       listing.created_at DESC,
       listing.id ASC
     LIMIT ${settings.count}

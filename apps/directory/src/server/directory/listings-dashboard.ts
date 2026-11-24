@@ -14,7 +14,9 @@ import { PAGE_MAX_LENGTH, storedPageBody, type StoredPage } from "@/lib/notes/pa
 import { readCoverImages } from "@/lib/notes/page-cover"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import { duplicatePairCount } from "@/server/directory/duplicates"
 import { featuredAdminOverview } from "@/server/directory/featured"
+import { needsWorkCount } from "@/server/directory/needs-work"
 import { outreachHistory, outreachListings } from "@/server/directory/outreach"
 import { mostSavedListings } from "@/server/directory/saves"
 import { listingViewCounts } from "@/server/directory/views"
@@ -186,6 +188,8 @@ export async function listingsSectionCounts(
     changes,
     dealRequests,
     reports,
+    duplicates,
+    needsWork,
     plans,
     placements,
     saved,
@@ -232,6 +236,8 @@ export async function listingsSectionCounts(
         .from(directoryListingReports)
         .where(and(eq(directoryListingReports.workspaceId, workspaceId), eq(directoryListingReports.status, "open")))
     ),
+    duplicatePairCount(workspaceId, database),
+    needsWorkCount(workspaceId, database),
     countOf(database.select({ total }).from(directoryFeaturedPlans).where(eq(directoryFeaturedPlans.workspaceId, workspaceId))),
     countOf(
       database
@@ -261,6 +267,8 @@ export async function listingsSectionCounts(
     changes,
     dealRequests,
     reports,
+    duplicates,
+    needsWork,
     plans,
     placements,
     saved,

@@ -67,8 +67,11 @@ export async function saveKeepingOldAddress<Row extends { slug: string }>(
   })
 }
 
-/** A record moved from one address to another. Run inside the save. */
-async function recordAddressChange(
+/**
+ * A record moved from one address to another. Run inside the save, or inside
+ * a merge, where the merged listing's address now leads to the one kept.
+ */
+export async function recordAddressChange(
   database: CustomShellDb,
   siteId: string,
   kind: OldAddressKind,

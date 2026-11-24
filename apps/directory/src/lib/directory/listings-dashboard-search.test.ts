@@ -40,6 +40,8 @@ describe("a site's dragged row order", () => {
       "changes",
       "dealRequests",
       "reports",
+      "duplicates",
+      "needsWork",
       "plans",
       "placements",
       "saved",

@@ -5,6 +5,7 @@ import { DirectoryRouteError } from "@/components/directory/public/directory-err
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
+import { GuideMap } from "@/components/directory/public/guide-map"
 import { PublicTitleBand } from "@/components/shared/public-title-band"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadGuide } from "@/lib/api/directory/public"
@@ -21,8 +22,9 @@ import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 
 /**
  * One guide's page at /guides/<address>: its cover, title and intro in the
- * band at the top, then its listings in the editor's order as the cards the
- * browse page draws. It follows the Guides page's on/off switch.
+ * band at the top, then a map of its places when the site has one and two
+ * or more have a pin, then its listings in the editor's order as the cards
+ * the browse page draws. It follows the Guides page's on/off switch.
  *
  * A listing that is not published is left out, so a guide can hold nine and
  * show eight. A guide with none to show says so rather than failing.
@@ -60,7 +62,7 @@ export const Route = createFileRoute("/guides_/$slug")({
 })
 
 function GuideRoute() {
-  const { site, guide, listings } = Route.useLoaderData()
+  const { site, guide, listings, map } = Route.useLoaderData()
 
   return (
     <DirectoryFrame
@@ -117,6 +119,8 @@ function GuideRoute() {
           listings,
         })}
       />
+      {/* Its places as pins, above the list (Tyler's pick, 24 Nov 2026: "A map on a guide"). */}
+      {map ? <GuideMap apiKey={map.apiKey} pins={map.pins} /> : null}
       <ListingGrid
         listings={listings}
         emptyMessage="There is nothing to show in this guide right now."

@@ -18,9 +18,11 @@ import { CategoriesSection } from "@/components/directory/listings-dashboard/sec
 import { ChangesSection } from "@/components/directory/listings-dashboard/sections/changes-section"
 import { ClaimsSection } from "@/components/directory/listings-dashboard/sections/claims-section"
 import { DealRequestsSection } from "@/components/directory/listings-dashboard/sections/deal-requests-section"
+import { DuplicatesSection } from "@/components/directory/listings-dashboard/sections/duplicates-section"
 import { FieldsSection } from "@/components/directory/listings-dashboard/sections/fields-section"
 import { GuidesSection } from "@/components/directory/listings-dashboard/sections/guides-section"
 import { ListingsSection as ListingsRow } from "@/components/directory/listings-dashboard/sections/listings-section"
+import { NeedsWorkSection } from "@/components/directory/listings-dashboard/sections/needs-work-section"
 import { OutreachSection } from "@/components/directory/listings-dashboard/sections/outreach-section"
 import { PlacementsSection } from "@/components/directory/listings-dashboard/sections/placements-section"
 import { PlansSection } from "@/components/directory/listings-dashboard/sections/plans-section"
@@ -189,6 +191,8 @@ export function ListingsDashboard({ loaded, search }: { loaded: ListingsLoaded; 
       changes: counts?.changes ?? null,
       dealRequests: counts?.dealRequests ?? null,
       reports: counts?.reports ?? null,
+      duplicates: counts?.duplicates ?? null,
+      needsWork: counts?.needsWork ?? null,
       plans: counts?.plans ?? null,
       placements: counts?.placements ?? null,
       saved: counts?.saved ?? null,
@@ -236,6 +240,10 @@ export function ListingsDashboard({ loaded, search }: { loaded: ListingsLoaded; 
     middle = <ChangesSection key="changes" {...props} data={loaded.screen} />
   } else if (loaded.section === "reports") {
     middle = <ReportsSection key="reports" {...props} data={loaded.page} />
+  } else if (loaded.section === "duplicates") {
+    middle = <DuplicatesSection key="duplicates" {...props} data={loaded.page} />
+  } else if (loaded.section === "needsWork") {
+    middle = <NeedsWorkSection key="needsWork" {...props} data={loaded} />
   } else if (loaded.section === "plans") {
     middle = <PlansSection key="plans" {...props} data={loaded} />
   } else if (loaded.section === "placements") {

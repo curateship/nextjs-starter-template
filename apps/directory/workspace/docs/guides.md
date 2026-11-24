@@ -41,8 +41,28 @@ lives in `directory_save_collections`, and is left exactly as it was.
 
 - **A guide's page:** the band with the trail (site → Guides → the guide), the
   title, the intro, how many places, and the cover beside the words. Under it,
-  the listings in the guide's order as the cards the Directory page draws,
-  with their Deal tags.
+  a map of its places, then the listings in the guide's order as the cards
+  the Directory page draws, with their Deal tags.
+- **The map** (Tyler's pick, 24 Nov 2026: "A map on a guide") uses the same
+  pins and cards as the front page's "Map with pins" row: one pin per listing
+  that has both map coordinates, and pressing a pin shows that listing's
+  card. A pin of a listing with a deal on gets the deal marker. Its words
+  are a guide's own: if Google's map does not load it says "The map could
+  not be loaded. The places are listed below." (`guide-map.tsx`).
+  - **It shows only when the site has a map.** Settings → Directory's map
+    switch is on and a map key is saved. With either missing the page has
+    no map and no empty box, and the listings' coordinates are never sent,
+    the same rule the Directory page's map keeps.
+  - **It needs two pins.** One pin, or none, is not a map worth drawing, so
+    a guide with fewer than two listings on the map has none.
+  - **It loads with the page.** It sits straight under the band, so it is
+    in view as the page opens and nothing waits for a scroll.
+  - **The key is read after the page's two-minute cache,** as the Directory
+    page's is, so a key saved a moment ago reaches the next visitor.
+  - **Locally there is no map key**, and only 6 of the 930 published
+    listings have coordinates, so Eat Drink Toronto's guides show no map on
+    port 3015. A guide needs a key in Settings → Directory and two of its
+    listings with a map pin.
 - **The Guides page at `/guides`:** every published guide, newest first, as a
   card with its cover, title, the start of its intro and how many places. Tyler
   asked for this page on 17 Oct 2026.

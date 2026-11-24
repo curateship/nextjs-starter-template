@@ -67,6 +67,10 @@ export default function BookingsWidget({ days }: AdminAdditionProps) {
   `SideRows` list in it is opened by "Show all": then the block grows down to
   the list's last row and the panel scrolls (Tyler, 18 Nov 2026: "this here
   doesnt extend down and show all"). "Show fewer" brings the cap back.
+  A Dashboards block (`DashboardsRows`) is never capped: every row always
+  shows, because a row cut off at the bottom cannot be reached at all. The
+  Listings dashboard's 18 rows needed 622px and lost its last six to the cap
+  until 24 Nov 2026 (Tyler: "where is needs work? dont see it").
 - **One that throws** says "This widget could not be drawn." or "This block
   could not be drawn." in its own card, and the rest of the dashboard
   carries on.

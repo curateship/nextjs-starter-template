@@ -1,9 +1,11 @@
 import { loadCategories, type Category } from "@/lib/api/directory/categories"
 import { loadClaimsScreen, type ClaimsScreen } from "@/lib/api/directory/claims"
 import { loadCustomSectionRows, loadCustomSections } from "@/lib/api/directory/custom-sections"
+import { loadDuplicatesPage, type DuplicatesPage } from "@/lib/api/directory/duplicates"
 import { loadFeaturedAdmin } from "@/lib/api/directory/featured"
 import { loadGuidesPage } from "@/lib/api/directory/guides"
 import { loadListingsPage, type ListingsPage } from "@/lib/api/directory/listings"
+import { loadNeedsWorkPage, type NeedsWorkPage } from "@/lib/api/directory/needs-work"
 import { loadOutreach } from "@/lib/api/directory/outreach"
 import { loadListingReportsPage } from "@/lib/api/directory/reports"
 import { loadSavesAdmin, SAVED_COLLECTION_SORT_COLUMNS } from "@/lib/api/directory/saves"
@@ -42,6 +44,8 @@ export type ListingsLoaded =
   | { section: "changes"; screen: ClaimsScreen }
   | { section: "dealRequests"; page: PromotionRequestsPage }
   | { section: "reports"; page: Awaited<ReturnType<typeof loadListingReportsPage>> }
+  | { section: "duplicates"; page: DuplicatesPage }
+  | { section: "needsWork"; page: NeedsWorkPage; categories: Category[]; customSections: CustomSection[] }
   | { section: "plans"; featured: Awaited<ReturnType<typeof loadFeaturedAdmin>>; categories: Category[] }
   | { section: "placements"; featured: Awaited<ReturnType<typeof loadFeaturedAdmin>> }
   | { section: "saved"; saves: Awaited<ReturnType<typeof loadSavesAdmin>> }
@@ -132,6 +136,17 @@ export async function loadListingsSection(search: ListingsSearch): Promise<Listi
           kind: search.kind,
         }),
       }
+    case "duplicates":
+      return { section, page: await loadDuplicatesPage(paging) }
+    case "needsWork": {
+      // The open listing is the one the Listings row opens, so it needs what that one needs.
+      const [page, categories, customSections] = await Promise.all([
+        loadNeedsWorkPage({ ...paging, gap: search.gap }),
+        loadCategories(),
+        loadCustomSections("listing"),
+      ])
+      return { section, page, categories, customSections }
+    }
     case "plans": {
       const [featured, categories] = await Promise.all([loadFeaturedAdmin({ limit: 1 }), loadCategories()])
       return { section, featured, categories }

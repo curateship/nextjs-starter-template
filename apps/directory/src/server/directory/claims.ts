@@ -29,6 +29,8 @@ import {
   type DirectoryClaimRow,
 } from "@/server/directory/schema"
 import { directorySiteUrl } from "@/server/directory/site-url"
+import { listingCategoryRank } from "@/server/directory/views"
+import type { ListingRank } from "@/lib/directory/listing-rank"
 import { customShellUsers, customShellWorkspaces } from "@/server/schema"
 
 /**
@@ -571,6 +573,8 @@ export type OwnedListing = {
   badgesEnabled: boolean
   /** The change they have already asked for, if one is waiting. */
   pendingRequestId: string | null
+  /** Where it stands in its category this month, when it is in the top ten (`lib/directory/listing-rank.ts`). */
+  rank: ListingRank | null
 }
 
 /**
@@ -646,8 +650,14 @@ export async function listingsOwnedBy(
       )
     )
   const waiting = new Map(pending.map((row) => [row.claimId, row.id]))
+  // One small read per listing an owner looks after, which is a handful at most.
+  const ranks = await Promise.all(
+    rows.map((row) =>
+      row.listing.status === "published" ? listingCategoryRank(row.listing.workspaceId, row.listing.id, database) : null
+    )
+  )
 
-  return rows.map((row) => ({
+  return rows.map((row, index) => ({
     claimId: row.claimId,
     listingId: row.listing.id,
     title: row.listing.title,
@@ -666,6 +676,7 @@ export async function listingsOwnedBy(
     }),
     badgesEnabled: row.badgesEnabled ?? false,
     pendingRequestId: waiting.get(row.claimId) ?? null,
+    rank: ranks[index] ?? null,
   }))
 }
 

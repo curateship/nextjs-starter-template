@@ -648,9 +648,16 @@ const readGuideFn = createServerFn({ method: "GET" })
     const dealsNow = page.listings.length
       ? await dealsClockFor(site.id, someoneIsSignedIn)
       : null
+    // The map's pins carry the same tags, so a pin's deal marker and its
+    // card agree with the list under it.
+    const [listings, pins] = await Promise.all([
+      withDealTags(site.id, page.listings, dealsNow),
+      page.map ? withDealTags(site.id, page.map.pins, dealsNow) : null,
+    ])
     return {
       ...page,
-      listings: await withDealTags(site.id, page.listings, dealsNow),
+      listings,
+      map: page.map && pins ? { ...page.map, pins } : null,
     }
   })
 

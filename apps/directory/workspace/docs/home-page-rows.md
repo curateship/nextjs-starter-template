@@ -16,8 +16,8 @@ built from the shell and are documented once in the repo's `docs/shell/`.
 ## The six kinds this app adds
 
 - **Listings.** Cards for individual listings, narrowed to a category, ordered
-  newest, featured only, top rated or A to Z, and drawn as a grid, one under
-  the other, or as a map with pins.
+  newest, featured only, top rated, A to Z or most viewed this week, and drawn
+  as a grid, one under the other, or as a map with pins.
 - **Category cards.** A card per category with its photo and how many listings
   sit under it.
 - **Upcoming events.** The soonest events that are not over yet, as event
@@ -104,3 +104,23 @@ footer, so there is no table and no migration when a kind gains a field. The
 old builder's table, `directory_front_page_sections`, was dropped by
 `drizzle/0108_cms_drop_directory_front_page_sections.sql` after
 `scripts/move-home-page-rows.mjs` moved every row onto its site's front page.
+
+## Most viewed this week
+
+A Listings row's fifth order (Tyler's pick, 24 Nov 2026: "Popular this week
+row"). Picked in the row's Order box, after A to Z.
+
+- **The last seven days, today included,** counted from the same daily
+  figures Admin → Listings' Views column reads, by each listing's current
+  address. An admin's own visits are never counted
+  (`src/routes/api/v1/traffic/view.ts`).
+- **A listing needs at least 5 views that week to rank.** Below that, a quiet
+  week would fill the row with listings seen once.
+- **The newest fill whatever is left,** so the row is never half empty, and a
+  week nobody visited shows the newest listings.
+- **It moves within two minutes.** The row is kept for two minutes like every
+  front page row, then read again.
+- **Where it is in the code:** `POPULAR_MIN_WEEK_VIEWS` and
+  `POPULAR_WEEK_DAYS` in `src/lib/directory/front-page.ts`, and the
+  `week_views` part of the query in
+  `src/server/directory/front-page-row-readers.ts`.

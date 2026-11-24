@@ -124,4 +124,12 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 
 One file per subject, named after the subject, plus its line above in the same
 turn as the code. Write it the way `.agents/skills/unslop/SKILL.md` says.
+- `duplicate-listings.md` — the Duplicates row: which two listings count as
+  the same place and why the rule needs the same street address, Not a
+  duplicate, and everything a merge moves, refuses and forwards.
+- `needs-work.md` — the Needs work row: the four gaps a published listing can
+  have, filling them in place, and the one gap an owner sees on My listings.
+- `where-my-listing-ranks.md` — the line on My listings that says where an
+  owner's listing stands in its category over 30 days, and why only the top
+  ten say anything.
 - [No success toasts](no-success-toasts.md): nothing pops up when something works, and errors and part-done work still say so.

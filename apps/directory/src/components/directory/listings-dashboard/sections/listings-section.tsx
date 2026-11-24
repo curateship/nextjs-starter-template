@@ -7,6 +7,7 @@ import { ListingThumbnail } from "@/components/directory/listings-dashboard/list
 import { EmptyRecord } from "@/components/crm/record-frame"
 import type { ListingsLoaded } from "@/components/directory/listings-dashboard/load-section"
 import { NewListingDropdown } from "@/components/directory/listings-dashboard/new-listing-dropdown"
+import { deleteWords, type DeleteImpact } from "@/components/directory/listings-dashboard/delete-words"
 import { ListingRecord } from "@/components/directory/listings-dashboard/records/listing-record"
 import {
   ListPager,
@@ -48,7 +49,6 @@ import {
 } from "@/lib/directory/listing-status"
 import { statusIn } from "@/lib/directory/listings-dashboard-search"
 import { formatDate } from "@/lib/format/format-time"
-import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useBulkChange } from "@/lib/hooks/use-bulk-change"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -56,8 +56,6 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useListSort, useOpenRecord } from "@/lib/nav/list-search"
 
 type Data = Extract<ListingsLoaded, { section: "listings" }>
-
-type DeleteImpact = Awaited<ReturnType<typeof loadListingDeleteImpact>> & { ids: string[]; title: string | null }
 
 /** The tabs in the header, Published first, the one the row opens on. */
 const TABS: ListingStatus[] = ["published", "draft", "closed"]
@@ -432,40 +430,4 @@ export function ListingsSection({ data, search, frame, onChanged }: SectionProps
       </>
     ),
   })
-}
-
-/** What deleting takes with it, said before anything goes. */
-function deleteWords(confirm: DeleteImpact) {
-  const one = confirm.ids.length === 1
-  return [
-    one
-      ? `${confirm.title ?? "The listing"} goes for good, and its public page stops existing.`
-      : `${confirm.ids.length} listings go for good, and their public pages stop existing.`,
-    confirm.categoryLinks
-      ? `${confirm.categoryLinks === 1 ? "One category tag goes" : `${confirm.categoryLinks} category tags go`} too. The categories themselves stay.`
-      : null,
-    // First among the things that involve a person: somebody loses a page they were given.
-    confirm.claims
-      ? `${
-          confirm.claims === 1
-            ? "A business owner looks after this listing and loses it"
-            : `${confirm.claims} business owners look after these listings and lose them`
-        }.`
-      : null,
-    confirm.pendingRequests
-      ? `${confirm.pendingRequests === 1 ? "One change waiting to be read goes" : `${confirm.pendingRequests} changes waiting to be read go`} with it.`
-      : null,
-    confirm.saves ? `${confirm.saves === 1 ? "One saved copy goes" : `${confirm.saves} saved copies go`} with it.` : null,
-    confirm.deals
-      ? `${confirm.deals === 1 ? "One deal goes" : `${confirm.deals} deals go`} with it, because a deal belongs to its listing.`
-      : null,
-    confirm.pendingFeatured
-      ? `${plural(confirm.pendingFeatured, "One featured checkout is still open", `${confirm.pendingFeatured} featured checkouts are still open`)}, so deleting waits until ${confirm.pendingFeatured === 1 ? "it finishes or expires" : "they finish or expire"}.`
-      : null,
-    confirm.activeFeatured
-      ? `${plural(confirm.activeFeatured, "One paid featured placement is still running", `${confirm.activeFeatured} paid featured placements are still running`)}, and deleting now ends ${confirm.activeFeatured === 1 ? "it" : "them"} with no refund.`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(" ")
 }
