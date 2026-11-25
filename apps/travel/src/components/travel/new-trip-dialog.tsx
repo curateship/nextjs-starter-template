@@ -30,14 +30,26 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 /**
  * New trip asks for a name and a number of days. Dates are optional and can
  * be added later (Tyler, 2 Nov 2026), and the currency is the trip's one
- * currency for every cost and its budget.
+ * currency for every cost and its budget. The currency starts on the one the
+ * person used last (`usualCurrency`, Travel features 5, part 1) until they
+ * pick another.
  */
-export function NewTripDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function NewTripDialog({
+  open,
+  usualCurrency,
+  onClose,
+}: {
+  open: boolean
+  usualCurrency: Currency
+  onClose: () => void
+}) {
   const navigate = useNavigate()
   const [name, setName] = React.useState("")
   const [destination, setDestination] = React.useState("")
   const [days, setDays] = React.useState(5)
-  const [currency, setCurrency] = React.useState<Currency>("USD")
+  // Null until a currency is picked, so the usual one shows as the list of trips changes.
+  const [pickedCurrency, setCurrency] = React.useState<Currency | null>(null)
+  const currency = pickedCurrency ?? usualCurrency
   const [startDate, setStartDate] = React.useState<string | null>(null)
   const [draft, setDraft] = React.useState(false)
   const [invalid, setInvalid] = React.useState(false)
@@ -49,7 +61,7 @@ export function NewTripDialog({ open, onClose }: { open: boolean; onClose: () =>
     setName("")
     setDestination("")
     setDays(5)
-    setCurrency("USD")
+    setCurrency(null)
     setStartDate(null)
     setDraft(false)
     setInvalid(false)

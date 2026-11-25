@@ -35,6 +35,9 @@ export const TRIPS_PLACE_KEY = "travel-trips-place"
 /** Which pins Overview's Map widget shows: each trip's destination, or every place done (Travel features 3, part 12). */
 export const TRIPS_MAP_PINS_KEY = "travel-trips-map-pins"
 
+/** Whether Places shows as a list or on a map (Travel features 5, part 2). */
+export const PLACES_VIEW_KEY = "travel-places-view"
+
 /** Whether a trip's Ideas column is hidden behind its eye. */
 export const hiddenIdeasKey = (tripId: string) => `travel-hidden-ideas-${tripId}`
 

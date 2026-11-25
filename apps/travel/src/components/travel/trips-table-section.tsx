@@ -43,7 +43,7 @@ import { countdown, formatTripDates } from "@/lib/travel/dates"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { TRIP_STATUS_LABEL } from "@/lib/travel/rules"
 import { binGoesLine, TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
-import { MONTH_GROUPS, monthGroupOf, tabOf } from "@/lib/travel/trips-lists"
+import { MONTH_GROUPS, monthGroupOf, tabOf, usualCurrency } from "@/lib/travel/trips-lists"
 import { TRIP_TABS, type TripTab, type TripsSearch } from "@/lib/travel/trips-search"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -493,7 +493,7 @@ export function TripsTableSection({
     },
     windows: (
       <>
-        <NewTripDialog open={creating} onClose={() => setCreating(false)} />
+        <NewTripDialog open={creating} usualCurrency={usualCurrency(trips)} onClose={() => setCreating(false)} />
         <CopyTripDialog trip={copying} onClose={() => setCopying(null)} />
         <ConfirmDialog
           open={purging !== null}

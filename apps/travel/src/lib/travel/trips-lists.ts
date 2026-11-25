@@ -2,6 +2,7 @@ import type { SavedPlace } from "@/lib/api/travel/saved-places"
 import type { TripPlace } from "@/lib/api/travel/trips-dashboard"
 import type { TripListRow } from "@/lib/api/travel/trips"
 import { countdown, daysBetween, todayIn, tripHasEnded } from "@/lib/travel/dates"
+import { CURRENCIES, type Currency } from "@/lib/travel/rules"
 import type { TripTab } from "@/lib/travel/trips-search"
 
 /**
@@ -10,14 +11,32 @@ import type { TripTab } from "@/lib/travel/trips-search"
  */
 
 /**
+ * The currency New trip starts on (Travel features 5, part 1): the one on the
+ * newest trip the person made, archived trips included. The sample trip and
+ * trips in the Bin don't count, and with no trip of their own it is US dollars.
+ */
+export function usualCurrency(trips: readonly Pick<TripListRow, "currency" | "isSample" | "deletedAt" | "createdAt">[]): Currency {
+  let newest: (typeof trips)[number] | null = null
+  for (const trip of trips) {
+    if (trip.isSample || trip.deletedAt) continue
+    if (!newest || trip.createdAt > newest.createdAt) newest = trip
+  }
+  const currency = CURRENCIES.find((code) => code === newest?.currency)
+  return currency ?? "USD"
+}
+
+/**
  * Which Trips tab a trip is under. Upcoming holds every trip that hasn't
  * ended, trips with no dates included; Past the ones that have. A deleted
  * trip is in the Bin, whatever else it is.
  */
-export function tabOf(row: Pick<TripListRow, "deletedAt" | "archived" | "startDate" | "days" | "timeZone">): TripTab {
+export function tabOf(
+  row: Pick<TripListRow, "deletedAt" | "archived" | "startDate" | "days" | "timeZone">,
+  at: Date = new Date()
+): TripTab {
   if (row.deletedAt) return "bin"
   if (row.archived) return "archived"
-  return tripHasEnded(row) ? "past" : "upcoming"
+  return tripHasEnded(row, at) ? "past" : "upcoming"
 }
 
 /** Upcoming's folds (Tyler, 12 Nov 2026: "Upcoming by month"), in their order. */
@@ -45,7 +64,7 @@ export function monthGroupOf(row: Pick<TripListRow, "startDate" | "timeZone">, a
  * out.
  */
 export function nextTripOf(trips: readonly TripListRow[], at: Date = new Date()): TripListRow | null {
-  const live = trips.filter((trip) => tabOf(trip) === "upcoming" && trip.startDate)
+  const live = trips.filter((trip) => tabOf(trip, at) === "upcoming" && trip.startDate)
   const onNow = live.find((trip) => countdown(trip, at) === "on now")
   if (onNow) return onNow
   return (

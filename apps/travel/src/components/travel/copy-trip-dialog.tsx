@@ -69,7 +69,7 @@ export function CopyTripDialog({ trip, onClose }: { trip: TripListRow | null; on
           <DialogHeader>
             <DialogTitle>Copy trip</DialogTitle>
             <DialogDescription>
-              The copy keeps the days and activities. Dates, bookings, files and the journal stay with {shown?.name ?? "the trip"}.
+              The copy keeps the days and activities. Dates, Done ticks, ratings and the trip's notes stay with {shown?.name ?? "the trip"}.
             </DialogDescription>
           </DialogHeader>
           <form

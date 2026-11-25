@@ -25,6 +25,10 @@ export type TripTab = (typeof TRIP_TABS)[number]
 export const PLACE_TABS = ["saved", "again", "been", "bin"] as const
 export type PlaceTab = (typeof PLACE_TABS)[number]
 
+/** How Places shows its rows: a list or a map (Travel features 5, part 2). */
+export const PLACE_VIEWS = ["list", "map"] as const
+export type PlaceView = (typeof PLACE_VIEWS)[number]
+
 export const PLACE_TAB_LABELS: Record<PlaceTab, string> = {
   saved: "Saved",
   again: "Go again",

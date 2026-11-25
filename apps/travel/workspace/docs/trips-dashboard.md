@@ -131,6 +131,13 @@ The widgets are listed in `src/lib/travel/trips-widgets.ts` and drawn in
   select, Open trip, Copy, Archive or Bring back, and Delete.
 - **New trip** opens the New trip window. It asks for the name, destination,
   number of days (1 to 60), currency and an optional start date.
+  - **The currency starts on the one you used last** (Tyler, 24 Nov 2026,
+    picked from a round of feature ideas). That is the currency of the newest
+    trip you made, archived trips included. The Tokyo sample and trips in the
+    Bin don't count. With no trip of your own it starts on US dollars. You can
+    still pick another, and trips already made don't change. The rule is
+    `usualCurrency` in `src/lib/travel/trips-lists.ts`, read from the trips
+    the Trips table already holds, so New trip never waits on the server.
   - Create trip goes straight to the trip.
   - "Fill it with a first plan, drafted by AI" opens the trip on a drafted
     plan ([Drafting a plan with AI](drafting-a-plan.md)).
@@ -223,8 +230,9 @@ Tyler, 3 Nov 2026: "A Bin tab".
 - **It asks for a name,** starting as "Copy of Tokyo".
 - **The copy keeps** the days, their descriptions, and every activity in its
   place with its type, times, place, links, notes, cost and picture.
-- **It drops** the dates, Done, ratings, documents and the phone calendar
-  link.
+- **It drops** the dates, Done, ratings, Would go again, the trip's notes
+  (behind the note icon) and the phone calendar link. The Copy trip window
+  says so: "Dates, Done ticks, ratings and the trip's notes stay with Tokyo."
 
 ## Places
 
@@ -242,10 +250,13 @@ switch on the map, until 12 Nov 2026.
   - "N selected" on Saved (Delete) and on the Bin (Put back, Delete for good).
   - Search: the name, the address, or the trip it was on.
   - Mass select, on Saved and the Bin only. Go again and Been are cards on
-    trips, changed from the right panel one at a time.
+    trips, changed from the right panel one at a time. The map has no Mass
+    select.
   - Filter, with three rows: Type (one activity type, or No type), Group (by
     trip or by type; Saved and the Bin fold by type only) and Order (newest
     first, name, most stars, or the last time you went).
+  - List or Map, two icons side by side, on every tab but the Bin. See "On a
+    map" below.
   - New place, on Saved.
 - **Pressing a column's heading** sorts by it, and pressing it again goes back
   to newest first.
@@ -253,6 +264,22 @@ switch on the map, until 12 Nov 2026.
   - Create saved place makes it and opens it on the right, where its picture
     and notes go.
   - A place picked from Google brings its address, website and phone with it.
+- **On a map** (Tyler, 24 Nov 2026, picked from a round of feature ideas):
+  the Map icon shows the tab's places as pins instead of rows.
+  - The pins are the rows the list would show, after the search and the Type
+    filter. Groups and order don't change the map.
+  - Clicking a pin opens the place on the right, as clicking its row does.
+  - Places with no map position are listed under the map, under "Not on the
+    map, with no address picked from Google", and open on the right too.
+  - The list's loading, failed and empty lines show in place of the map.
+  - The choice is remembered in this browser (`travel-places-view`). The Bin
+    is always a list, whichever is remembered, since its places wait to be
+    put back or deleted.
+  - Google Maps loads only while the map is showing, so the list spends no
+    lookups. Each time the map is drawn, such as after a new search, it is a
+    new map load on Google's bill.
+  - The code is `src/components/travel/places-map.tsx`, with its tests in
+    `features-5.test.tsx`.
 - **Deleting a saved place** moves it to the Bin without asking.
   - Put back brings it back.
   - Delete for good asks first.
@@ -324,7 +351,8 @@ signal" line above it ([Working without signal](working-without-signal.md)).
   - Kept in `travel_trips_pages`, one row per person, with the Overview
     layout and the hidden sections (`drizzle/0126_travel_trips_dashboard.sql`).
 - **Trips:** `trips-table-section.tsx` and `trip-record.tsx`.
-- **Places:** `places-section.tsx`, `place-record.tsx` and `add-to-trip.tsx`.
+- **Places:** `places-section.tsx`, `places-map.tsx`, `place-record.tsx` and
+  `add-to-trip.tsx`.
   - Saved places' bin is `travel_saved_places.deleted_at`, from the same
     migration.
 - **Overview:** `trips-overview.tsx` and `trips-map.tsx`.
