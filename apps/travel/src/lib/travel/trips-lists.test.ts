@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { TripListRow } from "@/lib/api/travel/trips"
-import { dayOfTripLine, monthGroupOf, nextTripOf, tabOf, whereFromAddress } from "@/lib/travel/trips-lists"
+import { dayOfTripLine, monthGroupOf, nextTripOf, tabOf, usualCurrency, whereFromAddress } from "@/lib/travel/trips-lists"
 import { readTripsSearch, sectionOf } from "@/lib/travel/trips-search"
 
 // Noon on 12 Nov 2026, in the reader's own time zone.
@@ -25,6 +25,27 @@ const trip = (patch: Partial<TripListRow>): TripListRow => ({
   timeZone: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   ...patch,
+})
+
+describe("the currency New trip starts on", () => {
+  it("is the newest trip's, archived trips included", () => {
+    const older = trip({ id: "a", currency: "EUR", createdAt: "2026-03-01T00:00:00.000Z" })
+    const newer = trip({ id: "b", currency: "CAD", archived: true, createdAt: "2026-05-01T00:00:00.000Z" })
+    expect(usualCurrency([newer, older])).toBe("CAD")
+    expect(usualCurrency([older, newer])).toBe("CAD")
+  })
+
+  it("leaves out the sample trip and trips in the Bin", () => {
+    const own = trip({ id: "a", currency: "JPY", createdAt: "2026-03-01T00:00:00.000Z" })
+    const sample = trip({ id: "s", currency: "GBP", isSample: true, createdAt: "2026-06-01T00:00:00.000Z" })
+    const binned = trip({ id: "d", currency: "AUD", deletedAt: "2026-07-02T00:00:00.000Z", createdAt: "2026-07-01T00:00:00.000Z" })
+    expect(usualCurrency([own, sample, binned])).toBe("JPY")
+  })
+
+  it("is US dollars with no trip of the person's own", () => {
+    expect(usualCurrency([])).toBe("USD")
+    expect(usualCurrency([trip({ currency: "GBP", isSample: true })])).toBe("USD")
+  })
 })
 
 describe("which tab a trip is under", () => {

@@ -36,7 +36,8 @@ They outrank the code.
 
 `/trips` is the Trips dashboard: Overview's widgets, the Trips table and
 Places, picked from the Dashboards block in its left panel. Its tabs, the Bin,
-New trip and Copy trip are in [The Trips dashboard](trips-dashboard.md).
+New trip, the currency it starts on, and Copy trip are in
+[The Trips dashboard](trips-dashboard.md).
 
 ## The time zone of a new trip
 

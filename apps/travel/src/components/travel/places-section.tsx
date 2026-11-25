@@ -12,6 +12,7 @@ import { NewRecordDropdown } from "@/components/shared/new-record-dropdown"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { RatingValue } from "@/components/travel/stars"
 import { PlaceRecord } from "@/components/travel/place-record"
+import { PlacesMap, PlaceViewSwitch } from "@/components/travel/places-map"
 import { SectionTabs } from "@/components/travel/section-tabs"
 import { placeFacts, type PlaceRow } from "@/lib/travel/trips-lists"
 import { PlaceSearchField } from "@/components/travel/place-search-field"
@@ -41,12 +42,15 @@ import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useLoad } from "@/lib/hooks/use-load"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useOpenRecord } from "@/lib/nav/list-search"
+import { useRememberedChoice } from "@/lib/remembered-choice"
+import { PLACES_VIEW_KEY } from "@/lib/travel/panel-keys"
 import { getTravelErrorMessage } from "@/lib/travel/errors"
 import { binGoesLine, TRIP_BIN_DAYS } from "@/lib/travel/trip-bin"
 import {
   PLACE_SORT_LABELS,
   PLACE_TAB_LABELS,
   PLACE_TABS,
+  PLACE_VIEWS,
   type PlaceGroup,
   type PlaceSort,
   type PlaceTab,
@@ -69,7 +73,10 @@ const ANY = "any"
  *   again), Been (every card marked Done) and Bin (saved places deleted in
  *   the last 30 days).
  * - **Header:** search, Mass select on Saved and the Bin, Filter (one type,
- *   folds by trip or by type, and the order), and New place on Saved.
+ *   folds by trip or by type, and the order), List or Map, and New place on
+ *   Saved.
+ * - **Map** (Travel features 5, part 2): the same rows as pins, on every tab
+ *   but the Bin, remembered in this browser.
  * - **Right:** the place picked (`PlaceRecord`).
  */
 export function PlacesSection({
@@ -93,6 +100,9 @@ export function PlacesSection({
   const group: PlaceGroup | null = search.group === "trip" && tab !== "saved" && tab !== "bin" ? "trip" : search.group === "type" ? "type" : null
   const sort: PlaceSort | "newest" = search.sort ?? "newest"
   const folds = useFolds()
+  const [view, setView] = useRememberedChoice(PLACES_VIEW_KEY, "list", PLACE_VIEWS)
+  // The Bin is always a list: its places wait to be put back or deleted, not visited.
+  const showMap = view === "map" && tab !== "bin"
   const [massSelect, setMassSelect] = React.useState(false)
   const selection = useSelection()
   const [rightClick, setRightClick] = React.useState<{ id: string; x: number; y: number } | null>(null)
@@ -195,7 +205,8 @@ export function PlacesSection({
 
   // With no signal every change is off (Travel features part 10).
   const readOnly = useTravelOffline()
-  const canMassSelect = !readOnly && (tab === "saved" || tab === "bin")
+  // The map has no rows to tick.
+  const canMassSelect = !readOnly && !showMap && (tab === "saved" || tab === "bin")
   useClearSelectionOnListChange(selection.setSelected, `${tab}|${q}|${typeFilter}`)
   const selectedSaved = (all ?? [])
     .filter((row): row is Extract<PlaceRow, { kind: "saved" }> => row.kind === "saved" && selection.selected.has(row.id))
@@ -245,6 +256,26 @@ export function PlacesSection({
     }
     return [{ label: "Delete", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => void change([row.saved], "bin") }]
   }
+
+  // The list's loading, failed and empty lines, which the map shows too.
+  const emptyState =
+    all === null ? (
+      source.error ? (
+        <ErrorRow message={source.error} onRetry={source.retry} className="py-0" />
+      ) : (
+        <LoadingRow label="Loading the places…" className="py-0" />
+      )
+    ) : rows.length > 0 ? null : q || typeFilter ? (
+      <EmptyLine>{"No places match that search."}</EmptyLine>
+    ) : tab === "saved" ? (
+      <EmptyLine>{"No saved places yet. Save one from an activity's How was it, or make one with New place."}</EmptyLine>
+    ) : tab === "again" ? (
+      <EmptyLine>{"Nothing here yet. Tick Would go again on an activity you've done."}</EmptyLine>
+    ) : tab === "been" ? (
+      <EmptyLine>{"Nothing here yet. Mark an activity Done on a trip to see it here."}</EmptyLine>
+    ) : (
+      <EmptyLine>{`The bin is empty. A deleted place waits here for ${TRIP_BIN_DAYS} days.`}</EmptyLine>
+    )
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
@@ -380,6 +411,20 @@ export function PlacesSection({
             </FilterRow>
           </FilterPopover>
         }
+        view={
+          tab === "bin" ? null : (
+            <PlaceViewSwitch
+              value={view}
+              onChange={(next) => {
+                if (next === "map") {
+                  selection.clear()
+                  setMassSelect(false)
+                }
+                setView(next)
+              }}
+            />
+          )
+        }
         primary={
           tab === "saved" && !readOnly ? (
             <NewPlace
@@ -393,98 +438,84 @@ export function PlacesSection({
           ) : null
         }
       />
-      <CrmTable<PlaceColumn>
-        columns={[
-          { key: "name", label: "Place", column: "main", className: "min-w-40" },
-          tab === "again" || tab === "been"
-            ? { key: "went", label: "Trip", column: "preview" }
-            : { key: "where", label: tab === "bin" ? "Deleted" : "Address", column: "preview", sortable: false },
-          { key: "type", label: "Type", column: "preview", className: "hidden md:hidden @xl:table-cell", sortable: false },
-          ...(tab === "again" || tab === "been"
-            ? [{ key: "stars" as const, label: "Stars", column: "meta" as const, className: "hidden md:hidden @2xl:table-cell" }]
-            : []),
-        ]}
-        sort={sort === "stars" ? "stars" : sort === "last" ? "went" : sort === "name" ? "name" : "newest"}
-        direction={sort === "name" ? "asc" : "desc"}
-        onSort={(column) => {
-          const next: PlaceSort | undefined = column === "stars" ? "stars" : column === "went" ? "last" : "name"
-          // Pressing the column already sorting goes back to newest first.
-          setListSearch({ sort: next === sort ? undefined : next })
-        }}
-        actions={false}
-        select={
-          massSelect && canMassSelect
-            ? { noun: "places", disabled: ids.length === 0, checked: selection.selectAllState(ids), onToggle: () => selection.toggleVisible(ids) }
-            : null
-        }
-        empty={
-          all === null ? (
-            source.error ? (
-              <ErrorRow message={source.error} onRetry={source.retry} className="py-0" />
-            ) : (
-              <LoadingRow label="Loading the places…" className="py-0" />
-            )
-          ) : rows.length > 0 ? null : q || typeFilter ? (
-            <EmptyLine>{"No places match that search."}</EmptyLine>
-          ) : tab === "saved" ? (
-            <EmptyLine>{"No saved places yet. Save one from an activity's How was it, or make one with New place."}</EmptyLine>
-          ) : tab === "again" ? (
-            <EmptyLine>{"Nothing here yet. Tick Would go again on an activity you've done."}</EmptyLine>
-          ) : tab === "been" ? (
-            <EmptyLine>{"Nothing here yet. Mark an activity Done on a trip to see it here."}</EmptyLine>
-          ) : (
-            <EmptyLine>{`The bin is empty. A deleted place waits here for ${TRIP_BIN_DAYS} days.`}</EmptyLine>
-          )
-        }
-      >
-        {groups.map((each) => (
-          <React.Fragment key={each.key}>
-            {each.label ? (
-              <CrmGroupRow
-                label={each.label}
-                count={each.rows.length}
-                folded={folds.folded(each.key)}
-                onToggle={() => folds.toggle(each.key)}
-              />
-            ) : null}
-            {each.label && folds.folded(each.key)
-              ? null
-              : each.rows.map((row) => {
-                  const facts = placeFacts(row)
-                  const type = facts.typeId ? (typeList.find((one) => one.id === facts.typeId) ?? null) : null
-                  return (
-                    <CrmTableRow
-                      key={row.id}
-                      open={row.id === search.open}
-                      label={facts.title}
-                      tick={canMassSelect ? { shown: massSelect, ticked: selection.selected.has(row.id), onToggle: () => selection.toggle(row.id) } : null}
-                      onOpen={() => pick(row.id)}
-                      onRightClick={canMassSelect ? (x, y) => setRightClick({ id: row.id, x, y }) : undefined}
-                    >
-                      <MainCell name={facts.title} lead={<ActivityTypeIcon type={type} />} />
-                      <TableCell column="preview">
-                        <span className="block max-w-64 truncate text-muted-foreground">
-                          {row.kind === "trip"
-                            ? `${row.card.tripName} · ${row.card.day === null ? "Ideas" : `Day ${row.card.day}`}`
-                            : row.saved.deletedAt
-                              ? binGoesLine(row.saved.deletedAt)
-                              : (facts.place?.address ?? "No address")}
-                        </span>
-                      </TableCell>
-                      <TableCell column="preview" className="hidden md:hidden @xl:table-cell">
-                        <Chip muted>{typeName(facts.typeId)}</Chip>
-                      </TableCell>
-                      {row.kind === "trip" ? (
-                        <TableCell column="mutedMeta" className="hidden md:hidden @2xl:table-cell">
-                          <RatingValue rating={row.card.rating} />
+      {showMap ? (
+        <PlacesMap rows={rows} types={typeList} openId={search.open} empty={emptyState} onPick={pick} />
+      ) : (
+        <CrmTable<PlaceColumn>
+          columns={[
+            { key: "name", label: "Place", column: "main", className: "min-w-40" },
+            tab === "again" || tab === "been"
+              ? { key: "went", label: "Trip", column: "preview" }
+              : { key: "where", label: tab === "bin" ? "Deleted" : "Address", column: "preview", sortable: false },
+            { key: "type", label: "Type", column: "preview", className: "hidden md:hidden @xl:table-cell", sortable: false },
+            ...(tab === "again" || tab === "been"
+              ? [{ key: "stars" as const, label: "Stars", column: "meta" as const, className: "hidden md:hidden @2xl:table-cell" }]
+              : []),
+          ]}
+          sort={sort === "stars" ? "stars" : sort === "last" ? "went" : sort === "name" ? "name" : "newest"}
+          direction={sort === "name" ? "asc" : "desc"}
+          onSort={(column) => {
+            const next: PlaceSort | undefined = column === "stars" ? "stars" : column === "went" ? "last" : "name"
+            // Pressing the column already sorting goes back to newest first.
+            setListSearch({ sort: next === sort ? undefined : next })
+          }}
+          actions={false}
+          select={
+            massSelect && canMassSelect
+              ? { noun: "places", disabled: ids.length === 0, checked: selection.selectAllState(ids), onToggle: () => selection.toggleVisible(ids) }
+              : null
+          }
+          empty={emptyState}
+        >
+          {groups.map((each) => (
+            <React.Fragment key={each.key}>
+              {each.label ? (
+                <CrmGroupRow
+                  label={each.label}
+                  count={each.rows.length}
+                  folded={folds.folded(each.key)}
+                  onToggle={() => folds.toggle(each.key)}
+                />
+              ) : null}
+              {each.label && folds.folded(each.key)
+                ? null
+                : each.rows.map((row) => {
+                    const facts = placeFacts(row)
+                    const type = facts.typeId ? (typeList.find((one) => one.id === facts.typeId) ?? null) : null
+                    return (
+                      <CrmTableRow
+                        key={row.id}
+                        open={row.id === search.open}
+                        label={facts.title}
+                        tick={canMassSelect ? { shown: massSelect, ticked: selection.selected.has(row.id), onToggle: () => selection.toggle(row.id) } : null}
+                        onOpen={() => pick(row.id)}
+                        onRightClick={canMassSelect ? (x, y) => setRightClick({ id: row.id, x, y }) : undefined}
+                      >
+                        <MainCell name={facts.title} lead={<ActivityTypeIcon type={type} />} />
+                        <TableCell column="preview">
+                          <span className="block max-w-64 truncate text-muted-foreground">
+                            {row.kind === "trip"
+                              ? `${row.card.tripName} · ${row.card.day === null ? "Ideas" : `Day ${row.card.day}`}`
+                              : row.saved.deletedAt
+                                ? binGoesLine(row.saved.deletedAt)
+                                : (facts.place?.address ?? "No address")}
+                          </span>
                         </TableCell>
-                      ) : null}
-                    </CrmTableRow>
-                  )
-                })}
-          </React.Fragment>
-        ))}
-      </CrmTable>
+                        <TableCell column="preview" className="hidden md:hidden @xl:table-cell">
+                          <Chip muted>{typeName(facts.typeId)}</Chip>
+                        </TableCell>
+                        {row.kind === "trip" ? (
+                          <TableCell column="mutedMeta" className="hidden md:hidden @2xl:table-cell">
+                            <RatingValue rating={row.card.rating} />
+                          </TableCell>
+                        ) : null}
+                      </CrmTableRow>
+                    )
+                  })}
+            </React.Fragment>
+          ))}
+        </CrmTable>
+      )}
       {rightClick ? (
         <CrmRowMenu
           key={`${rightClick.id}-${rightClick.x}-${rightClick.y}`}
