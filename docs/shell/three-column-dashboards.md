@@ -133,6 +133,16 @@ All of them are in `src/components/shared/`.
   the cell does not, because a line that cannot wrap gives the clamp nothing
   to cut: until 24 Nov 2026 a long name was clipped mid-word with no "…",
   as in Directory's "Two-for-one pasta Tuesd".
+  A name that may break anywhere is one letter wide as far as the table is
+  concerned, so a column sized to its names (`w-px`, beside an Email column
+  that takes the rest) fell to 160px and Users read "Test..." (Tyler, 25 Nov
+  2026: "users col got cut off"). Users' Name and the Inbox's From pass
+  `oneLine`: once the table's container is `@2xl` wide, the name stays on one
+  line up to 10rem and ends in "…" past that, so the column holds whole names
+  and a very long one still cannot push the row's buttons off the edge. Below
+  `@2xl` the name clamps as any other. To make the room, Users shows Role from
+  `@5xl` and Plan from `@4xl`, and the Email floor is 6rem in Users and 10rem
+  in the Inbox.
 - **Cards and blocks in a side panel sit flush, one under the next** (Tyler,
   11 Nov 2026: "remove the spacing here for the right panels", then "the same
   for left panels too"). `PANEL_GUTTER` keeps its 15px at the panel's edges

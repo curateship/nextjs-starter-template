@@ -674,6 +674,7 @@ function InboxRow({
       onRightClick={onRightClick}
     >
       <MainCell
+        oneLine
         name={who}
         avatar={{ name: thread.leadName, email: thread.leadEmail }}
         strong={thread.unread}
@@ -688,7 +689,7 @@ function InboxRow({
         {waiting ? <Chip>Waiting {waitedDays} {waitedDays === 1 ? "day" : "days"}</Chip> : null}
         {followUpDue ? <Chip>To follow up</Chip> : null}
       </MainCell>
-      <TableCell column="preview" className="w-full max-w-0 min-w-56">
+      <TableCell column="preview" className="w-full max-w-0 min-w-40">
         <span className={cn("block truncate", thread.unread ? "text-foreground" : "text-muted-foreground")}>
           {/* An answer of ours reads as a reply rather than as their words. */}
           {thread.lastDirection === "out" ? "You: " : null}
@@ -722,7 +723,11 @@ function INBOX_COLUMNS(sort: CrmInboxSort): TableHeaderColumn<"who" | "words" | 
     // words sit next to who sent them (Tyler, 7 Nov 2026: "move the latest
     // col closer to the from col and rename latest to Email").
     { key: "who", label: "From", sortable: false, column: "main", className: "w-px min-w-40" },
-    { key: "words", label: "Email", sortable: false, column: "preview", className: "w-full max-w-none min-w-56" },
+    // Email's floor is 10rem, not 14rem, so a name as long as MainCell's
+    // 10rem cap, with its chips, still fits a 738px middle without running
+    // the row's buttons off the edge (Tyler, 25 Nov 2026: "users col got cut
+    // off").
+    { key: "words", label: "Email", sortable: false, column: "preview", className: "w-full max-w-none min-w-40" },
     // `md:hidden` takes away a preview column's own `md:table-cell`, which
     // showed it on any laptop however narrow the middle, running the table
     // past it. Each shows only once there is room for every column before it.
