@@ -127,12 +127,15 @@ export function DirectoryFiltersPanel({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       {/* Drawn like the "Sort by" trigger beside it, so the two read as a
-          pair. Full contrast while something is on. */}
+          pair, and with no outline, like the rest of the public site's
+          buttons (Tyler, 25 Nov 2026: "remove the button border so it
+          matches the rest of the site"). Full contrast while something is
+          on. */}
       <PopoverTrigger
         className={cn(
-          "group inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-input bg-transparent pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/60 dark:bg-input/30",
+          "group inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-transparent pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/60",
           focusRing,
-          active ? "border-foreground font-medium" : null
+          active ? "font-medium" : null
         )}
       >
         Filters

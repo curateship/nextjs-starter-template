@@ -677,6 +677,14 @@ card in the rail on `/admin/settings`.
   the search as a magnifying glass at the row's right end. Tyler asked for it
   on 19 Oct 2026 by pointing at the Project tabs ("use this type of tabs"). It
   is `apps/video/src/components/video-editor/ai-clip-extras.tsx`.
+- **A second exception: the Directory's public Events and Deals pages.** The
+  row over the Events list (Upcoming and Past, the dates dropdown, List,
+  Month and Map, with the category dropdown) and the row over the Deals grid
+  (Any time, On now, Ending soon, then the filter buttons) are underlined tabs
+  on one long divider,
+  with the sliding line. Tyler drew both pages that way on 25 Nov 2026. They
+  are links, built from `apps/directory/src/components/directory/public/line-tabs.tsx`;
+  no other public screen draws them.
 - **The project page's tasks header (List, Board, Calendar, Timeline, More)
   has the one bottom line that names its own shade**
   (`border-b-muted-foreground/10`, `project-tasks-panel.tsx`). At the Divider

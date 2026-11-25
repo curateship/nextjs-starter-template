@@ -5,6 +5,7 @@ import { DirectoryRouteError } from "@/components/directory/public/directory-err
 import { DirectoryFilterBar } from "@/components/directory/public/directory-filter-bar"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
+import { LineTabRow } from "@/components/directory/public/line-tabs"
 import { DealWhenFilters } from "@/components/promotions/public/deal-filters"
 import { DealGrid } from "@/components/promotions/public/deal-grid"
 import { DealsHero } from "@/components/promotions/public/deals-hero"
@@ -117,22 +118,25 @@ function DealsRoute() {
       }
     >
       {/*
-       * The chips and the filter buttons sit the same distance from the cards
-       * under them as from the band over them. The band's distance is the
+       * The underlined row (Tyler's drawing of 25 Nov 2026): the When tabs at
+       * the start, the filter buttons at the end. It sits the same distance
+       * from the cards under it as from the band over it. The band's distance is the
        * site's own spacing from Settings → Styling, so this reads the same
        * number and takes off the 12px the page column already puts between
        * every two blocks.
        */}
-      <div
-        className="flex flex-wrap items-center justify-between gap-2"
-        style={{ marginBottom: `calc(${pageGutter} - 0.75rem)` }}
-      >
-        <DealWhenFilters current={current} counts={data.whenCounts} />
-        <DirectoryFilterBar
-          groups={data.filterGroups}
-          selected={ticked}
-          onToggleCategory={(slug) =>
-            setSearch({ category: toggleDirectoryCategory(current.category, slug) })
+      <div style={{ marginBottom: `calc(${pageGutter} - 0.75rem)` }}>
+        <LineTabRow
+          menusAt="end"
+          start={<DealWhenFilters current={current} counts={data.whenCounts} />}
+          menus={
+            <DirectoryFilterBar
+              groups={data.filterGroups}
+              selected={ticked}
+              onToggleCategory={(slug) =>
+                setSearch({ category: toggleDirectoryCategory(current.category, slug) })
+              }
+            />
           }
         />
       </div>

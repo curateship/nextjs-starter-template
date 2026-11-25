@@ -170,6 +170,11 @@ The buttons that dropped down, one per group, became one Filters button on
 and a row of chips under each. Once a site added its own fields as filters the
 row of buttons wrapped onto three lines on a phone.
 
+Filters and "Sort by" are plain words with an arrow and no outline, with a
+light grey behind them under the pointer, like the rest of the public site's
+buttons (Tyler, 25 Nov 2026: "remove the button border so it matches the rest
+of the site"). Filters turns bold while anything in it is on.
+
 - **The band runs the whole width of the window** and starts where the header
   ends, with a dotted pattern over it. It is drawn inside the page's 1152px
   column like everything else, so it climbs back out by centring itself on

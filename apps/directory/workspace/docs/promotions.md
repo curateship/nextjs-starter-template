@@ -141,9 +141,10 @@ say when, inside those days, it is on. They came in
 ## The Deals page
 
 The page is built like the directory's browse page and the Events page: a band
-across the top holding the name and one search bar, then a row of chips and
-filter buttons, then one grid of cards. Tyler asked for that shape on
-1 Oct 2026, to a drawing.
+across the top holding the name and one search bar, then one underlined row
+with the "when" tabs and the filter buttons, then one grid of cards. Tyler
+asked for that shape on 1 Oct 2026, to a drawing, and drew the row and the
+cards again on 25 Nov 2026.
 
 - **The band** is `PublicHeroBand`, shared with the directory and the Events
   page, so a change to one reaches all three. It holds the breadcrumbs, "Deals",
@@ -154,23 +155,25 @@ filter buttons, then one grid of cards. Tyler asked for that shape on
   soonest first with no-end deals last, then the ones starting on a later day,
   soonest first. There are no "Current deals" and "Starting soon" headings any
   more; each card says where it stands itself.
-- **Each card** is read in three passes. The photo carries the place's
-  category, a tag, and the headline in a dark pill. The middle is the deal's
-  own name and then the place, the neighbourhood and the distance on one line,
-  like "12 Tables · Avenue and Lawrence". The foot is two cells under small grey
-  labels: "Valid" with "Until Mon, Oct 5", "Today only", "No end date" or
-  "Starts Thu, Oct 1 · until Wed, Oct 7", and "Next" with "Tomorrow, 11 AM", or
-  "On now" with "Until 6 PM" while it is running.
-- **The tag over the photo** says "Ending soon" when the last day is today or
+- **Each card** has no frame: a photo with rounded corners, and the words
+  under it. Top to bottom: the headline in small grey capitals, "2 FOR 1"; the
+  deal's own name in the heading font; one grey line with the place, the
+  neighbourhood, the category and the distance, like "43 Down · Financial
+  District · Soup"; and one line saying when, the next time it opens and then
+  its days, "Next: Tue, 11 AM · No end date". While a deal is running there is
+  no "Next", so the line is its days alone: "Until Mon, Oct 5", "Today only",
+  "No end date" or "Starts Thu, Oct 1 · until Wed, Oct 7".
+- **Three across from a tablet up,** two on a small tablet, one on a phone. A
+  row of cards has a little more room under it than beside it, because a card
+  with no frame would otherwise run into the photo below.
+- **The tag at the photo's top-left corner** says "Ending soon" when the last day is today or
   in the next two days, "Starting soon" before the first day, and "On now" for
   a deal running this minute. A deal that is none of those is left bare. Ending
   soon wins over on now, because a deal that is gone on Thursday is the one
-  worth crossing town for today, and the foot already says it is on.
+  worth crossing town for today.
 - **The cover photo, or the listing's own** when the deal has none. A card with
-  no photo at all moves the headline, the category and the tag into a row above
-  the title.
-- **A row of cards shares one bottom edge**, so the two labels in the foot line
-  up across the row.
+  no photo at all keeps the same grey box with a faint picture sign, so a row
+  still lines its titles up.
 - **24 cards a page**, with Previous and Next under them.
 
 ## Filters on the Deals page
@@ -184,18 +187,22 @@ refused.
 - **The typed words** match a deal's own name, its headline and the name of the
   place running it. The small print and the description are left out, because a
   match a visitor cannot see on the card reads as a wrong result.
-- **Cuisine and Neighbourhood are buttons that drop down** (`DirectoryFilterBar`).
+- **Cuisine and Neighbourhood are buttons that drop down** (`DirectoryFilterBar`),
+  drawn as plain words with an arrow at the end of the underlined row, in full
+  contrast with their number once anything in them is ticked. Below 768px
+  wide they sit on a plain line of their own under the row.
   The directory's browse page used the same buttons until 17 Oct 2026, when it
   moved to one Filters panel of chips; Deals kept the buttons. A group is a parent
   category and its children are the tick boxes, so nothing new is stored and a
   site that adds a third parent gets a third button. Each box carries how many
   live deals are behind it, and a box with none is left out. Two boxes ticked in
   one group means either of them; two groups means both.
-- **The "when" chips carry their numbers**: Any time, On now and Ending soon,
+- **The "when" tabs carry their numbers**, each in a light grey chip: Any
+  time, On now and Ending soon, underlined tabs at the start of the row,
   each with how many deals it would show, counted with the typed words, the
   ticked boxes and the distance still applied. The list and the numbers are
   built from the one filter (`dealsNarrowedBy` in
-  `src/server/promotions/public.ts`), so a chip can never promise deals the list
+  `src/server/promotions/public.ts`), so a tab can never promise deals the list
   will not show.
 - **On now** keeps the deals running at this minute by their times and the
   site's clock, past midnight and 24-hour stretches included. The rule is
@@ -624,7 +631,7 @@ listing, the address part and the status.
   where it is used, because `private.test.ts` keeps the table readable from
   that one file.
 - **The Deals page's own parts** are `src/components/promotions/public/`:
-  `deals-hero.tsx` is the band, `deal-filters.tsx` the "when" chips, and
+  `deals-hero.tsx` is the band, `deal-filters.tsx` the "when" tabs, and
   `deal-grid.tsx` the card, which the home page's deals row and a category
   page's deals draw too. Those two ask for less, so the category, the
   neighbourhood and the tag are missing rather than empty, and the card leaves

@@ -71,7 +71,8 @@ export function SuggestEventButton() {
 
   return (
     <>
-      <Button type="button" variant="outline" onClick={() => void openIt()}>
+      {/* Plain words beside Subscribe, as Tyler drew the band on 25 Nov 2026. */}
+      <Button type="button" variant="ghost" onClick={() => void openIt()}>
         <PlusIcon aria-hidden="true" />
         Suggest an event
       </Button>

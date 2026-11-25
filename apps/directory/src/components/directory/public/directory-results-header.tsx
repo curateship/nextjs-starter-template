@@ -95,7 +95,11 @@ export function DirectoryResultsHeader({
             value={sort}
             onValueChange={(value) => onSortChange(value as DirectorySort)}
           >
-            <SelectTrigger aria-label="Order listings by">
+            {/* No outline, like Filters beside it (Tyler, 25 Nov 2026). */}
+            <SelectTrigger
+              aria-label="Order listings by"
+              className="border-0 bg-transparent shadow-none hover:bg-muted/60 dark:bg-transparent dark:hover:bg-muted/60"
+            >
               <span className="text-muted-foreground">Sort by</span>
               <SelectValue />
             </SelectTrigger>

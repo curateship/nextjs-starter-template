@@ -1,27 +1,25 @@
 import { Link } from "@tanstack/react-router"
 
-import { CategoryPill } from "@/components/shared/card-chips"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { ImageIcon } from "lucide-react"
+
 import type { DealCardView } from "@/lib/promotions/deal-content"
 import { formatDirectoryDistance } from "@/lib/directory/public-search"
 import { shownHeadline } from "@/lib/promotions/deal-headline"
 import { focusRing } from "@/lib/layout/focus-ring"
-import { publicCardHover } from "@/lib/layout/card-hover"
 import { publicGridColumnsClassName } from "@/lib/layout/grid-columns"
 import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
 
 /**
- * One group of cards on the Deals page.
+ * One group of cards on the Deals page, as Tyler drew it on 25 Nov 2026: a
+ * photo with no frame around the card, and the words under it.
  *
- * A card is read in three passes, which is the order it is built in. **The
- * photo** carries what the deal is worth and where it stands: the place's
- * category, a tag saying "Ending soon", "On now" or "Starting soon", and the
- * headline in a dark pill. **The middle** is the deal's own name and the place
- * running it. **The foot** is two cells, the days on the left and the next
- * time it opens on the right, each under a small grey label, so a visitor can
- * read down a row of cards and compare the same thing in the same place.
+ * Top to bottom: **the photo**, with a tag saying "Ending soon", "On now" or
+ * "Starting soon" at its corner; **the headline** in small grey capitals,
+ * "2 FOR 1"; **the deal's name** in the heading font; **where**, the place,
+ * its part of town and what it is filed under; and **when**, the next time
+ * it opens and its days, "Next: Tue, 11 AM · No end date".
  *
  * Every line comes worked out from the server, by the site's clock, so the
  * server and the browser print the same words and the page never redraws
@@ -45,9 +43,12 @@ export function DealGrid({
       // so a grid that did not ask for it stopped short of its own heading.
       className={cn(
         "grid w-full",
-        publicGridColumnsClassName(columns, "sm:grid-cols-2 lg:grid-cols-3")
+        publicGridColumnsClassName(columns, "sm:grid-cols-2 md:grid-cols-3")
       )}
-      style={{ gap: pageGutter }}
+      // The site's own gutter from Settings → Styling across, and a little
+      // more down, because a card has no frame to end it and a row's last
+      // line otherwise runs into the next row's photo.
+      style={{ columnGap: pageGutter, rowGap: `calc(${pageGutter} + 1rem)` }}
     >
       {deals.map((deal) => (
         // `flex` and `h-full` so a row of cards shares one bottom edge: the
@@ -64,30 +65,30 @@ export function DealGrid({
 function DealCard({ deal }: { deal: DealCardView }) {
   const photo = deal.coverImage || deal.listingImage
   const headline = shownHeadline(deal.headline)
-  // The place, the part of town it is in, and how far away it is, as one line
-  // of middle dots. Each part is left out when the page did not ask for it.
+  // The place, the part of town it is in, what it is filed under and how far
+  // away it is, as one line of middle dots. Each part is left out when the
+  // page did not ask for it.
   const place = [
     deal.listingTitle,
     deal.neighbourhood?.name,
+    deal.category?.name,
     deal.distanceKm === undefined
       ? undefined
       : formatDirectoryDistance(deal.distanceKm),
   ].filter(Boolean)
-  // With no photo there is nowhere to hang the pills, so they move into a row
-  // above the title rather than vanishing.
-  const chipsOnPhoto = Boolean(photo)
+  // When it next opens, then its days: "Next: Tue, 11 AM · No end date".
+  const when = [
+    deal.nextLine ? `${deal.nextLine.label}: ${deal.nextLine.text}` : null,
+    deal.daysText,
+  ].filter(Boolean)
 
   return (
-    <Card
-      className={cn(
-        `relative w-full ${publicCardHover}`,
-        // The card only drops its top padding for a bare `<img>` first child,
-        // and the overlays need a box to sit in, so the photo says so itself.
-        photo && "pt-0"
-      )}
-    >
-      {photo ? (
-        <div className="relative overflow-hidden">
+    <article className="group relative flex w-full flex-col">
+      {/* Every card has the same box, so a row lines its titles up. With no
+          photo of the deal's or the place's own, the box stays empty grey
+          with a faint picture sign rather than collapsing. */}
+      <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-muted">
+        {photo ? (
           <img
             src={photo}
             srcSet={mediaImageSrcSet(photo)}
@@ -95,80 +96,39 @@ function DealCard({ deal }: { deal: DealCardView }) {
             // The listing's photo stands in when the deal has none of its own.
             alt={deal.coverImage ? deal.title : deal.listingTitle}
             loading="lazy"
-            className="aspect-[3/2] w-full object-cover"
+            className="size-full object-cover"
           />
-          {/* Inset by the card's own content padding, so the pill's left edge
-              lines up with the title under it and the tag's right edge with
-              the end of the foot. */}
-          <div className="absolute inset-x-4 top-4 flex items-start justify-between gap-2">
-            {deal.category ? <CategoryPill name={deal.category.name} /> : <span />}
-            {deal.badge ? <DealBadge badge={deal.badge} /> : null}
-          </div>
-          <HeadlinePill
-            headline={headline}
-            className="absolute bottom-4 left-4 max-w-[calc(100%-2rem)]"
+        ) : (
+          <ImageIcon
+            aria-hidden="true"
+            className="absolute top-1/2 left-1/2 size-8 -translate-1/2 text-muted-foreground/50"
           />
-        </div>
-      ) : null}
-
-      <CardContent className="grid gap-1">
-        {chipsOnPhoto ? null : (
-          <div className="flex flex-wrap items-center gap-2 pb-1">
-            <HeadlinePill headline={headline} />
-            {deal.category ? (
-              <CategoryPill name={deal.category.name} tone="plain" />
-            ) : null}
-            {deal.badge ? <DealBadge badge={deal.badge} tone="plain" /> : null}
-          </div>
         )}
-        <h3 className="text-xl leading-snug font-semibold wrap-anywhere">
-          {/* The whole card is the link, the same as a post card. */}
-          <Link
-            to="/deals/$slug"
-            params={{ slug: deal.slug }}
-            className={`after:absolute after:inset-0 ${focusRing}`}
-          >
-            {deal.title}
-          </Link>
-        </h3>
-        {place.length ? (
-          <p className="text-sm text-muted-foreground">{place.join(" · ")}</p>
+        {deal.badge ? (
+          <DealBadge badge={deal.badge} className="absolute top-3 left-3" />
         ) : null}
-      </CardContent>
+      </div>
 
-      {/* The foot is pushed to the bottom, so two cards side by side put their
-          days on one line whatever the titles above them did. */}
-      <CardFooter className="mt-auto items-stretch bg-transparent p-0">
-        <FootCell label="Valid" value={deal.daysText} />
-        {deal.nextLine ? (
-          <FootCell
-            label={deal.nextLine.label}
-            value={deal.nextLine.text}
-            className="border-l"
-          />
-        ) : null}
-      </CardFooter>
-    </Card>
-  )
-}
-
-/** The deal's worth, in the one place a visitor's eye lands first. */
-function HeadlinePill({
-  headline,
-  className,
-}: {
-  headline: string
-  className?: string
-}) {
-  return (
-    <span
-      className={cn(
-        "block truncate rounded-lg bg-foreground px-3 py-1.5 text-lg font-semibold text-background",
-        className
-      )}
-    >
-      {headline}
-    </span>
+      {headline ? (
+        <p className="mt-4 text-xs font-semibold tracking-widest text-muted-foreground uppercase wrap-anywhere">
+          {headline}
+        </p>
+      ) : null}
+      <h3 className="mt-1 font-heading text-2xl leading-snug wrap-anywhere">
+        {/* The whole card is the link, the same as a post card. */}
+        <Link
+          to="/deals/$slug"
+          params={{ slug: deal.slug }}
+          className={`rounded-sm after:absolute after:inset-0 group-hover:underline ${focusRing}`}
+        >
+          {deal.title}
+        </Link>
+      </h3>
+      {place.length ? (
+        <p className="mt-1 text-sm text-muted-foreground">{place.join(" · ")}</p>
+      ) : null}
+      {when.length ? <p className="mt-2 text-sm wrap-anywhere">{when.join(" · ")}</p> : null}
+    </article>
   )
 }
 
@@ -178,20 +138,17 @@ function HeadlinePill({
  */
 function DealBadge({
   badge,
-  tone = "overlay",
   className,
 }: {
   badge: NonNullable<DealCardView["badge"]>
-  tone?: "overlay" | "plain"
   className?: string
 }) {
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-foreground",
         // `background` rather than white, so a tag over a photo keeps its
         // contrast in dark mode instead of staying a white blob.
-        tone === "overlay" ? "bg-background" : "bg-muted",
+        "flex shrink-0 items-center gap-1.5 rounded-full bg-background px-2.5 py-1 text-xs font-medium text-foreground",
         className
       )}
     >
@@ -208,23 +165,5 @@ function DealBadge({
       />
       {badge.text}
     </span>
-  )
-}
-
-/** One half of the foot: a small grey label with the words under it. */
-function FootCell({
-  label,
-  value,
-  className,
-}: {
-  label: string
-  value: string
-  className?: string
-}) {
-  return (
-    <div className={cn("min-w-0 flex-1 px-4 py-3", className)}>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium wrap-anywhere">{value}</p>
-    </div>
   )
 }

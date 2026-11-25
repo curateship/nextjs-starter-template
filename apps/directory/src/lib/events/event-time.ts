@@ -266,6 +266,53 @@ export function eventDateChip(date: string): { month: string; day: string } {
   }
 }
 
+const WEEKDAY = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "short",
+})
+
+const MONTH_AND_YEAR = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "long",
+  year: "numeric",
+})
+
+/**
+ * The day at the left of a row in the Events page's list: "THU" over "26".
+ * Not padded, because the rows stack and nothing has to line up beside it.
+ */
+export function eventListDay(date: string): { weekday: string; day: string } {
+  const printable = asPrintable(date)
+  return {
+    weekday: WEEKDAY.format(printable).toUpperCase(),
+    day: String(printable.getUTCDate()),
+  }
+}
+
+/** "November 2026", the heading over a month of rows in the Events list. */
+export function eventListMonth(date: string): string {
+  return MONTH_AND_YEAR.format(asPrintable(date))
+}
+
+/**
+ * The times in a row of the Events page's list, as Tyler's drawing of
+ * 25 Nov 2026 writes them: "7:00 – 10:00 PM" when both ends share AM or PM,
+ * "11:00 AM – 2:00 PM" when they do not, and "7:00 PM" with no end. Several
+ * days show the whole thing, days included, like a card.
+ */
+export function eventListTimesText(when: EventWhen): string {
+  if (spansSeveralDays(when)) return eventRowText(when)
+  const start = formatEventClock(when.startTime)
+  if (!when.endTime) return start
+  const end = formatEventClock(when.endTime)
+  // `\s`, because some runtimes put a narrow no-break space before the PM.
+  const [, startClock, startHalf] = /^(.*)\s(\S+)$/u.exec(start) ?? []
+  const [, , endHalf] = /^(.*)\s(\S+)$/u.exec(end) ?? []
+  return startHalf && startHalf === endHalf
+    ? `${startClock} – ${end}`
+    : `${start} – ${end}`
+}
+
 /**
  * The times on an event card. One day shows the clock alone, because the day
  * is already in the card's date block. Several days show the whole thing, days

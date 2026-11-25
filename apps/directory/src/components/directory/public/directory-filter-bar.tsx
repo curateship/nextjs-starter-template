@@ -1,5 +1,7 @@
 import * as React from "react"
-import { ChevronDownIcon, SearchIcon } from "lucide-react"
+import { SearchIcon } from "lucide-react"
+
+import { LineMenuTrigger } from "@/components/directory/public/line-tabs"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -14,12 +16,10 @@ import type {
   DirectoryFilterGroup,
   DirectoryFilterOption,
 } from "@/lib/directory/filter-groups"
-import { focusRing } from "@/lib/layout/focus-ring"
-import { cn } from "@/lib/utils"
 
 /**
- * The Deals page's row of filter buttons, one button per category group, each
- * opening a panel of tick boxes.
+ * The Deals page's filter buttons, one per category group at the end of the
+ * underlined row, each opening a panel of tick boxes.
  *
  * The directory's browse and category pages used this row too until 17 Oct
  * 2026, when Tyler drew them one "Filters" panel of chips instead
@@ -46,7 +46,7 @@ export function DirectoryFilterBar({
   onToggleCategory,
 }: DirectoryFilterBarProps) {
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <div className="contents">
       {groups.map((group) => (
         <GroupFilter
           key={group.id}
@@ -69,23 +69,15 @@ export function DirectoryFilterBar({
  */
 function FilterTrigger({ label, count }: { label: string; count: number }) {
   return (
-    <PopoverTrigger
-      className={cn(
-        // Drawn exactly like the Filters button on the directory pages: 32px,
-        // the height of every control (it was 36px beside 32px chips).
-        "group inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-input bg-transparent pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/60 dark:bg-input/30",
-        focusRing,
-        count ? "border-foreground font-medium" : null
-      )}
-    >
-      {label}
-      {count ? (
-        <span className="text-muted-foreground tabular-nums">({count})</span>
-      ) : null}
-      <ChevronDownIcon
-        aria-hidden="true"
-        className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
-      />
+    // Plain words and an arrow in the Deals page's underlined row, as Tyler
+    // drew it on 25 Nov 2026 (`line-tabs.tsx`).
+    <PopoverTrigger asChild>
+      <LineMenuTrigger on={count > 0}>
+        {label}
+        {count ? (
+          <span className="text-muted-foreground tabular-nums">({count})</span>
+        ) : null}
+      </LineMenuTrigger>
     </PopoverTrigger>
   )
 }
@@ -107,7 +99,7 @@ function FilterPanel({
   onDone: () => void
 }) {
   return (
-    <PopoverContent align="start" className="w-72 gap-0 p-0">
+    <PopoverContent align="end" className="w-72 gap-0 p-0">
       {children}
       {/* The line above the footer runs the panel's whole width, which is why
           the panel has no padding of its own and each part carries its own. */}

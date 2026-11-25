@@ -26,15 +26,18 @@ function CalendarMenu({
   label,
   heading,
   choices,
+  variant = "outline",
 }: {
   label: string
   heading?: string
   choices: CalendarChoice[]
+  /** Plain words in the Events page's band, as Tyler drew it on 25 Nov 2026. */
+  variant?: "outline" | "ghost"
 }) {
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="w-fit">
+        <Button variant={variant} className="w-fit">
           <CalendarPlusIcon aria-hidden="true" />
           {label}
           <ChevronDownIcon aria-hidden="true" />
@@ -95,6 +98,7 @@ export function SubscribeMenu({ feedUrl }: { feedUrl: string }) {
     <CalendarMenu
       label="Subscribe"
       heading="Every event, now and later"
+      variant="ghost"
       choices={[
         {
           label: "Google Calendar",

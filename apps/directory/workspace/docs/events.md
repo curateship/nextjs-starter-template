@@ -94,7 +94,8 @@ published event has its own page at `/events/<address>`.
 - **Adding a person by hand needs a name and an email.** Tyler: "Name and
   email", 19 Nov 2026, so one email is still one place on the list.
 - **Past events sit behind "Upcoming | Past" chips** on the Events page.
-  Tyler: "Upcoming | Past chips", 19 Nov 2026.
+  Tyler: "Upcoming | Past chips", 19 Nov 2026. Since his drawing of 25 Nov
+  2026 they are underlined tabs rather than chips.
 - **Only "an event was suggested" starts an automation.** Tyler: "Event
   suggested", 19 Nov 2026. `directory-automations.md` has the rest.
 - **Event fields are a list of their own, on a row of the Events
@@ -719,13 +720,13 @@ the Events page and in the month with a Cancelled label, and Google is told.
 
 ## The Events page
 
-`/events` is what is on. It opens on the list, and a switch above it changes to
-the month. The view, the month, a chosen day and the filters all live in the
+`/events` is what is on. It opens on the list, and List, Month and Map above
+it change the view. The view, the month, a chosen day and the filters all live in the
 address, so a shared link opens the same view.
 
 - **Private events** are in none of these views.
 - **The list:** events that are not over yet, soonest first, 12 to a page, as
-  a grid of cards. An event that ended an hour ago is gone. One still running,
+  rows under a heading for each month (see "The Events page's list" below). An event that ended an hour ago is gone. One still running,
   or with no end time on today, stays until it is over. A festival stays until
   its last day ends.
 - **Previous and Next** under the list move a page without reloading the
@@ -767,30 +768,56 @@ the buttons, and one bar a visitor searches with. Tyler asked for this shape on
 - **What is in it, top to bottom:** the breadcrumbs, then "Events" with "All
   times are Eastern Time." under it and "Suggest an event" and "Subscribe"
   opposite, then the search bar.
-- **The bar, left to right:** the words to look for, the category, a town or
-  postcode, "Use my location", Within a distance, and the Search button. The
-  same four questions the directory's bar asks, in the same order, so the two
-  pages are one page to a visitor.
+- **The bar, left to right:** the words to look for, a town or postcode, "Use
+  my location", Within a distance, and the Search button. The category sat in
+  the bar too until Tyler's drawing of 25 Nov 2026 moved it to the row over
+  the list.
 - **The band is shared, not copied.** `PublicHeroBand` and `PublicHeroBar` in
   `src/components/shared/public-hero-band.tsx` draw the band, its width, its
   dots and the bar; the directory's hero and the Events page's both sit inside
   them. Changing the look changes both.
 - **The buttons are not filters,** so they sit with the title rather than in
-  the bar. The category box has no icon of its own and no line to its left,
-  which Tyler asked for on 25 Sep 2026. "Suggest an event" opens the form in a
-  window over the list and
+  the bar, drawn as plain words with their icons and no outline (Tyler's
+  drawing of 25 Nov 2026). "Suggest an event" opens the form in a window over
+  the list and
   shows while that page is open to the visitor; "Subscribe" shows while the
   Events page is open to everyone, as before.
 - **The band takes the page's own spacing and palette** from Settings →
   Styling. Nothing in it names a colour, and it adds no margin of its own under
-  itself, so the gap to the date chips is the site's spacing rather than that
-  plus 24px.
+  itself, so the gap to the row under it is the site's spacing rather than
+  that plus 24px.
+
+### The row over the list
+
+One underlined row sits between the band and the list, as Tyler drew it on
+25 Nov 2026: "Upcoming 9" and "Past 26" as tabs, a short upright line, the
+dates and the category as two dropdowns, and List, Month and Map as tabs at
+the far end. The line under the tab showing slides to the next one, like a
+dashboard's underlined tabs. Each tab's number sits in a light grey chip.
+
+- **What shows where:** the upcoming list has all of it; Past drops the dates
+  dropdown; the map has the dates and the category; the month and a single
+  day have the category and List, Month and Map.
+- **The two dropdowns are the shell's one dropdown look,** `FoldingMenu` with
+  its 32px rows (Tyler, 25 Nov 2026: "the dropdown should use standards"),
+  the chosen line ticked and, for the dates, each line's number in grey at
+  the right. Their buttons are 32px tall and set so their words sit on the
+  tabs' line, which opens each menu 12px under its word rather than under the
+  divider ("too much gap").
+- **On a phone, and on a tablet narrower than 768px,** the tabs and List,
+  Month and Map stay on the underlined line, List, Month and Map showing their
+  icons alone with their words still read out, and the two dropdowns drop to
+  a plain line under it (Tyler, 25 Nov 2026: "make it mobile friendly").
+- **The Deals page draws the same row,** from the same pieces in
+  `src/components/directory/public/line-tabs.tsx`. These two public pages
+  draw underlined tabs where every other public screen draws pills, which the
+  UI standard records as an exception.
 
 ### Filters on the Events page
 
 A visitor narrows the page by words, category, date and distance. Somebody
-after food this weekend types nothing, picks "Food" in the bar, then taps "This
-weekend" under it. Every filter sits in the address, like
+after food this weekend types nothing, picks "Food" from the categories, then
+picks "This weekend" from the dates. Every filter sits in the address, like
 `/events?category=food&when=weekend`, so a reload keeps it and a shared link
 opens the same list.
 
@@ -799,30 +826,33 @@ opens the same list.
   cannot see on the card reads as a wrong result. It is `?q=jazz`.
 - **Typing narrows the upcoming list**, so searching from the month opens the
   list, the same as picking a distance does.
-- **The category box** offers "All categories" and then one line per category
-  with at least one published public event filed under it, in the order set on
-  the Categories screen. A category holding only drafts or private events is
-  not offered, so the box never gives either away. Past events count, because
-  the month shows them. It is a box rather than a row of chips because a site
-  with twenty categories wrapped the chips over three lines and pushed the
-  events off the screen.
+- **The category dropdown,** in the row over the list, offers "All
+  categories" and then one line per category with at least one published
+  public event filed under it, in the order set on the Categories screen, the
+  picked one ticked. A category holding only drafts or private events is not
+  offered, so the dropdown never gives either away. Past events count, because
+  the month shows them. It is a dropdown rather than a row of chips because a
+  site with twenty categories wrapped the chips over three lines and pushed
+  the events off the screen.
 - **A category's own events only,** never its subcategories', the same rule a
   category page follows.
 - **The category follows every view.** The list, the month, one day, the
   months either side, Today, a day opened from the month, and the List and
   Month switch all keep it.
-- **The date chips,** on the upcoming list only, in one segmented group under
-  the band: "Any time", "Today", "This weekend" and "Next 7 days". The List and
-  Month switch sits opposite them in the same shape, because both are one
-  choice out of a few.
-- **Each chip carries its own number**, which is how many events it would show
+- **The dates,** on the upcoming list and the map, in one dropdown in the row
+  over the list: "Any time", "Today", "This weekend" and "Next 7 days". The
+  button names the one chosen, in full contrast once it is anything but Any
+  time, and the chosen line in the menu has a tick. They were a row of chips
+  until Tyler's drawing of 25 Nov 2026.
+- **Each choice carries its own number**, which is how many events it would show
   with the rest of the filters left as they are, so nobody presses a chip to
   find nothing behind it. The numbers are counted in one query beside the list,
   and they follow the words typed, the category, the place and the distance.
   A screen reader hears "Today, 1 event".
 - **There is no picker for a pair of days.** Tyler had it taken off on 25 Sep
   2026. A `?from=` and `?to=` in the address still narrow the list, so a link
-  made before that still works: the line under the row then says which days,
+  made before that still works: the dropdown reads "Dates" and the line under
+  the row says which days,
   with "Clear dates" beside it. One end alone works too, From alone being that
   day onwards.
 - **What each date chip covers,** by the site's calendar, never the visitor's:
@@ -915,14 +945,15 @@ them. Tapping "Today" after that gives tonight's events within 10 km.
 
 ### Upcoming and Past
 
-Two chips before the date chips, "Upcoming" and "Past", each with its number.
+Two tabs at the start of the row over the list, "Upcoming" and "Past", each
+with its number.
 Past lists the events that are over, newest first, 12 to a page. Somebody
 looking for last month's food festival presses Past and types "food".
 
 - **The address:** `/events?list=past`. Paging keeps it.
-- **What Past keeps:** the typed words, the category and the place. The date
-  chips and the distance belong to the upcoming list, so Past hides the date
-  chips and drops both. Typing in the bar keeps Past; picking a distance goes
+- **What Past keeps:** the typed words, the category and the place. The dates
+  and the distance belong to the upcoming list, so Past hides the dates
+  dropdown and drops both. Typing in the bar keeps Past; picking a distance goes
   back to Upcoming.
 - **The numbers:** Upcoming's is the same as "Any time". Past's counts with
   the typed words, the category and the place.
@@ -932,7 +963,7 @@ looking for last month's food festival presses Past and types "food".
 - **Where it lives:** `readEventsSearch` and `eventsListHref` in
   `src/lib/events/events-page.ts`, `past` on `readUpcomingEvents` and the past
   count in `readEventDateCounts` in `src/server/events/public.ts`, and the
-  chips are `EventTimeChips` in
+  tabs are `EventTimeTabs` in
   `src/components/events/public/event-filters.tsx`.
 
 ### The map
@@ -943,7 +974,7 @@ where. A visitor after something near them this weekend presses This weekend,
 then Map.
 
 - **The address:** `/events?view=map`. The map keeps the list's filters: the
-  typed words, the category, the date chips, the place and the distance.
+  typed words, the category, the dates, the place and the distance.
   Switching between List and Map keeps them; the month drops them, as before.
 - **Up to 200 pins**, soonest first. More than that says "Showing 200 of 340
   events on the map. Pick a category or a date to narrow it down."
@@ -962,12 +993,41 @@ then Map.
   in `src/lib/api/events/public.ts`, drawn by
   `src/components/events/public/event-map.tsx`.
 
+## The Events page's list
+
+The Events page draws its events as rows rather than cards, as Tyler drew it on
+25 Nov 2026. The upcoming list, Past, one day and one place all use it, from
+`src/components/events/public/event-list.tsx`.
+
+- **A heading for each month,** "NOVEMBER 2026" in small grey capitals over
+  a line, and the month's rows under it with a line between each.
+- **A row, left to right:** the weekday over the day in the heading font,
+  "THU" over "26"; the title in the heading font with one grey line under it,
+  "7:00 – 10:00 PM · 43 Down · Pub food"; and RSVP at the right, an outlined
+  button, with how many are going beside it once anybody is. The whole row
+  opens the event.
+- **The times** say AM or PM once when both ends share it, "7:00 – 10:00 PM",
+  and both when they do not, "11:00 AM – 2:00 PM". An event over several days
+  shows its days too, as a card does. A list narrowed to a distance adds "2.3
+  km away" to the grey line, and a summary shows under it in two lines at most.
+- **Featured events** the server pins to the top of the upcoming list sit
+  under their own "Featured" heading, so a December festival never puts
+  December before November.
+- **Cancelled, Postponed and Ended** show as a label beside the title, and a
+  cancelled or postponed event has no RSVP. A full one says "Full" where RSVP
+  goes, as on a card.
+- **A page that starts partway through a month** repeats that month's
+  heading, so no row is ever without one.
+- **One day's list has no month headings,** because the day's own heading
+  over it already names the day.
+- **No photo.** The drawing has none, and the event's page still shows it.
+
 ## The event card
 
-Every public list of events draws the same card, from
-`src/components/events/public/event-card.tsx`: the Events page, a single day,
-a category page and a home page row. One component, so the four cannot drift
-apart.
+A category page and a home page row draw the same card, from
+`src/components/events/public/event-card.tsx`. One component, so the two
+cannot drift apart. The Events page drew it too until 25 Nov 2026, when it
+moved to the rows above.
 
 - **Over the photo:** the month over the day in a block on the left, and the
   category in a pill on the right. Both sit 16px in, which is the card's own

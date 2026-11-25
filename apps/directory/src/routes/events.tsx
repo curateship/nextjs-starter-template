@@ -10,13 +10,19 @@ import { DirectoryRouteError } from "@/components/directory/public/directory-err
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import {
+  LineTabDivider,
+  LineTabRow,
+} from "@/components/directory/public/line-tabs"
+import {
+  EventCategoryMenu,
   EventDateFilters,
-  EventTimeChips,
+  EventDateRangeNote,
+  EventTimeTabs,
 } from "@/components/events/public/event-filters"
+import { EventList } from "@/components/events/public/event-list"
 import { EventMap } from "@/components/events/public/event-map"
 import { EventsHero } from "@/components/events/public/events-hero"
 import { SuggestEventButton } from "@/components/events/public/suggest-event-button"
-import { EventCardGrid } from "@/components/events/public/event-card"
 import { SubscribeMenu } from "@/components/events/public/calendar-menus"
 import { EventMonth } from "@/components/events/public/event-month"
 import { EventViewSwitch } from "@/components/events/public/event-view-switch"
@@ -119,6 +125,25 @@ function EventsRoute() {
       search: { ...current, page: undefined, ...patch },
     })
 
+  // The row over the list: Upcoming and Past on the upcoming list and Past,
+  // the dates there and on the map, and the category on every view.
+  const hasTabs = data.view === "list" && !data.day && Boolean(data.dateCounts)
+  const dateMenu =
+    data.view === "list" && !data.day && !data.past && data.dateCounts ? (
+      <EventDateFilters current={current} counts={data.dateCounts} />
+    ) : data.view === "map" ? (
+      <EventDateFilters current={current} counts={data.dateCounts} />
+    ) : null
+  const categoryMenu = data.categories.length ? (
+    <EventCategoryMenu
+      categories={data.categories}
+      current={current.category}
+      // A category works on every view, so this one keeps the view it is on,
+      // the month it is showing and the day it is narrowed to.
+      onChange={(category) => setSearch({ category })}
+    />
+  ) : null
+
   const switcher = (
     <EventViewSwitch
       current={data.view}
@@ -155,7 +180,6 @@ function EventsRoute() {
             </>
           }
           current={current}
-          categories={data.categories}
           radius={current.radius ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM}
           // The typed words narrow the upcoming list, so searching from the
           // month opens the list, the same as a distance does.
@@ -177,9 +201,6 @@ function EventsRoute() {
               },
             })
           }
-          // A category works on every view, so this one keeps the view it is
-          // on, the month it is showing and the day it is narrowed to.
-          onCategoryChange={(category) => setSearch({ category })}
           // A distance belongs to the upcoming list, so it leaves Past.
           onNearChange={(near, area, radius) =>
             setSearch({
@@ -199,29 +220,36 @@ function EventsRoute() {
       }
     >
       {/*
-       * The row of chips and the view switch sits the same distance from the
-       * cards under it as from the band over it. The band's distance is the
-       * site's own spacing from Settings → Styling, so this reads the same
-       * number and takes off the 12px the page column already puts between
-       * every two blocks.
+       * The underlined row over the list (Tyler's drawing of 25 Nov 2026):
+       * Upcoming and Past, then the dates and the category, at the start;
+       * List, Month and Map at the end. It sits the same distance from the rows under it as from
+       * the band over it. The band's distance is the site's own spacing from
+       * Settings → Styling, so this reads the same number and takes off the
+       * 12px the page column already puts between every two blocks.
        */}
       <div
-        className="flex flex-wrap items-center justify-between gap-2"
+        className="flex flex-col gap-3"
         style={{ marginBottom: `calc(${pageGutter} - 0.75rem)` }}
       >
-        {data.view === "list" && !data.day && data.dateCounts ? (
-          <div className="flex min-w-0 flex-wrap items-start gap-2">
-            <EventTimeChips current={current} counts={data.dateCounts} />
-            {data.past ? null : (
-              <EventDateFilters current={current} counts={data.dateCounts} />
-            )}
-          </div>
-        ) : data.view === "map" ? (
-          <EventDateFilters current={current} counts={data.dateCounts} />
-        ) : (
-          <div />
-        )}
-        {switcher}
+        <LineTabRow
+          start={
+            data.view === "list" && !data.day && data.dateCounts ? (
+              <EventTimeTabs current={current} counts={data.dateCounts} />
+            ) : null
+          }
+          menus={
+            dateMenu || categoryMenu ? (
+              <>
+                {/* Between the tabs and the menus, so only with both. */}
+                {hasTabs ? <LineTabDivider /> : null}
+                {dateMenu}
+                {categoryMenu}
+              </>
+            ) : null
+          }
+          end={switcher}
+        />
+        {dateMenu ? <EventDateRangeNote current={current} /> : null}
       </div>
 
       {data.view === "map" ? (
@@ -252,7 +280,8 @@ function EventsRoute() {
               All upcoming events
             </Link>
           </div>
-          <EventCardGrid
+          <EventList
+            byMonths={false}
             events={data.events}
             emptyMessage={
               categoryName
@@ -289,7 +318,7 @@ function EventsRoute() {
               </Link>
             </div>
           ) : null}
-          <EventCardGrid
+          <EventList
             events={data.events}
             emptyMessage={
               // Past the last page is not the same as nothing coming up.

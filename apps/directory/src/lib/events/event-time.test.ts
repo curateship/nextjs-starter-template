@@ -4,6 +4,9 @@ import {
   eventHasEnded,
   eventMomentText,
   eventDaysText,
+  eventListDay,
+  eventListMonth,
+  eventListTimesText,
   eventRowText,
   eventWhenLines,
   formatEventStart,
@@ -233,5 +236,42 @@ describe("a row in the Events page's list", () => {
   it("names both days, or one", () => {
     expect(eventDaysText(festival)).toBe("Fri, Oct 2 to Sun, Oct 4")
     expect(eventDaysText(nightMarket)).toBe("Sat, Sep 26")
+  })
+})
+
+describe("a row in the Events page's grouped list", () => {
+  // Some runtimes print a narrow no-break space before AM and PM.
+  const plain = (text: string) => text.replace(/\s/gu, " ")
+
+  it("says AM or PM once when both ends share it", () => {
+    expect(plain(eventListTimesText({ ...nightMarket, startTime: "19:00", endTime: "22:00" }))).toBe(
+      "7:00 – 10:00 PM"
+    )
+  })
+
+  it("says both when the event crosses noon, and one with no end", () => {
+    expect(plain(eventListTimesText({ ...nightMarket, startTime: "11:00", endTime: "14:00" }))).toBe(
+      "11:00 AM – 2:00 PM"
+    )
+    expect(plain(eventListTimesText({ ...nightMarket, endTime: null }))).toBe("6:00 PM")
+  })
+
+  it("puts the days in over several days", () => {
+    expect(
+      plain(
+        eventListTimesText({
+          startDate: "2026-10-02",
+          startTime: "12:00",
+          endDate: "2026-10-04",
+          endTime: "20:00",
+        })
+      )
+    ).toBe("Fri, Oct 2, 12:00 PM to Sun, Oct 4, 8:00 PM")
+  })
+
+  it("names the weekday, the day and the month", () => {
+    expect(eventListDay("2026-11-26")).toEqual({ weekday: "THU", day: "26" })
+    expect(eventListDay("2026-12-01")).toEqual({ weekday: "TUE", day: "1" })
+    expect(eventListMonth("2026-11-26")).toBe("November 2026")
   })
 })

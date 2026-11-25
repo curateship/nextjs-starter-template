@@ -1,8 +1,11 @@
 import { Link } from "@tanstack/react-router"
 import { CalendarDaysIcon, ListIcon, MapIcon } from "lucide-react"
 
+import {
+  LineTabTrack,
+  lineTabProps,
+} from "@/components/directory/public/line-tabs"
 import type { EventView, EventsPageSearch } from "@/lib/events/events-page"
-import { segmentClass } from "@/lib/layout/segmented"
 
 const VIEWS: { view: EventView; label: string; Icon: typeof ListIcon }[] = [
   { view: "list", label: "List", Icon: ListIcon },
@@ -11,7 +14,8 @@ const VIEWS: { view: EventView; label: string; Icon: typeof ListIcon }[] = [
 ]
 
 /**
- * List or month, in the segmented style, as links the way the directory's grid
+ * List, Month or Map, as underlined tabs at the end of the row over the list
+ * (Tyler's drawing of 25 Nov 2026), and as links the way the directory's grid
  * and map switch is: a month is a page that can be sent to somebody and come
  * back to with Back.
  *
@@ -35,11 +39,7 @@ export function EventViewSwitch({
   filters?: EventsPageSearch
 }) {
   return (
-    <div
-      role="group"
-      aria-label="Show events as"
-      className="inline-flex h-8 w-fit items-center justify-center rounded-lg bg-muted p-0.5 text-muted-foreground"
-    >
+    <LineTabTrack label="Show events as">
       {VIEWS.map(({ view, label, Icon }) => (
         <Link
           key={view}
@@ -53,13 +53,13 @@ export function EventViewSwitch({
           }
           // Only an exact match is current: "List" is part of every address.
           activeOptions={{ exact: true }}
-          aria-current={view === current ? "page" : undefined}
-          className={segmentClass(view === current)}
+          {...lineTabProps(view === current)}
         >
           <Icon aria-hidden="true" className="size-4" />
-          {label}
+          {/* Icons alone below a tablet, so the row stays one line. */}
+          <span className="sr-only md:not-sr-only">{label}</span>
         </Link>
       ))}
-    </div>
+    </LineTabTrack>
   )
 }

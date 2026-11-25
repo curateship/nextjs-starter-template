@@ -18,37 +18,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { EventCategory } from "@/lib/api/events/public"
 import { DIRECTORY_NEAR_RADII_KM } from "@/lib/directory/public-search"
 import type { EventsPageSearch } from "@/lib/events/events-page"
 import { useSearchBoxText } from "@/lib/nav/list-search"
-
-/** The value the category box carries while no category is picked. */
-const EVERY_CATEGORY = "all"
 
 /**
  * The band at the top of the Events page: where the page sits, its name, the
  * time zone line, the two buttons a visitor acts with, and one bar holding
  * what they search by.
  *
- * The bar asks the same question the directory's does, in the same order:
- * what is it, what kind, where, and how far. The category is a box rather than
- * a row of chips because a site with twenty categories wrapped the chips over
- * three lines and pushed the events off the screen.
+ * The bar asks what it is, where, and how far. The category sat in the bar
+ * too until Tyler's drawing of 25 Nov 2026 moved it to the underlined row
+ * over the list (`EventCategoryMenu`).
  *
- * Typing and the category box write to the address, so a filtered page
- * survives a reload and can be sent to somebody. The band itself is
- * `PublicHeroBand`, shared with the directory.
+ * Typing writes to the address, so a filtered page survives a reload and can
+ * be sent to somebody. The band itself is `PublicHeroBand`, shared with the
+ * directory.
  */
 export function EventsHero({
   crumbs,
   intro,
   actions,
   current,
-  categories,
   radius,
   onSearchChange,
-  onCategoryChange,
   onNearChange,
   onRadiusChange,
   onNearClear,
@@ -61,10 +54,8 @@ export function EventsHero({
   actions: React.ReactNode
   /** The address as it stands, so a box keeps what it is not changing. */
   current: EventsPageSearch
-  categories: EventCategory[]
   radius: number
   onSearchChange: (value: string) => void
-  onCategoryChange: (slug: string | undefined) => void
   onNearChange: (near: string, area: string, radius: number) => void
   onRadiusChange: (radius: number) => void
   onNearClear: () => void
@@ -110,33 +101,6 @@ export function EventsHero({
             className="border-0 pl-9 text-base shadow-none focus-visible:ring-0"
           />
         </div>
-
-        {categories.length ? (
-          <div className="flex min-w-0 items-center">
-            <Select
-              value={current.category ?? EVERY_CATEGORY}
-              onValueChange={(value) =>
-                onCategoryChange(value === EVERY_CATEGORY ? undefined : value)
-              }
-            >
-              <SelectTrigger
-                id="events-category"
-                aria-label="Category"
-                className="border-0 font-medium shadow-none"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={EVERY_CATEGORY}>All categories</SelectItem>
-                {categories.map((row) => (
-                  <SelectItem key={row.id} value={row.slug}>
-                    {row.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : null}
 
         <PublicHeroBarDivider />
 

@@ -1,5 +1,10 @@
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Link } from "@tanstack/react-router"
+
+import {
+  LineTabCount,
+  LineTabTrack,
+  lineTabProps,
+} from "@/components/directory/public/line-tabs"
 
 import type { DealWhenCounts } from "@/lib/api/promotions/public"
 import {
@@ -7,7 +12,6 @@ import {
   DEAL_ON_FILTER_LABELS,
   type DealsPageSearch,
 } from "@/lib/promotions/deals-page"
-import { segmentClass } from "@/lib/layout/segmented"
 
 /**
  * The router marks a link as the current page when its address is part of
@@ -22,8 +26,8 @@ const exactSearch = { exact: true }
  * ticked boxes and the distance still applied, so nobody presses a chip to
  * find nothing behind it.
  *
- * Drawn as one segmented group, the same shape as the Events page's date
- * chips, because both are one choice out of a few.
+ * Drawn as underlined tabs at the start of the row over the grid, as Tyler
+ * drew it on 25 Nov 2026, the same row the Events page has.
  *
  * Every chip writes to the address, keeps what it is not changing, and drops
  * the page number, because page 3 of the old list is nowhere in the new one.
@@ -46,34 +50,23 @@ export function DealWhenFilters({
   }
 
   return (
-    // `min-w-0` so the box may be narrower than its chips and scroll them
-    // inside itself. Without it a flex item never shrinks past its content,
-    // and on a phone the whole page scrolls sideways instead. The scroll box
-    // is the shared one, so its bar is the thin themed one.
-    <ScrollArea className="max-w-full min-w-0 rounded-lg bg-muted sm:w-fit">
-      <div
-        role="group"
-        aria-label="When"
-        className="flex h-8 w-max items-center justify-start gap-0.5 p-0.5 text-muted-foreground"
-      >
+    <LineTabTrack label="When">
+      <WhenChip
+        search={kept}
+        active={!current.on}
+        label="Any time"
+        count={counts.anyTime}
+      />
+      {DEAL_ON_FILTERS.map((on) => (
         <WhenChip
-          search={kept}
-          active={!current.on}
-          label="Any time"
-          count={counts.anyTime}
+          key={on}
+          search={{ ...kept, on }}
+          active={current.on === on}
+          label={DEAL_ON_FILTER_LABELS[on]}
+          count={counts[on]}
         />
-        {DEAL_ON_FILTERS.map((on) => (
-          <WhenChip
-            key={on}
-            search={{ ...kept, on }}
-            active={current.on === on}
-            label={DEAL_ON_FILTER_LABELS[on]}
-            count={counts[on]}
-          />
-        ))}
-      </div>
-      <ScrollBar orientation="horizontal" />
-    </ScrollArea>
+      ))}
+    </LineTabTrack>
   )
 }
 
@@ -93,8 +86,7 @@ function WhenChip({
       to="/deals"
       search={search}
       activeOptions={exactSearch}
-      aria-current={active ? "page" : undefined}
-      className={segmentClass(active)}
+      {...lineTabProps(active)}
     >
       {label}
       {/* The number is read out with the words, so a screen reader hears
@@ -102,9 +94,7 @@ function WhenChip({
       <span className="sr-only">
         , {count === 1 ? "1 deal" : `${count} deals`}
       </span>
-      <span aria-hidden="true" className="text-xs tabular-nums opacity-70">
-        {count}
-      </span>
+      <LineTabCount>{count}</LineTabCount>
     </Link>
   )
 }
