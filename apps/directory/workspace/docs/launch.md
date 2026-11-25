@@ -114,6 +114,11 @@ In `apps/directory`, type `npm run deploy`. It pushes the branch to
 `https://directory.barelycompany.com/api/health`, and copies the live left
 menu down to this Mac. The deploy-app skill has the rest.
 
+## Owed on the live site
+
+- **Junk emails:** run `npm run drop:junk-emails` against the live database,
+  then again with `--write` (`junk-emails.md`).
+
 ## Checked before the first deploy
 
 On 23 Nov 2026 both images were built on this Mac from the root `Dockerfile`

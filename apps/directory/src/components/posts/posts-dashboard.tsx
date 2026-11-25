@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { NoMatches } from "@/components/directory/listings-dashboard/section-parts"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Select,
@@ -25,6 +26,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { Category } from "@/lib/api/directory/categories"
 import {
   getPostErrorMessage,
@@ -290,9 +296,17 @@ export function PostsDashboard({
         }
         isEmpty={data.posts.length === 0}
         emptyText={
-          search.q?.trim() || search.status
-            ? "No post matches that search."
-            : "No posts yet. Write the first one."
+          // The dashboard's own "No matches" line and its Clear filters. A
+          // status picked with no words typed is a filter, not a search.
+          search.q?.trim() || search.status ? (
+            <NoMatches
+              words={search.q ?? ""}
+              noun="posts"
+              onClear={() => setListSearch({ q: undefined, status: undefined, page: undefined })}
+            />
+          ) : (
+            "No posts yet. Write the first one."
+          )
         }
         emptyColSpan={7}
         footer={{
@@ -320,14 +334,18 @@ export function PostsDashboard({
               />
             </TableCell>
             <TableCell column="main">
-              <button
-                type="button"
-                className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
-                onClick={() => openEditor(post)}
-                title={post.title}
-              >
-                {post.title}
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
+                    onClick={() => openEditor(post)}
+                  >
+                    {post.title}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{post.title}</TooltipContent>
+              </Tooltip>
               <span className="block max-w-96 truncate text-xs text-muted-foreground">
                 {post.categories.length
                   ? post.categories.join(", ")
@@ -346,7 +364,8 @@ export function PostsDashboard({
                 ) : null}
               </div>
             </TableCell>
-            <TableCell column="meta">{formatDate(post.publishedAt)}</TableCell>
+            {/* "Not yet" rather than the shared formatter's dash for a draft. */}
+            <TableCell column="meta">{post.publishedAt ? formatDate(post.publishedAt) : "Not yet"}</TableCell>
             <TableCell column="meta">{post.views.toLocaleString()}</TableCell>
             <TableCell column="meta" className="hidden md:table-cell">
               {formatDate(post.updatedAt)}
@@ -356,7 +375,7 @@ export function PostsDashboard({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
+                  size="icon-sm"
                   aria-label={`Edit ${post.title}`}
                   onClick={() => openEditor(post)}
                 >
@@ -365,7 +384,7 @@ export function PostsDashboard({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
+                  size="icon-sm"
                   aria-label={`Delete ${post.title}`}
                   disabled={deleting}
                   onClick={() =>

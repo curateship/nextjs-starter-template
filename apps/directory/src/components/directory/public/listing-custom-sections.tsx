@@ -9,6 +9,7 @@ import {
 } from "@/lib/directory/custom-fields"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 import { mediaImageSrcSet } from "@/lib/media/image-sizes"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 /**
@@ -151,9 +152,9 @@ function FieldLine({
           href={value}
           target="_blank"
           rel="noreferrer nofollow"
-          className="underline underline-offset-2"
+          className={`wrap-anywhere underline underline-offset-2 ${focusRing}`}
         >
-          {value}
+          {linkText(value)}
         </a>
       </p>
     )
@@ -171,4 +172,17 @@ function FieldLine({
       {typeof value === "number" ? value.toLocaleString() : String(value ?? "")}
     </p>
   )
+}
+
+/**
+ * The site's name rather than the whole address: a long tracking link was
+ * printed in full and pushed a phone's page sideways. `www.` adds nothing a
+ * reader needs. Anything that does not read as an address shows as typed.
+ */
+function linkText(href: string) {
+  try {
+    return new URL(href).hostname.replace(/^www\./, "") || href
+  } catch {
+    return href
+  }
 }

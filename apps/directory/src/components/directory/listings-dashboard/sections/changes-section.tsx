@@ -7,13 +7,14 @@ import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-tabl
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { ChangedValue } from "@/components/directory/edit-request-parts"
 import { DetailNote } from "@/components/directory/listings-dashboard/detail-rows"
-import { QueueStatusFilter, WaitedChip } from "@/components/directory/listings-dashboard/queue-parts"
+import { QueueStatusFilter, useAskFirst, WaitedChip } from "@/components/directory/listings-dashboard/queue-parts"
 import { NoMatches, RecordMenu, useOpenFirstRow, type SectionProps } from "@/components/directory/listings-dashboard/section-parts"
 import { CharacterCount } from "@/components/shared/character-count"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { PanelCard } from "@/components/shared/panel-card"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
+import { batchOutcome } from "@/components/directory/listings-dashboard/batch-outcome"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { TableCell } from "@/components/ui/table"
@@ -134,7 +135,8 @@ export function ChangesSection({ data, search, frame, onChanged }: SectionProps<
         columns={[
           { key: "name", label: "Listing", column: "main", className: "min-w-40", sortable: false },
           { key: "waited", label: "Waited", column: "meta", sortable: false },
-          { key: "fields", label: "Changes", column: "meta", className: "hidden md:hidden @xl:table-cell", sortable: false },
+          { key: "status", label: "Status", column: "meta", className: "hidden md:hidden @xl:table-cell", sortable: false },
+          { key: "fields", label: "Changes", column: "meta", className: "hidden md:hidden @2xl:table-cell", sortable: false },
         ]}
         sort="name"
         direction="asc"
@@ -178,10 +180,13 @@ export function ChangesSection({ data, search, frame, onChanged }: SectionProps<
                 {change.status === "pending" ? (
                   <WaitedChip since={change.createdAt} />
                 ) : (
-                  <Chip muted>{EDIT_REQUEST_STATUS_LABELS[change.status]}</Chip>
+                  <span className="text-muted-foreground">{formatDate(change.reviewedAt ?? change.createdAt)}</span>
                 )}
               </TableCell>
-              <TableCell column="mutedMeta" className="hidden md:hidden @xl:table-cell">
+              <TableCell column="meta" className="hidden md:hidden @xl:table-cell">
+                <Chip muted>{EDIT_REQUEST_STATUS_LABELS[change.status]}</Chip>
+              </TableCell>
+              <TableCell column="mutedMeta" className="hidden md:hidden @2xl:table-cell">
                 <span className="block max-w-56 truncate">{touched.map((field) => field.label).join(", ") || "Nothing"}</span>
               </TableCell>
             </CrmTableRow>
@@ -237,20 +242,19 @@ export function ChangesSection({ data, search, frame, onChanged }: SectionProps<
         onConfirm={() =>
           void run(async () => {
             if (!refusing) return
-            const failed: string[] = []
+            const refused: { row: (typeof refusing)[number]; error: unknown }[] = []
             for (const change of refusing) {
               try {
                 await decideEditRequest({ id: change.id, decision: "reject" })
-              } catch {
-                failed.push(change.listingTitle)
+              } catch (error) {
+                refused.push({ row: change, error })
               }
             }
             setRefusing(null)
-            selection.clear()
+            selection.setSelected(new Set(refused.map(({ row }) => row.id)))
             await onChanged()
-            if (failed.length) {
-              throw new Error(`${refusing.length - failed.length} of ${refusing.length} turned down. ${failed.join(", ")} could not be, and stay waiting.`)
-            }
+            const problem = batchOutcome({ asked: refusing, refused, verb: "turned down", nameOf: (row) => row.listingTitle })
+            if (problem) throw problem
           })
         }
       />
@@ -277,6 +281,12 @@ function ChangeRecord({ change, onDecided }: { change: Change; onDecided: () => 
       if (decision === "approve") forgetListings()
       onDecided()
     })
+  const askFirst = useAskFirst({
+    title: "Turn down this change?",
+    description: `Nothing on ${change.listingTitle} changes, and ${change.ownerName || "the owner"} is emailed.`,
+    confirmLabel: "Turn down",
+    busy,
+  })
   const openListing = () => void navigate({ to: "/admin/listings", search: { open: change.listingId } })
 
   return (
@@ -294,13 +304,14 @@ function ChangeRecord({ change, onDecided }: { change: Change; onDecided: () => 
               ? []
               : [
                   { label: "Apply the changes", icon: <CheckIcon className="size-4" />, onSelect: () => decide("approve"), disabled: busy },
-                  { label: "Turn down", icon: <XIcon className="size-4" />, destructive: true, onSelect: () => decide("reject"), disabled: busy },
+                  { label: "Turn down", icon: <XIcon className="size-4" />, destructive: true, onSelect: () => askFirst.ask(() => decide("reject")), disabled: busy },
                 ]),
           ]}
         />
       }
       body={
         <>
+          {askFirst.dialog}
           <PanelCard storageId="owner-change-fields" icon={<PencilRulerIcon />} title="Before and after" meta={touched.length || undefined}>
             {touched.length ? (
               <div className="grid gap-4">
@@ -371,13 +382,13 @@ function ChangeRecord({ change, onDecided }: { change: Change; onDecided: () => 
         ) : (
           <>
             <FooterState>
-              <span className="text-muted-foreground">Applying puts it live at once.</span>
+              <span className="text-muted-foreground">Approving puts it live at once.</span>
             </FooterState>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => decide("reject")}>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => askFirst.ask(() => decide("reject"))}>
               Turn down
             </Button>
             <Button type="button" disabled={busy} onClick={() => decide("approve")}>
-              Apply the changes
+              Approve
             </Button>
           </>
         )

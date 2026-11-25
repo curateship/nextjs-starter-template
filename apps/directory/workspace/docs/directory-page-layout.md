@@ -24,6 +24,20 @@ page is 1152px at its widest.
   address, the phone number, the website, the email, directions, "Is this your
   business?" and "Report a problem". The rows run the full width of the card so
   the whole line lights up under the pointer.
+- **Nothing in that card runs past its edge.** A long address wraps onto a
+  second line, and a long email or website is cut short with "…". The rows'
+  column is held to the card's width (`minmax(0, 1fr)`); before 24 Nov 2026 a
+  long address pushed the column, and with it the whole card, past the edge on
+  desktop and on a phone. A link field of the site's own shows the site's name,
+  "example.com", rather than the whole address.
+- **An email that is nobody's inbox is never shown.** The import read emails
+  off each restaurant's own website, and that brought in error-tracking
+  addresses (`…@sentry-next.wixpress.com`), template placeholders such as
+  `example@domain.com`, and image names such as `account-default@2x.png`.
+  `isJunkEmail` in `src/lib/directory/contact-links.ts` drops them whenever a
+  listing's links are read or saved, so they never show and Outreach never
+  writes to them. `junk-emails.md` has the cleanup that took them out of the
+  saved listings.
 - **"Report a problem" is the last of those rows**, not a link at the foot of
   the page. Somebody who has just read the hours and knows they are wrong is
   looking at that card, and it is still the quietest line on it.
@@ -181,6 +195,11 @@ row of buttons wrapped onto three lines on a phone.
 - **The search bar carries a soft shadow** and sits a size above the controls
   inside it, so it reads as the thing the page is for. The controls in it are
   the app's standard 32px; the bar's own padding gives it its height.
+- **"Use my location" sits at the end of the town box's line**, on a phone as
+  on a wide screen. A phone stacks the bar's parts, and the button used to
+  take a row of its own, about 40px more band before any result. The box and
+  the button are one piece, `HeroPlaceBox`, shared by the Directory, Events
+  and Deals bands.
 - **The words in the band start where the page's cards start.** The band runs
   the whole width of the window, and its padding is on the band rather than on
   the column inside it, or the title would sit 16px further in than the header's
@@ -308,7 +327,12 @@ row of buttons wrapped onto three lines on a phone.
   name.
 - **Saving a listing is the bookmark at the bottom right of the photo.** It
   moved there because the rating chip owns the top right. It appears on hover
-  on a desktop and is always there on a phone.
+  on a screen with a mouse and is always there on a touch screen, an iPad
+  included. Until 24 Nov 2026 it hid from 768px wide up, so an iPad, which is
+  that wide with no hover, never showed it.
+- **The bookmark is named after its listing**, "Save Archeo", so a screen
+  reader going through the cards hears which one each is. Its menu calls a
+  list a "saved list", the word the Saved listings page uses.
 - **The photo is offered in three widths.** A phone downloads the 400-pixel
   copy rather than the full-size upload, through the same resizing route the
   media library uses.

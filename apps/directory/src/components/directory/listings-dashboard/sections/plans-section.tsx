@@ -23,6 +23,7 @@ import { PickMenuRow } from "@/components/shared/notes/pick-rows"
 import { PanelCard } from "@/components/shared/panel-card"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
+import { batchOutcome } from "@/components/directory/listings-dashboard/batch-outcome"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -39,7 +40,6 @@ import {
 } from "@/lib/api/directory/featured"
 import { categoryTreeOrder } from "@/lib/directory/category-tree"
 import { formatMoney } from "@/lib/format/money"
-import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
@@ -283,21 +283,20 @@ export function PlansSection({ data, search, frame, onChanged }: SectionProps<Da
         onConfirm={() =>
           void run(async () => {
             if (!confirm) return
-            const failed: string[] = []
+            const refused: { row: (typeof confirm)[number]; error: unknown }[] = []
             for (const plan of confirm) {
               try {
                 await removeFeaturedPlan(plan.id)
-              } catch {
-                failed.push(plan.name)
+              } catch (error) {
+                refused.push({ row: plan, error })
               }
             }
-            const total = confirm.length
+            const asked = confirm
             setConfirm(null)
-            selection.clear()
+            selection.setSelected(new Set(refused.map(({ row }) => row.id)))
             await onChanged()
-            if (failed.length) {
-              throw new Error(`${total - failed.length} of ${total} deleted. ${failed.join(", ")} ${plural(failed.length, "has purchases and was kept", "have purchases and were kept")}.`)
-            }
+            const problem = batchOutcome({ asked, refused, verb: "deleted", nameOf: (row) => row.name })
+            if (problem) throw problem
           })
         }
       />

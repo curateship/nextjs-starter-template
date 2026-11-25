@@ -1,6 +1,13 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { Loader2Icon, MapPinIcon, PlusIcon, TagIcon } from "lucide-react"
+import {
+  Loader2Icon,
+  MapPinIcon,
+  PlusIcon,
+  SettingsIcon,
+  TagIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import {
   DealClaimsCard,
@@ -15,6 +22,7 @@ import { CharacterCount } from "@/components/shared/character-count"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { focusRing } from "@/lib/layout/focus-ring"
 import {
   Card,
   CardContent,
@@ -227,7 +235,7 @@ function OwnerDealRow({
             href={`${siteUrl}/deals/${live.slug}`}
             target="_blank"
             rel="noreferrer"
-            className="text-sm underline-offset-4 hover:underline"
+            className={`rounded-sm text-sm underline-offset-4 hover:underline ${focusRing}`}
           >
             See its page
           </a>
@@ -270,10 +278,14 @@ function OwnerDealRow({
               disabled={live.changeWaiting}
               onClick={onChange}
             >
+              <SettingsIcon />
               Change
             </Button>
           </DisabledReason>
-          <Button type="button" variant="outline" size="sm" onClick={onEnd}>
+          {/* Ghost with a bin, the same as an event's Withdraw beside it on
+              this page: both take the thing off the site. */}
+          <Button type="button" variant="ghost" size="sm" onClick={onEnd}>
+            <Trash2Icon />
             End now
           </Button>
           {live.content.takesClaims ? (

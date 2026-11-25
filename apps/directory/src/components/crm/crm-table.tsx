@@ -444,7 +444,10 @@ export function MainCell({
           row's last buttons (Trade's Backtests, 11 Nov 2026), and a short
           table never squeezes names to the 160px floor while other columns
           are cut as well (the Users table read "Bet...", Tyler, 11 Nov
-          2026). */}
+          2026). `whitespace-normal` because the cell itself is
+          `whitespace-nowrap`: with nothing allowed to wrap there was no second
+          line to clamp, so a long name was clipped mid-word with no "…"
+          (Directory's "Two-for-one pasta Tuesd", 24 Nov 2026). */}
       <span className="flex min-w-0 items-center gap-2">
         <OpenBar />
         {lead}
@@ -455,13 +458,13 @@ export function MainCell({
         ) : null}
         {line ? (
           <span className="grid min-w-0 leading-tight">
-            <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all", strong ? "font-semibold" : "font-medium")}>
+            <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all whitespace-normal", strong ? "font-semibold" : "font-medium")}>
               {name}
             </span>
-            <span className="line-clamp-1 min-w-0 break-all text-xs text-muted-foreground">{line}</span>
+            <span className="line-clamp-1 min-w-0 break-all whitespace-normal text-xs text-muted-foreground">{line}</span>
           </span>
         ) : (
-          <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all", strong ? "font-semibold" : "font-medium")}>
+          <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all whitespace-normal", strong ? "font-semibold" : "font-medium")}>
             {name}
           </span>
         )}

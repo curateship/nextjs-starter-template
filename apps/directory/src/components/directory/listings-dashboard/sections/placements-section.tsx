@@ -10,13 +10,13 @@ import { ListPager, NoMatches, RecordMenu, useOpenFirstRow, type SectionProps } 
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { PanelCard } from "@/components/shared/panel-card"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
+import { batchOutcome } from "@/components/directory/listings-dashboard/batch-outcome"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { TableCell } from "@/components/ui/table"
 import { getFeaturedErrorMessage, revokeFeatured, type loadFeaturedAdmin } from "@/lib/api/directory/featured"
 import { endsSoon } from "@/lib/directory/listings-dashboard-page"
 import { formatDate } from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"
-import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
@@ -220,19 +220,20 @@ export function PlacementsSection({ data, search, frame, onChanged }: SectionPro
         onConfirm={() =>
           void run(async () => {
             if (!revoking) return
-            const failed: string[] = []
+            const refused: { row: (typeof revoking)[number]; error: unknown }[] = []
             for (const row of revoking) {
               try {
                 await revokeFeatured(row.id)
-              } catch {
-                failed.push(row.title)
+              } catch (error) {
+                refused.push({ row, error })
               }
             }
-            const total = revoking.length
+            const asked = revoking
             setRevoking(null)
-            selection.clear()
+            selection.setSelected(new Set(refused.map(({ row }) => row.id)))
             await onChanged()
-            if (failed.length) throw new Error(`${total - failed.length} of ${total} revoked. ${failed.join(", ")} ${plural(failed.length, "was", "were")} not running any more.`)
+            const problem = batchOutcome({ asked, refused, verb: "revoked", nameOf: (row) => row.title })
+            if (problem) throw problem
           })
         }
       />
@@ -278,7 +279,7 @@ function PlacementRecord({ placement, actions, busy }: { placement: Placement; a
             <DetailRow label="Started" value={formatDate(placement.startsAt)} />
             <DetailRow label="Ends" value={formatDate(placement.endsAt)} />
             <DetailRow label="Paid" value={formatMoney(placement.amountTotal, placement.currency)} />
-            {placement.revokeNote ? <DetailRow label="Why it was revoked" value={placement.revokeNote} /> : null}
+            {placement.revokeNote ? <DetailRow label="Why it was revoked" value={placement.revokeNote} multiline /> : null}
           </DetailRows>
         </PanelCard>
       }

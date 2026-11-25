@@ -23,12 +23,28 @@ export function DetailNote({ children }: { children: React.ReactNode }) {
  * A label and its value on one line, the way a spec sheet reads. The panel
  * opens narrow, so a value with no room beside its label goes under it
  * rather than past the panel's edge.
+ *
+ * `multiline` is for free text somebody wrote, such as why a placement was
+ * revoked or the link a claimant gave: it goes under the label and wraps in
+ * full, where a one-line value is cut short with no way to read the rest.
  */
-export function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+export function DetailRow({
+  label,
+  value,
+  multiline = false,
+}: {
+  label: string
+  value: React.ReactNode
+  multiline?: boolean
+}) {
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-0.5">
       <span className="min-w-0 text-sm text-muted-foreground">{label}</span>
-      <span className="ml-auto min-w-0 max-w-full truncate text-right text-sm font-medium">{value}</span>
+      {multiline ? (
+        <span className="min-w-0 basis-full text-sm font-medium whitespace-pre-wrap wrap-anywhere">{value}</span>
+      ) : (
+        <span className="ml-auto min-w-0 max-w-full truncate text-right text-sm font-medium">{value}</span>
+      )}
     </div>
   )
 }

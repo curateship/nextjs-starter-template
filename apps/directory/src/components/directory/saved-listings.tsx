@@ -38,6 +38,8 @@ import {
   type SavedCollection,
 } from "@/lib/api/directory/saves"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { mediaImageSrcSet } from "@/lib/media/image-sizes"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 export function SavedListings({ initial }: { initial: SavedCollection[] }) {
@@ -75,9 +77,11 @@ export function SavedListings({ initial }: { initial: SavedCollection[] }) {
         >
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="grid gap-1">
-              <h1 className="text-xl font-semibold">
+              {/* h2: a person with lists on two sites gets one heading per
+                  site, and a page has one h1. */}
+              <h2 className="text-xl font-semibold">
                 {siteCollections[0]!.siteName}
-              </h1>
+              </h2>
               <p className="text-sm text-muted-foreground">
                 Turn on a list to let anyone with your profile link see its name
                 and published listings.
@@ -178,20 +182,41 @@ export function SavedListings({ initial }: { initial: SavedCollection[] }) {
                         key={item.id}
                         className="flex min-h-12 items-center gap-3 py-2"
                       >
-                        <BookmarkIcon
-                          className="size-4 shrink-0 text-muted-foreground"
-                          aria-hidden="true"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {item.title}
-                          </p>
-                          {item.address ? (
-                            <p className="truncate text-xs text-muted-foreground">
-                              {item.address}
-                            </p>
-                          ) : null}
-                        </div>
+                        {/* The listing opens on its own site, in this tab: the
+                            Back button brings the list back. A listing that was
+                            unpublished or deleted never reaches this list. */}
+                        <a
+                          href={item.url}
+                          className={`-my-1 flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 hover:bg-accent/40 ${focusRing}`}
+                        >
+                          {item.featuredImage ? (
+                            <img
+                              src={item.featuredImage}
+                              srcSet={mediaImageSrcSet(item.featuredImage)}
+                              sizes="40px"
+                              alt=""
+                              loading="lazy"
+                              className="size-10 shrink-0 rounded-md object-cover"
+                            />
+                          ) : (
+                            <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted">
+                              <BookmarkIcon
+                                className="size-4 text-muted-foreground"
+                                aria-hidden="true"
+                              />
+                            </span>
+                          )}
+                          <span className="grid min-w-0 flex-1">
+                            <span className="truncate text-sm font-medium">
+                              {item.title}
+                            </span>
+                            {item.address ? (
+                              <span className="truncate text-xs text-muted-foreground">
+                                {item.address}
+                              </span>
+                            ) : null}
+                          </span>
+                        </a>
                         <Button
                           type="button"
                           size="icon"

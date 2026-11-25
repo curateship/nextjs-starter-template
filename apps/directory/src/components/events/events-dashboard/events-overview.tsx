@@ -37,7 +37,7 @@ export function EventsOverview({ layout, onChange }: { layout: WidgetLayout; onC
           <div className="grid gap-1 p-3">
             <span className="text-3xl font-semibold tabular-nums">{data.waitingSuggestions.toLocaleString()}</span>
             <Link to="/admin/event-submissions" className="w-fit text-sm text-muted-foreground underline-offset-4 hover:underline">
-              {data.waitingSuggestions ? "Open Event submissions" : "Nothing waiting in Event submissions"}
+              {data.waitingSuggestions ? "Open Event suggestions" : "Nothing waiting in Event suggestions"}
             </Link>
           </div>
         )

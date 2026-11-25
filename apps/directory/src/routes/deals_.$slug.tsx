@@ -113,7 +113,7 @@ function DealRoute() {
             <p className="text-3xl leading-tight font-bold wrap-anywhere">
               {shownHeadline(deal.headline)}
             </p>
-            <h1 className="text-2xl font-semibold">{deal.title}</h1>
+            <h1 className="text-2xl font-semibold wrap-anywhere">{deal.title}</h1>
           </header>
 
           <div className="grid gap-2 text-sm">

@@ -1,3 +1,4 @@
+import { Loader2Icon } from "lucide-react"
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CharacterCount } from "@/components/shared/character-count"
+import { FieldProblem } from "@/components/directory/public/field-problem"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -44,6 +46,8 @@ export function ListingSubmissionForm({ form }: { form: SubmissionForm }) {
   const [chosen, setChosen] = React.useState<string[]>([])
   const [sending, setSending] = React.useState(false)
   const [sent, setSent] = React.useState(false)
+  /** Where the last "Send it again" went, said on the card instead of a toast. */
+  const [resentTo, setResentTo] = React.useState<string | null>(null)
   /** Which fields have been left, so nothing is marked wrong while it is typed. */
   const [touched, setTouched] = React.useState<Set<SubmissionFieldName>>(
     new Set()
@@ -89,9 +93,11 @@ export function ListingSubmissionForm({ form }: { form: SubmissionForm }) {
 
   async function resend() {
     dismissErrorToast()
+    setResentTo(null)
     setSending(true)
     try {
       await resendSubmissionEmail(values.contactEmail)
+      setResentTo(values.contactEmail)
     } catch (error) {
       showErrorToast(getSubmissionErrorMessage(error))
     } finally {
@@ -116,11 +122,15 @@ export function ListingSubmissionForm({ form }: { form: SubmissionForm }) {
             disabled={sending}
             onClick={() => void resend()}
           >
+            {sending ? <Loader2Icon className="animate-spin" /> : null}
             Send it again
           </Button>
           <Button asChild variant="ghost">
             <Link to="/directory">Back to the directory</Link>
           </Button>
+          <p role="status" className="basis-full text-sm text-muted-foreground">
+            {resentTo ? `Sent again to ${resentTo}.` : null}
+          </p>
         </CardContent>
       </Card>
     )
@@ -148,7 +158,7 @@ export function ListingSubmissionForm({ form }: { form: SubmissionForm }) {
               : null
             const id = `submission-${field.name}`
             return (
-              <div key={field.name} className="grid gap-2">
+              <div key={field.name} className="relative grid gap-2">
                 <div className="flex items-center justify-between gap-2">
                   <FieldLabel htmlFor={id} hint={field.hint}>
                     {field.label}
@@ -198,11 +208,7 @@ export function ListingSubmissionForm({ form }: { form: SubmissionForm }) {
                     }
                   />
                 )}
-                {problem ? (
-                  <p id={`${id}-problem`} className="text-xs text-destructive">
-                    {problem}
-                  </p>
-                ) : null}
+                <FieldProblem id={id} problem={problem} />
               </div>
             )
           })}
@@ -245,6 +251,7 @@ export function ListingSubmissionForm({ form }: { form: SubmissionForm }) {
         {/* Stays enabled while empty: the fields say what is missing when it is
             pressed, which a greyed-out button never does. */}
         <Button type="submit" disabled={sending}>
+          {sending ? <Loader2Icon className="animate-spin" /> : null}
           Send it in
         </Button>
         <Button asChild variant="ghost">

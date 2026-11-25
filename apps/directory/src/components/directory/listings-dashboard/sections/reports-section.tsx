@@ -6,7 +6,7 @@ import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-tabl
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { FilterRow } from "@/components/admin-dashboard/list-parts"
 import { DetailRow, DetailRows } from "@/components/directory/listings-dashboard/detail-rows"
-import { WaitedChip } from "@/components/directory/listings-dashboard/queue-parts"
+import { useAskFirst, WaitedChip } from "@/components/directory/listings-dashboard/queue-parts"
 import { ListPager, NoMatches, RecordMenu, useOpenFirstRow, type SectionProps } from "@/components/directory/listings-dashboard/section-parts"
 import { ReportLinks } from "@/components/directory/report-links"
 import { FilterPopover } from "@/components/shared/filter-popover"
@@ -14,11 +14,11 @@ import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { PanelCard } from "@/components/shared/panel-card"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
+import { batchOutcome } from "@/components/directory/listings-dashboard/batch-outcome"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableCell } from "@/components/ui/table"
 import { closeListingReport, getListingReportErrorMessage, type ListingReportsPage } from "@/lib/api/directory/reports"
-import { waitedText } from "@/lib/directory/listings-dashboard-page"
 import { statusIn } from "@/lib/directory/listings-dashboard-search"
 import {
   LISTING_REPORT_STATUS_LABELS,
@@ -27,7 +27,7 @@ import {
   REPORT_KINDS,
   REPORT_REASON_LABELS,
 } from "@/lib/directory/report-reasons"
-import { formatDateTime } from "@/lib/format/format-time"
+import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -217,7 +217,11 @@ export function ReportsSection({ data, search, frame, onChanged }: SectionProps<
           >
             <MainCell name={report.subjectTitle || "Untitled"} line={REPORT_REASON_LABELS[report.reason]} />
             <TableCell column="meta">
-              {report.status === "open" ? <WaitedChip since={report.createdAt} /> : <Chip muted>{waitedText(report.createdAt)}</Chip>}
+              {report.status === "open" ? (
+                <WaitedChip since={report.createdAt} />
+              ) : (
+                <span className="text-muted-foreground">{formatDate(report.closedAt ?? report.createdAt)}</span>
+              )}
             </TableCell>
             <TableCell column="meta" className="hidden md:hidden @xl:table-cell">
               <Chip muted>{REPORT_KIND_LABELS[report.kind]}</Chip>
@@ -283,20 +287,20 @@ export function ReportsSection({ data, search, frame, onChanged }: SectionProps<
         onConfirm={() =>
           void run(async () => {
             if (!closing) return
-            const failed: string[] = []
+            const refused: { row: Report; error: unknown }[] = []
             for (const report of closing.reports) {
               try {
                 await closeListingReport({ id: report.id, decision: closing.decision })
-              } catch {
-                failed.push(report.subjectTitle || "A report")
+              } catch (error) {
+                refused.push({ row: report, error })
               }
             }
-            const total = closing.reports.length
+            const asked = closing.reports
             setClosing(null)
-            selection.clear()
+            selection.setSelected(new Set(refused.map(({ row }) => row.id)))
             await onChanged()
-            // A part-done batch says how far it got, as Change does (`workspace/docs/changing-many-records.md`).
-            if (failed.length) throw new Error(`${total - failed.length} of ${total} closed. ${failed.join(", ")} could not be, and stay open.`)
+            const problem = batchOutcome({ asked, refused, verb: "closed", nameOf: (row) => row.subjectTitle || "A report" })
+            if (problem) throw problem
           })
         }
       />
@@ -313,6 +317,12 @@ function ReportRecord({ report, onClosed }: { report: Report; onClosed: () => vo
       await closeListingReport({ id: report.id, decision })
       onClosed()
     })
+  const askFirst = useAskFirst({
+    title: "Dismiss this report?",
+    description: "It is closed with nothing corrected. Nothing on the page changes, and this cannot be undone.",
+    confirmLabel: "Dismiss",
+    busy,
+  })
   return (
     <RecordFrame
       avatar={<FlagIcon aria-hidden />}
@@ -327,14 +337,15 @@ function ReportRecord({ report, onClosed }: { report: Report; onClosed: () => vo
               ? []
               : [
                   { label: "Mark fixed", icon: <CheckIcon className="size-4" />, onSelect: () => decide("fixed"), disabled: busy },
-                  { label: "Dismiss", icon: <XIcon className="size-4" />, onSelect: () => decide("dismissed"), disabled: busy },
+                  { label: "Dismiss", icon: <XIcon className="size-4" />, onSelect: () => askFirst.ask(() => decide("dismissed")), disabled: busy },
                 ]
           }
         />
       }
       body={
-        <PanelCard storageId="report-said" icon={<FlagIcon />} title={report.subjectTitle || "The page"} meta={`Reported ${formatDateTime(report.createdAt)}`}>
+        <PanelCard storageId="report-said" icon={<FlagIcon />} title={report.subjectTitle || "The page"} meta={`Reported ${formatDate(report.createdAt)}`}>
           <div className="grid gap-3">
+            {askFirst.dialog}
             {/* Plain text in a paragraph, never markup, so nothing a stranger sent can draw anything. */}
             <p className="text-sm whitespace-pre-wrap">{report.note || "They left no note."}</p>
             <DetailRows>
@@ -355,7 +366,7 @@ function ReportRecord({ report, onClosed }: { report: Report; onClosed: () => vo
             <FooterState>
               <span className="text-muted-foreground">Nothing on the page has changed.</span>
             </FooterState>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => decide("dismissed")}>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => askFirst.ask(() => decide("dismissed"))}>
               Dismiss
             </Button>
             <Button type="button" disabled={busy} onClick={() => decide("fixed")}>

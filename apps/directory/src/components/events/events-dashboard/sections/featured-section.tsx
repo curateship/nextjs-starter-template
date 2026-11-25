@@ -128,7 +128,9 @@ export function FeaturedSection({ data, search, frame, onChanged }: EventsSectio
           >
             <MainCell name={row.eventTitle} line={formatWallClock(row.eventStart)} />
             <TableCell column="mutedMeta" className="hidden md:hidden @lg:table-cell">
-              {row.kind === "admin" ? "Featured by an admin" : `Paid by ${row.buyerEmail ?? "the owner"}`}
+              <span className="block max-w-48 truncate">
+                {row.kind === "admin" ? "Featured by an admin" : `Paid by ${row.buyerEmail ?? "the owner"}`}
+              </span>
             </TableCell>
             <TableCell column="mutedMeta" className="hidden md:hidden @xl:table-cell">
               {row.running ? (row.endsAt ? formatDate(row.endsAt) : "The event ends") : <Badge variant="outline">Ended</Badge>}

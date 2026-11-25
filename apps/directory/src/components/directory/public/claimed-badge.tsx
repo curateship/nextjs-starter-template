@@ -1,6 +1,11 @@
 import { BadgeCheckIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 /**
  * The mark on a listing the business itself looks after.
@@ -16,13 +21,17 @@ import { Badge } from "@/components/ui/badge"
  */
 export function ClaimedBadge({ size = "default" }: { size?: "default" | "small" }) {
   return (
-    <Badge
-      variant="secondary"
-      className={size === "small" ? "gap-1 px-1.5 text-[11px]" : "gap-1"}
-      title="The business itself keeps this page up to date."
-    >
-      <BadgeCheckIcon className="size-3.5" aria-hidden="true" />
-      Claimed
-    </Badge>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge
+          variant="secondary"
+          className={size === "small" ? "gap-1 px-1.5 text-[11px]" : "gap-1"}
+        >
+          <BadgeCheckIcon className="size-3.5" aria-hidden="true" />
+          Claimed
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>The business itself keeps this page up to date.</TooltipContent>
+    </Tooltip>
   )
 }

@@ -6,13 +6,15 @@ import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { DetailRow, DetailRows } from "@/components/directory/listings-dashboard/detail-rows"
-import { QueueStatusFilter, WaitedChip } from "@/components/directory/listings-dashboard/queue-parts"
+import { QueueStatusFilter, useAskFirst, WaitedChip } from "@/components/directory/listings-dashboard/queue-parts"
 import { ListPager, NoMatches, RecordMenu, useOpenFirstRow, type SectionProps } from "@/components/directory/listings-dashboard/section-parts"
 import { CharacterCount } from "@/components/shared/character-count"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { PanelCard } from "@/components/shared/panel-card"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
+import { batchOutcome } from "@/components/directory/listings-dashboard/batch-outcome"
+import { buildUrlHref } from "@/lib/directory/contact-links"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { TableCell } from "@/components/ui/table"
@@ -172,7 +174,7 @@ export function ClaimsSection({ data, search, frame, onChanged }: SectionProps<C
               {claim.status === "pending_review" ? (
                 <WaitedChip since={claim.createdAt} />
               ) : (
-                <span className="text-muted-foreground">{formatDate(claim.createdAt)}</span>
+                <span className="text-muted-foreground">{formatDate(claim.reviewedAt ?? claim.createdAt)}</span>
               )}
             </TableCell>
             <TableCell column="meta" className="hidden md:hidden @xl:table-cell">
@@ -234,20 +236,19 @@ export function ClaimsSection({ data, search, frame, onChanged }: SectionProps<C
         onConfirm={() =>
           void run(async () => {
             if (!rejecting) return
-            const failed: string[] = []
+            const refused: { row: (typeof rejecting)[number]; error: unknown }[] = []
             for (const claim of rejecting) {
               try {
                 await decideClaim({ id: claim.id, decision: "reject" })
-              } catch {
-                failed.push(claim.listingTitle)
+              } catch (error) {
+                refused.push({ row: claim, error })
               }
             }
             setRejecting(null)
-            selection.clear()
+            selection.setSelected(new Set(refused.map(({ row }) => row.id)))
             await onChanged()
-            if (failed.length) {
-              throw new Error(`${rejecting.length - failed.length} of ${rejecting.length} rejected. ${failed.join(", ")} could not be, and stay waiting.`)
-            }
+            const problem = batchOutcome({ asked: rejecting, refused, verb: "rejected", nameOf: (row) => row.listingTitle })
+            if (problem) throw problem
           })
         }
       />
@@ -270,6 +271,12 @@ function ClaimRecord({ claim, onDecided }: { claim: Claim; onDecided: () => void
       await decideClaim({ id: claim.id, decision, note })
       onDecided()
     })
+  const askFirst = useAskFirst({
+    title: "Reject this claim?",
+    description: `${claim.claimantName || claim.contactEmail || "The person asking"} is emailed that ${claim.listingTitle} is not theirs.`,
+    confirmLabel: "Reject",
+    busy,
+  })
   const openListing = () => void navigate({ to: "/admin/listings", search: { open: claim.listingId } })
 
   return (
@@ -287,13 +294,14 @@ function ClaimRecord({ claim, onDecided }: { claim: Claim; onDecided: () => void
               ? []
               : [
                   { label: "Hand them the listing", icon: <CheckIcon className="size-4" />, onSelect: () => decide("approve"), disabled: busy },
-                  { label: "Reject", icon: <XIcon className="size-4" />, destructive: true, onSelect: () => decide("reject"), disabled: busy },
+                  { label: "Reject", icon: <XIcon className="size-4" />, destructive: true, onSelect: () => askFirst.ask(() => decide("reject")), disabled: busy },
                 ]),
           ]}
         />
       }
       body={
         <>
+          {askFirst.dialog}
           <PanelCard storageId="claim-proved" icon={<MailCheckIcon />} title="The address they proved">
             <div className="grid gap-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -316,7 +324,7 @@ function ClaimRecord({ claim, onDecided }: { claim: Claim; onDecided: () => void
                 <DetailRow label="Name" value={claim.claimantName || "Not given"} />
                 <DetailRow label="Role" value={claim.roleTitle || "Not given"} />
                 <DetailRow label="Phone" value={claim.phone || "Not given"} />
-                <DetailRow label="Link they gave" value={claim.proofUrl || "Not given"} />
+                <DetailRow label="Link they gave" value={<ProofLink url={claim.proofUrl} />} multiline />
               </DetailRows>
               {claim.message ? <p className="text-sm whitespace-pre-wrap">{claim.message}</p> : null}
             </div>
@@ -363,15 +371,30 @@ function ClaimRecord({ claim, onDecided }: { claim: Claim; onDecided: () => void
             <FooterState>
               <span className="text-muted-foreground">Approving hands this account the listing.</span>
             </FooterState>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => decide("reject")}>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => askFirst.ask(() => decide("reject"))}>
               Reject
             </Button>
             <Button type="button" disabled={busy} onClick={() => decide("approve")}>
-              Hand them the listing
+              Approve
             </Button>
           </>
         )
       }
     />
+  )
+}
+
+/**
+ * The page a claimant pointed to, as a link that opens in a new tab. It goes
+ * through the same cleaning as a listing's own links, so anything that is not
+ * an ordinary web address shows as text and never as something to click.
+ */
+function ProofLink({ url }: { url: string }) {
+  const href = buildUrlHref(url)
+  if (!href) return <>{url || "Not given"}</>
+  return (
+    <a href={href} target="_blank" rel="noreferrer nofollow" className="underline underline-offset-2">
+      {url}
+    </a>
   )
 }

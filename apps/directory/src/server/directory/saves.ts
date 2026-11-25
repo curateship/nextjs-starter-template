@@ -27,6 +27,8 @@ export type SavedListing = {
   id: string
   title: string
   slug: string
+  /** The listing's page on its own site, which may not be the one visited. */
+  url: string
   featuredImage: string
   address: string
   savedAt: Date
@@ -38,6 +40,8 @@ export type SavedCollection = {
   isPublic: boolean
   siteId: string
   siteName: string
+  /** The site's own address, where its listings and profile pages live. */
+  siteUrl: string
   profileUrl: string
   items: SavedListing[]
 }
@@ -322,16 +326,18 @@ export async function savedCollectionsForUser(
   for (const row of rows) {
     let collection = collections.get(row.collectionId)
     if (!collection) {
+      const siteUrl = directorySiteUrl({
+        subdomain: row.siteSubdomain,
+        customDomain: row.siteCustomDomain || null,
+      })
       collection = {
         id: row.collectionId,
         name: row.collectionName,
         isPublic: row.isPublic,
         siteId: row.siteId,
         siteName: row.siteName,
-        profileUrl: `${directorySiteUrl({
-          subdomain: row.siteSubdomain,
-          customDomain: row.siteCustomDomain || null,
-        })}/profile/${userId}`,
+        siteUrl,
+        profileUrl: `${siteUrl}/profile/${userId}`,
         items: [],
       }
       collections.set(row.collectionId, collection)
@@ -341,6 +347,7 @@ export async function savedCollectionsForUser(
         id: row.listingId,
         title: row.title,
         slug: row.slug,
+        url: `${collection.siteUrl}/directory/${row.slug}`,
         featuredImage: row.featuredImage ?? "",
         address: cleanContactLinks(row.contactLinks).address,
         savedAt: row.savedAt,
@@ -751,6 +758,10 @@ export async function savedCollectionForWorkspace(
   for (const row of rows) {
     let collection = collections.get(row.collectionId)
     if (!collection) {
+      const siteUrl = directorySiteUrl({
+        subdomain: row.siteSubdomain,
+        customDomain: row.siteCustomDomain || null,
+      })
       collection = {
         id: row.collectionId,
         name: row.collectionName,
@@ -760,10 +771,8 @@ export async function savedCollectionForWorkspace(
         ownerEmail: row.ownerEmail,
         siteId: row.siteId,
         siteName: row.siteName,
-        profileUrl: `${directorySiteUrl({
-          subdomain: row.siteSubdomain,
-          customDomain: row.siteCustomDomain || null,
-        })}/profile/${row.ownerId}`,
+        siteUrl,
+        profileUrl: `${siteUrl}/profile/${row.ownerId}`,
         items: [],
       }
       collections.set(row.collectionId, collection)
@@ -773,6 +782,7 @@ export async function savedCollectionForWorkspace(
         id: row.listingId,
         title: row.title,
         slug: row.slug,
+        url: `${collection.siteUrl}/directory/${row.slug}`,
         featuredImage: row.featuredImage ?? "",
         address: cleanContactLinks(row.contactLinks).address,
         savedAt: row.savedAt,

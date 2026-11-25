@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createTestDatabase, insertWorkspace, type TestDatabase } from "@/server/test-support"
@@ -14,6 +15,7 @@ import {
   createListing,
   setListingCategories,
 } from "@/server/directory/listings"
+import { directoryListings } from "@/server/directory/schema"
 
 /**
  * The category tree's promises: one address per category, no branch can be
@@ -165,5 +167,19 @@ describe("counts on the list", () => {
     const rows = await listCategories(site, database)
     expect(rows.find((row) => row.id === food.id)?.listingCount).toBe(2)
     expect(rows.find((row) => row.id === bars.id)?.listingCount).toBe(1)
+  })
+
+  it("leaves out a link whose listing is gone", async () => {
+    const food = await createCategory(site, { name: "Food" }, database)
+    const kept = await createListing(site, { title: "Kept" }, database)
+    const gone = await createListing(site, { title: "Gone" }, database)
+    await setListingCategories(site, kept.id, [food.id], null, database)
+    await setListingCategories(site, gone.id, [food.id], null, database)
+    // Removed straight from the table, the way a hand edit or a script does,
+    // so the category link is left behind.
+    await database.delete(directoryListings).where(eq(directoryListings.id, gone.id))
+
+    const rows = await listCategories(site, database)
+    expect(rows.find((row) => row.id === food.id)?.listingCount).toBe(1)
   })
 })

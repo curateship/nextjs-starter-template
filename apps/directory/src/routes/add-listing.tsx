@@ -6,6 +6,7 @@ import {
 } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { PublicTitleBand } from "@/components/shared/public-title-band"
 import { ListingSubmissionForm } from "@/components/directory/public/submission-form"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadSubmissionForm } from "@/lib/api/directory/submissions"
@@ -54,9 +55,14 @@ function AddListingRoute() {
   ]
 
   return (
-    <DirectoryFrame>
-      <DirectoryBreadcrumbs crumbs={crumbs} />
-      <h1 className="text-2xl font-semibold">Add your listing</h1>
+    <DirectoryFrame
+      hero={
+        <PublicTitleBand
+          crumbs={<DirectoryBreadcrumbs crumbs={crumbs} inBand />}
+          title="Add your listing"
+        />
+      }
+    >
       <ListingSubmissionForm form={form} />
     </DirectoryFrame>
   )

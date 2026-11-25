@@ -22,6 +22,14 @@ import { cn } from "@/lib/utils"
  * the related listings under a listing. One component so all three read the
  * same, rather than three grids that slowly stop matching.
  */
+/**
+ * The bookmark waits for the pointer only on a screen that has one. It used to
+ * hide from 768px up, and an iPad is that wide with no hover, so iPad visitors
+ * never saw it at all.
+ */
+const SAVE_SHOWS_ON_HOVER =
+  "transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within/card:opacity-100 [@media(hover:hover)]:group-hover/card:opacity-100"
+
 export function ListingGrid({
   listings,
   emptyMessage,
@@ -166,13 +174,15 @@ export function ListingCard({ listing }: { listing: PublicListingCard }) {
               white bookmark would be white on white. */}
           <SaveDropdown
             listingId={listing.id}
-            className="absolute right-4 bottom-4 transition-opacity md:opacity-0 md:group-focus-within/card:opacity-100 md:group-hover/card:opacity-100"
+            listingTitle={listing.title}
+            className={`absolute right-4 bottom-4 ${SAVE_SHOWS_ON_HOVER}`}
           />
         </div>
       ) : (
         <SaveDropdown
           listingId={listing.id}
-          className="absolute top-4 right-4 transition-opacity md:opacity-0 md:group-focus-within/card:opacity-100 md:group-hover/card:opacity-100"
+          listingTitle={listing.title}
+          className={`absolute top-4 right-4 ${SAVE_SHOWS_ON_HOVER}`}
         />
       )}
       <CardContent className="grid gap-1">

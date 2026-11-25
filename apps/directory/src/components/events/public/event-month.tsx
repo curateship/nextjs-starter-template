@@ -94,42 +94,45 @@ export function EventMonth({
                   inMonth={cell.inCurrentMonth}
                 />
                 {shown.map((event) => (
-                  <Link
-                    key={event.id}
-                    to="/events/$slug"
-                    params={{ slug: event.slug }}
-                    title={
-                      event.featured ? `Featured: ${event.title}` : event.title
-                    }
-                    className={cn(
-                      "block truncate rounded-sm bg-primary/10 px-1.5 py-0.5 text-xs font-medium transition-colors hover:bg-primary/20",
-                      focusRing
-                    )}
-                  >
-                    {event.featured ? (
-                      <>
-                        <SparklesIcon
-                          aria-hidden="true"
-                          className="mr-1 inline size-3 align-[-2px]"
-                        />
-                        <span className="sr-only">Featured: </span>
-                      </>
-                    ) : null}
-                    {/* Cancelled or postponed stays in the month, named first
-                        (task events/27). */}
-                    {event.scheduleStatus !== "scheduled" ? (
-                      <span className="mr-1 font-semibold">
-                        {SCHEDULE_STATUS_LABELS[event.scheduleStatus]}:
-                      </span>
-                    ) : null}
-                    {/* The start time goes on the first day only. */}
-                    {event.startDate === cell.date ? (
-                      <span className="mr-1 text-muted-foreground">
-                        {formatEventClock(event.startTime)}
-                      </span>
-                    ) : null}
-                    {event.title}
-                  </Link>
+                  <Tooltip key={event.id}>
+                    <TooltipTrigger asChild>
+                      <Link
+                        to="/events/$slug"
+                        params={{ slug: event.slug }}
+                        className={cn(
+                          "block truncate rounded-sm bg-primary/10 px-1.5 py-0.5 text-xs font-medium transition-colors hover:bg-primary/20",
+                          focusRing
+                        )}
+                      >
+                        {event.featured ? (
+                          <>
+                            <SparklesIcon
+                              aria-hidden="true"
+                              className="mr-1 inline size-3 align-[-2px]"
+                            />
+                            <span className="sr-only">Featured: </span>
+                          </>
+                        ) : null}
+                        {/* Cancelled or postponed stays in the month, named first
+                            (task events/27). */}
+                        {event.scheduleStatus !== "scheduled" ? (
+                          <span className="mr-1 font-semibold">
+                            {SCHEDULE_STATUS_LABELS[event.scheduleStatus]}:
+                          </span>
+                        ) : null}
+                        {/* The start time goes on the first day only. */}
+                        {event.startDate === cell.date ? (
+                          <span className="mr-1 text-muted-foreground">
+                            {formatEventClock(event.startTime)}
+                          </span>
+                        ) : null}
+                        {event.title}
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {event.featured ? `Featured: ${event.title}` : event.title}
+                    </TooltipContent>
+                  </Tooltip>
                 ))}
                 {more > 0 ? (
                   <Link

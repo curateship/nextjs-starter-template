@@ -86,7 +86,7 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
   badgesEnabled: false,
   claimButtonLabel: "Is this your business?",
   claimPendingMessage:
-    "Thanks — we have your request. We check each one by hand and will email you when it is done.",
+    "Thanks, we have your request. We check each one by hand and will email you when it is done.",
   claimApprovedMessage:
     "You look after this listing. Open My listings to suggest a change.",
   pageSize: 12,

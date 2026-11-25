@@ -30,7 +30,7 @@ import {
   SIGN_UPS_CLOSE_CHOICES,
   signUpProblem,
 } from "@/lib/events/sign-up-fields"
-import { formatDateTime } from "@/lib/format/format-time"
+import { formatDate, formatDateTime } from "@/lib/format/format-time"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -317,7 +317,7 @@ export function EventSignUpsFields({
                   key={person.id}
                   name={person.name}
                   email={person.email}
-                  detail={formatDateTime(person.createdAt)}
+                  detail={formatDate(person.createdAt)}
                   answer={savedQuestion ? person.answer : ""}
                   disabled={disabled}
                   onRemove={() => {

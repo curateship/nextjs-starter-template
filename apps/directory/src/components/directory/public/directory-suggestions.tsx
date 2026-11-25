@@ -20,6 +20,10 @@ import { cn } from "@/lib/utils"
  * toolbar can call it whether or not a suggestion is ever shown.
  * `DirectorySuggestionList` draws the rows and is the only half that makes a
  * link, so it renders nothing at all until there is something to offer.
+ *
+ * A form that wants a listing picked rather than opened (Suggest an event's
+ * "Place") passes `onPick`: the rows become buttons that hand the row back,
+ * and Enter on a highlighted row does the same.
  */
 
 /** How many answered queries the box remembers before dropping the oldest. */
@@ -32,15 +36,25 @@ export type DirectorySuggestionBox = ReturnType<typeof useDirectorySuggestions>
 export function useDirectorySuggestions({
   text,
   onSearch,
+  onPick,
+  kinds,
+  enabled = true,
 }: {
   /** What is in the box right now, not what is in the address. */
   text: string
-  /** Enter with nothing picked: run the search the visitor typed. */
-  onSearch: () => void
+  /** Enter with nothing picked: run the search the visitor typed. Without
+   * one, Enter does what it would in any box, such as sending its form. */
+  onSearch?: () => void
+  /** Picks a row instead of opening its page. */
+  onPick?: (row: DirectorySuggestion) => void
+  /** Only these kinds of row, such as listings alone. */
+  kinds?: DirectorySuggestion["kind"][]
+  /** False asks nothing and shows nothing. */
+  enabled?: boolean
 }) {
   const query = text.trim()
   const key = query.toLocaleLowerCase()
-  const longEnough = query.length >= DIRECTORY_SUGGESTION_MIN_LENGTH
+  const longEnough = enabled && query.length >= DIRECTORY_SUGGESTION_MIN_LENGTH
 
   // The answers are the cache, filed under the word each one answers. A word
   // asked about before draws straight from here with no second request, and
@@ -53,7 +67,10 @@ export function useDirectorySuggestions({
   // has to stop, and nothing is drawn differently while it waits.
   const inFlight = React.useRef(new Set<string>())
 
-  const items = longEnough ? (answers.get(key) ?? NO_SUGGESTIONS) : NO_SUGGESTIONS
+  const answered = longEnough ? (answers.get(key) ?? NO_SUGGESTIONS) : NO_SUGGESTIONS
+  const items = kinds
+    ? answered.filter((row) => kinds.includes(row.kind))
+    : answered
 
   const [dismissed, setDismissed] = React.useState(false)
   const [focused, setFocused] = React.useState(false)
@@ -138,6 +155,14 @@ export function useDirectorySuggestions({
       return
     }
     if (event.key === "Enter") {
+      if (active >= 0 && onPick) {
+        event.preventDefault()
+        onPick(items[active]!)
+        setDismissed(true)
+        setActiveIndex(-1)
+        return
+      }
+      if (active < 0 && !onSearch) return
       event.preventDefault()
       if (active >= 0) {
         // The rows are real links, so the anchor's own click is the navigation.
@@ -149,7 +174,7 @@ export function useDirectorySuggestions({
         return
       }
       setDismissed(true)
-      onSearch()
+      onSearch?.()
     }
   }
 
@@ -157,6 +182,7 @@ export function useDirectorySuggestions({
     items,
     open,
     active,
+    onPick,
     listRef,
     listboxId,
     optionId,
@@ -205,11 +231,21 @@ function remember(
  */
 export function DirectorySuggestionList({
   box,
+  label = "Search suggestions",
 }: {
   box: DirectorySuggestionBox
+  label?: string
 }) {
-  const { items, open, active, listRef, listboxId, optionId, setActiveIndex } =
-    box
+  const {
+    items,
+    open,
+    active,
+    onPick,
+    listRef,
+    listboxId,
+    optionId,
+    setActiveIndex,
+  } = box
 
   return (
     <>
@@ -224,7 +260,7 @@ export function DirectorySuggestionList({
           ref={listRef}
           id={listboxId}
           role="listbox"
-          aria-label="Search suggestions"
+          aria-label={label}
           // Mouse down inside the list must not take the focus off the box,
           // or the list would close before the click landed on a row.
           onMouseDown={(event) => event.preventDefault()}
@@ -232,34 +268,57 @@ export function DirectorySuggestionList({
         >
           {items.map((row, index) => (
             <li key={`${row.kind}-${row.slug}`} role="presentation">
-              <Link
-                role="option"
-                id={optionId(index)}
-                aria-selected={index === active}
-                tabIndex={-1}
-                onMouseEnter={() => setActiveIndex(index)}
-                {...linkFor(row)}
-                className={cn(
-                  "flex h-8 items-center justify-between gap-2 rounded-sm px-2 text-sm",
-                  index === active
-                    ? "bg-accent text-accent-foreground"
-                    : "text-foreground"
-                )}
-              >
-                <span className="truncate">{row.title}</span>
-                {row.kind === "category" ? (
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    Category
-                  </span>
-                ) : row.kind === "event" && row.startDate ? (
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {formatEventShortDay(row.startDate)}
-                  </span>
-                ) : null}
-              </Link>
+              {onPick ? (
+                <button
+                  type="button"
+                  role="option"
+                  id={optionId(index)}
+                  aria-selected={index === active}
+                  tabIndex={-1}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => onPick(row)}
+                  className={cn(rowClass(index === active), "w-full text-left")}
+                >
+                  <SuggestionText row={row} />
+                </button>
+              ) : (
+                <Link
+                  role="option"
+                  id={optionId(index)}
+                  aria-selected={index === active}
+                  tabIndex={-1}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  {...linkFor(row)}
+                  className={rowClass(index === active)}
+                >
+                  <SuggestionText row={row} />
+                </Link>
+              )}
             </li>
           ))}
         </ul>
+      ) : null}
+    </>
+  )
+}
+
+function rowClass(active: boolean) {
+  return cn(
+    "flex h-8 items-center justify-between gap-2 rounded-sm px-2 text-sm",
+    active ? "bg-accent text-accent-foreground" : "text-foreground"
+  )
+}
+
+function SuggestionText({ row }: { row: DirectorySuggestion }) {
+  return (
+    <>
+      <span className="truncate">{row.title}</span>
+      {row.kind === "category" ? (
+        <span className="shrink-0 text-xs text-muted-foreground">Category</span>
+      ) : row.kind === "event" && row.startDate ? (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {formatEventShortDay(row.startDate)}
+        </span>
       ) : null}
     </>
   )

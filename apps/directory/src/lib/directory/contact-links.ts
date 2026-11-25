@@ -218,6 +218,44 @@ function cleanText(value: unknown, max = MAX_TEXT): string {
   return typeof value === "string" ? value.trim().slice(0, max) : ""
 }
 
+/**
+ * The Eat Drink Toronto import read emails off each restaurant's own website,
+ * and a page's source holds addresses that are not the restaurant's. On
+ * 24 Nov 2026 the local copy carried 463 of them, one on each of 463 listings:
+ * 191 error-tracking addresses (`…@sentry-next.wixpress.com`,
+ * `…@o123.ingest.sentry.io`), 206 template placeholders such as
+ * `example@domain.com`, and 66 image names such as `account-default@2x.png`.
+ * Shown on a listing they read as the restaurant's email, and Outreach wrote
+ * to them.
+ *
+ * Only addresses that cannot be anybody's inbox are dropped. `example.com` is
+ * left alone: it is the address every test and sample uses, and no import
+ * carried it in any number.
+ */
+const PLACEHOLDER_EMAIL_DOMAINS = new Set([
+  "domain.com",
+  "yourdomain.com",
+  "mysite.com",
+  "mystore.com",
+])
+
+export function isJunkEmail(value: string): boolean {
+  const address = value.replace(/^mailto:/i, "").split("?")[0]!.trim().toLowerCase()
+  const at = address.lastIndexOf("@")
+  if (at < 0) return false
+  const local = address.slice(0, at)
+  const domain = address.slice(at + 1)
+  return (
+    domain === "sentry.io" ||
+    domain.endsWith(".sentry.io") ||
+    domain === "wixpress.com" ||
+    domain.endsWith(".wixpress.com") ||
+    /\.(png|jpe?g|gif|webp|svg)$/.test(domain) ||
+    PLACEHOLDER_EMAIL_DOMAINS.has(domain) ||
+    local === "example"
+  )
+}
+
 function cleanMenuLink(raw: unknown, index: number): MenuLink | null {
   if (!raw || typeof raw !== "object") return null
   const link = raw as Record<string, unknown>
@@ -227,6 +265,7 @@ function cleanMenuLink(raw: unknown, index: number): MenuLink | null {
   const label = cleanText(link.label, 100)
   const value = cleanText(link.value, MAX_HREF)
   if (!label && !value) return null
+  if (type === "email" && isJunkEmail(value)) return null
   return {
     id:
       typeof link.id === "string" && link.id

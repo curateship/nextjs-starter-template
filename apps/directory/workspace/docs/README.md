@@ -37,6 +37,12 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   and how to check location-dependent filtering.
 - `listing-view-counts.md` — where a listing's view figures come from and what
   each column counts.
+- `public-forms.md`: how the six public forms behave alike: the spinner on
+  Send, a box's message drawn in the gap under it, the caps, and windows that
+  start empty.
+- `junk-emails.md`: the error-tracking, placeholder and image-name emails the
+  import brought in, the rule that hides them, and the one-off command that
+  takes them out of the saved listings (owed on live).
 - `directory-page-layout.md` — how the browse page, a category page and a
   listing are laid out, which card in Settings → Directory holds each page's
   settings, the search band and the Filters panel above the listings,

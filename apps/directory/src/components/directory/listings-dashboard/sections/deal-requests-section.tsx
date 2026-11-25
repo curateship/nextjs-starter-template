@@ -7,7 +7,7 @@ import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { DetailNote } from "@/components/directory/listings-dashboard/detail-rows"
-import { QueueStatusFilter, WaitedChip } from "@/components/directory/listings-dashboard/queue-parts"
+import { QueueStatusFilter, useAskFirst, WaitedChip } from "@/components/directory/listings-dashboard/queue-parts"
 import { ListPager, NoMatches, RecordMenu, useOpenFirstRow, type SectionProps } from "@/components/directory/listings-dashboard/section-parts"
 import { SubmissionDetail as Detail } from "@/components/directory/submission-parts"
 import { CharacterCount } from "@/components/shared/character-count"
@@ -139,6 +139,7 @@ export function DealRequestsSection({ data, search, frame, onChanged }: SectionP
         columns={[
           { key: "name", label: "Deal", column: "main", className: "min-w-40", sortable: false },
           { key: "waited", label: "Waited", column: "meta", sortable: false },
+          { key: "status", label: "Status", column: "meta", className: "hidden md:hidden @xl:table-cell", sortable: false },
           { key: "kind", label: "Kind", column: "meta", className: "hidden md:hidden @lg:table-cell", sortable: false },
           { key: "days", label: "Days", column: "meta", className: "hidden md:hidden @2xl:table-cell", sortable: false },
         ]}
@@ -179,7 +180,14 @@ export function DealRequestsSection({ data, search, frame, onChanged }: SectionP
           >
             <MainCell name={request.content.title} line={`At ${request.listingTitle}${request.ownerEmail ? ` · ${request.ownerEmail}` : ""}`} />
             <TableCell column="meta">
-              {request.status === "pending" ? <WaitedChip since={request.createdAt} /> : <Chip muted>{STATUS_LABELS[request.status]}</Chip>}
+              {request.status === "pending" ? (
+                <WaitedChip since={request.createdAt} />
+              ) : (
+                <span className="text-muted-foreground">{formatDate(request.reviewedAt ?? request.createdAt)}</span>
+              )}
+            </TableCell>
+            <TableCell column="meta" className="hidden md:hidden @xl:table-cell">
+              <Chip muted>{STATUS_LABELS[request.status]}</Chip>
             </TableCell>
             <TableCell column="mutedMeta" className="hidden md:hidden @lg:table-cell">
               {request.kind === "new" ? "New deal" : "Change"}
@@ -283,6 +291,12 @@ function DealRequestRecord({ request, onDecided }: { request: PromotionRequest; 
       if (!emailed) toast.warning(dealRequestDecisionMessage(decision, emailed, request.kind))
       onDecided()
     })
+  const askFirst = useAskFirst({
+    title: "Reject this request?",
+    description: `Nothing goes live, and ${request.ownerName || "the owner"} is emailed.`,
+    confirmLabel: "Reject",
+    busy,
+  })
   const openDeal = () =>
     request.promotionId
       ? void navigate({ to: "/admin/listings", search: { section: "promotions", open: request.promotionId } })
@@ -311,13 +325,14 @@ function DealRequestRecord({ request, onDecided }: { request: PromotionRequest; 
               ? []
               : [
                   { label: approveLabel, icon: <CheckIcon className="size-4" />, onSelect: () => decide("approve"), disabled: busy },
-                  { label: "Reject", icon: <XIcon className="size-4" />, destructive: true, onSelect: () => decide("reject"), disabled: busy },
+                  { label: "Reject", icon: <XIcon className="size-4" />, destructive: true, onSelect: () => askFirst.ask(() => decide("reject")), disabled: busy },
                 ]),
           ]}
         />
       }
       body={
         <>
+          {askFirst.dialog}
           {isChange ? (
             <ChangeCard request={request} />
           ) : (
@@ -384,11 +399,11 @@ function DealRequestRecord({ request, onDecided }: { request: PromotionRequest; 
             <FooterState>
               <span className="text-muted-foreground">{isChange ? "Approving puts the change live." : "Approving publishes it."}</span>
             </FooterState>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => decide("reject")}>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => askFirst.ask(() => decide("reject"))}>
               Reject
             </Button>
             <Button type="button" disabled={busy} onClick={() => decide("approve")}>
-              {approveLabel}
+              Approve
             </Button>
           </>
         )

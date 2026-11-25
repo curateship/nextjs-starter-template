@@ -46,7 +46,7 @@ export async function handleDirectoryVerifyRequest(
         // an address for is not yet anybody's work.
         await tellAdminsAboutSubmission(result.workspaceId, result.businessName)
         return page(
-          "Thank you — that is confirmed",
+          "Thanks, that is confirmed",
           `We have your listing for ${result.businessName}. Somebody checks each one by hand, and you will hear back by email.`,
           200
         )
@@ -84,7 +84,7 @@ export async function handleDirectoryVerifyRequest(
         listing?.title ?? "a listing"
       )
       return page(
-        "Thank you — that is confirmed",
+        "Thanks, that is confirmed",
         "An admin now checks the request by hand. You will hear back by email.",
         200,
         listing

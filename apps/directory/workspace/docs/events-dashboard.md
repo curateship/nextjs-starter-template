@@ -35,7 +35,12 @@ widgets, Sign-ups, Featured events", besides Events itself):
   with the event each is for. Filter shows who is coming (the default and the
   pill's count), who is waiting for a seat, or everyone. A row opens its event
   on the right. The bin, right-click and Select take people off their list,
-  the same as the bin in the Sign-ups tab of an event's ⋮.
+  the same as the bin in the Sign-ups tab of an event's ⋮. Taking several
+  off tries every one, reads the list again, and says how far it got ("3 of
+  5 removed"), with the ones refused left ticked. It used to stop at the
+  first failure and say nothing. The event column cuts a long name short with
+  "…", and with nobody signed up the row points to the Sign-ups tab of an
+  event's ⋮, where Take sign-ups is switched on.
 - **Featured events:** every event featured now, by an admin's free switch or
   by a spot a listing's owner paid for, with how, until when and what was
   paid. A repeating event counts as running while any of its dates is still

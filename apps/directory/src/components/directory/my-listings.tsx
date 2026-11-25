@@ -124,12 +124,27 @@ export function MyListings({
   return (
     <div className="grid gap-2 md:gap-3">
       {listings.map((listing) => (
-        <div key={listing.claimId} className="grid gap-2 md:gap-3">
+        <section
+          key={listing.claimId}
+          aria-label={listing.title}
+          className="grid gap-2 md:gap-3"
+        >
+          {/* With more than one listing the four cards of each ran into the
+              next listing's with nothing between them. One listing needs no
+              heading: its own card already opens with the name. */}
+          {listings.length > 1 ? (
+            <h2 className="pt-2 text-lg font-semibold first:pt-0">
+              {listing.title}
+            </h2>
+          ) : null}
           <OwnedListingCard listing={listing} />
           <OwnerEventsCard listing={listing} owner={ownerEvents} />
           <OwnerDealsCard listing={listing} owner={ownerDeals} />
-          <ListingViewsPanel listingId={listing.listingId} />
-        </div>
+          <ListingViewsPanel
+            listingId={listing.listingId}
+            listingTitle={listing.title}
+          />
+        </section>
       ))}
     </div>
   )
@@ -387,8 +402,8 @@ function ListingBadgeBuilder({ listing }: { listing: OwnedListing }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="badge">Badge — 260 × 64</SelectItem>
-              <SelectItem value="card">Card — 320 × 160</SelectItem>
+              <SelectItem value="badge">Badge, 260 × 64</SelectItem>
+              <SelectItem value="card">Card, 320 × 160</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -437,7 +452,7 @@ function ListingBadgeBuilder({ listing }: { listing: OwnedListing }) {
             onClick={() => {
               void navigator.clipboard
                 .writeText(snippet)
-                .catch(() => toast.error("The badge code could not be copied."))
+                .catch(() => showErrorToast("The badge code could not be copied."))
             }}
           >
             <CopyIcon /> Copy code

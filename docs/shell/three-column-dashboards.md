@@ -129,6 +129,10 @@ All of them are in `src/components/shared/`.
   given no width, so the column still sizes to the whole name when there is
   room: with no width of its own the column fell to its 160px floor and the
   Users table read "Bet..." (Tyler, 11 Nov 2026).
+  The name and its second line may wrap (`whitespace-normal`) even though
+  the cell does not, because a line that cannot wrap gives the clamp nothing
+  to cut: until 24 Nov 2026 a long name was clipped mid-word with no "…",
+  as in Directory's "Two-for-one pasta Tuesd".
 - **Cards and blocks in a side panel sit flush, one under the next** (Tyler,
   11 Nov 2026: "remove the spacing here for the right panels", then "the same
   for left panels too"). `PANEL_GUTTER` keeps its 15px at the panel's edges

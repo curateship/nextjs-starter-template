@@ -33,10 +33,13 @@ function signInForCurrentPage() {
 /** Loads only when opened, so personal saves never hold up a public page. */
 export function SaveDropdown({
   listingId,
+  listingTitle,
   overlay = false,
   className,
 }: {
   listingId: string
+  /** Named in the button, so a screen reader can tell one card's from the next. */
+  listingTitle: string
   overlay?: boolean
   className?: string
 }) {
@@ -123,7 +126,7 @@ export function SaveDropdown({
           type="button"
           size="icon"
           variant="ghost"
-          aria-label="Save listing"
+          aria-label={`Save ${listingTitle}`}
           className={cn(
             "z-10 bg-transparent shadow-none hover:bg-transparent",
             overlay && "text-white drop-shadow-sm hover:text-white",
@@ -180,15 +183,15 @@ export function SaveDropdown({
           )}
 
           <DropdownMenuSeparator />
-          <DropdownMenuLabel>New folder</DropdownMenuLabel>
+          <DropdownMenuLabel>New saved list</DropdownMenuLabel>
           <div
             className="flex gap-2 px-1.5 pb-1.5"
             onKeyDown={(event) => event.stopPropagation()}
           >
             <Input
-              aria-label="New folder name"
+              aria-label="New saved list name"
               aria-invalid={createAttempted && !name.trim()}
-              placeholder="Folder name"
+              placeholder="List name"
               maxLength={80}
               value={name}
               disabled={creating || changingCollection}
@@ -206,7 +209,7 @@ export function SaveDropdown({
               variant="outline"
               disabled={creating || changingCollection}
               aria-disabled={creating || changingCollection || !name.trim()}
-              aria-label="Create folder"
+              aria-label="Create saved list"
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()

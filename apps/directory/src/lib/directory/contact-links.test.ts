@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildUrlHref,
   cleanContactLinks,
+  isJunkEmail,
   menuLinkHref,
   menuLinkLabel,
   sanitizeContactHref,
@@ -128,5 +129,47 @@ describe("cleaning what arrives from a form or the database", () => {
         socialLinks: [],
       })
     }
+  })
+})
+
+describe("emails that are nobody's inbox", () => {
+  it("drops the addresses the import read off website source", () => {
+    for (const email of [
+      "605a7baede844d278b89dc95ae0a9123@sentry-next.wixpress.com",
+      "mailto:13e49d785d8d4f828038b6136f3b48ba@sentry.io",
+      "ef5d9bbac3354b759bfd7a23c3313b3f@o244637.ingest.us.sentry.io",
+      "account-default@2x.png",
+      "georgest_diner_170x@2x.jpg",
+      "example@domain.com",
+      "example@mail.com",
+      "info@mysite.com",
+      "hi@mystore.com",
+    ]) {
+      expect(isJunkEmail(email), email).toBe(true)
+    }
+  })
+
+  it("keeps real-looking addresses, example.com included", () => {
+    for (const email of [
+      "135ossington@gmail.com",
+      "mailto:info@terroni.com",
+      "owner@example.com",
+      "sentry@restaurant.ca",
+      "info@sentryhouse.ca",
+      "hello@mail.com",
+    ]) {
+      expect(isJunkEmail(email), email).toBe(false)
+    }
+  })
+
+  it("takes a junk email out of a listing's links and leaves the rest", () => {
+    const links = cleanContactLinks({
+      menuLinks: [
+        { id: "a", type: "email", label: "", value: "x@sentry.io" },
+        { id: "b", type: "email", label: "", value: "info@terroni.com" },
+        { id: "c", type: "phone", label: "", value: "416 555 0100" },
+      ],
+    })
+    expect(links.menuLinks.map((link) => link.id)).toEqual(["b", "c"])
   })
 })

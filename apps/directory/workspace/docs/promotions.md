@@ -406,7 +406,8 @@ reviewed like the rest.
   emailed and asks the visitor to keep it from the screen.
 - **Who claimed.** The admin's window lists each person's name, email, code
   and day, and can take a claim away, which frees the place so the same email
-  can claim again. The owner's "Who claimed" on My listings is the same list,
+  can claim again. Taking one away asks first, naming the person, the same as
+  taking somebody off an event's list. The owner's "Who claimed" on My listings is the same list,
   read-only, for their own deals only.
 - **Limits:** eight claims an hour from one internet address per site.
 - The rules are `src/server/promotions/claims.ts`, the claims live in

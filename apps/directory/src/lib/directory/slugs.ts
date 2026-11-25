@@ -25,7 +25,7 @@ const VALID_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
  */
 export function slugProblem(slug: string): string | null {
   if (!slug) {
-    return "The address part cannot be empty — something like joes-diner."
+    return "The address part cannot be empty. Try something like joes-diner."
   }
   if (!VALID_SLUG.test(slug)) {
     return "An address part can use lowercase letters, numbers and dashes, like joes-diner."

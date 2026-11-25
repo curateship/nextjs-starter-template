@@ -3,7 +3,13 @@
 ## Completed behavior
 
 - Visitors can save listings into named collections and manage them from the
-  Saved Listings page.
+  Saved Listings page. Each saved place there is a link to its page on its
+  own site, with its photo, so a list can be used and not only read. The
+  address is the site's real one (`siteUrl` on each list), so on this Mac a
+  saved Eat Drink Toronto listing opens on eatdrinktoronto.com, the same as
+  the list's "View profile". A listing unpublished or deleted since it was
+  saved drops out of the list. Each site's name is an h2 under the page's
+  own heading.
 - Approved listing owners can buy a featured placement through Stripe. The
   same plans and checkout also sell spots on an owner's own events; `events.md`
   under "Featured events" covers those.

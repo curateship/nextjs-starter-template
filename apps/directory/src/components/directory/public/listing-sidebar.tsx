@@ -115,6 +115,7 @@ export function ListingSidebar({
           {closed ? null : (
             <SaveDropdown
               listingId={listing.id}
+              listingTitle={listing.title}
               overlay
               className="absolute top-3 right-3"
             />
@@ -140,14 +141,19 @@ export function ListingSidebar({
               social links leaves the button alone on the line, and it belongs
               at the end of it either way. */}
           {closed ? null : (
-            <SaveDropdown listingId={listing.id} className="ml-auto" />
+            <SaveDropdown
+              listingId={listing.id}
+              listingTitle={listing.title}
+              className="ml-auto"
+            />
           )}
         </CardContent>
       )}
 
       {/* Full-bleed rows: each one highlights across the whole card when the
-          pointer is over it, so the padding lives on the row and not here. */}
-      <div className="grid">
+          pointer is over it, so the padding lives on the row and not here.
+          `minmax(0, 1fr)` holds the column to the card's width. */}
+      <div className="grid grid-cols-[minmax(0,1fr)]">
         <ListingContactLinks links={links} />
         {coordinates && !closed && !hasDirectionsLink ? (
           <a

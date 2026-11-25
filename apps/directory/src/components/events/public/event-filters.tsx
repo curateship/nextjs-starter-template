@@ -1,3 +1,4 @@
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Link } from "@tanstack/react-router"
 
 import type { EventDateCounts } from "@/lib/api/events/public"
@@ -61,27 +62,32 @@ export function EventDateFilters({
     // them inside itself. Without it a flex item never shrinks past its
     // content, and on a phone the whole page scrolls sideways instead.
     <div className="flex max-w-full min-w-0 flex-col gap-1">
-      <div
-        role="group"
-        aria-label="When"
-        className="flex h-8 w-full items-center justify-start gap-0.5 overflow-x-auto rounded-lg bg-muted p-0.5 text-muted-foreground sm:w-fit"
-      >
-        <DateChip
-          search={kept}
-          active={!current.when && !rangeActive}
-          label="Any time"
-          count={counts.anyTime}
-        />
-        {EVENT_DATE_FILTERS.map((when) => (
+      {/* The chips scroll sideways inside the shared scroll box on a phone,
+          so the bar is the thin themed one rather than the browser's. */}
+      <ScrollArea className="w-full rounded-lg bg-muted sm:w-fit">
+        <div
+          role="group"
+          aria-label="When"
+          className="flex h-8 w-max items-center justify-start gap-0.5 p-0.5 text-muted-foreground"
+        >
           <DateChip
-            key={when}
-            search={{ ...kept, when }}
-            active={current.when === when}
-            label={EVENT_DATE_FILTER_LABELS[when]}
-            count={counts[when]}
+            search={kept}
+            active={!current.when && !rangeActive}
+            label="Any time"
+            count={counts.anyTime}
           />
-        ))}
-      </div>
+          {EVENT_DATE_FILTERS.map((when) => (
+            <DateChip
+              key={when}
+              search={{ ...kept, when }}
+              active={current.when === when}
+              label={EVENT_DATE_FILTER_LABELS[when]}
+              count={counts[when]}
+            />
+          ))}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
       {/* Only ever from an address somebody was sent or typed, now that the
           picker is gone. */}
       {rangeActive ? (

@@ -1,5 +1,8 @@
 import * as React from "react"
-import { MailIcon } from "lucide-react"
+import {
+  Loader2Icon,
+  MailIcon,
+} from "lucide-react"
 
 import { CharacterCount } from "@/components/shared/character-count"
 import { LISTING_ROW_CLASS } from "@/components/directory/public/listing-contact-links"
@@ -116,6 +119,17 @@ function MessageOwnerDialog({
   const [message, setMessage] = React.useState("")
   const [sending, setSending] = React.useState(false)
   const humanCheckRef = React.useRef<HumanCheckHandle>(null)
+
+  // Empty each time it opens, the way the claim and report windows are: a
+  // message cancelled yesterday is not one to send to the owner today.
+  const [openedFor, setOpenedFor] = React.useState<string | null>(null)
+  const key = open ? listingId : null
+  if (openedFor !== key) {
+    setOpenedFor(key)
+    setName("")
+    setEmail("")
+    setMessage("")
+  }
 
   const dirty = Boolean(name.trim() || email.trim() || message.trim())
 
@@ -250,6 +264,7 @@ function MessageOwnerDialog({
               disabled={sending}
               onClick={() => void send()}
             >
+              {sending ? <Loader2Icon className="animate-spin" /> : null}
               Send message
             </Button>
           </DialogFooter>

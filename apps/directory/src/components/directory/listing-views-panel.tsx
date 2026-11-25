@@ -27,7 +27,14 @@ const viewsConfig: ChartConfig = {
   views: { label: "Views", color: "var(--primary)" },
 }
 
-export function ListingViewsPanel({ listingId }: { listingId: string }) {
+export function ListingViewsPanel({
+  listingId,
+  listingTitle,
+}: {
+  listingId: string
+  /** Named in the title, so an owner of several listings knows whose chart it is. */
+  listingTitle: string
+}) {
   const [days, setDays] = React.useState<OwnerListingViewRange>(30)
   const [analytics, setAnalytics] = React.useState<OwnerListingViews | null>(
     null
@@ -58,7 +65,7 @@ export function ListingViewsPanel({ listingId }: { listingId: string }) {
   return (
     <ChartCard
       icon={LineChartIcon}
-      title="Listing views"
+      title={`Views of ${listingTitle}`}
       meta={
         loading && analytics ? (
           <Loader2Icon

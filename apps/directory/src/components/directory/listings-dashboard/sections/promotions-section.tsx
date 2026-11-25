@@ -588,6 +588,9 @@ function DealForm({
   const [endedAt, setEndedAt] = React.useState(promotion.endedAt)
   const [claims, setClaims] = React.useState<DealClaim[]>(record.claims)
   const [removingClaim, setRemovingClaim] = React.useState<string | null>(null)
+  // The trash button asks first: it frees the place at once and cannot be
+  // undone, the way taking somebody off an event's list asks.
+  const [askingRemove, setAskingRemove] = React.useState<DealClaim | null>(null)
   const [copyingHours, setCopyingHours] = React.useState(false)
   const [runNow, nowBusy] = useAsyncAction(getPromotionErrorMessage)
 
@@ -786,16 +789,31 @@ function DealForm({
                   <WhoClaimedList
                     claims={claims}
                     removingId={removingClaim}
-                    onRemove={(claim) =>
+                    onRemove={setAskingRemove}
+                  />
+                  <ConfirmDialog
+                    open={askingRemove !== null}
+                    onOpenChange={(open) => {
+                      if (!open) setAskingRemove(null)
+                    }}
+                    title={`Take ${askingRemove?.name ?? "this"}'s claim away?`}
+                    description="The place opens up for somebody else, and their code stops working. The same email can claim again."
+                    confirmLabel="Take it away"
+                    destructive
+                    loading={removingClaim !== null}
+                    onConfirm={() => {
+                      const claim = askingRemove
+                      if (!claim) return
                       void runNow(async () => {
                         setRemovingClaim(claim.id)
                         try {
                           setClaims(await removeDealClaim({ promotionId: promotion.id, claimId: claim.id }))
                         } finally {
                           setRemovingClaim(null)
+                          setAskingRemove(null)
                         }
                       })
-                    }
+                    }}
                   />
                 </div>
               </PanelCard>

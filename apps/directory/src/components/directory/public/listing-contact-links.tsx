@@ -86,11 +86,14 @@ export function ListingContactLinks({ links }: { links: ContactLinks }) {
   if (!links.address && !menuLinks.length) return null
 
   return (
-    <div className="grid">
+    // `minmax(0, 1fr)`: a plain `grid` column grows to its longest line, so a
+    // long address or email pushed the whole card past its edge and the
+    // `truncate` below never had a width to cut at.
+    <div className="grid grid-cols-[minmax(0,1fr)]">
       {links.address ? (
         <p className={`${LISTING_ROW_CLASS} text-muted-foreground`}>
           <MapPinIcon className="size-4 shrink-0" aria-hidden="true" />
-          <span>{links.address}</span>
+          <span className="min-w-0 wrap-break-word">{links.address}</span>
         </p>
       ) : null}
 

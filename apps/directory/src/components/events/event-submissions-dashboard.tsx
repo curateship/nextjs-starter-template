@@ -1,7 +1,8 @@
 import { Link, useRouter } from "@tanstack/react-router"
-import { CalendarPlusIcon, SettingsIcon } from "lucide-react"
+import { CalendarCheckIcon, CalendarPlusIcon, SettingsIcon } from "lucide-react"
 
 import { EventSubmissionDialog } from "@/components/events/event-submission-dialog"
+import { NoMatches } from "@/components/directory/listings-dashboard/section-parts"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
@@ -25,13 +26,13 @@ import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import { toast } from "sonner"
 
 const TAB_LABELS: Record<EventSubmissionStatus, string> = {
-  pending: "Pending",
+  pending: "Waiting",
   approved: "Approved",
   rejected: "Rejected",
 }
 
 /**
- * The admin's queue of suggested events, in three tabs: Pending, which it
+ * The admin's queue of suggested events, in three tabs: Waiting, which it
  * opens on, Approved and Rejected.
  *
  * **No selection column**, the same departure from the table standard as
@@ -117,9 +118,13 @@ export function EventSubmissionsDashboard({
         }
         isEmpty={data.submissions.length === 0}
         emptyText={
-          search.q
-            ? `Nothing matches “${search.q}”. Clear the search to see everything.`
-            : tab === "pending"
+          search.q ? (
+            <NoMatches
+              words={search.q}
+              noun="suggestions"
+              onClear={() => setListSearch({ q: undefined, page: undefined })}
+            />
+          ) : tab === "pending"
               ? "Nothing is waiting. New suggestions from the Suggest an event page land here."
               : `Nothing has been ${TAB_LABELS[tab].toLowerCase()} yet.`
         }
@@ -147,7 +152,6 @@ export function EventSubmissionsDashboard({
                   type="button"
                   className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
                   onClick={() => setListSearch({ open: submission.id })}
-                  title={submission.title}
                 >
                   {submission.title}
                 </button>
@@ -162,10 +166,7 @@ export function EventSubmissionsDashboard({
                   </Badge>
                 ) : null}
               </div>
-              <span
-                className="block max-w-96 truncate text-xs text-muted-foreground"
-                title={submission.submitterEmail}
-              >
+              <span className="block max-w-96 truncate text-xs text-muted-foreground">
                 {submission.fromOwner
                   ? `At ${submission.placeName} · ${submission.submitterEmail}`
                   : submission.submitterName
@@ -183,20 +184,23 @@ export function EventSubmissionsDashboard({
             </TableCell>
             <TableCell column="actions">
               <div className="flex items-center">
+                {/* Icons with names, the same as every other row's buttons. A
+                    row repeats, so no hover hint (Ui-standards). */}
                 {submission.eventId ? (
-                  <Button asChild variant="ghost" size="sm">
+                  <Button asChild variant="ghost" size="icon-sm">
                     <Link
                       to="/admin/events"
                       search={{ open: submission.eventId }}
+                      aria-label={`Open the event ${submission.title} became`}
                     >
-                      The event
+                      <CalendarCheckIcon className="size-4" />
                     </Link>
                   </Button>
                 ) : null}
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
+                  size="icon-sm"
                   aria-label={`Open ${submission.title}`}
                   onClick={() => setListSearch({ open: submission.id })}
                 >

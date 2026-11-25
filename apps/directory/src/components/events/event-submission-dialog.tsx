@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 
 import { CharacterCount } from "@/components/shared/character-count"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Card,
   CardContent,
@@ -55,12 +56,16 @@ export function EventSubmissionDialog({
 }) {
   const [note, setNote] = React.useState("")
   const [busy, setBusy] = React.useState(false)
+  // Reject emails the sender at once and cannot be taken back, so it asks
+  // first, the way rejecting a listing submission does.
+  const [askingReject, setAskingReject] = React.useState(false)
 
   const [openedFor, setOpenedFor] = React.useState<string | null>(null)
   const key = open ? (submission?.id ?? null) : null
   if (openedFor !== key) {
     setOpenedFor(key)
     setNote("")
+    setAskingReject(false)
   }
 
   const decided =
@@ -276,7 +281,7 @@ export function EventSubmissionDialog({
                   type="button"
                   variant="outline"
                   disabled={busy}
-                  onClick={() => void decide("reject")}
+                  onClick={() => setAskingReject(true)}
                 >
                   Reject
                 </Button>
@@ -294,6 +299,18 @@ export function EventSubmissionDialog({
               </>
             )}
           </DialogFooter>
+          <ConfirmDialog
+            open={askingReject}
+            onOpenChange={setAskingReject}
+            title="Reject this suggestion?"
+            description={`${submission?.submitterName || "The sender"} gets the rejection email${note.trim() ? " with your note" : ""}. Nothing becomes an event.`}
+            confirmLabel="Reject"
+            destructive
+            loading={busy}
+            onConfirm={() => {
+              void decide("reject").then(() => setAskingReject(false))
+            }}
+          />
         </DialogContent>
       )}
     </FormDialog>

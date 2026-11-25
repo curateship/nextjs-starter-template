@@ -41,7 +41,9 @@ visitors read them at `/posts`, with each post at `/posts/<address>`.
   automatically. Add it in Settings the same way the Listings link was added.
 - **The list:** search by title or address, filter by status, sort by title,
   status, published date, views or last change. Drafts have no published date,
-  so they sort last in both directions. "How often a post is read" below
+  so they sort last in both directions, and their Published cell reads "Not
+  yet". A search or status filter that finds nothing says so: `No posts match
+  "pasta".`, or "No posts match those filters." for a status alone. "How often a post is read" below
   covers the Views column.
 - **The window:** title, address, summary, status, the Featured switch, cover
   image, categories and the body. "Featured posts" below covers the switch.
@@ -89,6 +91,9 @@ nothing drawn around them, and a contents list in a card on the right.
   cover image: the cards on the Posts page, a category page and a home page row
   all still draw it, and so does the picture a post shows when it is shared or
   posted on Facebook. The switch is about one page, not about the photo.
+- **The Posts page opens with the dotted title band**, the same as Directory,
+  Guides, Events and Deals (Tyler, 27 Sep 2026, every directory page opens the
+  same way). Add your listing and Suggest an event open with it too.
 - **The contents list is a card on the right**, headed "On this page", one line
   per heading. It is the narrow column of the same two-column split a listing's
   page uses, so the two pages line up.

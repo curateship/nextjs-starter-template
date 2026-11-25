@@ -2,6 +2,11 @@ import { Link } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   describeDuplicateMatch,
   type DuplicateMatch,
 } from "@/lib/directory/submission-duplicates"
@@ -89,14 +94,23 @@ export function SubmissionDetail({
   return (
     <div className="grid gap-1">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <p
-        className={`text-sm ${multiline ? "whitespace-pre-wrap" : "truncate"} ${
-          value ? "" : "text-muted-foreground"
-        }`}
-        title={multiline ? undefined : value}
-      >
-        {value || "Not given"}
-      </p>
+      {multiline || !value ? (
+        <p
+          className={`text-sm ${multiline ? "whitespace-pre-wrap" : "truncate"} ${
+            value ? "" : "text-muted-foreground"
+          }`}
+        >
+          {value || "Not given"}
+        </p>
+      ) : (
+        // One line cut short: the whole value is a hover away.
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <p className="truncate text-sm">{value}</p>
+          </TooltipTrigger>
+          <TooltipContent>{value}</TooltipContent>
+        </Tooltip>
+      )}
     </div>
   )
 }

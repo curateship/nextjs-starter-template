@@ -341,8 +341,8 @@ function RepeaterEditor({
       <Label>What one row holds</Label>
       {field.fields.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          A repeating field needs at least one thing in a row — a class name, a
-          time.
+          A repeating field needs at least one thing in a row, such as a class
+          name or a time.
         </p>
       ) : null}
       {field.fields.map((rowField, index) => (

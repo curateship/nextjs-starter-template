@@ -1,5 +1,8 @@
 import * as React from "react"
-import { FlagIcon } from "lucide-react"
+import {
+  FlagIcon,
+  Loader2Icon,
+} from "lucide-react"
 
 import { CharacterCount } from "@/components/shared/character-count"
 import { LISTING_ROW_CLASS } from "@/components/directory/public/listing-contact-links"
@@ -354,6 +357,7 @@ function ReportProblemDialog({
               disabled={sending}
               onClick={() => void send()}
             >
+              {sending ? <Loader2Icon className="animate-spin" /> : null}
               Send the report
             </Button>
           </DialogFooter>

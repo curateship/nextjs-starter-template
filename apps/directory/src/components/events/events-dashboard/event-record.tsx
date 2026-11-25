@@ -507,7 +507,7 @@ function EventForm({
                         inputMode="url"
                         value={ticketsUrl}
                         maxLength={TICKETS_URL_MAX}
-                        placeholder="https://www.eventbrite.ca/e/..."
+                        placeholder="https://www.eventbrite.ca/e/"
                         aria-invalid={!ticketsOk}
                         onChange={(e) => setTicketsUrl(e.target.value)}
                       />

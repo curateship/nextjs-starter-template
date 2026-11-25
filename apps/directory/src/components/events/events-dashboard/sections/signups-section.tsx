@@ -12,6 +12,7 @@ import { FilterPopover } from "@/components/shared/filter-popover"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
 import { Badge } from "@/components/ui/badge"
+import { batchOutcome } from "@/components/directory/listings-dashboard/batch-outcome"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TableCell } from "@/components/ui/table"
@@ -166,7 +167,7 @@ export function SignUpsSection({ data, search, frame, onChanged }: EventsSection
           ) : who === "waiting" ? (
             "Nobody is waiting for a seat."
           ) : (
-            "Nobody has signed up yet. Switch on Take sign-ups in an event's Sign-ups card."
+            "Nobody has signed up yet. Switch on Take sign-ups in the Sign-ups tab of an event's ⋮."
           )
         }
       >
@@ -185,7 +186,9 @@ export function SignUpsSection({ data, search, frame, onChanged }: EventsSection
           >
             <MainCell name={row.name} line={row.answer ? `${row.email} · ${row.answer}` : row.email} />
             <TableCell column="mutedMeta" className="hidden md:hidden @lg:table-cell">
-              {row.eventTitle}, {formatWallClock(row.eventStart)}
+              <span className="block max-w-48 truncate">
+                {row.eventTitle}, {formatWallClock(row.eventStart)}
+              </span>
             </TableCell>
             <TableCell column="mutedMeta" className="hidden md:hidden @2xl:table-cell">
               {formatDate(row.createdAt)}
@@ -260,11 +263,24 @@ export function SignUpsSection({ data, search, frame, onChanged }: EventsSection
         onConfirm={() =>
           void run(async () => {
             if (!confirm) return
-            for (const row of confirm) await removeEventSignUp({ eventId: row.eventId, signUpId: row.id })
-            selection.clear()
+            // Every one is tried, and the list is read again whatever
+            // happened. It used to stop at the first failure and say nothing,
+            // with the people already removed still on screen.
+            const refused: { row: (typeof confirm)[number]; error: unknown }[] = []
+            for (const row of confirm) {
+              try {
+                await removeEventSignUp({ eventId: row.eventId, signUpId: row.id })
+              } catch (error) {
+                refused.push({ row, error })
+              }
+            }
+            const asked = confirm
+            selection.setSelected(new Set(refused.map(({ row }) => row.id)))
             setConfirm(null)
             setRecordRead((count) => count + 1)
             await onChanged()
+            const problem = batchOutcome({ asked, refused, verb: "removed", nameOf: (row) => row.name })
+            if (problem) throw problem
           })
         }
       />

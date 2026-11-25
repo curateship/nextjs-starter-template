@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent } from "@/components/ui/card"
 import { focusRing } from "@/lib/layout/focus-ring"
 import type { PostHeading } from "@/lib/posts/post-headings"
@@ -76,24 +77,26 @@ export function PostContents({ headings }: { headings: PostHeading[] }) {
           {/* Capped so a post with twenty headings scrolls its own list
               instead of running off the bottom of the window, which is where
               a sticky column would otherwise leave it. */}
-          <ol className="grid gap-2 lg:max-h-[calc(100svh-12rem)] lg:overflow-y-auto">
-            {headings.map((heading) => (
-              <li key={heading.id}>
-                <a
-                  href={`#${heading.id}`}
-                  aria-current={activeId === heading.id ? "true" : undefined}
-                  className={cn(
-                    "block border-l-2 border-transparent pl-3 text-sm leading-snug text-muted-foreground hover:text-foreground",
-                    focusRing,
-                    activeId === heading.id &&
-                      "border-primary font-medium text-foreground"
-                  )}
-                >
-                  {heading.text}
-                </a>
-              </li>
-            ))}
-          </ol>
+          <ScrollArea viewportClassName="lg:max-h-[calc(100svh-12rem)]">
+            <ol className="grid gap-2">
+              {headings.map((heading) => (
+                <li key={heading.id}>
+                  <a
+                    href={`#${heading.id}`}
+                    aria-current={activeId === heading.id ? "true" : undefined}
+                    className={cn(
+                      "block border-l-2 border-transparent pl-3 text-sm leading-snug text-muted-foreground hover:text-foreground",
+                      focusRing,
+                      activeId === heading.id &&
+                        "border-primary font-medium text-foreground"
+                    )}
+                  >
+                    {heading.text}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </ScrollArea>
         </nav>
       </CardContent>
     </Card>

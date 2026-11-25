@@ -322,6 +322,10 @@ Both are segmented controls, and both move the same way, from
 - Small secondary snippets use `TableHead column="preview"` and `TableCell column="preview"`.
 - Supporting columns stay compact, left-aligned, and should not compete with the primary column.
 - Do not create two wide text columns in the same table.
+- `DashboardTable`'s `emptyText` takes words or an element, so a list that
+  found nothing for a search or filter can say so and offer Clear filters
+  beside it, the same as the dashboards' "No matches" line. It took words
+  only until 24 Nov 2026.
 
 ## Dragging a list into order
 

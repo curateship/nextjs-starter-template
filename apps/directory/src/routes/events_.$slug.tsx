@@ -158,7 +158,7 @@ function EventRoute() {
         ) : null}
         <CardContent className="grid gap-4">
           <header className="grid gap-1">
-            <h1 className="text-2xl font-semibold">{event.title}</h1>
+            <h1 className="text-2xl font-semibold wrap-anywhere">{event.title}</h1>
             {event.categories.length ? (
               <p className="text-xs text-muted-foreground">
                 {event.categories.map((category, index) => (

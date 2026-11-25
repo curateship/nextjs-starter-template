@@ -26,7 +26,10 @@ export type ReviewStatus = (typeof REVIEW_STATUSES)[number]
  */
 export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
   pending_verification: "Waiting on the sender",
-  pending_review: "Needs review",
+  // "Waiting" in every queue (Submissions, Claims, Owner changes, Deals from
+  // owners, Reports and Event suggestions), the word the age chip already
+  // uses: "Waiting 3 days". Only the words on screen; the stored values stay.
+  pending_review: "Waiting",
   approved: "Approved",
   rejected: "Rejected",
 }
@@ -40,8 +43,8 @@ export const EDIT_REQUEST_STATUSES = [
 export type EditRequestStatus = (typeof EDIT_REQUEST_STATUSES)[number]
 
 export const EDIT_REQUEST_STATUS_LABELS: Record<EditRequestStatus, string> = {
-  pending: "Needs review",
-  approved: "Applied",
+  pending: "Waiting",
+  approved: "Approved",
   rejected: "Rejected",
 }
 

@@ -99,7 +99,7 @@ function ClaimPassRoute() {
             <p className="text-2xl leading-tight font-bold wrap-anywhere">
               {shownHeadline(pass.deal.headline)}
             </p>
-            <h1 className="text-lg font-semibold">{pass.deal.title}</h1>
+            <h1 className="text-lg font-semibold wrap-anywhere">{pass.deal.title}</h1>
           </header>
 
           {/* White whatever the colour mode, because the squares have to be

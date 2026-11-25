@@ -3,6 +3,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router"
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { PublicTitleBand } from "@/components/shared/public-title-band"
 import { EventSubmissionForm } from "@/components/events/public/event-submission-form"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import { loadEventSubmissionForm } from "@/lib/api/events/submissions"
@@ -46,15 +47,23 @@ export const Route = createFileRoute("/add-event")({
 function AddEventRoute() {
   const form = Route.useLoaderData()
   return (
-    <DirectoryFrame>
-      <DirectoryBreadcrumbs
-        crumbs={[
-          { label: form.siteName, home: true },
-          { label: "Events", events: true },
-          { label: "Suggest an event" },
-        ]}
-      />
-      <h1 className="text-2xl font-semibold">Suggest an event</h1>
+    <DirectoryFrame
+      hero={
+        <PublicTitleBand
+          crumbs={
+            <DirectoryBreadcrumbs
+              crumbs={[
+                { label: form.siteName, home: true },
+                { label: "Events", events: true },
+                { label: "Suggest an event" },
+              ]}
+              inBand
+            />
+          }
+          title="Suggest an event"
+        />
+      }
+    >
       <EventSubmissionForm form={form} />
     </DirectoryFrame>
   )

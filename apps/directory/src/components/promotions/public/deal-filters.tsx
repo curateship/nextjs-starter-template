@@ -1,3 +1,4 @@
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Link } from "@tanstack/react-router"
 
 import type { DealWhenCounts } from "@/lib/api/promotions/public"
@@ -45,30 +46,34 @@ export function DealWhenFilters({
   }
 
   return (
-    // `min-w-0` so the group may be narrower than its chips and scroll them
+    // `min-w-0` so the box may be narrower than its chips and scroll them
     // inside itself. Without it a flex item never shrinks past its content,
-    // and on a phone the whole page scrolls sideways instead.
-    <div
-      role="group"
-      aria-label="When"
-      className="flex h-8 max-w-full min-w-0 items-center justify-start gap-0.5 overflow-x-auto rounded-lg bg-muted p-0.5 text-muted-foreground sm:w-fit"
-    >
-      <WhenChip
-        search={kept}
-        active={!current.on}
-        label="Any time"
-        count={counts.anyTime}
-      />
-      {DEAL_ON_FILTERS.map((on) => (
+    // and on a phone the whole page scrolls sideways instead. The scroll box
+    // is the shared one, so its bar is the thin themed one.
+    <ScrollArea className="max-w-full min-w-0 rounded-lg bg-muted sm:w-fit">
+      <div
+        role="group"
+        aria-label="When"
+        className="flex h-8 w-max items-center justify-start gap-0.5 p-0.5 text-muted-foreground"
+      >
         <WhenChip
-          key={on}
-          search={{ ...kept, on }}
-          active={current.on === on}
-          label={DEAL_ON_FILTER_LABELS[on]}
-          count={counts[on]}
+          search={kept}
+          active={!current.on}
+          label="Any time"
+          count={counts.anyTime}
         />
-      ))}
-    </div>
+        {DEAL_ON_FILTERS.map((on) => (
+          <WhenChip
+            key={on}
+            search={{ ...kept, on }}
+            active={current.on === on}
+            label={DEAL_ON_FILTER_LABELS[on]}
+            count={counts[on]}
+          />
+        ))}
+      </div>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   )
 }
 

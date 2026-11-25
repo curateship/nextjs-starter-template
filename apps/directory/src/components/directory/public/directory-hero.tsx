@@ -1,10 +1,6 @@
-import {
-  Loader2Icon,
-  MapPinIcon,
-  SearchIcon,
-  LocateFixedIcon,
-} from "lucide-react"
+import { Loader2Icon, SearchIcon } from "lucide-react"
 
+import { HeroPlaceBox } from "@/components/directory/public/hero-place-box"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Input } from "@/components/ui/input"
@@ -15,11 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import {
   PublicHeroBand,
   PublicHeroBar,
@@ -116,40 +107,7 @@ export function DirectoryHero({
 
         <PublicHeroBarDivider />
 
-        <div className="relative min-w-0 flex-1">
-          <MapPinIcon
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            id="directory-place"
-            value={picker.place}
-            onChange={(event) => picker.setPlace(event.target.value)}
-            placeholder="Town, city, or postcode"
-            aria-label="Near"
-            className="border-0 pl-9 text-base shadow-none focus-visible:ring-0"
-          />
-        </div>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={picker.useMyLocation}
-              disabled={picker.locating}
-              aria-label="Use my location"
-            >
-              {picker.locating ? (
-                <Loader2Icon className="animate-spin" />
-              ) : (
-                <LocateFixedIcon />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Use my location</TooltipContent>
-        </Tooltip>
+        <HeroPlaceBox id="directory-place" picker={picker} />
 
         <PublicHeroBarDivider />
 

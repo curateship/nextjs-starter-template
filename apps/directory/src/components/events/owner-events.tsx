@@ -2,6 +2,7 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import {
   CalendarIcon,
+  Loader2Icon,
   MapPinIcon,
   PlusIcon,
   SettingsIcon,
@@ -13,6 +14,7 @@ import { CharacterCount } from "@/components/shared/character-count"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Card,
@@ -251,7 +253,7 @@ function OwnerEventRow({
             href={`${siteUrl}/events/${event.eventSlug}`}
             target="_blank"
             rel="noreferrer"
-            className="text-sm underline-offset-4 hover:underline"
+            className={`rounded-sm text-sm underline-offset-4 hover:underline ${focusRing}`}
           >
             See its page
           </a>
@@ -566,6 +568,7 @@ function OwnerEventDialog({
               Cancel
             </Button>
             <Button type="button" disabled={busy} onClick={() => void send()}>
+              {busy ? <Loader2Icon className="animate-spin" /> : null}
               {editing?.status === "approved"
                 ? "Send the change"
                 : editing

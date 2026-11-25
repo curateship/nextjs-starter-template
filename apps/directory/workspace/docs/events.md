@@ -1265,7 +1265,11 @@ about each new suggestion.
 - **The place can be one of the site's listings.** While the directory is
   open to everyone, typing two letters in the place box lists the site's own
   published listings under it, from the same lookup the directory's search
-  box uses. Picking one makes the place that listing: the street address box
+  box uses. The list is the search box's own (`DirectorySuggestionList`,
+  listings only): it hangs over the form instead of pushing it down, arrow
+  keys move through it, Enter picks the highlighted place and Escape closes
+  it. Enter with nothing highlighted sends the form, as in any other box.
+  Picking one makes the place that listing: the street address box
   goes, because the listing has one, and "Type a place instead" lets go of
   the pick. A place that is not in the directory is typed as before. The
   server checks the pick again, and a draft listing or another site's is
@@ -1319,7 +1323,7 @@ about each new suggestion.
 
 ### The queue
 
-- **Three tabs:** Pending, which it opens on and which shows how many are
+- **Three tabs:** Waiting, which it opens on and which shows how many are
   waiting, Approved and Rejected, with a search over the event's name, the
   email, the person's name and the place, so an owner's events are found by
   their listing's name. The tab, the search and an open suggestion all
@@ -1327,10 +1331,14 @@ about each new suggestion.
 - **No selection column,** the same as Listing submissions: approving in bulk
   would make events nobody read.
 - **The window** shows everything that was sent, the photo included, and a
-  note back. Pending ones end with Cancel, Reject and "Approve as a draft", or
-  "Approve and publish" for a listing owner's. Decided ones open read-only
+  note back. Waiting ones end with Cancel, Reject and "Approve as a draft", or
+  "Approve and publish" for a listing owner's. Reject asks first, because it
+  emails the sender at once. Decided ones open read-only
   with Done, the note that was sent, and "Open the event" for an approved one.
-  The row's "The event" does the same.
+  The row's calendar button does the same; a row's buttons are icons with
+  names, like every other dashboard row.
+- **The page is called Event suggestions** everywhere, the Events overview's
+  link included, which said "Event submissions" until 24 Nov 2026.
 - **A listing owner's event** is marked "From the owner" on its row, with the
   listing under its name, and the window says who sent it and that approving
   publishes it. "Events from a listing's owner" below covers them.

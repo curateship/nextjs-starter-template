@@ -1,6 +1,9 @@
+import * as React from "react"
+
 import { Chip } from "@/components/crm/crm-table"
 import { FilterRow } from "@/components/admin-dashboard/list-parts"
 import { FilterPopover } from "@/components/shared/filter-popover"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { waitedText, waitedTooLong } from "@/lib/directory/listings-dashboard-page"
 import { useListSearchNavigate } from "@/lib/nav/list-search"
@@ -66,3 +69,44 @@ export function QueueStatusFilter({
   )
 }
 
+/**
+ * A single Reject, Turn down or Dismiss on a record asks first, the way the
+ * same action on ticked rows always did. Each one sends an email or closes
+ * something for good, and a press on the wrong record used to go straight
+ * through. `ask` takes what to run once the answer is yes; `dialog` goes
+ * anywhere in the record.
+ */
+export function useAskFirst({
+  title,
+  description,
+  confirmLabel,
+  busy,
+}: {
+  title: string
+  description: string
+  confirmLabel: string
+  busy: boolean
+}) {
+  const [pending, setPending] = React.useState<{ go: () => void } | null>(null)
+  return {
+    ask: (go: () => void) => setPending({ go }),
+    dialog: (
+      <ConfirmDialog
+        open={pending !== null}
+        onOpenChange={(open) => {
+          if (!open) setPending(null)
+        }}
+        title={title}
+        description={description}
+        confirmLabel={confirmLabel}
+        destructive
+        loading={busy}
+        onConfirm={() => {
+          const go = pending?.go
+          setPending(null)
+          go?.()
+        }}
+      />
+    ),
+  }
+}

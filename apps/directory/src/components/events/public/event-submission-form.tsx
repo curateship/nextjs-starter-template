@@ -1,8 +1,18 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { ImagePlus, XIcon } from "lucide-react"
+import {
+  ImagePlus,
+  Loader2Icon,
+  XIcon,
+} from "lucide-react"
 
 import { CharacterCount } from "@/components/shared/character-count"
+import {
+  DirectorySuggestionList,
+  useDirectorySuggestions,
+  type DirectorySuggestionBox,
+} from "@/components/directory/public/directory-suggestions"
+import { FieldProblem } from "@/components/directory/public/field-problem"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -29,11 +39,6 @@ import {
   eventPhotoProblem,
   type EventSubmissionField,
 } from "@/lib/events/event-submission-fields"
-import { loadDirectorySuggestions } from "@/lib/api/directory/public"
-import {
-  DIRECTORY_SUGGESTION_DELAY_MS,
-  DIRECTORY_SUGGESTION_MIN_LENGTH,
-} from "@/lib/directory/public-search"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -122,7 +127,7 @@ export function EventSubmissionFields({
                 placeholder="Pick a day"
                 onChange={day.onChange}
               />
-              <Problem id="suggest-startDate" problem={day.problem} />
+              <FieldProblem id="suggest-startDate" problem={day.problem} />
             </div>
             <TextField
               label="Starts"
@@ -210,6 +215,7 @@ export function EventSubmissionForm({ form }: { form: FormInfo }) {
         {/* Stays enabled while empty: the boxes say what is missing when it
             is pressed, which a greyed-out button never does. */}
         <Button type="submit" disabled={sending}>
+          {sending ? <Loader2Icon className="animate-spin" /> : null}
           Send suggestion
         </Button>
         <Button asChild variant="ghost">
@@ -232,6 +238,7 @@ function TextField({
   className,
   onBlur,
   onChange,
+  suggestions,
 }: {
   name: EventSubmissionField
   label: string
@@ -244,6 +251,8 @@ function TextField({
   className?: string
   onBlur: () => void
   onChange: (value: string) => void
+  /** A list of this site's listings to pick from, hanging under the box. */
+  suggestions?: DirectorySuggestionBox
 }) {
   const id = `suggest-${name}`
   const max = EVENT_SUBMISSION_MAX_LENGTH[name]
@@ -274,35 +283,20 @@ function TextField({
         <Input
           type={type}
           {...shared}
+          {...suggestions?.inputProps}
+          onBlur={(event) => {
+            onBlur()
+            suggestions?.inputProps.onBlur(event)
+          }}
           onChange={(event) => onChange(event.target.value)}
         />
       )}
-      <Problem id={id} problem={problem} />
+      <FieldProblem id={id} problem={problem} />
+      {suggestions ? (
+        <DirectorySuggestionList box={suggestions} label="Places on this site" />
+      ) : null}
     </div>
   )
-}
-
-/**
- * What is wrong with one box, drawn in the gap under it rather than in the
- * column of fields, so no box ever moves when a message appears.
- *
- * It used to sit in the column: the message appeared when a box was left,
- * everything under it dropped 20px, and a press that started on the Day
- * picker landed somewhere else by the time it was let go, so the first press
- * on it did nothing at all. Reserving an empty line for it instead fixed that
- * and pushed every field 16px further apart, which is worse. The message is
- * 16px tall and the gap between fields is 16px, so out of flow it fits the gap
- * exactly and costs nothing.
- */
-function Problem({ id, problem }: { id: string; problem: string | null }) {
-  return problem ? (
-    <p
-      id={`${id}-problem`}
-      className="absolute top-full left-0 text-xs leading-4 text-destructive"
-    >
-      {problem}
-    </p>
-  ) : null
 }
 
 /**
@@ -420,41 +414,20 @@ function PlaceFields({
 }) {
   const place = box.field("placeName")
   const picked = box.values.placeListing
-  const [offers, setOffers] = React.useState<{
-    query: string
-    listings: { title: string; slug: string }[]
-  } | null>(null)
-  const query = place.value.trim()
-  const asking =
-    listingsOpen && !picked && query.length >= DIRECTORY_SUGGESTION_MIN_LENGTH
-
-  React.useEffect(() => {
-    if (!asking) return
-    let cancelled = false
-    const timer = window.setTimeout(() => {
-      loadDirectorySuggestions(query).then(
-        (answer) => {
-          if (!cancelled) setOffers({ query, listings: answer.listings })
-        },
-        // A failed lookup leaves a plain box, which still takes a typed place.
-        () => undefined
-      )
-    }, DIRECTORY_SUGGESTION_DELAY_MS)
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
-    }
-  }, [asking, query])
-
-  // Only the answer for what is in the box now, so a slow reply to an
-  // earlier word never shows under a later one.
-  const listings = asking && offers?.query === query ? offers.listings : []
-
-  const pick = (listing: { title: string; slug: string }) => {
-    place.onChange(listing.title)
-    box.field("placeListing").onChange(listing.slug)
-    box.field("placeAddress").onChange("")
-  }
+  // The site search's own list, keeping listings only: arrow keys, Enter and
+  // Escape work the same as in the search box, and the list hangs over the
+  // form instead of pushing it down. It was a list of buttons of its own
+  // until 24 Nov 2026, with none of that.
+  const suggestions = useDirectorySuggestions({
+    text: place.value,
+    kinds: ["listing"],
+    enabled: listingsOpen && !picked,
+    onPick: (listing) => {
+      place.onChange(listing.title)
+      box.field("placeListing").onChange(listing.slug)
+      box.field("placeAddress").onChange("")
+    },
+  })
 
   return (
     <>
@@ -468,25 +441,8 @@ function PlaceFields({
           }
           {...place}
           disabled={place.disabled || Boolean(picked)}
+          suggestions={suggestions}
         />
-        {listings.length ? (
-          <ul
-            aria-label="Places on this site"
-            className="grid overflow-hidden rounded-md border"
-          >
-            {listings.map((listing) => (
-              <li key={listing.slug} className="border-b last:border-b-0">
-                <button
-                  type="button"
-                  className="flex h-8 w-full items-center px-3 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                  onClick={() => pick(listing)}
-                >
-                  {listing.title}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
         {picked ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">

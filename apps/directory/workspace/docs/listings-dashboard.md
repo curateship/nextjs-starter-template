@@ -116,12 +116,37 @@ Every row has the same header and table, the shell's `CrmListHeader` and
   applying several people's edits unread, is what those queues exist to stop.
   Rejecting several at once is allowed, and each one still emails its person.
 - **A batch that only partly works says how far it got:** "3 of 5 rejected.
-  Two could not be, and stay waiting."
+  Joe's Diner, Café Bleu could not be, and stay ticked." Every row is tried,
+  the list is read again, and the refused rows stay ticked so the same
+  action can be tried again on exactly them. When every row was refused, the
+  message is the server's own reason for the first one. No reason is ever
+  guessed: Placements and Featured plans used to blame any failure on "not
+  running any more" or "has purchases". One function says this for every row
+  and for the Events dashboard's Sign-ups (`batchOutcome` in
+  `src/components/directory/listings-dashboard/batch-outcome.ts`).
+- **A single Reject asks first, the same as a batch does.** Reject on one
+  submission, claim or owner deal, Turn down on one owner change, and Dismiss
+  on one report each open an "Are you sure?" window naming who is emailed,
+  from the footer, the ⋮ and Submissions' "Reject, point to it". Approve
+  and Mark fixed do not ask. `useAskFirst` in `queue-parts.tsx` draws it.
+- **One word for waiting.** Every queue's status reads Waiting, Approved and
+  Rejected (Owner changes said "Needs review" and "Applied" until
+  24 Nov 2026), the word the age chip uses. Only the words on screen changed;
+  the stored values are the same.
 - **A queue opens on its waiting records.** Status in Filter shows the
   others, and All shows every one.
 - **Waiting time:** Submissions, Claims, Owner changes and Reports show how
   long each record has waited. From three days the chip turns amber (Tyler,
-  18 Nov 2026, picked 3 days).
+  18 Nov 2026, picked 3 days). Once a record is decided, the same column
+  shows the day it was decided, and its status sits in a Status column of
+  its own in every queue.
+- **The footer's approve button says "Approve"** in every queue, beside a
+  line that says what approving does ("Approving publishes it straight
+  away"). The right panel opens 172px wide at 1280, and "Approve and publish"
+  ran past its edge. The ⋮ keeps the longer words.
+- **A decided submission's ⋮** has no Approve or Reject. It used to show them
+  greyed out; with nothing left to do there is no ⋮ at all, unless the
+  submission became a listing, when the ⋮ opens it.
 - **Listings** show one status at a time behind the header's Published,
   Draft and Closed tabs, Published first, each tab with its count for the
   words and category in view (Tyler, 18 Nov 2026: "Add tabs to the listing in
@@ -138,7 +163,10 @@ Every row has the same header and table, the shell's `CrmListHeader` and
 - **Categories** fold by family. A top-level category with subcategories is
   a heading over itself and every category under it. Categories with no
   parent and no children sit last under "On their own". Pressing a count opens
-  Listings narrowed to that category.
+  Listings narrowed to that category. The count is of listings that exist:
+  it used to count the category's links alone, and a link left behind by a
+  listing removed outside the app made Food read 2 in the table and 0 in its
+  own Listings card. A listing deleted in the app takes its links with it.
 - **Custom fields** lists the listing sections only; the Events dashboard has
   the same row for the events' own list (`events.md`). They keep the order
   they have on a listing's page. Move up and
@@ -207,7 +235,12 @@ opens the first row, and after that the dashboard remembers the record.
     open reports, and how many people saved it.
   - Views: the last 7 days, 30 days, year and all time.
   - Where it appears: the guides it is in, its upcoming events and its live
-    deals.
+    deals. An event shows its own day, "Tue, Nov 24", read as a calendar
+    day; until 24 Nov 2026 it read as midnight in London and showed the day
+    before in Toronto.
+  - Long free text in a card, such as why a placement was revoked or the
+    link a claimant gave, wraps under its label in full instead of being cut
+    off. The claimant's link opens in a new tab when it is a web address.
 - **A category's ⋮ holds its fields** (Tyler, 24 Nov 2026: "for categories.
   move this into the 3 dot dropdown"). Its General tab is one grey list, The
   category: Name, Address part, Page description, Search description, Photo

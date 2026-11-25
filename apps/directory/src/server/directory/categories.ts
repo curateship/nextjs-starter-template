@@ -10,6 +10,7 @@ import { now, uuid } from "@/server/auth/security"
 import {
   categories,
   categoryRelationships,
+  directoryListings,
   LISTING_CONTENT_TYPE,
   type CategoryRow,
 } from "@/server/directory/schema"
@@ -124,12 +125,23 @@ export async function listCategories(
       .from(categories)
       .where(eq(categories.workspaceId, workspaceId))
       .orderBy(asc(categories.displayOrder), asc(categories.name)),
+    // Joined to the listings, so the number counts listings that are really
+    // there. It used to count the links alone, and a link left behind by a
+    // listing deleted outside the app made the table say 2 where the
+    // category's own Listings card, which reads the listings, said 0.
     database
       .select({
         categoryId: categoryRelationships.categoryId,
         count: sql<number>`count(*)::int`,
       })
       .from(categoryRelationships)
+      .innerJoin(
+        directoryListings,
+        and(
+          eq(directoryListings.id, categoryRelationships.contentId),
+          eq(directoryListings.workspaceId, categoryRelationships.workspaceId)
+        )
+      )
       .where(
         and(
           eq(categoryRelationships.workspaceId, workspaceId),

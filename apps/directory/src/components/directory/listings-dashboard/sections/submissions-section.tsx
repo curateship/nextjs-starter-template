@@ -6,14 +6,15 @@ import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { DetailNote, DetailRow, DetailRows } from "@/components/directory/listings-dashboard/detail-rows"
-import { ListPager, NoMatches, RecordMenu, useOpenFirstRow, type SectionProps } from "@/components/directory/listings-dashboard/section-parts"
-import { QueueStatusFilter, WaitedChip } from "@/components/directory/listings-dashboard/queue-parts"
+import { ListPager, NoMatches, RecordMenu, useOpenFirstRow, type MenuAction, type SectionProps } from "@/components/directory/listings-dashboard/section-parts"
+import { QueueStatusFilter, useAskFirst, WaitedChip } from "@/components/directory/listings-dashboard/queue-parts"
 import { DuplicateWarning } from "@/components/directory/submission-parts"
 import { CharacterCount } from "@/components/shared/character-count"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { PanelCard } from "@/components/shared/panel-card"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
+import { batchOutcome } from "@/components/directory/listings-dashboard/batch-outcome"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { TableCell } from "@/components/ui/table"
@@ -182,7 +183,7 @@ export function SubmissionsSection({ data, search, frame, onChanged }: SectionPr
               {submission.status === "pending_review" ? (
                 <WaitedChip since={submission.verifiedAt ?? submission.createdAt} />
               ) : (
-                <span className="text-muted-foreground">{formatDate(submission.createdAt)}</span>
+                <span className="text-muted-foreground">{formatDate(submission.reviewedAt ?? submission.createdAt)}</span>
               )}
             </TableCell>
             <TableCell column="meta" className="hidden md:hidden @xl:table-cell">
@@ -250,24 +251,21 @@ export function SubmissionsSection({ data, search, frame, onChanged }: SectionPr
         onConfirm={() =>
           void run(async () => {
             if (!rejecting) return
-            const failed: string[] = []
+            const refused: { row: (typeof rejecting)[number]; error: unknown }[] = []
             let notEmailed = 0
             for (const submission of rejecting) {
               try {
                 const { emailed } = await decideSubmission({ id: submission.id, decision: "reject" })
                 if (!emailed) notEmailed += 1
-              } catch {
-                failed.push(submission.businessName)
+              } catch (error) {
+                refused.push({ row: submission, error })
               }
             }
             setRejecting(null)
-            selection.clear()
+            selection.setSelected(new Set(refused.map(({ row }) => row.id)))
             await onChanged()
-            if (failed.length) {
-              throw new Error(
-                `${rejecting.length - failed.length} of ${rejecting.length} rejected. ${failed.join(", ")} could not be, and stay waiting.`
-              )
-            }
+            const problem = batchOutcome({ asked: rejecting, refused, verb: "rejected", nameOf: (row) => row.businessName })
+            if (problem) throw problem
             if (notEmailed) toast.warning(`${notEmailed} ${plural(notEmailed, "sender was", "senders were")} not reached by email. The rejections still hold.`)
           })
         }
@@ -304,6 +302,30 @@ function SubmissionRecord({
       if (!emailed) toast.warning(submissionDecisionMessage(decision, emailed))
       onDecided()
     })
+  const askFirst = useAskFirst({
+    title: "Reject this submission?",
+    description: `${submission.contactEmail || "The sender"} gets the rejection email${note.trim() ? " with your note" : ""}. Nothing becomes a listing.`,
+    confirmLabel: "Reject",
+    busy,
+  })
+
+  const menuActions: MenuAction[] =
+    listing && submission.listingId
+      ? [
+          {
+            label: "Open the listing it became",
+            icon: <StoreIcon className="size-4" />,
+            onSelect: () => void navigate({ to: "/admin/listings", search: { open: submission.listingId ?? undefined } }),
+          },
+        ]
+      : decided
+        ? // Hidden once decided, as the other queues do, rather than
+          // greyed out with no word on why.
+          []
+        : [
+            { label: "Approve and publish", icon: <CheckIcon className="size-4" />, onSelect: () => decide("approve"), disabled: busy },
+            { label: "Reject", icon: <XIcon className="size-4" />, destructive: true, onSelect: () => askFirst.ask(() => decide("reject")), disabled: busy },
+          ]
 
   return (
     <RecordFrame
@@ -312,29 +334,14 @@ function SubmissionRecord({
       line={decided ? REVIEW_STATUS_LABELS[submission.status] : `Waiting ${waitedText(submission.verifiedAt ?? submission.createdAt)}`}
       hideLabel="Hide the submission"
       actions={
-        <RecordMenu
-          label="Submission menu"
-          actions={
-            listing && submission.listingId
-              ? [
-                  {
-                    label: "Open the listing it became",
-                    icon: <StoreIcon className="size-4" />,
-                    onSelect: () => void navigate({ to: "/admin/listings", search: { open: submission.listingId ?? undefined } }),
-                  },
-                ]
-              : [
-                  { label: "Approve and publish", icon: <CheckIcon className="size-4" />, onSelect: () => decide("approve"), disabled: busy || decided },
-                  { label: "Reject", icon: <XIcon className="size-4" />, destructive: true, onSelect: () => decide("reject"), disabled: busy || decided },
-                ]
-          }
-        />
+        menuActions.length ? <RecordMenu label="Submission menu" actions={menuActions} /> : undefined
       }
       body={
         <>
+          {askFirst.dialog}
           {!decided && duplicates.length ? (
             <PanelCard storageId="submission-duplicates" icon={<TriangleAlertIcon />} title="Possibly already listed" openWhen>
-              <DuplicateWarning duplicates={duplicates} busy={busy} onReject={(listingId) => decide("reject", listingId)} />
+              <DuplicateWarning duplicates={duplicates} busy={busy} onReject={(listingId) => askFirst.ask(() => decide("reject", listingId))} />
             </PanelCard>
           ) : null}
           <PanelCard storageId="submission-sent" icon={<InboxIcon />} title="What was sent">
@@ -382,11 +389,14 @@ function SubmissionRecord({
             <FooterState>
               <span className="text-muted-foreground">Approving publishes it straight away.</span>
             </FooterState>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => decide("reject")}>
+            <Button type="button" variant="outline" disabled={busy} onClick={() => askFirst.ask(() => decide("reject"))}>
               Reject
             </Button>
             <Button type="button" disabled={busy} onClick={() => decide("approve")}>
-              Approve and publish
+              {/* "Approve" alone: the line beside it says what approving
+                  does, and the side panel opens 172px wide, where "Approve and
+                  publish" ran 4px past its edge. The ⋮ keeps the long words. */}
+              Approve
             </Button>
           </>
         )

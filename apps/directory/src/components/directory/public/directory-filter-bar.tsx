@@ -71,9 +71,11 @@ function FilterTrigger({ label, count }: { label: string; count: number }) {
   return (
     <PopoverTrigger
       className={cn(
-        "group inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border bg-background px-3 text-sm font-medium whitespace-nowrap transition-colors hover:bg-muted/60",
+        // Drawn exactly like the Filters button on the directory pages: 32px,
+        // the height of every control (it was 36px beside 32px chips).
+        "group inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-input bg-transparent pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors hover:bg-muted/60 dark:bg-input/30",
         focusRing,
-        count ? "border-foreground" : null
+        count ? "border-foreground font-medium" : null
       )}
     >
       {label}

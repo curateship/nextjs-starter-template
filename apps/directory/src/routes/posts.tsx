@@ -3,6 +3,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router"
 import { DirectoryBreadcrumbs } from "@/components/directory/public/directory-breadcrumbs"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
+import { PublicTitleBand } from "@/components/shared/public-title-band"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { PostGrid } from "@/components/posts/public/post-grid"
 import { requirePageVisible } from "@/lib/api/content/pages"
@@ -47,13 +48,19 @@ function PostsRoute() {
   const { site, posts, total, page, pageSize } = Route.useLoaderData()
 
   return (
-    <DirectoryFrame>
-      <DirectoryBreadcrumbs
-        crumbs={[{ label: site.name, home: true }, { label: "Posts" }]}
-      />
-      <header>
-        <h1 className="text-2xl font-semibold">Posts</h1>
-      </header>
+    <DirectoryFrame
+      hero={
+        <PublicTitleBand
+          crumbs={
+            <DirectoryBreadcrumbs
+              crumbs={[{ label: site.name, home: true }, { label: "Posts" }]}
+              inBand
+            />
+          }
+          title="Posts"
+        />
+      }
+    >
       <PostGrid
         posts={posts}
         siteName={site.name}

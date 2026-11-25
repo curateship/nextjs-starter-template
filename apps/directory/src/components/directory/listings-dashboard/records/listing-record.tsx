@@ -53,6 +53,7 @@ import { waitedText } from "@/lib/directory/listings-dashboard-page"
 import type { ListingsSection } from "@/lib/directory/listings-dashboard-search"
 import { LISTING_REPORT_REASON_LABELS } from "@/lib/directory/report-reasons"
 import { slugFromTitle } from "@/lib/directory/slugs"
+import { formatEventShortDay } from "@/lib/events/event-time"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { useLoad } from "@/lib/hooks/use-load"
@@ -674,7 +675,9 @@ function EventRow({ title, startDate, id }: { title: string; startDate: string; 
       onClick={() => void navigate({ to: "/admin/events", search: { open: id } })}
     >
       <span className="min-w-0 flex-1 truncate">{title}</span>
-      <span className="shrink-0 text-xs text-muted-foreground">Event, {formatDate(startDate)}</span>
+      {/* The events' own day, read as a calendar day. `formatDate` read the
+          stored "2026-09-18" as midnight in London, the day before in Toronto. */}
+      <span className="shrink-0 text-xs text-muted-foreground">Event, {formatEventShortDay(startDate)}</span>
     </button>
   )
 }

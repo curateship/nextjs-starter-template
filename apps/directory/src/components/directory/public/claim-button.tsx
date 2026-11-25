@@ -1,6 +1,9 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { Building2Icon } from "lucide-react"
+import {
+  Building2Icon,
+  Loader2Icon,
+} from "lucide-react"
 
 import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
 import { Button } from "@/components/ui/button"
@@ -20,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { CharacterCount } from "@/components/shared/character-count"
+import { FieldProblem } from "@/components/directory/public/field-problem"
 import { LISTING_ROW_CLASS } from "@/components/directory/public/listing-contact-links"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { CLAIM_MESSAGE_MAX } from "@/lib/directory/field-lengths"
@@ -28,6 +32,7 @@ import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { getClaimErrorMessage, submitClaim } from "@/lib/api/directory/claims"
+import { looksLikeEmail } from "@/lib/directory/submission-fields"
 import type { PublicClaimState } from "@/lib/api/directory/public"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
@@ -178,6 +183,8 @@ function ClaimDialog({
   const [proofUrl, setProofUrl] = React.useState("")
   const [message, setMessage] = React.useState("")
   const [sending, setSending] = React.useState(false)
+  /** Which required boxes have been left, so nothing is marked while typed. */
+  const [touched, setTouched] = React.useState<Set<"email" | "name">>(new Set())
 
   const [openedFor, setOpenedFor] = React.useState<string | null>(null)
   const key = open ? listingId : null
@@ -189,7 +196,17 @@ function ClaimDialog({
     setPhone("")
     setProofUrl("")
     setMessage("")
+    setTouched(new Set())
   }
+
+  function problemWith(field: "email" | "name"): string | null {
+    if (field === "name") return claimantName.trim() ? null : "Your name is needed."
+    const email = contactEmail.trim()
+    if (!email) return "An email is needed, so we can check it is yours."
+    return looksLikeEmail(email) ? null : "That does not look like an email address."
+  }
+  const emailProblem = touched.has("email") ? problemWith("email") : null
+  const nameProblem = touched.has("name") ? problemWith("name") : null
 
   const dirty = Boolean(
     contactEmail.trim() ||
@@ -202,6 +219,14 @@ function ClaimDialog({
 
   async function send() {
     dismissErrorToast()
+    // Checked here as well as by the server: a round trip to be told the name
+    // was left blank is a worse answer than saying so now.
+    setTouched(new Set(["email", "name"]))
+    const firstProblem = problemWith("email") ?? problemWith("name")
+    if (firstProblem) {
+      showErrorToast(firstProblem)
+      return
+    }
     setSending(true)
     try {
       await submitClaim({
@@ -228,10 +253,13 @@ function ClaimDialog({
       {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Claim {listingTitle}</DialogTitle>
+            {/* The name lives in the line under the title: a long one in the
+                title ran under the close button on a phone, which is why the
+                report and message windows took it out too. */}
+            <DialogTitle>Claim this business</DialogTitle>
             <DialogDescription>
-              We email the address you give to check it is yours, then somebody
-              reads the request by hand.
+              For {listingTitle}. We email the address you give to check it is
+              yours, then somebody reads the request by hand.
             </DialogDescription>
           </DialogHeader>
 
@@ -245,49 +273,47 @@ function ClaimDialog({
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
-                <div className="grid gap-2">
-                  <FieldLabel htmlFor="claim-email">Business email</FieldLabel>
-                  <Input
-                    id="claim-email"
-                    type="email"
-                    autoComplete="email"
-                    value={contactEmail}
-                    disabled={sending}
-                    onChange={(event) => setContactEmail(event.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <FieldLabel htmlFor="claim-name">Your name</FieldLabel>
-                  <Input
-                    id="claim-name"
-                    autoComplete="name"
-                    value={claimantName}
-                    disabled={sending}
-                    onChange={(event) => setClaimantName(event.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <FieldLabel htmlFor="claim-role">
-                    Your role at the business
-                  </FieldLabel>
-                  <Input
-                    id="claim-role"
-                    placeholder="Owner"
-                    value={roleTitle}
-                    disabled={sending}
-                    onChange={(event) => setRoleTitle(event.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <FieldLabel htmlFor="claim-phone">Phone</FieldLabel>
-                  <Input
-                    id="claim-phone"
-                    type="tel"
-                    value={phone}
-                    disabled={sending}
-                    onChange={(event) => setPhone(event.target.value)}
-                  />
-                </div>
+                <ClaimField
+                  id="claim-email"
+                  label="Business email"
+                  type="email"
+                  autoComplete="email"
+                  max={255}
+                  value={contactEmail}
+                  onChange={setContactEmail}
+                  disabled={sending}
+                  problem={emailProblem}
+                  onBlur={() => setTouched((was) => new Set(was).add("email"))}
+                />
+                <ClaimField
+                  id="claim-name"
+                  label="Your name"
+                  autoComplete="name"
+                  max={200}
+                  value={claimantName}
+                  onChange={setClaimantName}
+                  disabled={sending}
+                  problem={nameProblem}
+                  onBlur={() => setTouched((was) => new Set(was).add("name"))}
+                />
+                <ClaimField
+                  id="claim-role"
+                  label="Your role at the business (optional)"
+                  placeholder="Owner"
+                  max={120}
+                  value={roleTitle}
+                  onChange={setRoleTitle}
+                  disabled={sending}
+                />
+                <ClaimField
+                  id="claim-phone"
+                  label="Phone (optional)"
+                  type="tel"
+                  max={60}
+                  value={phone}
+                  onChange={setPhone}
+                  disabled={sending}
+                />
               </CardContent>
             </Card>
 
@@ -296,25 +322,20 @@ function ClaimDialog({
                 <CardTitle>Anything that helps</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4">
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="claim-proof"
-                    hint="A page naming you — your own site's about page, or a profile. Optional."
-                  >
-                    Link
-                  </FieldLabel>
-                  <Input
-                    id="claim-proof"
-                    type="url"
-                    placeholder="https://"
-                    value={proofUrl}
-                    disabled={sending}
-                    onChange={(event) => setProofUrl(event.target.value)}
-                  />
-                </div>
+                <ClaimField
+                  id="claim-proof"
+                  label="Link (optional)"
+                  hint="A page naming you, such as your own site's about page or a profile."
+                  type="url"
+                  placeholder="https://"
+                  max={2000}
+                  value={proofUrl}
+                  onChange={setProofUrl}
+                  disabled={sending}
+                />
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between gap-2">
-                    <FieldLabel htmlFor="claim-message">Message</FieldLabel>
+                    <FieldLabel htmlFor="claim-message">Message (optional)</FieldLabel>
                     <CharacterCount value={message} max={CLAIM_MESSAGE_MAX} />
                   </div>
                   <Textarea
@@ -346,11 +367,65 @@ function ClaimDialog({
               disabled={sending}
               onClick={() => void send()}
             >
+              {sending ? <Loader2Icon className="animate-spin" /> : null}
               Send my request
             </Button>
           </DialogFooter>
         </DialogContent>
       )}
     </FormDialog>
+  )
+}
+
+/**
+ * One box of the claim window: its label, how much of its cap is used, and
+ * what is wrong with it once it has been left. The caps are the server's own
+ * (`lib/api/directory/claims.ts`), so a long paste stops at the box instead of
+ * coming back as the validator's words.
+ */
+function ClaimField({
+  id,
+  label,
+  hint,
+  max,
+  value,
+  onChange,
+  problem = null,
+  onBlur,
+  ...input
+}: {
+  id: string
+  label: string
+  hint?: string
+  max: number
+  value: string
+  onChange: (value: string) => void
+  problem?: string | null
+  onBlur?: () => void
+  type?: string
+  autoComplete?: string
+  placeholder?: string
+  disabled: boolean
+}) {
+  return (
+    <div className="relative grid gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <FieldLabel htmlFor={id} hint={hint}>
+          {label}
+        </FieldLabel>
+        <CharacterCount value={value} max={max} />
+      </div>
+      <Input
+        id={id}
+        maxLength={max}
+        value={value}
+        aria-invalid={problem ? true : undefined}
+        aria-describedby={problem ? `${id}-problem` : undefined}
+        onBlur={onBlur}
+        onChange={(event) => onChange(event.target.value)}
+        {...input}
+      />
+      <FieldProblem id={id} problem={problem} />
+    </div>
   )
 }
