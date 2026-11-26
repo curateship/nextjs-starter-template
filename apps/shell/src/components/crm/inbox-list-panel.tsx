@@ -1,9 +1,12 @@
 import * as React from "react"
 import {
   BanIcon,
+  BotIcon,
   ListChecksIcon,
+  MailCheckIcon,
   MailOpenIcon,
   StarIcon,
+  UserIcon,
 } from "lucide-react"
 
 import { NewEmailButton } from "@/components/crm/new-email-button"
@@ -70,6 +73,8 @@ export type InboxFilters = {
 /** What a row's right-click menu, or the "N selected" menu, can do to conversations. */
 export type InboxRowActions = {
   onSave: (thread: InboxThread, saved: boolean) => void
+  /** "Not a robot" (false) or "Move to Other" (true), CRM task 38, part 4. */
+  onRobot: (thread: InboxThread, robot: boolean) => void
   onMarkUnread: (thread: InboxThread) => void
   onBlock: (thread: InboxThread) => void
 }
@@ -104,6 +109,7 @@ export function InboxListPanel({
   unreadCount,
   savedCount,
   waitingCount,
+  otherCount,
   waitingShown,
   outboxShown,
   outbox,
@@ -134,6 +140,8 @@ export function InboxListPanel({
   onToggleTick,
   onClearTicks,
   onMarkTickedRead,
+  unreadInView,
+  onMarkAllRead,
   onLoadMore,
 }: {
   threads: InboxThread[]
@@ -146,6 +154,8 @@ export function InboxListPanel({
   savedCount: number
   /** The Waiting pill's count, worked out the same way. */
   waitingCount: number
+  /** The Other view's count: machines' mail, which no other view shows. */
+  otherCount: number
   /** False while the chase is off (0 days), which hides the Waiting pill. */
   waitingShown: boolean
   /** True where the server keeps a development outbox, which draws its pill. */
@@ -199,6 +209,10 @@ export function InboxListPanel({
   onToggleTick: (threadId: string) => void
   onClearTicks: () => void
   onMarkTickedRead: () => void
+  /** Every unread conversation the search, filters and view match, loaded or not. */
+  unreadInView: number
+  /** Asks before marking all of `unreadInView` read (CRM task 38, part 7). */
+  onMarkAllRead: () => void
   onLoadMore: () => void
 }) {
   const appliedSearch = filters.search
@@ -247,6 +261,7 @@ export function InboxListPanel({
     ...(waitingShown || filters.view === "waiting"
       ? [{ value: "waiting", label: "Waiting", count: waitingCount }]
       : []),
+    { value: "other", label: "Other", count: otherCount },
     ...(outboxShown ? [{ value: "outbox", label: "Outbox" }] : []),
   ]
   const shownAddresses = addressLabels.size > 1
@@ -273,6 +288,17 @@ export function InboxListPanel({
                     <MailOpenIcon className="size-4 text-muted-foreground" />
                     Mark read
                   </SelectedMenuRow>
+                  {unreadInView > 0 ? (
+                    <SelectedMenuRow
+                      onClick={() => {
+                        menu.close()
+                        onMarkAllRead()
+                      }}
+                    >
+                      <MailCheckIcon className="size-4 text-muted-foreground" />
+                      Mark all {unreadInView.toLocaleString()} read
+                    </SelectedMenuRow>
+                  ) : null}
                 </>
               )}
               pages={{}}
@@ -471,7 +497,9 @@ export function InboxListPanel({
                     ? "No conversation is saved."
                     : filters.view === "waiting"
                       ? "Nobody is waiting on you."
-                      : "No conversations match."}
+                      : filters.view === "other"
+                        ? "No mail from no-reply addresses or mailing lists."
+                        : "No conversations match."}
                 {narrowed > 0 || appliedSearch ? (
                   <Button
                     type="button"
@@ -618,6 +646,10 @@ function RowRightClickMenu({
           <MailOpenIcon className="size-4" />
           Mark unread
         </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => actions.onRobot(thread, !thread.robot)}>
+          {thread.robot ? <UserIcon className="size-4" /> : <BotIcon className="size-4" />}
+          {thread.robot ? "Not a robot" : "Move to Other"}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onSelect={() => actions.onBlock(thread)}>
           <BanIcon className="size-4" />
@@ -691,9 +723,22 @@ function InboxRow({
       </MainCell>
       <TableCell column="preview" className="w-full max-w-0 min-w-40">
         <span className={cn("block truncate", thread.unread ? "text-foreground" : "text-muted-foreground")}>
-          {/* An answer of ours reads as a reply rather than as their words. */}
-          {thread.lastDirection === "out" ? "You: " : null}
-          {thread.snippet ?? thread.subject ?? ""}
+          {thread.match ? (
+            // While searching, the line the word was found in, the word
+            // heavier: the reason the row is in the list, without opening it.
+            <>
+              {thread.match.fromUs ? "You: " : null}
+              {thread.match.before}
+              <span className="font-semibold text-foreground">{thread.match.word}</span>
+              {thread.match.after}
+            </>
+          ) : (
+            <>
+              {/* An answer of ours reads as a reply rather than as their words. */}
+              {thread.lastDirection === "out" ? "You: " : null}
+              {thread.snippet ?? thread.subject ?? ""}
+            </>
+          )}
         </span>
       </TableCell>
       <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">

@@ -114,6 +114,59 @@ export function messageSnippet(
     : squeezed
 }
 
+/**
+ * A message's own words cut around a searched-for word, for an inbox row
+ * while somebody is searching: the words before it, the word as the message
+ * wrote it, and the words after. The row draws the word heavier by putting the
+ * middle piece in its own element, so nothing from the mail is ever drawn as
+ * markup.
+ */
+export type SnippetMatch = { before: string; word: string; after: string }
+
+/** How much of the line comes before the word, so it has something to sit in. */
+const MATCH_LEAD = 24
+
+/**
+ * The line of a message holding `search`, or null when its own words do not.
+ *
+ * Their quoted history is skipped, as `messageSnippet` skips it, so a match
+ * shown is something this message said rather than an older one it quoted.
+ * Capitals make no difference, the same as the search itself.
+ */
+export function matchSnippet(
+  textBody: string | null,
+  htmlBody: string | null,
+  search: string
+): SnippetMatch | null {
+  const needle = search.trim().replace(/\s+/g, " ").toLowerCase()
+  if (!needle) return null
+  const source = textBody?.trim()
+    ? textBody
+    : htmlBody
+      ? htmlToText(htmlBody)
+      : null
+  if (!source) return null
+
+  const own = splitQuotedText(source).own.replace(/\s+/g, " ").trim()
+  const at = own.toLowerCase().indexOf(needle)
+  if (at < 0) return null
+
+  // Started on a whole word, so the line never opens on half of one.
+  let start = Math.max(0, at - MATCH_LEAD)
+  if (start > 0 && own[start - 1] !== " ") {
+    const space = own.indexOf(" ", start)
+    start = space >= 0 && space < at ? space + 1 : start
+  }
+  const end = Math.max(at + needle.length, Math.min(own.length, start + SNIPPET_LENGTH))
+  const before = own.slice(start, at)
+  const after = own.slice(at + needle.length, end)
+  return {
+    before: start > 0 ? `…${before.trimStart()}` : before,
+    word: own.slice(at, at + needle.length),
+    after: end < own.length ? `${after.trimEnd()}…` : after,
+  }
+}
+
 /** The newest message in a conversation, as the quote below a reply needs it. */
 export type QuotableMessage = {
   fromName: string | null

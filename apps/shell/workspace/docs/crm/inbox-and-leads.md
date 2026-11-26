@@ -36,12 +36,27 @@ and not linked it outside. The Ui is all over the place as well."
 - **Overview** is the Admin dashboard's widget grid with no middle panel,
   two panels with a layout of their own, its rows and spots set in the CRM
   ⋮'s **Widgets** tab and saved for the site (`admin_widget_layouts`, board
-  `crm`). The CRM has no widgets of its own, so a new site starts with one
-  row of two spots, each saying "No CRM widgets yet.", and the Widgets tab
-  shows only the rows. An app adds CRM widgets through `crm.widgets` in its
+  `crm`). An app adds CRM widgets through `crm.widgets` in its
   `src/app/options.ts` (`docs/shell/admin-blocks-and-widgets.md`). A bare
-  `/admin/crm` on a browser that never opened the CRM lands on Inbox, not on
-  an empty Overview.
+  `/admin/crm` on a browser that never opened the CRM lands on Inbox.
+- **The shell's four Inbox widgets** (Tyler picked "Inbox widgets on
+  Overview" on 25 Nov 2026; `crm-overview-widgets.tsx`, figures from
+  `getCrmOverviewFigures` in `src/server/crm/overview.ts`, read with the
+  page). A new site starts with Unread and Waiting on you on top, Mail per
+  day and Time to first answer under them. A site that saved a layout
+  before keeps it, and the four are offered in its Widgets tab.
+  - **Unread:** the Inbox's own Unread count, with Open Unread.
+  - **Waiting on you:** the Waiting view's count, with Open Waiting. With
+    unanswered mail switched off it says nobody counts as waiting.
+  - **Mail per day:** mail that came in, one bar a day for the last 30 days,
+    days with none drawn as zero.
+  - **Time to first answer:** the typical wait between someone's first mail
+    and the first answer to it, in words ("3 hours"), over conversations that
+    started in the last 30 days. Typical is the middle one, so one reply a
+    week late does not drag it. Conversations nobody has answered are left
+    out, and with none answered it says "No answers yet".
+  - Mail from blocked senders counts in none of them: their conversations are
+    the only closed ones.
 - **One middle header on every section** (`CrmListHeader` in
   `src/components/crm/crm-row.tsx`): the section's icon and name, "N
   selected" while rows are ticked, the search box (always there), Select
@@ -64,7 +79,7 @@ and not linked it outside. The Ui is all over the place as well."
   row of pills under the header until Tyler, 7 Nov 2026: "We dont need a
   second subnav. Just put it as a dropdown filter here". Its choices:
   - **Broadcasts:** Drafts, Scheduled, Sent, Templates.
-  - **Inbox:** All, Unread, Saved, Waiting, and Outbox on a laptop.
+  - **Inbox:** All, Unread, Saved, Waiting, Other, and Outbox on a laptop.
   - **Subscribers:** All, On the list, Opted out, then each saved segment.
 - **One table on every tab, laid out as Project's middle panel is** (Tyler,
   7 Nov 2026: "look at the design patter of project middle panel especially
@@ -343,6 +358,23 @@ The time is the few characters a mail client uses — `now`, `18m`, `3h`,
 `Yesterday`, `Mon`, `Sep 28` — because "18 minutes ago" would take the width the
 message needs.
 
+**While searching, a row shows the line the word was found in** (Tyler picked
+"Search shows the match" on 25 Nov 2026). The search looks through every
+message, so a row whose newest message says nothing about "deposit" used to
+give no clue why it was listed. Now a row that matched only inside its mail
+shows the newest message whose own words hold the search, cut to start on a
+whole word up to 24 characters before it, with the word itself heavier. A row
+that matched on the person's name, address, company or the subject keeps its
+newest line, because that already says why it is there.
+
+- Their quoted history is skipped, so the line is something that message said,
+  never an older one it quoted (`matchSnippet` in `src/lib/crm/message-text.ts`).
+- Capitals make no difference, and the word shows with the message's own.
+- The word is drawn by splitting the line into three pieces, never as markup
+  from the mail.
+- It is one more read per search, of only the page's rows and only the
+  messages the search matched (`matchingSnippets` in `src/server/crm/inbox.ts`).
+
 **Unread is a dot and a heavier weight, never colour alone.** A row also says
 "To follow up" when the chase date has passed, and names the status when it is
 not open. Those two lines only appear when they are true, so an ordinary row
@@ -563,17 +595,18 @@ Nothing is written when the provider refuses the send. A reply that did not go
 out must not appear in the conversation as though it had, and what was typed
 stays in the box so the words are not lost over something worth retrying.
 
-### A half-written reply survives a switch
+### A half-written reply survives a switch, and a reload
 
-**Opening another conversation no longer empties the box.** You can type three
+**Opening another conversation does not empty the box.** You can type three
 paragraphs, click another thread to check a date, and come back to your words
 with the caret after the last one. Every conversation keeps its own half-written
 reply, and three of them never cross.
 
-The words live on the CRM screen rather than in the box itself, in
-`src/lib/crm/reply-drafts.ts`, because the conversation panel is thrown away and
-rebuilt every time another thread is opened. State inside it is lost on every
-switch by definition.
+The words, the files picked for them, and a reply waiting to send live in the
+CRM's reply store (`src/components/crm/reply-store.ts`), above any one
+section, because the conversation panel is thrown away and rebuilt every time
+another thread is opened, and the Inbox and the Leads section each draw their
+own. A draft typed on one is there on the other.
 
 **A conversation with a draft says "Unsent draft" on its row** in the inbox, on
 the same line as "To follow up". In words rather than a dot, because "you left
@@ -583,11 +616,86 @@ Sending clears that conversation's draft, so the words never come back as a
 ghost over the next reply, and emptying the box by hand clears it too, mark
 included. Spaces alone are not a draft.
 
-**They are held for as long as the screen is open and no longer.** A reload
-clears every one of them, which is deliberate: a draft that outlives a reload
-needs its own database column, its own cleanup rule, and an answer for two
-admins typing in one conversation. If it turns out people reload with drafts
-open, that is its own piece of work.
+**The words are kept on the server too, so a reload, a shut tab or the next
+morning loses nothing** (Tyler picked "Draft survives a reload" on 25 Nov
+2026). One row per conversation per admin, in `crm_reply_drafts` (migration
+0120, `src/server/crm/reply-drafts.ts`):
+
+- **Each admin's own.** Another admin opening the same conversation sees an
+  empty box, never somebody else's half-written words.
+- **Saved a second after typing stops**, the last words only, and at once
+  when the tab is hidden, which is often a tab about to be shut.
+- **Read back once when the CRM opens.** A box already typed in keeps what it
+  has, because the saved copy is older.
+- **Sending forgets it**, on the server, only once the reply has really gone.
+- **Only the words.** Files picked for a draft are not kept past a reload.
+- **The background pass removes drafts untouched for 30 days.**
+- A save that fails keeps the words on screen and says nothing: the next pause
+  in typing tries again.
+
+### Undo send
+
+**Send holds a reply for ten seconds, with Undo, before it goes** (Tyler
+picked "Undo send" on 25 Nov 2026). The box empties and the reply is drawn at
+the foot of the conversation, faint and dashed, with "Sending in 8s" and an
+Undo button under it.
+
+- **Undo** sends nothing and puts the words and the files back in the box. Words
+  typed in the box during the wait stay too, after the reply's own.
+- **Opening another conversation, or another CRM section, does not cancel it.**
+  The wait is held in the reply store, above the sections, and the reply goes
+  at its time. Whichever conversation is open then is read again.
+- **A shut tab during the wait sends nothing and loses nothing.** The words are
+  saved as a draft the moment Send is pressed, and the server forgets them
+  only once the reply has really gone, so they are in the box on the next
+  visit.
+- **A refused send** puts the words and files back in the box, with the reason
+  in the error toast, as a refused send always did.
+- **Once it is handed to the server it says "Sending…"** and Undo goes, because
+  the mail can no longer be pulled back.
+- **New email** waits the same ten seconds, with "Sending in 8s" and Undo in its
+  dropdown above Send. What was typed stays in the dropdown until it has gone,
+  so Undo or a refusal leaves it there to change and send again.
+- Nothing is drawn as a toast. The UI standard has no success toasts and no
+  Undo toasts (Tyler, 10 and 11 Nov 2026); the bubble is where Undo lives.
+
+### Send later
+
+**The small arrow beside Send puts a reply off to a set time** (Tyler picked
+"Send a reply later" on 25 Nov 2026), so a quote written at 11:40 PM can
+arrive at 9 AM. Its three picks are Tomorrow morning, Monday morning (each
+9 AM, with the time shown beside it) and Pick a time, a day and a time.
+
+- **The moment is worked out in the person's own clock** and sent to the
+  server exact, so there is no site time zone to guess
+  (`src/lib/crm/send-later.ts`). Monday morning said on a Monday means the
+  next one. A time already gone, or more than a year off, is refused.
+- **The box empties**, and the reply is drawn faint and dashed at the foot of
+  the conversation: "Goes out Tomorrow, 9:00 AM", with **Change** (a new day
+  and time) and **Cancel**, which puts the words and files back in the box.
+- **The background pass sends it at its time through `sendCrmReply`**, the
+  same path as a reply sent now: the same From line, signature, quote and
+  threading. Each is claimed in the same statement that finds it, so two
+  passes running at once send it once. A sent one is deleted: the message it
+  became is the record (`crm_scheduled_replies`, migration 0121,
+  `src/server/crm/scheduled-replies.ts`).
+- **If they write again before it goes, it still goes**, and the conversation
+  says "They wrote again since you scheduled this." over it. Cancelling is a
+  press away; nothing cancels it on its own.
+- **One that could not go stays**, failed, with "Could not send:" and the
+  reason, and whoever scheduled it gets a notice in the bell, "Your reply to
+  Jane did not go out", which opens the conversation. It is the CRM's
+  `crm_follow_up` kind with words of its own, as the unanswered-mail notice
+  is. Change gives it a new time and it waits again.
+- **One stuck at "Sending…" for ten minutes** (the server stopped while it
+  went) is marked failed, never sent again on its own, because it may have
+  gone. It says to check the conversation before giving it a new time.
+- **Mail to an address blocked since is never sent**: blocking closes the
+  conversation, and a closed one is refused with "Mail from this address is
+  blocked".
+- A file picked from the media library and deleted before the time refuses
+  the send the way a missing file always does, and says so.
+- Only replies. A New email and a forward go now.
 
 Beside Send there is one shortcut. **Draft with AI** writes a first draft from
 the conversation, through the same metered path as every
@@ -595,6 +703,42 @@ other AI feature, so the allowance is checked before it and the spend is
 recorded after it. It is added under anything already typed rather than over it,
 it is never sent, and it is told not to invent a price, a date or a fact that is
 not in the conversation.
+
+## Mail from robots goes to Other
+
+**No-reply notices, receipts and newsletters go to the Inbox's Other view,
+so All shows the mail people wrote** (Tyler picked "Robots in their own view"
+on 25 Nov 2026). Before, a morning of them sat between customers, and a
+no-reply notice nobody answered counted as waiting and got chased.
+
+- **The rule** (`src/lib/crm/robot-mail.ts`): a conversation is a machine's
+  when its first mail came from an address named noreply, no-reply,
+  donotreply or do-not-reply, or carried a `List-Unsubscribe` header,
+  `Auto-Submitted` other than "no", or `Precedence: bulk` or `list`.
+- **The address is checked when the mail lands; the headers once its body
+  arrives**, because only the body brings them. A header only moves a
+  conversation its own mail started and holds nothing else, so an
+  out-of-office inside a conversation with a person never moves the person's
+  mail.
+- **Other is its own view with its count**, after Waiting. All, Unread, Saved
+  and Waiting leave machines' mail out, and so do the Dashboards block's Inbox
+  count, the Waiting on you block and the Overview's widgets
+  (`robot` on `crm_threads`, migration 0122; `robots` in `InboxFilter`).
+- **No bell, no live "New mail" bar and no unanswered-mail chase for it.**
+  A conversation's first mail owes its notice until the headers are read, and
+  rings then only if they said a person wrote it
+  (`sendOwedMailNotice` in `src/server/crm/inbound.ts`). If the body could not
+  be fetched, it counts as a person's and rings. The owed notice follows the
+  message, so a reply whose headers moved it into an older conversation rings
+  for that one.
+- **A wrong guess is one press to fix:** "Not a robot" or "Move to Other", in
+  the conversation's ⋮ and a row's right-click. The rule never changes that
+  conversation back, and the choice is kept for the address
+  (`crm_leads.robot_choice`), so their next conversation lands where this one
+  was put.
+- Nothing is deleted or judged by its words. Blocking stays the tool for spam,
+  and answering a machine's conversation works as any other.
+- Every conversation from before 25 Nov 2026 counts as a person's.
 
 ## Blocking an address
 
@@ -803,9 +947,31 @@ them. The inbox loads thirty rows at a time, so the cap is seven presses of
 Load more with every row ticked, and the bar says so in words rather than
 letting the request come back with a validation refusal nobody can read.
 
-Deleting is not here. Nothing in the CRM deletes a conversation yet. Neither is
-acting on every conversation the filter matches rather than the ticked ones,
-which the contacts list has and which needs its own confirmation.
+Deleting is not here. Nothing in the CRM deletes a conversation yet.
+
+### Mark every match read
+
+**"Mark all 612 read", in the same menu, marks every unread conversation the
+search, the filters and the view match**, loaded or not (Tyler picked "Mark
+every match read" on 25 Nov 2026). Ticking rows is capped at 200 a press, so a
+backlog of 600 was three or four rounds of Load more, tick, press.
+
+- **It asks first, with the real number:** "Mark 612 conversations read?".
+  The number is the list's own count of unread matches (`unreadInView`): the
+  unread ones on All and Unread, the unread saved ones on Saved, the unread
+  waiting ones on Waiting. The row is not drawn when that number is 0.
+- **The server works the set out from the filter**, never from a list of ids
+  sent by the browser. The page's first read, Load more, the live check and
+  this press all build their choices in one place (`inboxListChoices` in
+  `src/lib/crm/crm-search.ts`), and the server turns them into one filter
+  (`readInboxFilter` in `src/lib/api/crm/inbox.ts`), so they cannot mean
+  different conversations by the same choices.
+- **Mail newer than the list on screen stays unread.** The list carries the
+  moment the server read it (`listedAt`), and the write leaves alone any
+  conversation whose newest mail came after that, because nobody has seen it.
+- One statement, `markMatchingThreadsRead` in `src/server/crm/inbox.ts`, only
+  ever inside the site. Nothing pops up afterwards: the dots going is the
+  answer.
 
 ## Following up
 
@@ -997,14 +1163,37 @@ defensively, in `receiveFiles` in `src/server/email/provider.ts`. Locally,
 with no Resend key, every file ends at "Could not be fetched". The first
 real inbound mail with a file is the check.
 
-**Files go out with a reply from the media library** (CRM task 22): the
-paperclip beside Send opens it, and the picked files show above the buttons
-with an ×. Up to 10 MB in all, because Resend takes files as base64 inside
-the request, which grows them by a third. The media library holds pictures,
-video and sound, so a PDF cannot go out this way yet. A file from another
-site, or one gone since it was picked, refuses the whole reply and keeps the
-words. A sent file is recorded on the message like theirs, so it shows in
-the bubble and the Files tab.
+**Files go out with a reply from the media library or from the computer.**
+The paperclip beside Send opens a menu of two: **From the media library**
+(CRM task 22) and **From your computer** (Tyler picked "Send a PDF" on 25 Nov
+2026, because quotes and invoices are PDFs and the library holds only
+pictures, video and sound). The picked files show above the buttons with an
+×. Up to 10 files and 10 MB in all, because Resend takes files as base64
+inside the request, which grows them by a third.
+
+- **A file from the computer goes up the moment it is picked**, any kind, and
+  the paperclip turns into a spinner while it does. Send and Send later wait
+  until it is up, so a reply never goes without a file that was picked for
+  it. It is kept under
+  `crm-files/<site>/replies/`, beside the files people send in, never in the
+  media library (`storeReplyUpload` in `src/server/crm/reply-files.ts`).
+- **The server checks every uploaded file is this site's** before reading
+  it: its key must start with the site's own folder, so a key from another
+  site, or one walking out of the folder with a `..` folder, refuses the
+  reply. Dots inside a file's own name, such as `quote..v2.pdf`, are fine.
+- **The name is cleaned** of folders and characters a mail header cannot
+  carry, and it is what the customer sees.
+- **Over 10 MB, one file or all of them, is refused** with the words kept.
+  A file over 10 MB is refused before it goes up at all.
+- **With no file storage set up**, From your computer says to set it up in
+  Settings → General settings, under Cloudflare R2.
+- **A file picked and then taken off with ×, or never sent, stays in
+  storage.** Nothing clears unsent uploads yet.
+
+A file from another site, or one gone since it was picked, refuses the whole
+reply and keeps the words. A sent file is recorded on the message like
+theirs, so it shows in the bubble and the Files tab and opens through the
+same guarded route.
 
 **The ⋮'s Files tab lists every file in the conversation**, theirs and ours,
 each a link once it is stored.

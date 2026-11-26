@@ -75,13 +75,22 @@ export default function BookingsWidget({ days }: AdminAdditionProps) {
   could not be drawn." in its own card, and the rest of the dashboard
   carries on.
 
+An empty spot's "Add a widget" menu hangs from the words in its middle, not
+from the whole dashed box. A spot in a one-row Overview is as tall as the
+screen, and a menu hung from the box had no room above or below it, so it
+opened off the top of the screen (25 Nov 2026, `EmptySpot` in
+`src/components/shared/widgets/widget-menus.tsx`). Pressing anywhere in the
+box still opens it.
+
 ## Widgets on the CRM's Overview
 
 The CRM dashboard has an Overview of widgets too, laid out as Admin's (Tyler,
 8 Nov 2026: "We need to get the CRM dashboard up to date with the new admin
 dashboard. We dont have any CRM widgets so lets leave it empty for now"). The
-shell has none of its own there, so it says "No CRM widgets yet." until an
-app adds some, in the same shape under `crm`:
+shell's own there are four about the Inbox (Unread, Waiting on you, Mail per
+day, Time to first answer; 25 Nov 2026, the app's
+`workspace/docs/crm/inbox-and-leads.md`), and an app adds its own beside them,
+in the same shape under `crm`:
 
 ```ts
 export const appOptions: AppOptions = {
