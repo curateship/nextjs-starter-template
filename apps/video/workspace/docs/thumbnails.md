@@ -122,9 +122,25 @@ keys never delete a clip on the timeline.
 
 ## Text looks (Styles)
 
-Four ready-made looks on a words layer. Pressing one again takes it off.
+Four ready-made looks on a words layer, and any number of them can be on at
+once. Pressing one again takes it off.
 
-- **Thick outline:** white letters with a 12-pixel black outline.
+- **How the card looks (Tyler, 26 Nov 2026: "redesign style card for
+  thumbnail text", with a picture of it):** each look is a tile, two to a
+  row. The tile's top is a small slate-blue thumbnail with "SO EASY" drawn in
+  that look, and the look's name is underneath. A look that is on has a dark
+  edge and a tick in the top corner. The tiles are drawn in
+  `text-look-tiles.tsx`, not from the layer, so they always show the look at
+  its starting settings.
+- **Narrow panel:** the tiles stay two to a row and shrink with it. The words
+  in a tile shrink with the tile, and a long name wraps onto a second line.
+- **Colours in this card** (outline, the one word, shadow and box) are round
+  swatches: white, light grey, grey, navy and black, then a rainbow one for
+  any other colour. The rainbow one fills with the colour once it is picked.
+  The rest of the right panel keeps the square swatches every app uses.
+
+- **Thick outline:** white letters with a 12-pixel black outline. While it
+  is on, Styles shows Outline colour and Outline width (0 to 24 pixels).
 - **One word in yellow:** the last word in yellow (#ffd60a), with its own
   colour field. It is a new mark on the carousel's words, "accent", that only
   the board makes. A carousel's own buttons still offer bold and highlight

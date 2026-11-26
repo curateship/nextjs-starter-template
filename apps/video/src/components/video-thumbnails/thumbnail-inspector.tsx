@@ -34,6 +34,7 @@ import {
   useSelectedLayer,
   useThumbnails,
 } from "@/components/video-thumbnails/thumbnail-store"
+import { SwatchField, TextLookTiles } from "@/components/video-thumbnails/text-look-tiles"
 import { LengthCounter } from "@/components/video-assets/length-counter"
 import { aiUnitCostCents } from "@/lib/ai/ai-models"
 import { changePicture } from "@/lib/api/video/thumbnail-ai"
@@ -55,7 +56,6 @@ import {
   SHADOW_STRENGTH_MAX,
   TEXT_SHADOW_DEFAULTS,
   textShadowOf,
-  TEXT_LOOK_LABELS,
   TEXT_LOOKS,
   withoutTextLook,
   withTextLook,
@@ -228,36 +228,24 @@ function TextCards({
           </TabsList>
         </Tabs>
       </InspectorCard>
-      <InspectorCard title="Styles" description="Ready-made thumbnail looks. Press one again to take it off.">
-        <div className="grid grid-cols-2 gap-2">
-          {TEXT_LOOKS.map((look) => {
-            // On only when every one of them wears it.
-            const on = layers.every((each) => hasTextLook(each, look))
-            return (
-              <Button
-                key={look}
-                type="button"
-                variant={on ? "secondary" : "outline"}
-                aria-pressed={on}
-                onClick={() => toggleLook(look, on)}
-              >
-                {TEXT_LOOK_LABELS[look]}
-              </Button>
-            )
-          })}
-        </div>
+      <InspectorCard title="Styles" description="Ready-made thumbnail looks. Combine as many as you like.">
+        <TextLookTiles
+          // On only when every one of them wears it.
+          isOn={(look) => layers.every((each) => hasTextLook(each, look))}
+          onToggle={toggleLook}
+        />
         {layers.every((each) => hasTextLook(each, "accent")) ? (
-          <ColorField label="The one word's colour" value={layer.accentColor ?? "#ffd60a"} onChange={(accentColor) => patch({ accentColor })} />
+          <SwatchField label="The one word's colour" value={layer.accentColor ?? "#ffd60a"} onChange={(accentColor) => patch({ accentColor })} />
         ) : null}
         {layers.every((each) => hasTextLook(each, "outline")) ? (
           <>
-            <ColorField label="Outline colour" value={layer.outlineColor ?? "#000000"} onChange={(outlineColor) => patch({ outlineColor })} />
-            <SliderField id="thumbnail-text-outline" label="Outline" value={layer.outlineWidth ?? 0} min={0} max={24} onChange={(outlineWidth) => patch({ outlineWidth })} />
+            <SwatchField label="Outline colour" value={layer.outlineColor ?? "#000000"} onChange={(outlineColor) => patch({ outlineColor })} />
+            <SliderField id="thumbnail-text-outline" label="Outline width" value={layer.outlineWidth ?? 0} min={0} max={24} onChange={(outlineWidth) => patch({ outlineWidth })} />
           </>
         ) : null}
         {layers.every((each) => hasTextLook(each, "shadow")) ? <ShadowFields layer={layer} patch={patch} /> : null}
         {layers.every((each) => hasTextLook(each, "box")) ? (
-          <ColorField label="Box colour" value={layer.boxColor ?? "#000000"} onChange={(boxColor) => patch({ boxColor })} />
+          <SwatchField label="Box colour" value={layer.boxColor ?? "#000000"} onChange={(boxColor) => patch({ boxColor })} />
         ) : null}
       </InspectorCard>
     </>
@@ -282,7 +270,7 @@ function ShadowFields({
     shadow.spread !== TEXT_SHADOW_DEFAULTS.spread
   return (
     <>
-      <ColorField label="Shadow colour" value={shadow.color} onChange={(shadowColor) => patch({ shadowColor })} />
+      <SwatchField label="Shadow colour" value={shadow.color} onChange={(shadowColor) => patch({ shadowColor })} />
       <SliderField id="thumbnail-shadow-strength" label="Strength" unit="%" value={Math.round(shadow.opacity * 100)} min={0} max={SHADOW_STRENGTH_MAX * 100} onChange={(value) => patch({ shadowOpacity: Math.round(value) / 100 })} />
       <SliderField id="thumbnail-shadow-spread" label="Spread" value={shadow.spread} min={0} max={SHADOW_SPREAD_MAX} onChange={(shadowSpread) => patch({ shadowSpread })} />
       <SliderField id="thumbnail-shadow-softness" label="Softness" value={shadow.blur} min={0} max={SHADOW_BLUR_MAX} onChange={(shadowBlur) => patch({ shadowBlur })} />
