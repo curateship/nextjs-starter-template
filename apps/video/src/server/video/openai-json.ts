@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { OPENAI_NO_CREDIT_MESSAGE } from "@/lib/video/ai-providers"
+
 /**
  * One question to OpenAI whose answer must be JSON in the shape given.
  *
@@ -43,6 +45,7 @@ export async function askOpenAiJson<T>({
       () => ""
     )
     console.error(`OpenAI ${label}`, response.status, body)
+    if (response.status === 429 && body.includes("insufficient_quota")) throw new Error(OPENAI_NO_CREDIT_MESSAGE)
     throw new Error(`${label} failed (HTTP ${response.status})`)
   }
   const payload = (await response.json()) as {

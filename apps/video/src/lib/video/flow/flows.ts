@@ -87,6 +87,14 @@ export type FlowRunStep = {
    * for (flow.md, "Plan, OK, then make").
    */
   planned: boolean
+  /** The words of the last change asked of a made picture, or null. */
+  changedWith: string | null
+  /** This video's prompt for the step (the run's Prompt card), as last sent or suggested. */
+  videoPrompt: string | null
+  /** Those words are the AI's idea, as it wrote them. */
+  videoPromptFromAi: boolean
+  /** The node's switch: the AI writes this step's prompt for each video. */
+  suggestPrompt: boolean
   attempts: number
   startedAt: string | null
   finishedAt: string | null
@@ -96,6 +104,8 @@ export type FlowRunDetail = FlowRunListItem & {
   videoName: string | null
   /** AI video has made a cut that waits on the run to be saved. */
   hasCut: boolean
+  /** About what one AI idea for a step's prompt costs, in cents (fractions kept). */
+  ideaCents: number
   error: string | null
   steps: FlowRunStep[]
 }

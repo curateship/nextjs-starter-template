@@ -22,6 +22,7 @@ import { FLOW_RUN_STATUS_LABELS, flowRunIsLive, type FlowStepInput } from "@/lib
 import { RunStepPanel } from "./run-step-panel"
 import { SavePreview, SaveStepPanel } from "./run-save-step"
 import { StepPreview } from "./run-step-preview"
+import { usePromptIdeas } from "./use-prompt-ideas"
 
 /** The guide's last step, saving into a project, in the address as `?step=save`. */
 const SAVE_STEP = "save"
@@ -75,6 +76,7 @@ export function RunStepsPage({
   // What is typed on the right, per step, so the middle can show it as it is typed.
   // By step, then by box; what is typed is kept while the guide moves between steps.
   const [drafts, setDrafts] = React.useState<Record<string, Record<string, FlowStepInput>>>({})
+  const ideas = usePromptIdeas(run, setRun)
 
   const making = run.steps.some((step) => step.status === "queued" || step.status === "working") && run.status === "running"
   React.useEffect(() => {
@@ -176,7 +178,10 @@ export function RunStepsPage({
       <ol className="grid gap-2 px-3 py-5" aria-label="Steps">
         {steps.map((step, at) => {
           const showing = step === picked
-          const sub = step.boxes.length ? `Asks for ${step.boxes.map((box) => box.label).join(", ")}` : step.prompt
+          // Under each title, what this video's step is about once it has words,
+          // else what it asks for, else how every video is built.
+          const words = ideas.promptFor(step).trim()
+          const sub = words || (step.boxes.length ? `Asks for ${step.boxes.map((box) => box.label).join(", ")}` : step.prompt)
           return (
             <li key={step.id} className="relative">
               {/* The line joining the numbers is a drawing, not a divider, so it
@@ -294,7 +299,7 @@ export function RunStepsPage({
           <h2 className="text-3xl font-semibold tracking-tight text-balance">{picked.heading || picked.title}</h2>
           {picked.line ? <p className="text-lg text-muted-foreground">{picked.line}</p> : null}
         </div>
-        <StepPreview run={run} step={picked} draftFor={draftFor} />
+        <StepPreview run={run} step={picked} draftFor={draftFor} ideas={ideas} />
         {picked.explanation ? <p className="text-base leading-relaxed">{picked.explanation}</p> : null}
         {pager}
       </div>
@@ -335,6 +340,7 @@ export function RunStepsPage({
               onDraft={(step, boxId, input) =>
                 setDrafts((current) => ({ ...current, [step.id]: { ...current[step.id], [boxId]: input } }))
               }
+              ideas={ideas}
               onRun={(next, moveOn) => {
                 setRun(next)
                 if (moveOn) goTo(next.steps[index + 1] ?? SAVE_STEP)

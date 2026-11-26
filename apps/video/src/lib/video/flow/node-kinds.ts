@@ -1,5 +1,6 @@
 import {
   AudioLinesIcon,
+  AudioWaveformIcon,
   BotIcon,
   ClapperboardIcon,
   FileTextIcon,
@@ -10,9 +11,14 @@ import {
   PanelsTopLeftIcon,
   UploadIcon,
   UserRoundIcon,
+  VideoIcon,
   type LucideIcon,
 } from "lucide-react"
 import { z } from "zod"
+
+import { AI_MUSIC_MAX_MS, AI_MUSIC_MIN_MS } from "@/lib/video/ai-music"
+import { AI_SOUND_MAX_SECONDS, AI_SOUND_MIN_SECONDS } from "@/lib/video/ai-sound-effects"
+import { sizeFor, VIDEO_COMPANIES, type VideoCompany, type VideoSize } from "@/lib/video/video-models"
 
 import {
   automationSettingValueSchema,
@@ -38,12 +44,12 @@ import { defineNode, type AutomationNodeDescriptor } from "@/lib/automations/nod
  * automation engine never runs one. Flow runs its own nodes, in
  * `src/server/video/flow/`.
  *
- * This file is read on the server too, so it imports zod, lucide and types
- * only.
+ * This file is read on the server too, so it imports zod, lucide, types and
+ * the plain limits of the tools its nodes use.
  */
 
 /** The nodes, each run by an AI following its prompt and nothing else. */
-export const FLOW_KINDS = ["ai-text", "ai-video", "ai-thumbnail", "ai-picture", "ai-voice", "ai-music"] as const
+export const FLOW_KINDS = ["ai-text", "ai-video", "ai-thumbnail", "ai-picture", "ai-clip", "ai-voice", "ai-music", "ai-sound"] as const
 export type FlowKind = (typeof FLOW_KINDS)[number]
 
 /** Every Flow kind is stored with this in front, so it never meets a shell kind's name. */
@@ -96,6 +102,14 @@ export const FLOW_KIND_INFO: Record<FlowKind, KindInfo> = {
     description: "Makes a picture from your prompt.",
     button: "Make the picture",
   },
+  // Tyler, 25 Nov 2026: "After scene picture should be "Generate video"",
+  // picked "New 'AI clip' node".
+  "ai-clip": {
+    name: "AI clip",
+    icon: VideoIcon,
+    description: "Turns the picture connected to it into a short moving clip from your prompt.",
+    button: "Make the clip",
+  },
   "ai-voice": {
     name: "AI voice",
     icon: AudioLinesIcon,
@@ -105,10 +119,57 @@ export const FLOW_KIND_INFO: Record<FlowKind, KindInfo> = {
   "ai-music": {
     name: "AI music",
     icon: MusicIcon,
-    description: "Makes music to the mood in your prompt.",
+    description: "Makes music to the mood in your prompt, one track or several.",
     button: "Make the music",
   },
+  // Tyler, 25 Nov 2026, picked "Rain: 'Make the ambience'" as its own step.
+  "ai-sound": {
+    name: "AI sound",
+    icon: AudioWaveformIcon,
+    description: "Makes a sound effect or a looping ambience from your prompt.",
+    button: "Make the sound",
+  },
 }
+
+/**
+ * The kinds that show their price and wait for OK before paying, every
+ * time (Tyler, 25 Nov 2026, picked "Show the price first" for the clip and
+ * the music). Wait for my OK is then a second stop, once it is made.
+ */
+export const PRICE_FIRST_KINDS: ReadonlySet<FlowKind> = new Set(["ai-clip", "ai-music", "ai-sound"])
+
+/** The kinds whose made file has a "Change it" box under it. */
+export const CHANGEABLE_KINDS: ReadonlySet<FlowKind> = new Set(["ai-picture", "ai-clip"])
+
+/** The music services a music node can use. Suno joins once it has a dependable API (task 04). */
+export const FLOW_MUSIC_SERVICES = ["elevenlabs"] as const
+export type FlowMusicService = (typeof FLOW_MUSIC_SERVICES)[number]
+export const FLOW_MUSIC_SERVICE_NAMES: Record<FlowMusicService, string> = { elevenlabs: "ElevenLabs" }
+
+/** A clip's lengths, as the video models make them. */
+export const FLOW_CLIP_SECONDS = [4, 6, 8] as const
+export type FlowClipSeconds = (typeof FLOW_CLIP_SECONDS)[number]
+
+/** The most tracks one music node makes, and how long each may be. */
+export const FLOW_MUSIC_TRACKS_MAX = 12
+export const FLOW_MUSIC_SECONDS_MIN = AI_MUSIC_MIN_MS / 1000
+export const FLOW_MUSIC_SECONDS_MAX = AI_MUSIC_MAX_MS / 1000
+
+/** The settings only some kinds have, beside the prompt (task 04). */
+export type FlowClipSettings = {
+  company: VideoCompany
+  size: VideoSize
+  seconds: FlowClipSeconds
+  /** Ends on the picture it starts on, so it loops with no join. */
+  loops: boolean
+  sound: boolean
+}
+export type FlowMusicSettings = { service: FlowMusicService; tracks: number; seconds: number }
+export type FlowSoundSettings = { seconds: number; loops: boolean }
+
+export const DEFAULT_CLIP_SETTINGS: FlowClipSettings = { company: "seedance", size: "1080p", seconds: 8, loops: true, sound: false }
+export const DEFAULT_MUSIC_SETTINGS: FlowMusicSettings = { service: "elevenlabs", tracks: 1, seconds: 60 }
+export const DEFAULT_SOUND_SETTINGS: FlowSoundSettings = { seconds: 30, loops: true }
 
 /** The boxes a node can ask you for, filled in on its step of a run. */
 export const FLOW_BOX_KINDS = ["text", "video", "media", "link", "actor-voice"] as const
@@ -147,10 +208,23 @@ export const FLOW_GUIDE_TEXT_MAX = 2000
 /** A node's settings, read field by field: a field that no longer reads falls back. */
 export type FlowNodeSettings = {
   title: string
-  /** The whole of what the AI is asked, before its boxes and what is connected. */
+  /**
+   * How every video of the flow's channel is built at this step, never what is
+   * in one video (Tyler, 25 Nov 2026: "the flow's prompt is mainly for the
+   * structure of the video. It should never discribes a scene"). Each run's
+   * step adds its own video's prompt beside it.
+   */
   prompt: string
   /** The run stops here until the person says OK. */
   waitForOk: boolean
+  /** The AI writes each run's prompt for this step, as a first idea to edit. */
+  suggestPrompt: boolean
+  /** AI clip only: how the clip is made. */
+  clip: FlowClipSettings
+  /** AI music only: how many tracks, how long each, and by whom. */
+  music: FlowMusicSettings
+  /** AI sound only: how long, and whether it loops. */
+  sound: FlowSoundSettings
   /** The boxes it asks you for, in order. */
   asks: FlowBox[]
   /**
@@ -179,6 +253,45 @@ function readBoxes(value: AutomationSettingValue | undefined): FlowBox[] {
   return boxes.slice(0, FLOW_BOXES_MAX)
 }
 
+type SettingObject = { [key: string]: AutomationSettingValue }
+
+function objectOf(value: AutomationSettingValue | undefined): SettingObject {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as SettingObject) : {}
+}
+
+function numberIn(value: AutomationSettingValue | undefined, min: number, max: number, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
+}
+
+function readClip(value: AutomationSettingValue | undefined): FlowClipSettings {
+  const read = objectOf(value)
+  const company = (VIDEO_COMPANIES as readonly unknown[]).includes(read.company) ? (read.company as VideoCompany) : DEFAULT_CLIP_SETTINGS.company
+  return {
+    company,
+    size: sizeFor(company, typeof read.size === "string" ? read.size : DEFAULT_CLIP_SETTINGS.size),
+    seconds: (FLOW_CLIP_SECONDS as readonly unknown[]).includes(read.seconds) ? (read.seconds as FlowClipSeconds) : DEFAULT_CLIP_SETTINGS.seconds,
+    loops: typeof read.loops === "boolean" ? read.loops : DEFAULT_CLIP_SETTINGS.loops,
+    sound: typeof read.sound === "boolean" ? read.sound : DEFAULT_CLIP_SETTINGS.sound,
+  }
+}
+
+function readMusic(value: AutomationSettingValue | undefined): FlowMusicSettings {
+  const read = objectOf(value)
+  return {
+    service: (FLOW_MUSIC_SERVICES as readonly unknown[]).includes(read.service) ? (read.service as FlowMusicService) : DEFAULT_MUSIC_SETTINGS.service,
+    tracks: Math.round(numberIn(read.tracks, 1, FLOW_MUSIC_TRACKS_MAX, DEFAULT_MUSIC_SETTINGS.tracks)),
+    seconds: Math.round(numberIn(read.seconds, FLOW_MUSIC_SECONDS_MIN, FLOW_MUSIC_SECONDS_MAX, DEFAULT_MUSIC_SETTINGS.seconds)),
+  }
+}
+
+function readSound(value: AutomationSettingValue | undefined): FlowSoundSettings {
+  const read = objectOf(value)
+  return {
+    seconds: numberIn(read.seconds, AI_SOUND_MIN_SECONDS, AI_SOUND_MAX_SECONDS, DEFAULT_SOUND_SETTINGS.seconds),
+    loops: typeof read.loops === "boolean" ? read.loops : DEFAULT_SOUND_SETTINGS.loops,
+  }
+}
+
 export function readFlowNodeSettings(settings: Record<string, AutomationSettingValue>): FlowNodeSettings {
   const text = (key: string, max: number) => {
     const value = settings[key]
@@ -188,6 +301,10 @@ export function readFlowNodeSettings(settings: Record<string, AutomationSettingV
     title: text("title", FLOW_TITLE_MAX),
     prompt: text("prompt", FLOW_PROMPT_MAX),
     waitForOk: settings.waitForOk === true,
+    suggestPrompt: settings.suggestPrompt === true,
+    clip: readClip(settings.clip),
+    music: readMusic(settings.music),
+    sound: readSound(settings.sound),
     asks: readBoxes(settings.asks),
     heading: text("heading", FLOW_TITLE_MAX),
     line: text("line", FLOW_GUIDE_LINE_MAX),
@@ -217,13 +334,23 @@ export function flowNodeName(node: Pick<AutomationNode, "kind" | "settings">): s
 
 /** A node's settings as stored, the boxes as plain objects. */
 export function storedFlowSettings(settings: FlowNodeSettings): Record<string, AutomationSettingValue> {
-  return { ...settings, asks: settings.asks.map((box) => ({ ...box })) }
+  return {
+    ...settings,
+    clip: { ...settings.clip },
+    music: { ...settings.music },
+    sound: { ...settings.sound },
+    asks: settings.asks.map((box) => ({ ...box })),
+  }
 }
 
 const EMPTY_SETTINGS: FlowNodeSettings = {
   title: "",
   prompt: "",
   waitForOk: false,
+  suggestPrompt: false,
+  clip: DEFAULT_CLIP_SETTINGS,
+  music: DEFAULT_MUSIC_SETTINGS,
+  sound: DEFAULT_SOUND_SETTINGS,
   asks: [],
   heading: "",
   line: "",

@@ -50,7 +50,7 @@ export async function saveGeneratedAsset(options: {
     workspaceId: await workspaceIdForRequest(options.userId),
     userId: options.userId,
     filename,
-    originalName: `${options.name.replace(/[^a-zA-Z0-9 ._-]+/g, "").trim() || "Generated asset"}.${extension}`,
+    originalName: `${options.name.replace(/[^\p{L}\p{N} ._-]+/gu, "").trim() || "Generated asset"}.${extension}`,
     altText:
       options.altText ?? (options.fileType === "image" ? options.name : null),
     fileSize: options.bytes.byteLength,

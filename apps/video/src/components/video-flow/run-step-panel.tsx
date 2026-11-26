@@ -1,8 +1,10 @@
 import * as React from "react"
 import {
+  ArrowUpIcon,
   AudioLinesIcon,
   CheckIcon,
   FileTextIcon,
+  ImageIcon,
   InfoIcon,
   LightbulbIcon,
   ListChecksIcon,
@@ -15,6 +17,9 @@ import {
 } from "lucide-react"
 
 import { RecordFrame } from "@/components/crm/record-frame"
+import { RunPromptCard } from "@/components/video-flow/run-prompt-card"
+import { FlowFiles } from "@/components/video-flow/run-step-preview"
+import type { PromptIdeas } from "@/components/video-flow/use-prompt-ideas"
 import { SelectTileOverlay } from "@/components/video-editor/studio-media-collections"
 import { DashboardTabs, useDashboardTabStyle } from "@/components/shared/dashboard-tabs"
 import { PanelCard } from "@/components/shared/panel-card"
@@ -24,10 +29,12 @@ import { Input } from "@/components/ui/input"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { listActors } from "@/lib/api/video/actors"
 import { loadVoices } from "@/lib/api/video/ai-tools"
 import {
   approveFlowStep,
+  changeFlowStep,
   getFlowErrorMessage,
   listFlowMedia,
   redoFlowStep,
@@ -41,9 +48,17 @@ import { cn } from "@/lib/utils"
 import { formatAiEstimate } from "@/lib/video/ai-estimates"
 import type { FlowFile, FlowRunStep } from "@/lib/video/flow/flows"
 import { waitsOn } from "@/lib/video/flow/guide"
-import { FLOW_BOX_INFO, FLOW_KIND_INFO, flowKindOf, type FlowBox } from "@/lib/video/flow/node-kinds"
+import {
+  CHANGEABLE_KINDS,
+  FLOW_BOX_INFO,
+  FLOW_KIND_INFO,
+  flowKindOf,
+  PRICE_FIRST_KINDS,
+  type FlowBox,
+} from "@/lib/video/flow/node-kinds"
 import type { FlowStepInput } from "@/lib/video/flow/run-shape"
-import { MADE_DRAFT } from "@/lib/video/flow/run-view"
+import { fedFiles, MADE_DRAFT } from "@/lib/video/flow/run-view"
+import { PICTURE_EDIT_WORDS_MAX } from "@/lib/video/picture-edits"
 import { formatCents } from "@/lib/video/project-spend"
 
 const HIDE_LABEL = "Hide the step"
@@ -57,6 +72,8 @@ type Props = {
   /** What is in each of the step's boxes so far, shared with the middle's preview. */
   draftFor: (step: FlowRunStep, boxId: string) => FlowStepInput
   onDraft: (step: FlowRunStep, boxId: string, input: FlowStepInput) => void
+  /** This video's prompts and the AI's ideas for them, kept for the whole run. */
+  ideas: PromptIdeas
   /** The run as the server has it after a change; `moveOn` opens the next step. */
   onRun: (run: FlowRunDetail, moveOn: boolean) => void
 }
@@ -77,7 +94,7 @@ type Props = {
  *   the AI make the step (he picked "At each step's button"); the guide moves
  *   on once it is made.
  */
-export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun }: Props) {
+export function RunStepPanel({ run, step, index, count, draftFor, onDraft, ideas, onRun }: Props) {
   const kind = flowKindOf(step.kind)
   const Icon = kind ? FLOW_KIND_INFO[kind].icon : WorkflowIcon
   const [act, busy] = useAsyncAction(getFlowErrorMessage)
@@ -89,6 +106,17 @@ export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun
   const blockers = waitsOn(step, run.steps)
   const price = step.costCents ? `Cost ${formatCents(step.costCents)}` : step.estimateCents !== null ? `About ${formatAiEstimate(step.estimateCents)}` : null
   const open = step.status === "waiting" || step.status === "needs_input"
+  // What every button sends: this video's words for the step as the card holds them.
+  const prompt = ideas.promptFor(step)
+  const promptCard = kind ? (
+    <RunPromptCard
+      step={step}
+      ideas={ideas}
+      ideaCents={run.ideaCents}
+      locked={stopped || step.status === "queued" || step.status === "working"}
+      waiting={blockers.length > 0}
+    />
+  ) : null
 
   /**
    * The boxes, each in a folding card named after it: to fill in while the
@@ -119,6 +147,41 @@ export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun
     </PanelCard>
   )
 
+  /**
+   * What a made step holds as files, shown as themselves (Tyler, 25 Nov 2026:
+   * "image need to show up here as well"): a picture fills the card and opens
+   * full size, music has a player. Words only when it made no file.
+   */
+  const madeFiles = step.output?.mediaIds?.length ? (
+    <PanelCard
+      storageId="video-flow-run-made-files"
+      icon={<ImageIcon />}
+      title={step.heading || "What it made"}
+      meta={step.changedWith ? "Changed" : undefined}
+    >
+      <div className="grid gap-2">
+        <FlowFiles mediaIds={step.output.mediaIds} wide />
+        {step.changedWith ? <p className="text-xs text-muted-foreground">Last change: {step.changedWith}</p> : null}
+      </div>
+    </PanelCard>
+  ) : null
+  /** What the steps feeding this one made as files, a card each, while it is still to make. */
+  const fedCards = fedFiles(run.steps, step).map((from) => (
+    <PanelCard key={from.id} storageId="video-flow-run-fed-files" icon={<ImageIcon />} title={`From ${from.title}`}>
+      <FlowFiles mediaIds={from.mediaIds} wide />
+    </PanelCard>
+  ))
+  /** The box under a made AI picture that asks for a change to it. */
+  const changeBox =
+    kind && CHANGEABLE_KINDS.has(kind) && step.output?.mediaIds?.length ? (
+      <ChangeBox
+        busy={busy}
+        what={kind === "ai-clip" ? "clip" : "picture"}
+        priceCents={step.estimateCents}
+        onSend={(words) => doing(() => changeFlowStep(step.id, words))}
+      />
+    ) : null
+
   let state = "Waiting"
   let body: React.ReactNode = null
   let footer: React.ReactNode = null
@@ -137,13 +200,15 @@ export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun
           : !step.boxes.length
             ? statusCard(`Everything it reads is ready${price ? `. ${price}` : ""}.`)
             : null}
+        {promptCard}
+        {fedCards}
         {boxes}
       </>
     )
     if (!blockers.length) {
       const inputs = Object.fromEntries(step.boxes.map((box) => [box.id, draftFor(step, box.id)]))
       footer = (
-        <FooterButton busy={busy} icon={<SparklesIcon />} onClick={() => doing(() => startFlowStep(step.id, inputs))}>
+        <FooterButton busy={busy} icon={<SparklesIcon />} onClick={() => doing(() => startFlowStep(step.id, inputs, prompt))}>
           {step.button}
         </FooterButton>
       )
@@ -153,6 +218,7 @@ export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun
     body = (
       <>
         {statusCard(step.note ?? "Being made now. This page looks again every few seconds, and the bell rings if you leave.")}
+        {promptCard}
         {boxes}
       </>
     )
@@ -162,28 +228,50 @@ export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun
       </FooterButton>
     )
   } else if (step.status === "needs_ok" && step.planned) {
-    // The plan and its price, before anything is paid for (flow.md).
-    state = "Check the plan"
+    // The plan and its price, or an AI clip, music or sound's price, before
+    // anything is paid for (flow.md).
+    const priced = kind !== null && PRICE_FIRST_KINDS.has(kind)
+    state = priced ? "Check the price" : "Check the plan"
     const priceCents = step.estimateCents
+    const okButton = (
+      <Button
+        type="button"
+        size="lg"
+        className={priced ? "w-full" : undefined}
+        disabled={busy}
+        onClick={() => doing(() => approveFlowStep(step.id, undefined, priced ? prompt : undefined))}
+      >
+        {busy ? <Loader2Icon className="animate-spin" /> : <CheckIcon />}
+        {priceCents !== null ? `OK, make it · ${formatAiEstimate(priceCents)}` : "OK, make it"}
+      </Button>
+    )
     body = (
       <>
-        <PanelCard storageId="video-flow-run-plan" icon={<ListChecksIcon />} title="The plan" meta={priceCents !== null ? `About ${formatAiEstimate(priceCents)}` : undefined}>
+        <PanelCard
+          storageId="video-flow-run-plan"
+          icon={<ListChecksIcon />}
+          title={priced ? "What it will make" : "The plan"}
+          meta={priceCents !== null ? formatAiEstimate(priceCents).replace(/^about/, "About") : undefined}
+        >
           <p className="text-sm leading-relaxed whitespace-pre-wrap">{step.output?.text ?? step.output?.summary ?? "Nothing planned."}</p>
-          <p className="text-xs text-muted-foreground">Nothing is paid for until you press OK. Make it again asks the AI for a new plan.</p>
+          {priced ? null : (
+            <p className="text-xs text-muted-foreground">Nothing is paid for until you press OK. Make it again asks the AI for a new plan.</p>
+          )}
         </PanelCard>
+        {promptCard}
         {boxes}
       </>
     )
-    footer = (
+    // A price has nothing to make again: it is the same until the settings change.
+    footer = priced ? (
+      okButton
+    ) : (
       <div className="grid w-full gap-2 @[15rem]:grid-cols-2">
-        <Button type="button" variant="outline" size="lg" disabled={busy} onClick={() => doing(() => redoFlowStep(step.id))}>
+        <Button type="button" variant="outline" size="lg" disabled={busy} onClick={() => doing(() => redoFlowStep(step.id, prompt))}>
           <RefreshCwIcon />
           Make it again
         </Button>
-        <Button type="button" size="lg" disabled={busy} onClick={() => doing(() => approveFlowStep(step.id))}>
-          {busy ? <Loader2Icon className="animate-spin" /> : <CheckIcon />}
-          {priceCents !== null ? `OK, make it · ${formatAiEstimate(priceCents)}` : "OK, make it"}
-        </Button>
+        {okButton}
       </div>
     )
   } else if (step.status === "needs_ok") {
@@ -208,17 +296,20 @@ export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun
               <p className="text-xs text-muted-foreground">What you change here is what the next steps are sent.</p>
             </div>
           </PanelCard>
+          {promptCard}
           {boxes}
         </>
       ) : (
         <>
-          {statusCard(step.output?.summary ?? "Made.", "plain")}
+          {madeFiles ?? statusCard(step.output?.summary ?? "Made.", "plain")}
+          {promptCard}
           {boxes}
         </>
       )
     footer = (
       <div className="grid w-full gap-2 @[15rem]:grid-cols-2">
-        <Button type="button" variant="outline" size="lg" disabled={busy} onClick={() => doing(() => redoFlowStep(step.id))}>
+        {changeBox ? <div className="@[15rem]:col-span-2">{changeBox}</div> : null}
+        <Button type="button" variant="outline" size="lg" disabled={busy} onClick={() => doing(() => redoFlowStep(step.id, prompt))}>
           <RefreshCwIcon />
           Make it again
         </Button>
@@ -233,11 +324,12 @@ export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun
     body = (
       <>
         {statusCard(step.error ?? "This step failed.", "error")}
+        {promptCard}
         {boxes}
       </>
     )
     footer = (
-      <FooterButton busy={busy} icon={<RotateCcwIcon />} onClick={() => doing(() => retryFlowStep(step.id))}>
+      <FooterButton busy={busy} icon={<RotateCcwIcon />} onClick={() => doing(() => retryFlowStep(step.id, prompt))}>
         Try again
       </FooterButton>
     )
@@ -245,14 +337,18 @@ export function RunStepPanel({ run, step, index, count, draftFor, onDraft, onRun
     state = "Done"
     body = (
       <>
-        {statusCard(step.output?.summary ?? "Done.", "plain")}
+        {madeFiles ?? statusCard(step.output?.summary ?? "Done.", "plain")}
+        {promptCard}
         {boxes}
       </>
     )
     footer = (
-      <FooterButton busy={busy} variant="outline" icon={<RefreshCwIcon />} onClick={() => doing(() => redoFlowStep(step.id))}>
-        Make it again
-      </FooterButton>
+      <div className="grid w-full gap-2">
+        {changeBox}
+        <FooterButton busy={busy} variant="outline" icon={<RefreshCwIcon />} onClick={() => doing(() => redoFlowStep(step.id, prompt))}>
+          Make it again
+        </FooterButton>
+      </div>
     )
   }
 
@@ -289,6 +385,82 @@ function boxSummary(box: FlowBox, held: FlowStepInput | undefined) {
   if (held.mediaIds?.length) return held.mediaIds.length === 1 ? "1 file" : `${held.mediaIds.length} files`
   if (held.actorId || held.voiceId) return box.kind === "actor-voice" ? "Picked" : "Given"
   return "Nothing"
+}
+
+/**
+ * Change it, under a made AI picture or clip: words typed as to a chat
+ * ("make it daytime", "slower snow"). A picture is made again from the one
+ * shown, keeping the rest (Tyler, 25 Nov 2026: "I need to be able to adjust
+ * to image with an ai chatbox here"); a clip from the same picture with the
+ * words added, after its price (he picked "'Change it' box on the clip").
+ * Enter sends it; Shift and Enter starts a new line. The steps after it start
+ * again, as on Make it again.
+ */
+function ChangeBox({
+  busy,
+  what,
+  priceCents,
+  onSend,
+}: {
+  busy: boolean
+  what: "picture" | "clip"
+  priceCents: number | null
+  onSend: (words: string) => void
+}) {
+  const label = `Change the ${what}`
+  const [words, setWords] = React.useState("")
+  const send = () => {
+    const typed = words.trim()
+    if (!typed || busy) return
+    onSend(typed)
+    setWords("")
+  }
+  return (
+    <div className="grid gap-1.5">
+      <div className="relative">
+        <label htmlFor="flow-change-made" className="sr-only">
+          {label}
+        </label>
+        <Textarea
+          id="flow-change-made"
+          rows={2}
+          maxLength={PICTURE_EDIT_WORDS_MAX}
+          placeholder={what === "clip" ? "Change it: slower snow…" : "Change it: make it daytime…"}
+          className="min-h-16 resize-none pr-11"
+          value={words}
+          disabled={busy}
+          onChange={(event) => setWords(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              send()
+            }
+          }}
+        />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon-sm"
+              aria-label={label}
+              className="absolute right-2 bottom-2"
+              disabled={busy || !words.trim()}
+              onClick={send}
+            >
+              {busy ? <Loader2Icon className="animate-spin" /> : <ArrowUpIcon />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {what === "clip"
+          ? "Makes the clip again from the same picture with your words, after showing its price."
+          : `Makes a new picture from this one${priceCents !== null ? `, ${formatAiEstimate(priceCents)}` : ""}.`}{" "}
+        The steps after it start again.
+      </p>
+    </div>
+  )
 }
 
 /** The footer's one button, the panel's full width and 36px tall as a footer's are. */

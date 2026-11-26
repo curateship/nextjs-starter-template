@@ -37,7 +37,7 @@ const answer = editorAnswerSchema.parse({
   ],
 })
 
-const files = { pictures: ["P1"], footage: [], sounds: [] }
+const files = { pictures: ["P1"], footage: [], sounds: [], clips: [] }
 
 describe("the AI editor's answer", () => {
   it("keeps AI video's old answer as it was", () => {

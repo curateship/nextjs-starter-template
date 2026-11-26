@@ -3,7 +3,7 @@ import { and, asc, eq, exists, isNull, lt, lte, or, sql } from "drizzle-orm"
 import type { AutomationNode } from "@/lib/automations/graph"
 import { flowFeeders } from "@/lib/video/flow/advance"
 import { flowKindOf, flowNodeName, readFlowNodeSettings } from "@/lib/video/flow/node-kinds"
-import type { FlowFeed } from "@/lib/video/flow/prompt"
+import { withVideoPrompt, type FlowFeed } from "@/lib/video/flow/prompt"
 import { now, uuid } from "@/server/auth/security"
 import { db } from "@/server/db"
 import { customShellAiUsageEvents } from "@/server/schema"
@@ -154,12 +154,13 @@ async function contextFor(run: VideoFlowRunRow, step: VideoFlowRunStepRow, node:
     const made = byNode.get(id)
     return from && made ? [{ title: flowNodeName(from), kind: flowKindOf(from.kind), output: made.output ?? {} }] : []
   })
+  const settings = readFlowNodeSettings(node.settings)
   return {
     userId: run.userId,
     run,
     step,
     node,
-    settings: readFlowNodeSettings(node.settings),
+    settings: { ...settings, prompt: withVideoPrompt(settings.prompt, step.videoPrompt) },
     feeds,
     spend: {
       ...(run.projectId ? { projectId: run.projectId } : {}),

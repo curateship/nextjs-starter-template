@@ -1,9 +1,12 @@
 import {
+  IMAGE_SIZE_UNITS,
+  imageModelTakesSize,
   imageProvider,
   openAiImageSize,
   providerMessage,
   type ImageAspect,
   type ImageModelId,
+  type ImageSize,
 } from "@/lib/video/asset-factories"
 import { getAiKey } from "@/server/ai/keys"
 import { runAiCall } from "@/server/ai/usage"
@@ -132,8 +135,11 @@ export async function generateImage(options: {
   references: ImageReference[]
   /** The project and video the picture is made for, so its spend line counts it. */
   spend?: SpendTag | null
+  /** Google's size; left out, its default 1K. A model that makes 1K only ignores it. */
+  size?: ImageSize
 }) {
   const provider = imageProvider(options.model)
+  const size = options.size && imageModelTakesSize(options.model) ? options.size : undefined
   const apiKey = await getAiKey(provider)
   if (!apiKey) {
     throw new Error(
@@ -184,7 +190,7 @@ export async function generateImage(options: {
             contents: [{ parts }],
             generationConfig: {
               responseModalities: ["TEXT", "IMAGE"],
-              imageConfig: { aspectRatio: options.aspectRatio },
+              imageConfig: { aspectRatio: options.aspectRatio, ...(size ? { imageSize: size } : {}) },
             },
           }),
         }
@@ -214,7 +220,8 @@ export async function generateImage(options: {
       const mimeType = image?.mimeType ?? "image/png"
       return {
         result: checkedImage(image?.data, mimeType, "Google"),
-        usage: { inputTokens: 0, outputTokens: 0, units: 1 },
+        // A 2K picture is billed as 1.5 1K pictures (IMAGE_SIZE_UNITS).
+        usage: { inputTokens: 0, outputTokens: 0, units: size ? IMAGE_SIZE_UNITS[size] : 1 },
       }
     }
   )

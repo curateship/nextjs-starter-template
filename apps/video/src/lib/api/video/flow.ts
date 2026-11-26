@@ -13,13 +13,17 @@ import {
   type FlowRunDetail,
   type FlowRunListItem,
 } from "@/lib/video/flow/flows"
+import { FLOW_PROMPT_MAX } from "@/lib/video/flow/node-kinds"
 import { flowStepInputsSchema, type FlowStepInput } from "@/lib/video/flow/run-shape"
+import { PICTURE_EDIT_WORDS_MAX } from "@/lib/video/picture-edits"
 import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
 import { userGet, userPost } from "@/server/guards"
 
 export type { FlowDetail, FlowListItem, FlowRunDetail, FlowRunListItem }
 
 const idSchema = z.string().min(1).max(36)
+/** A step's prompt for this one video, as its Prompt card holds it. */
+const promptSchema = z.string().max(FLOW_PROMPT_MAX).optional()
 
 /** The flow's own refusals as they are; anything else as the AI tools say it. */
 export function getFlowErrorMessage(error: unknown) {
@@ -129,22 +133,34 @@ const deleteRunsFn = createServerFn({ method: "POST" })
 
 const startStepFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ stepId: idSchema, inputs: flowStepInputsSchema.optional() }))
+  .inputValidator(z.object({ stepId: idSchema, inputs: flowStepInputsSchema.optional(), prompt: promptSchema }))
   .handler(({ data, context }) => runsServer().then((m) => m.startFlowStep(context.user.id, data)))
 
 const approveFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ stepId: idSchema, text: z.string().max(100_000).optional() }))
+  .inputValidator(z.object({ stepId: idSchema, text: z.string().max(100_000).optional(), prompt: promptSchema }))
   .handler(({ data, context }) => runsServer().then((m) => m.approveFlowStep(context.user.id, data)))
 
 const redoFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ stepId: idSchema }))
+  .inputValidator(z.object({ stepId: idSchema, prompt: promptSchema }))
   .handler(({ data, context }) => runsServer().then((m) => m.redoFlowStep(context.user.id, data)))
+
+const ideaFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ stepId: idSchema, replace: z.boolean().optional() }))
+  .handler(({ data, context }) =>
+    import("@/server/video/flow/prompt-ideas").then((m) => m.suggestFlowPrompt(context.user.id, data))
+  )
+
+const changeStepFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(z.object({ stepId: idSchema, words: z.string().trim().min(1).max(PICTURE_EDIT_WORDS_MAX) }))
+  .handler(({ data, context }) => runsServer().then((m) => m.changeFlowStep(context.user.id, data)))
 
 const retryFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(z.object({ stepId: idSchema }))
+  .inputValidator(z.object({ stepId: idSchema, prompt: promptSchema }))
   .handler(({ data, context }) => runsServer().then((m) => m.retryFlowStep(context.user.id, data)))
 
 const kindPricesFn = createServerFn({ method: "GET" })
@@ -213,20 +229,31 @@ export function deleteFlowRuns(runIds: string[]) {
 }
 
 /** A step's button: what is in its boxes, then the AI makes it. */
-export function startFlowStep(stepId: string, inputs: Record<string, FlowStepInput> = {}) {
-  return startStepFn({ data: { stepId, inputs } })
+export function startFlowStep(stepId: string, inputs: Record<string, FlowStepInput> = {}, prompt?: string) {
+  return startStepFn({ data: { stepId, inputs, prompt } })
 }
 
-export function approveFlowStep(stepId: string, text?: string) {
-  return approveFn({ data: { stepId, text } })
+/** OK: on words made, with any edit; on a price, with the Prompt card's words as they are now. */
+export function approveFlowStep(stepId: string, text?: string, prompt?: string) {
+  return approveFn({ data: { stepId, text, prompt } })
 }
 
-export function redoFlowStep(stepId: string) {
-  return redoFn({ data: { stepId } })
+export function redoFlowStep(stepId: string, prompt?: string) {
+  return redoFn({ data: { stepId, prompt } })
 }
 
-export function retryFlowStep(stepId: string) {
-  return retryFn({ data: { stepId } })
+/** The AI's idea for this video's prompt at a step: the first one, or with `replace` a new one. */
+export function suggestFlowPrompt(stepId: string, replace = false) {
+  return ideaFn({ data: { stepId, replace } })
+}
+
+/** A made AI picture or clip made again with these words. */
+export function changeFlowStep(stepId: string, words: string) {
+  return changeStepFn({ data: { stepId, words } })
+}
+
+export function retryFlowStep(stepId: string, prompt?: string) {
+  return retryFn({ data: { stepId, prompt } })
 }
 
 /** "From about" each AI node costs, for the builder. */

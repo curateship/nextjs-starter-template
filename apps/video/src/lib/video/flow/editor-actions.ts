@@ -156,7 +156,7 @@ export const EDITOR_ANSWER = `Reply with JSON only, in this shape:
 - {"do": "animate_picture", "id": "L1", "file": "P1", "prompt": "what moves", "seconds": 8, "end_on_start": true, "model": "seedance", "quality": "1080p", "sound": false} makes a picture move; with end_on_start it loops with no join.
 - {"do": "make_music", "id": "M1", "mood": "the music", "seconds": 300} makes instrumental music, up to 300 seconds.
 - {"do": "make_sound", "id": "R1", "words": "the sound", "seconds": 30, "loop": true} makes a sound, up to 30 seconds.
-- {"do": "place", "file": "L1", "from": 0, "to": 1800, "role": "background", "loop": true, "crossfade": 3, "volume": 0.6, "fade_in": 2, "fade_out": 2, "fit": "fill"} puts a file (made, or connected: P1 pictures, F1 footage, S1 sounds) on the video. role is background, overlay, music, ambience or effects. loop repeats a file that is shorter than its stretch; crossfade (sound only) instead blends each repeat into the next.
+- {"do": "place", "file": "L1", "from": 0, "to": 1800, "role": "background", "loop": true, "crossfade": 3, "volume": 0.6, "fade_in": 2, "fade_out": 2, "fit": "fill"} puts a file (made, or connected: P1 pictures, C1 moving clips, F1 footage, S1 sounds) on the video. A connected moving clip is finished: place it, never animate it again. role is background, overlay, music, ambience or effects. loop repeats a file that is shorter than its stretch; crossfade (sound only) instead blends each repeat into the next.
 - {"do": "text", "text": "words", "from": 0, "to": 10, "font": "fredoka", "size": 80, "color": "#ffffff", "x": 0.5, "y": 0.1}
 - {"do": "timer", "from": 0, "to": 1500, "above": "FOCUS", "below": "Round 1/6", "ring": true, "ring_width": 6, "size": 0.34, "x": 0.5, "y": 0.5, "font": "fredoka", "color": "#ffffff", "count_up": false} counts down over its own length, with a ring that empties.
 - {"do": "starter_sound", "sound": "chime", "at": 1500, "volume": 0.8} plays a built-in sound (chime, ding, whoosh, pop, click…).
@@ -210,6 +210,8 @@ export type EditorFiles = {
   pictures: string[]
   footage: string[]
   sounds: string[]
+  /** Moving clips from AI clip steps, placed as they are. */
+  clips: string[]
 }
 
 /**
@@ -231,7 +233,7 @@ export function editorProblems(answer: EditorAnswer, files: EditorFiles): string
       problems.push(`animate_picture ${action.id} names ${action.file}, which isn't a connected picture (${files.pictures.join(", ") || "none"}).`)
     }
   }
-  const known = new Set([...made, ...files.pictures, ...files.footage, ...files.sounds])
+  const known = new Set([...made, ...files.pictures, ...files.footage, ...files.sounds, ...files.clips])
   for (const action of actions) {
     if ("from" in action && "to" in action && action.to <= action.from) {
       problems.push(`An action runs from ${action.from} to ${action.to}; "to" must be after "from".`)

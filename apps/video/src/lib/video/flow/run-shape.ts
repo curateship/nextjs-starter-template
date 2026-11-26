@@ -70,6 +70,11 @@ export type FlowStepOutput = {
   actorId?: string
   voice?: FlowVoice
   summary?: string
+  /** AI clip: the picture it moved, handed on so a thumbnail after it can use the scene. */
+  pictureId?: string
+  /** AI clip: how long the clip is, and whether it ends on its start. */
+  lengthMs?: number
+  loops?: boolean
 }
 
 const idSchema = z.string().min(1).max(36)
@@ -131,13 +136,26 @@ export type FlowMadeFile = {
  *   for my OK on, the step waits on them before anything is paid for.
  * - `approved`: the person pressed OK on the plan (or there was nothing to
  *   wait for), so the step makes.
+ * - `priced`: an AI clip, music or sound step has said what it will cost and
+ *   waits for OK before paying (`PRICE_FIRST_KINDS`). `priceOk` is that OK.
+ *   Unlike a plan's OK it doesn't count as the step's Wait for my OK, which
+ *   still stops it once it is made, so the clip can be watched first.
  */
 export type FlowStepState = {
-  phase: "planned" | "making"
+  phase: "planned" | "priced" | "making"
   approved?: boolean
+  priceOk?: boolean
   /** The step's own plan, as its executor reads it back. */
   plan?: unknown
   priceCents?: number
   /** Every file it makes, by the plan's name for it. */
   files?: Record<string, FlowMadeFile>
+  /**
+   * An AI picture or clip asked to change: what it made last and the words
+   * typed in the right panel's box. A picture is made from the old picture
+   * and the words; a clip from the same picture, its prompt and the words.
+   */
+  change?: { words: string; mediaId: string }
+  /** AI clip: the moving picture being made, looked at again until it is ready. */
+  shotId?: string
 }

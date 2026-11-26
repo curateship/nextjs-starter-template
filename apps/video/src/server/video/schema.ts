@@ -2377,6 +2377,10 @@ export const videoFlowRunSteps = pgTable(
     // passes: its plan, whether it was OK'd, and each file made (drizzle/0178).
     state: jsonb("state").$type<FlowStepState>(),
     promptSent: text("prompt_sent"),
+    // This video's prompt for the step, beside the node's prompt that says
+    // how every video is built, and whether the AI wrote it (drizzle/0186).
+    videoPrompt: text("video_prompt"),
+    videoPromptFromAi: boolean("video_prompt_from_ai").notNull().default(false),
     estimateCents: integer("estimate_cents"),
     costCents: integer("cost_cents"),
     error: text("error"),

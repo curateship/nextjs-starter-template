@@ -21,12 +21,23 @@ import {
   type EditorFile,
   type EditorFiles,
 } from "@/lib/video/flow/editor-actions"
-import { flowStepEstimateCents } from "@/lib/video/flow/estimates"
-import { flowBoxLabel, type FlowKind, type FlowNodeSettings } from "@/lib/video/flow/node-kinds"
+import { flowNodeMakingCents, flowStepEstimateCents } from "@/lib/video/flow/estimates"
+import {
+  flowBoxLabel,
+  FLOW_MUSIC_SERVICE_NAMES,
+  readFlowNodeSettings,
+  type FlowKind,
+  type FlowNodeSettings,
+} from "@/lib/video/flow/node-kinds"
 import { buildFlowPrompt, feedText, type FlowFeed } from "@/lib/video/flow/prompt"
 import type { FlowMadeFile, FlowStepOutput, FlowStepState, FlowVoice } from "@/lib/video/flow/run-shape"
 import { createEmptyTimeline, requireCanonicalTimeline, type AspectRatio, type ProjectTimeline } from "@/lib/video/timeline-schema"
 import { formatAiEstimate } from "@/lib/video/ai-estimates"
+import { AI_MUSIC_MOOD_MAX } from "@/lib/video/ai-music"
+import { AI_SOUND_WORDS_MAX } from "@/lib/video/ai-sound-effects"
+import { FLOW_PICTURE_SIZE } from "@/lib/video/asset-factories"
+import { VIDEO_MODELS } from "@/lib/video/video-models"
+import { pictureEditPrompt } from "@/lib/video/picture-edits"
 import { requireAllowanceRoom } from "@/server/video/video-meter"
 import { SMOOTH_COPY_FIRST_MESSAGE } from "@/lib/video/transcripts"
 import { now, uuid } from "@/server/auth/security"
@@ -123,6 +134,10 @@ export async function runFlowStep(kind: FlowKind, given: FlowStepContext): Promi
       return aiVoice(context)
     case "ai-music":
       return aiMusic(context)
+    case "ai-clip":
+      return aiClip(context)
+    case "ai-sound":
+      return aiSound(context)
     case "ai-thumbnail":
       return aiThumbnail(context)
   }
@@ -249,8 +264,8 @@ async function aiText(context: FlowStepContext): Promise<FlowStepResult> {
  * otherwise written down now by whichever AI writes speech down. A big
  * upload whose smooth copy isn't made yet makes the step wait for it.
  */
-async function videoFiles(context: FlowStepContext): Promise<EditPlanFile[] | { waitNote: string }> {
-  const media = await connectedFiles(context, "video")
+async function videoFiles(context: FlowStepContext, clipIds: ReadonlySet<string>): Promise<EditPlanFile[] | { waitNote: string }> {
+  const media = (await connectedFiles(context, "video")).filter((row) => !clipIds.has(row.id))
   const transcriber = pickTranscriber(await getAiDefaults(), await getAiKeysSaved())
   if (!transcriber) throw new Error(FLOW_NO_TRANSCRIBER_MESSAGE)
   const { fileWords, readSavedTranscript } = await import("@/server/video/transcripts")
@@ -322,6 +337,9 @@ async function writeRunTimeline(context: FlowStepContext, tracks: ProjectTimelin
 /** How often a step waiting on a moving picture looks again. */
 const SHOT_WAIT_MS = 20_000
 
+/** The most a clip's "what moves" may say, as the editor's animate_picture takes. */
+const CLIP_PROMPT_MAX = 1000
+
 /**
  * The AI editor (flow.md, "AI editor"): the AI reads the prompt, the words
  * and footage connected or in its boxes, and the pictures and sounds by name
@@ -341,8 +359,17 @@ const SHOT_WAIT_MS = 20_000
  */
 async function aiEditor(context: FlowStepContext): Promise<FlowStepResult> {
   await holdToVideoLimit(context, 0)
-  const footageRows = await connectedFiles(context, "video")
-  const footage = footageRows.length ? await videoFiles(context) : []
+  // A clip from an AI clip step is a finished moving picture (C1…), placed as
+  // it is: never footage to write down and cut, and never made again here.
+  const clipFeeds = context.feeds.filter((feed) => feed.kind === "ai-clip")
+  const clipIds = new Set(clipFeeds.flatMap((feed) => feed.output.mediaIds ?? []))
+  const videos = await connectedFiles(context, "video")
+  const clips = videos.filter((row) => clipIds.has(row.id)).map((row, index) => ({
+    key: `C${index + 1}`,
+    row,
+    from: clipFeeds.find((feed) => feed.output.mediaIds?.includes(row.id)),
+  }))
+  const footage = videos.some((row) => !clipIds.has(row.id)) ? await videoFiles(context, clipIds) : []
   if ("waitNote" in footage) return { wait: { ms: SMOOTH_COPY_WAIT_MS, note: footage.waitNote } }
   const pictures = await connectedFiles(context, "image")
   const sounds = await connectedFiles(context, "audio")
@@ -350,7 +377,10 @@ async function aiEditor(context: FlowStepContext): Promise<FlowStepResult> {
     pictures: pictures.map((_, index) => `P${index + 1}`),
     footage: footage.map((file) => file.key),
     sounds: sounds.map((_, index) => `S${index + 1}`),
+    clips: clips.map((clip) => clip.key),
   }
+  // Which step made each file, so the AI can tell the music from the ambience.
+  const madeBy = (mediaId: string) => context.feeds.find((feed) => feed.output.mediaIds?.includes(mediaId))?.title
 
   let state: FlowStepState | null = context.step.state
   let plan = state?.plan ? editorAnswerSchema.parse(state.plan) : null
@@ -358,9 +388,17 @@ async function aiEditor(context: FlowStepContext): Promise<FlowStepResult> {
   let writerCents = 0
   if (!plan) {
     const texts = context.feeds.filter((feed) => feed.output.text?.trim() && !feed.output.mediaIds?.length)
+    const from = (mediaId: string) => {
+      const title = madeBy(mediaId)
+      return title ? `, from ${title}` : ""
+    }
     const list = [
-      ...pictures.map((row, index) => `P${index + 1}: picture "${row.originalName}"`),
-      ...sounds.map((row, index) => `S${index + 1}: sound "${row.originalName}"`),
+      ...pictures.map((row, index) => `P${index + 1}: picture "${row.originalName}"${from(row.id)}`),
+      ...clips.map(
+        (clip) =>
+          `${clip.key}: moving clip "${clip.row.originalName}"${from(clip.row.id)}, ${Math.round((clip.from?.output.lengthMs ?? 0) / 100) / 10} seconds${clip.from?.output.loops ? ", ends on its start so it loops" : ""}`
+      ),
+      ...sounds.map((row, index) => `S${index + 1}: sound "${row.originalName}"${from(row.id)}`),
     ]
     const prompt = buildFlowPrompt(
       context.settings.prompt,
@@ -484,6 +522,9 @@ async function aiEditor(context: FlowStepContext): Promise<FlowStepResult> {
   const files = new Map<string, EditorFile>()
   for (const [index, row] of pictures.entries()) files.set(`P${index + 1}`, { mediaId: row.id, name: row.originalName, kind: "image" })
   for (const file of footage) files.set(file.key, { mediaId: file.mediaId, name: file.name, kind: "video", durationMs: file.durationMs })
+  for (const clip of clips) {
+    files.set(clip.key, { mediaId: clip.row.id, name: clip.row.originalName, kind: "video", durationMs: clip.from?.output.lengthMs ?? 0 })
+  }
   for (const [index, row] of sounds.entries()) {
     if (!actions.some((action) => action.do === "place" && action.file === `S${index + 1}`)) continue
     files.set(`S${index + 1}`, { mediaId: row.id, name: row.originalName, kind: "audio", durationMs: await soundLengthMs(row.storagePath) })
@@ -520,7 +561,9 @@ async function aiEditor(context: FlowStepContext): Promise<FlowStepResult> {
   const animated = making.flatMap((action) =>
     action.do === "animate_picture" ? [pictures[names.pictures.indexOf(action.file)]?.id].filter((id): id is string => Boolean(id)) : []
   )
-  const mediaIds = [...new Set([...footage.map((file) => file.mediaId), ...laid.usedMediaIds, ...animated])]
+  // So do the pictures connected clips were made from.
+  const clipPictures = clipFeeds.flatMap((feed) => (feed.output.pictureId ? [feed.output.pictureId] : []))
+  const mediaIds = [...new Set([...footage.map((file) => file.mediaId), ...laid.usedMediaIds, ...animated, ...clipPictures])]
   await onProjectShelf(context, mediaIds)
   const lengthS = Math.round(editorLengthSeconds(actions))
   const summary =
@@ -573,11 +616,30 @@ async function pictureAspect(context: FlowStepContext): Promise<AspectRatio> {
   return runAspect(context)
 }
 
+/**
+ * The picture a change starts from (the right panel's "Change the picture"
+ * box): the one the step made last, if it is still the person's own.
+ */
+async function pictureToChange(context: FlowStepContext) {
+  const change = context.step.state?.change
+  if (!change) return null
+  const [row] = await db
+    .select({ storagePath: customShellMedia.storagePath, mimeType: customShellMedia.mimeType })
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, change.mediaId), eq(customShellMedia.userId, context.userId)))
+    .limit(1)
+  if (!row) throw new Error("The picture to change is no longer in your Media. Press Make it again for a new one.")
+  return { words: change.words, picture: row }
+}
+
 async function aiPicture(context: FlowStepContext): Promise<FlowStepResult> {
   const estimateCents = flowStepEstimateCents("ai-picture", { writer: null, promptCharacters: 0 })
   await holdToVideoLimit(context, estimateCents)
   const aspect = await pictureAspect(context)
-  const prompt = buildFlowPrompt(context.settings.prompt, context.feeds.filter((feed) => feed.output.text), "Make one picture.")
+  const change = await pictureToChange(context)
+  const prompt = change
+    ? pictureEditPrompt("own", change.words)
+    : buildFlowPrompt(context.settings.prompt, context.feeds.filter((feed) => feed.output.text), "Make one picture.")
   const [{ generateImage }, { saveGeneratedAsset }] = await Promise.all([
     import("@/server/video/asset-factories/images"),
     import("@/server/video/asset-factories/media"),
@@ -587,8 +649,9 @@ async function aiPicture(context: FlowStepContext): Promise<FlowStepResult> {
     model: BRIEF_DEFAULT_PICTURE_MODEL,
     prompt,
     aspectRatio: aspect === "16:9" || aspect === "4:3" ? "16:9" : aspect === "1:1" ? "1:1" : "9:16",
-    references: await referencePictures(context),
+    references: change ? [change.picture] : await referencePictures(context),
     spend: spendTag(context),
+    size: FLOW_PICTURE_SIZE,
   })
   const media = await saveGeneratedAsset({
     userId: context.userId,
@@ -634,32 +697,189 @@ async function aiVoice(context: FlowStepContext): Promise<FlowStepResult> {
   }
 }
 
+// --------------------------------------------- clip, music and sound --
+
+/**
+ * The node's prompt and this video's words as one short line, for a tool that
+ * takes a few hundred characters (music, a sound, what moves in a clip). This
+ * video's words come first, so a cut takes the end of the general part.
+ */
+function shortAsk(context: FlowStepContext, max: number) {
+  const structure = readFlowNodeSettings(context.node.settings).prompt
+  return [context.step.videoPrompt ?? "", structure]
+    .map((words) => words.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, max)
+}
+
+/**
+ * Price first (`PRICE_FIRST_KINDS`): the first time the worker reaches an AI
+ * clip, music or sound step, it says what it will make and what it costs and
+ * stops for OK. After OK it goes on to make it.
+ */
+async function priceFirst(context: FlowStepContext, cents: number, what: string): Promise<FlowStepResult | null> {
+  if (context.step.state?.priceOk) return null
+  await saveStepState(context.step.id, { ...(context.step.state ?? {}), phase: "priced", priceCents: cents })
+  return {
+    confirm: {
+      output: {
+        text: `${what}\n\nIt costs ${formatAiEstimate(cents)}. Nothing is paid for until you press OK.`,
+        summary: `To make, ${formatAiEstimate(cents)}`,
+      },
+      estimateCents: cents,
+    },
+  }
+}
+
+function lengthWords(seconds: number) {
+  if (seconds < 60) return `${Math.round(seconds * 10) / 10} seconds`
+  const whole = Math.round(seconds)
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`
+}
+
+// ----------------------------------------------------------- AI clip --
+
+const FLOW_NEEDS_PICTURE_MESSAGE = "Give this node a picture: a line from AI picture, or a Pick from Media box of its own."
+
+/**
+ * AI clip (task 04, Tyler: "After scene picture should be "Generate video""):
+ * the first picture in its boxes or connected to it, made to move by the
+ * editor's Make it move as its settings say. Price first; then the AI video
+ * worker makes it and the step looks again every 20 seconds. Change it adds
+ * the typed words to what moves and makes it again from the same picture.
+ */
+async function aiClip(context: FlowStepContext): Promise<FlowStepResult> {
+  const clip = context.settings.clip
+  const model = VIDEO_MODELS[clip.company]
+  const [picture] = await connectedFiles(context, "image")
+  if (!picture) throw new Error(FLOW_NEEDS_PICTURE_MESSAGE)
+  const cents = flowNodeMakingCents("ai-clip", context.settings)
+  await holdToVideoLimit(context, cents)
+  const sound = model.soundSwitch ? clip.sound : true
+  const asked = await priceFirst(
+    context,
+    cents,
+    `A ${clip.seconds}-second clip of "${picture.originalName}" by ${model.label} at ${clip.size}${clip.loops ? ", ending on its start so it loops" : ""}, ${sound ? "with sound" : "silent"}.`
+  )
+  if (asked) return asked
+  const state = context.step.state ?? { phase: "making" as const }
+  const change = state.change?.words
+  const motion = [shortAsk(context, CLIP_PROMPT_MAX), change ? `Change: ${change}` : ""].filter(Boolean).join(" ").slice(0, CLIP_PROMPT_MAX)
+  const { createPictureShot, pictureShotState } = await import("@/server/video/asset-factories/moving-stills")
+  if (state.shotId) {
+    const shot = await pictureShotState(context.userId, state.shotId)
+    if (shot.status === "error") {
+      // Forget the failed shot, so Try again starts a new one rather than
+      // looking at this one again; the price stays OK'd.
+      const { shotId: _failed, ...rest } = state
+      await saveStepState(context.step.id, rest)
+      throw new Error(`The clip couldn't be made: ${shot.error ?? "the video model refused it"}`)
+    }
+    if (shot.status !== "ready" || !shot.mediaId) {
+      return { wait: { ms: SHOT_WAIT_MS, note: "Making the clip move. Video models take a few minutes; this looks again every 20 seconds." } }
+    }
+    await onProjectShelf(context, [shot.mediaId])
+    return {
+      output: {
+        mediaIds: [shot.mediaId],
+        pictureId: picture.id,
+        lengthMs: shot.durationMs,
+        loops: clip.loops,
+        summary: `${clip.seconds} seconds${clip.loops ? ", loops" : ""}`,
+      },
+      promptSent: motion,
+      estimateCents: cents,
+    }
+  }
+  const started = await createPictureShot(context.userId, {
+    mediaId: picture.id,
+    prompt: motion,
+    seconds: clip.seconds,
+    company: clip.company,
+    quality: clip.size,
+    sound,
+    endOnStart: clip.loops,
+    aspect: await pictureAspect(context),
+    projectId: context.run.projectId,
+    videoId: context.run.videoId,
+    flowStepId: context.step.id,
+  })
+  await saveStepState(context.step.id, { ...state, shotId: started.shotId })
+  return { wait: { ms: SHOT_WAIT_MS, note: "Making the clip move. Video models take a few minutes; this looks again every 20 seconds." } }
+}
+
 // ---------------------------------------------------------- AI music --
 
+/**
+ * AI music (task 04): as many tracks as its settings say, each as long as
+ * they say, made one a pass and written down as soon as each is paid for, so
+ * a pass cut short never pays twice. Price first. Each track is told which
+ * number it is, so the tracks are "a little different" from each other.
+ * It needs no saved run: the length is the node's, not the video's.
+ */
 async function aiMusic(context: FlowStepContext): Promise<FlowStepResult> {
-  // As long as the run's video, saved or not yet, or a minute when nothing is
-  // laid; the music tool caps it at 5 minutes (ai-music.md). A run not yet
-  // saved has no video, so only the month's allowance holds it.
-  const video = await runVideo(context)
-  const timeline = video ? requireCanonicalTimeline(video.timeline) : context.run.timeline
-  // The prompt is the mood, as it is in the Music panel.
-  const mood = context.settings.prompt.trim()
-  const { makeAiMusic } = await import("@/server/video/ai-music")
-  const laidMs = (timeline?.tracks ?? []).reduce(
-    (most, track) => Math.max(most, ...track.clips.map((clip) => clip.startMs + clip.durationMs)),
-    0
+  const { tracks, seconds } = context.settings.music
+  const cents = flowNodeMakingCents("ai-music", context.settings)
+  await holdToVideoLimit(context, cents)
+  const asked = await priceFirst(
+    context,
+    cents,
+    `${tracks === 1 ? "One track" : `${tracks} tracks`} of ${lengthWords(seconds)} by ${FLOW_MUSIC_SERVICE_NAMES[context.settings.music.service]}.`
   )
-  const made = await makeAiMusic({
+  if (asked) return asked
+  let state = context.step.state ?? { phase: "making" as const }
+  const files = { ...(state.files ?? {}) }
+  const numberWords = (n: number) => (tracks > 1 ? ` Track ${n} of ${tracks}, a little different from the others.` : "")
+  const mood = shortAsk(context, AI_MUSIC_MOOD_MAX - numberWords(tracks).length)
+  const { makeAiMusic } = await import("@/server/video/ai-music")
+  for (let n = 1; n <= tracks; n += 1) {
+    if (files[`M${n}`]?.status === "made") continue
+    const made = await makeAiMusic({
+      userId: context.userId,
+      videoId: context.run.videoId ?? undefined,
+      mood: `${mood}${numberWords(n)}`,
+      forMs: seconds * 1000,
+      spend: stepSpend(context),
+    })
+    files[`M${n}`] = { status: "made", mediaId: made.media.id, durationMs: made.lengthMs }
+    state = { ...state, files }
+    await saveStepState(context.step.id, state)
+    if (n < tracks) return { wait: { ms: 0, note: `Made track ${n} of ${tracks}.` } }
+  }
+  const mediaIds = Array.from({ length: tracks }, (_, at) => files[`M${at + 1}`]?.mediaId).filter((id): id is string => Boolean(id))
+  await onProjectShelf(context, mediaIds)
+  return {
+    output: { mediaIds, summary: `${tracks === 1 ? "One track" : `${tracks} tracks`} of ${lengthWords(seconds)}` },
+    promptSent: mood,
+    estimateCents: cents,
+  }
+}
+
+// ---------------------------------------------------------- AI sound --
+
+/** AI sound (task 04): one sound effect or looping ambience from the prompt, as its settings say. Price first. */
+async function aiSound(context: FlowStepContext): Promise<FlowStepResult> {
+  const { seconds, loops } = context.settings.sound
+  const cents = flowNodeMakingCents("ai-sound", context.settings)
+  await holdToVideoLimit(context, cents)
+  const asked = await priceFirst(context, cents, `A ${lengthWords(seconds)} sound${loops ? " that loops" : ""} by ElevenLabs.`)
+  if (asked) return asked
+  const words = shortAsk(context, AI_SOUND_WORDS_MAX)
+  const { makeAiSoundEffect } = await import("@/server/video/ai-sound-effects")
+  const made = await makeAiSoundEffect({
     userId: context.userId,
-    videoId: video?.id,
-    mood,
-    forMs: laidMs > 0 ? laidMs : 60_000,
+    videoId: context.run.videoId ?? undefined,
+    words,
+    seconds,
+    loop: loops,
     spend: stepSpend(context),
   })
   await onProjectShelf(context, [made.media.id])
   return {
-    output: { mediaIds: [made.media.id], summary: `${Math.round(made.lengthMs / 1000)} seconds of music` },
-    estimateCents: made.cents,
+    output: { mediaIds: [made.media.id], summary: `${lengthWords(seconds)}${loops ? ", loops" : ""}` },
+    promptSent: words,
+    estimateCents: cents,
   }
 }
 

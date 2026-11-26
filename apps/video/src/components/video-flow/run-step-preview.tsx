@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getFlowErrorMessage, getFlowFiles, type FlowRunDetail } from "@/lib/api/video/flow"
+import { FlowPicture, FlowVideo } from "@/components/video-flow/flow-media-viewer"
+import type { PromptIdeas } from "@/components/video-flow/use-prompt-ideas"
 import { cn } from "@/lib/utils"
 import type { FlowFile, FlowRunStep } from "@/lib/video/flow/flows"
 import { FLOW_BOX_INFO, FLOW_KIND_INFO, flowKindOf } from "@/lib/video/flow/node-kinds"
 import type { FlowStepInput } from "@/lib/video/flow/run-shape"
-import { GUIDE_BLUE, MADE_DRAFT } from "@/lib/video/flow/run-view"
+import { fedFiles, GUIDE_BLUE, MADE_DRAFT } from "@/lib/video/flow/run-view"
 
 /** "[00:14] Maya: So we stopped…" or "00:14 Maya: …": a time, an optional speaker, the words. */
 const TIMED_LINE = /^\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*(?:([^:\n]{1,40}):\s+)?(.*)$/
@@ -43,17 +45,22 @@ function countWords(text: string) {
  *   shows the time, the speaker and the words in three columns, as a
  *   transcript does.
  * - **Files, a pick, the video** show what they are, and the video a button
- *   that opens it.
- * - **An AI step not made yet** shows what the AI will be asked.
+ *   that opens it. A picture, sound or downloaded file the step made shows as
+ *   its tile, not its file name.
+ * - **An AI step not made yet** shows what it reads: this video's prompt as it
+ *   is typed, what the steps before it made, its boxes, and how every video
+ *   of the channel is built at this step.
  */
 export function StepPreview({
   run,
   step,
   draftFor,
+  ideas,
 }: {
   run: FlowRunDetail
   step: FlowRunStep
   draftFor: (step: FlowRunStep, boxId: string) => FlowStepInput
+  ideas: PromptIdeas
 }) {
   const kind = flowKindOf(step.kind)
   const Icon = kind ? FLOW_KIND_INFO[kind].icon : ClapperboardIcon
@@ -65,6 +72,17 @@ export function StepPreview({
   const textBox = step.boxes.find((box) => box.kind === "text" || box.kind === "link")
   const boxText = textBox ? (open ? draftFor(step, textBox.id).text : step.input?.[textBox.id]?.text) : undefined
   const madeText = step.status === "needs_ok" ? (draftFor(step, MADE_DRAFT).text ?? made?.text) : made?.text
+
+  // What the steps with a line into this one made as files (the café picture
+  // on Make the study video): the AI is sent them, so the card shows them
+  // (Tyler, 25 Nov 2026: "how come step 2 doesnt include the generated image?").
+  const fed = fedFiles(run.steps, step)
+  const fedRows = fed.map((from) => (
+    <li key={from.id} className="grid gap-2 border-b py-3 text-sm last:border-b-0">
+      <span className="font-medium">From {from.title}</span>
+      <FlowFiles mediaIds={from.mediaIds} wide />
+    </li>
+  ))
 
   let label = step.title
   let LabelIcon = Icon
@@ -96,38 +114,53 @@ export function StepPreview({
     label = textBox.label
     LabelIcon = FLOW_BOX_INFO[textBox.kind].icon
     body = linesView(boxText)
-  } else if (!made && step.boxes.length) {
-    label = "What it reads"
-    body = (
-      <ul className="grid">
-        {step.boxes.map((box) => {
-          const held = open ? draftFor(step, box.id) : step.input?.[box.id]
-          return (
-            <li key={box.id} className="grid gap-2 border-b py-3 text-sm last:border-b-0">
-              <span className="font-medium">{box.label}</span>
-              <BoxHeld held={held} optional={!!box.optional} />
-            </li>
-          )
-        })}
-      </ul>
-    )
   } else if (!made) {
-    label = step.status === "queued" || step.status === "working" ? "Being made" : "What the AI is asked"
+    // This video's prompt as it is typed, what the steps before it made, its
+    // boxes, then how every video of the channel is built at this step.
+    label = step.status === "queued" || step.status === "working" ? "Being made" : "What it reads"
+    const words = ideas.promptFor(step).trim()
     body = (
       <div className="grid gap-3 text-sm">
         {step.note ? <p className="text-muted-foreground">{step.note}</p> : null}
-        <p className="leading-relaxed whitespace-pre-wrap">{step.prompt}</p>
-        {step.feedsFrom.length ? <p className="text-muted-foreground">It also reads what {step.feedsFrom.join(" and ")} made.</p> : null}
+        <ul className="grid">
+          <li className="grid gap-2 border-b py-3 last:border-b-0">
+            <span className="font-medium">This video</span>
+            {ideas.writing(step) ? (
+              <LoadingRow label="Writing an idea…" />
+            ) : words ? (
+              <p className="text-base leading-relaxed whitespace-pre-wrap">{words}</p>
+            ) : (
+              <p className="text-muted-foreground">Nothing written for this video yet. The step follows the flow's prompt alone.</p>
+            )}
+          </li>
+          {fedRows}
+          {step.boxes.map((box) => {
+            const held = open ? draftFor(step, box.id) : step.input?.[box.id]
+            return (
+              <li key={box.id} className="grid gap-2 border-b py-3 last:border-b-0">
+                <span className="font-medium">{box.label}</span>
+                <BoxHeld held={held} optional={!!box.optional} />
+              </li>
+            )
+          })}
+          <li className="grid gap-2 border-b py-3 last:border-b-0">
+            <span className="font-medium">How every video is built</span>
+            <p className="leading-relaxed whitespace-pre-wrap text-muted-foreground">{step.prompt}</p>
+            {step.feedsFrom.length > fed.length ? (
+              <p className="text-muted-foreground">It also reads what {step.feedsFrom.join(" and ")} made.</p>
+            ) : null}
+          </li>
+        </ul>
       </div>
     )
   } else if (madeText?.trim()) {
     label = "What it made"
     body = linesView(madeText)
-  } else if (made?.summary || made?.videoId) {
+  } else if (made?.summary || made?.videoId || made?.mediaIds?.length) {
     label = "What it made"
     body = (
       <div className="grid gap-3 text-sm">
-        {made.summary ? <p>{made.summary}</p> : null}
+        {made.mediaIds?.length ? <FlowFiles mediaIds={made.mediaIds} wide /> : made.summary ? <p>{made.summary}</p> : null}
         {made.videoId && run.projectId ? (
           <Button asChild variant="outline" className="w-fit">
             <Link to="/admin/video-editor/$projectId" params={{ projectId: run.projectId }} search={{ video: made.videoId }}>
@@ -182,10 +215,12 @@ function BoxHeld({ held, optional }: { held: FlowStepInput | undefined; optional
 /**
  * Files as tiles two to a row, 16:9 with their name under: a video plays in
  * place with its own controls, its first frame its thumbnail, from the same
- * smooth copy the editor plays; a picture shows; a sound has a player. Read from the server by id, so a reload
- * shows them too.
+ * smooth copy the editor plays; a picture shows and opens full size when
+ * pressed; a sound has a player. Read from the server by id, so a reload
+ * shows them too. `wide` puts one to a row, a picture at its own shape
+ * filling the width: how a step shows what it made.
  */
-function FlowFiles({ mediaIds }: { mediaIds: string[] }) {
+export function FlowFiles({ mediaIds, wide = false }: { mediaIds: string[]; wide?: boolean }) {
   const key = mediaIds.join(",")
   const [read, setRead] = React.useState<{ key: string; files: FlowFile[] } | null>(null)
   const [error, setError] = React.useState<string | null>(null)
@@ -207,22 +242,15 @@ function FlowFiles({ mediaIds }: { mediaIds: string[] }) {
   if (!read.files.length) return <p className="text-muted-foreground">These files are no longer in your Media.</p>
   return (
     <div className="@container">
-      <ul className="grid grid-cols-1 gap-3 @md:grid-cols-2">
+      <ul className={cn("grid grid-cols-1 gap-3", !wide && "@md:grid-cols-2")}>
         {read.files.map((file) => (
           <li key={file.id} className="grid min-w-0 gap-1.5">
             {file.fileType === "audio" ? (
               <audio controls preload="metadata" src={file.url} className="w-full" aria-label={file.name} />
+            ) : file.fileType === "image" ? (
+              <FlowPicture url={file.url} name={file.name} />
             ) : (
-              <div className="aspect-video overflow-hidden rounded-lg bg-muted">
-                {file.fileType === "video" ? (
-                  // As the editor's tiles: only the start of the smooth copy is
-                  // read, for its length and first frame; the rest streams
-                  // when it is played.
-                  <video controls preload="metadata" playsInline src={file.url} className="size-full object-contain" aria-label={file.name} />
-                ) : (
-                  <img src={file.url} alt={file.name} className="size-full object-contain" />
-                )}
-              </div>
+              <FlowVideo url={file.url} name={file.name} wide={wide} />
             )}
             <span className="truncate text-xs text-muted-foreground">{file.name}</span>
           </li>

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  FLOW_STEP_NOT_READY_MESSAGE,
   FLOW_CHANGED_MESSAGE,
   FLOW_RUN_BUSY_MESSAGE,
   FLOW_RUN_NOT_DONE_MESSAGE,
@@ -28,12 +29,14 @@ import {
   redoFlowStep,
   renameFlowRun,
   retryFlowStep,
+  changeFlowStep,
   saveFlowRun,
   startFlowRun,
   startFlowStep,
   stopFlowRun,
   type BoxChecks,
 } from "./runs"
+import { suggestFlowPrompt } from "./prompt-ideas"
 import { flowTick } from "./tick"
 
 const writer = vi.hoisted(() => ({ answers: [] as unknown[], prompts: [] as string[], metadata: [] as unknown[] }))
@@ -42,6 +45,7 @@ const writer = vi.hoisted(() => ({ answers: [] as unknown[], prompts: [] as stri
 vi.mock("@/server/media/storage", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/media/storage")>()),
   getPublicMediaUrl: async (storagePath: string) => `https://media.test/${storagePath}`,
+  getFromR2: async () => ({ Body: { transformToByteArray: async () => new Uint8Array([1]) } }),
 }))
 vi.mock("@/server/video/writer", () => ({
   askWriter: async ({ prompt, metadata }: { prompt: string; metadata: unknown }) => {
@@ -63,6 +67,54 @@ vi.mock("@/server/video/ai-music", () => ({
     if (makers.music.length === makers.failMusicCall) throw new Error("ElevenLabs said no.")
     return { media: { id: `music-${makers.music.length}` }, lengthMs: args.forMs ?? 60_000, cents: 30 }
   },
+}))
+
+// The clip maker (Make it move) and the sound maker, counted. A clip is
+// "processing" until a test says it is ready.
+const moving = vi.hoisted(() => ({
+  started: [] as { mediaId: string; prompt: string; seconds: number; company: string; quality: string; sound: boolean; endOnStart: boolean }[],
+  ready: false,
+  failed: false,
+  sounds: [] as { words: string; seconds: number; loop?: boolean }[],
+}))
+vi.mock("@/server/video/asset-factories/moving-stills", () => ({
+  createPictureShot: async (_userId: string, payload: (typeof moving.started)[number]) => {
+    moving.started.push(payload)
+    return { shotId: `shot-${moving.started.length}` }
+  },
+  pictureShotState: async (_userId: string, shotId: string) =>
+    moving.failed
+      ? { status: "error", mediaId: null, durationMs: 8000, error: "The video model refused it." }
+      : moving.ready
+      ? { status: "ready", mediaId: `clip-${shotId}`, durationMs: 8000, error: null }
+      : { status: "processing", mediaId: null, durationMs: 8000, error: null },
+}))
+vi.mock("@/server/video/ai-sound-effects", () => ({
+  makeAiSoundEffect: async (args: (typeof moving.sounds)[number]) => {
+    moving.sounds.push(args)
+    return { media: { id: `sound-${moving.sounds.length}` } }
+  },
+}))
+// A placed sound's length is read from its file, which a test has none of.
+vi.mock("@/server/video/voice", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/video/voice")>()),
+  soundDurationMs: () => 300_000,
+}))
+
+// The picture maker, counted: each call is a payment. A saved picture is a
+// real Media row, so a change can read it back.
+const pictures = vi.hoisted(() => ({
+  calls: [] as { prompt: string; references: { storagePath: string }[]; size?: string }[],
+  save: null as null | ((name: string) => Promise<{ id: string; originalName: string }>),
+}))
+vi.mock("@/server/video/asset-factories/images", () => ({
+  generateImage: async (args: { prompt: string; references: { storagePath: string }[]; size?: string }) => {
+    pictures.calls.push({ prompt: args.prompt, references: args.references, size: args.size })
+    return { bytes: new Uint8Array([1]), mimeType: "image/png" }
+  },
+}))
+vi.mock("@/server/video/asset-factories/media", () => ({
+  saveGeneratedAsset: async ({ name }: { name: string }) => pictures.save!(name),
 }))
 
 // What is said in the raw video: "hello there" at 1s, "the good part" at 5s.
@@ -129,6 +181,10 @@ beforeEach(async () => {
   writer.metadata = []
   makers.music = []
   makers.failMusicCall = 0
+  moving.started = []
+  moving.ready = false
+  moving.failed = false
+  moving.sounds = []
 })
 
 afterEach(async () => {
@@ -143,7 +199,10 @@ describe("flows", () => {
   it("puts each starter in the table once, and a deleted one stays deleted", async () => {
     const first = await listFlows(user.id, database)
     expect(first.map((flow) => flow.name).sort()).toEqual(["Pomodoro study video", "Transcript to video"])
-    expect(first.every((flow) => flow.nodeCount === 3 && flow.problemCount === 0 && flow.starter)).toBe(true)
+    expect(first.map((flow) => [flow.name, flow.nodeCount, flow.problemCount, flow.starter]).sort()).toEqual([
+      ["Pomodoro study video", 6, 0, true],
+      ["Transcript to video", 3, 0, true],
+    ])
     const pomodoro = first.find((flow) => flow.name === "Pomodoro study video")!
     await deleteFlow(user.id, pomodoro.id, database)
     expect((await listFlows(user.id, database)).map((flow) => flow.name)).toEqual(["Transcript to video"])
@@ -426,6 +485,312 @@ describe("making steps again", () => {
     expect(run.status).toBe("stopped")
     expect(stepByNode(run, "script").status).toBe("queued")
     expect(writer.prompts).toEqual([])
+  })
+})
+
+describe("changing a made picture", () => {
+  it("makes the new picture from the old one and the words typed, and the steps after it start again", async () => {
+    let made = 0
+    pictures.calls = []
+    pictures.save = async (name) => {
+      made += 1
+      const id = `pic-${made}`
+      await insertMedia(id, "image")
+      return { id, originalName: `${name}.png` }
+    }
+    const flows = await listFlows(user.id, database)
+    const { runId } = await startFlowRun(user.id, { flowId: flows.find((flow) => flow.name.startsWith("Pomodoro"))!.id }, database)
+    let run = await getFlowRun(user.id, runId, database)
+    await startFlowStep(user.id, { stepId: stepByNode(run, "scene").id, inputs: {} }, database, checks)
+    await flowTick()
+    run = await getFlowRun(user.id, runId, database)
+    expect(stepByNode(run, "scene")).toMatchObject({ status: "done", output: { mediaIds: ["pic-1"] }, changedWith: null })
+
+    run = await changeFlowStep(user.id, { stepId: stepByNode(run, "scene").id, words: "make it daytime" }, database)
+    expect(stepByNode(run, "scene")).toMatchObject({ status: "queued", output: null, changedWith: "make it daytime" })
+    expect(stepByNode(run, "clip").status).toBe("waiting")
+    await flowTick()
+    run = await getFlowRun(user.id, runId, database)
+    expect(stepByNode(run, "scene")).toMatchObject({ status: "done", output: { mediaIds: ["pic-2"] }, changedWith: "make it daytime" })
+    expect(pictures.calls).toHaveLength(2)
+    expect(pictures.calls.map((call) => call.size)).toEqual(["2K", "2K"])
+    expect(stepByNode(run, "scene").estimateCents).toBe(10)
+    expect(pictures.calls[1].prompt.startsWith("make it daytime")).toBe(true)
+    expect(pictures.calls[1].references.map((ref) => ref.storagePath)).toEqual([`${user.id}/pic-1.bin`])
+
+    // Make it again goes back to the node's own prompt.
+    run = await redoFlowStep(user.id, { stepId: stepByNode(run, "scene").id }, database)
+    expect(stepByNode(run, "scene").changedWith).toBeNull()
+  })
+
+  it("refuses a change to a step that is not a made picture", async () => {
+    const { runId } = await startFlowRun(user.id, { flowId: await starterFlowId() }, database)
+    const run = await getFlowRun(user.id, runId, database)
+    await expect(changeFlowStep(user.id, { stepId: stepByNode(run, "script").id, words: "brighter" }, database)).rejects.toThrow()
+  })
+})
+
+describe("each video's own prompts", () => {
+  async function pomodoroRun() {
+    let made = 0
+    pictures.calls = []
+    pictures.save = async (name) => {
+      made += 1
+      const id = `pic-${made}`
+      await insertMedia(id, "image")
+      return { id, originalName: `${name}.png` }
+    }
+    const flows = await listFlows(user.id, database)
+    const { runId } = await startFlowRun(user.id, { flowId: flows.find((flow) => flow.name.startsWith("Pomodoro"))!.id }, database)
+    return runId
+  }
+
+  it("writes a first idea once, then sends this video's words beside the flow's when the step is made", async () => {
+    const runId = await pomodoroRun()
+    let run = await getFlowRun(user.id, runId, database)
+    expect(stepByNode(run, "scene")).toMatchObject({ suggestPrompt: true, videoPrompt: null })
+
+    writer.answers.push({ prompt: "A snowy cabin at dawn." })
+    run = await suggestFlowPrompt(user.id, { stepId: stepByNode(run, "scene").id }, database)
+    expect(stepByNode(run, "scene")).toMatchObject({ videoPrompt: "A snowy cabin at dawn.", videoPromptFromAi: true })
+    expect(writer.metadata.at(-1)).toMatchObject({ flowRunId: runId, flowStepId: stepByNode(run, "scene").id })
+
+    // A second first-idea call (another tab, a reload) pays for nothing.
+    run = await suggestFlowPrompt(user.id, { stepId: stepByNode(run, "scene").id }, database)
+    expect(writer.prompts).toHaveLength(1)
+
+    // The step that reads the scene waits until it is made.
+    await expect(suggestFlowPrompt(user.id, { stepId: stepByNode(run, "clip").id }, database)).rejects.toThrow(
+      FLOW_STEP_NOT_READY_MESSAGE
+    )
+
+    run = await startFlowStep(user.id, { stepId: stepByNode(run, "scene").id, inputs: {}, prompt: " A snowy cabin at dawn, a fire in the stove. " }, database, checks)
+    expect(stepByNode(run, "scene")).toMatchObject({ videoPrompt: "A snowy cabin at dawn, a fire in the stove.", videoPromptFromAi: false })
+    await flowTick()
+    expect(pictures.calls[0].prompt).toContain("## How every video of this channel is built\nA wide 16:9 photograph")
+    expect(pictures.calls[0].prompt).toContain("## This video\nA snowy cabin at dawn, a fire in the stove.")
+
+    // Step 2's idea is built on what step 1 chose.
+    run = await getFlowRun(user.id, runId, database)
+    writer.answers.push({ prompt: "The snow falls and the fire flickers." })
+    run = await suggestFlowPrompt(user.id, { stepId: stepByNode(run, "clip").id }, database)
+    expect(writer.prompts.at(-1)).toContain("This video's prompt: A snowy cabin at dawn, a fire in the stove.")
+    expect(writer.prompts.at(-1)).not.toContain("Pick something clearly different")
+    expect(stepByNode(run, "clip")).toMatchObject({ videoPrompt: "The snow falls and the fire flickers.", videoPromptFromAi: true })
+  })
+
+  it("drops the AI's ideas after a step made again, keeps words the person wrote, and New idea replaces any words", async () => {
+    const runId = await pomodoroRun()
+    let run = await getFlowRun(user.id, runId, database)
+    await startFlowStep(user.id, { stepId: stepByNode(run, "scene").id, inputs: {}, prompt: "A library at noon." }, database, checks)
+    await flowTick()
+    run = await getFlowRun(user.id, runId, database)
+    writer.answers.push({ prompt: "Dust drifts in the sunlight." })
+    run = await suggestFlowPrompt(user.id, { stepId: stepByNode(run, "clip").id }, database)
+
+    run = await redoFlowStep(user.id, { stepId: stepByNode(run, "scene").id, prompt: "A desert camp at night." }, database)
+    expect(stepByNode(run, "scene").videoPrompt).toBe("A desert camp at night.")
+    expect(stepByNode(run, "clip")).toMatchObject({ videoPrompt: null, videoPromptFromAi: false })
+    await flowTick()
+
+    await database
+      .update(videoFlowRunSteps)
+      .set({ videoPrompt: "Only the stars move.", videoPromptFromAi: false })
+      .where(eq(videoFlowRunSteps.id, stepByNode(run, "clip").id))
+    run = await redoFlowStep(user.id, { stepId: stepByNode(run, "scene").id }, database)
+    expect(stepByNode(run, "clip").videoPrompt).toBe("Only the stars move.")
+
+    await flowTick()
+    writer.answers.push({ prompt: "A sleeper train at dusk." })
+    run = await getFlowRun(user.id, runId, database)
+    run = await suggestFlowPrompt(user.id, { stepId: stepByNode(run, "scene").id, replace: true }, database)
+    expect(stepByNode(run, "scene")).toMatchObject({ videoPrompt: "A sleeper train at dusk.", videoPromptFromAi: true })
+  })
+
+  it("tells the first step's idea what the channel's earlier videos were", async () => {
+    const first = await pomodoroRun()
+    let run = await getFlowRun(user.id, first, database)
+    await startFlowStep(user.id, { stepId: stepByNode(run, "scene").id, inputs: {}, prompt: "A café at night in the rain." }, database, checks)
+    const second = await pomodoroRun()
+    run = await getFlowRun(user.id, second, database)
+    writer.answers.push({ prompt: "A greenhouse in the morning." })
+    await suggestFlowPrompt(user.id, { stepId: stepByNode(run, "scene").id }, database)
+    expect(writer.prompts.at(-1)).toContain("- A café at night in the rain.")
+    expect(writer.prompts.at(-1)).toContain("Pick something clearly different")
+  })
+
+  it("writes no first idea for a node with the switch off, and never for someone else's run", async () => {
+    const { runId } = await startFlowRun(user.id, { flowId: await starterFlowId() }, database)
+    const run = await getFlowRun(user.id, runId, database)
+    const after = await suggestFlowPrompt(user.id, { stepId: stepByNode(run, "script").id }, database)
+    expect(stepByNode(after, "script").videoPrompt).toBeNull()
+    expect(writer.prompts).toHaveLength(0)
+    const other = await insertUser(database, { email: "other@example.com" })
+    await expect(suggestFlowPrompt(other.id, { stepId: stepByNode(run, "script").id, replace: true }, database)).rejects.toThrow()
+  })
+})
+
+describe("the Pomodoro run's clip, music and ambience steps", () => {
+  async function pomodoroToClip() {
+    pictures.save = async (name) => {
+      await insertMedia("pic-1", "image")
+      return { id: "pic-1", originalName: `${name}.png` }
+    }
+    const flows = await listFlows(user.id, database)
+    const { runId } = await startFlowRun(user.id, { flowId: flows.find((flow) => flow.name.startsWith("Pomodoro"))!.id }, database)
+    let run = await getFlowRun(user.id, runId, database)
+    await startFlowStep(user.id, { stepId: stepByNode(run, "scene").id, inputs: {}, prompt: "A snowy cabin at dawn." }, database, checks)
+    await flowTick()
+    run = await getFlowRun(user.id, runId, database)
+    await startFlowStep(user.id, { stepId: stepByNode(run, "clip").id, inputs: {}, prompt: "The snow falls and the fire flickers." }, database, checks)
+    return runId
+  }
+
+  /** The worker until the step stops being made, as many passes as it takes. */
+  async function makeUntilStopped(runId: string, nodeId: string) {
+    for (let pass = 0; pass < 5; pass += 1) {
+      await database.update(videoFlowRunSteps).set({ wakeAt: null }).where(eq(videoFlowRunSteps.runId, runId))
+      await flowTick()
+      const step = stepByNode(await getFlowRun(user.id, runId, database), nodeId)
+      if (step.status !== "queued" && step.status !== "working") return step
+    }
+    throw new Error(`${nodeId} was still being made`)
+  }
+
+  it("makes each piece only after its price is OK'd, waits for OK once made, and the study video places them without making anything", async () => {
+    const runId = await pomodoroToClip()
+
+    // The clip: its price first, nothing paid for.
+    let step = await makeUntilStopped(runId, "clip")
+    expect(step).toMatchObject({ status: "needs_ok", planned: true })
+    expect(step.output?.text).toContain("8-second clip")
+    expect(moving.started).toEqual([])
+    await approveFlowStep(user.id, { stepId: step.id }, database)
+    await flowTick()
+    expect(moving.started).toHaveLength(1)
+    expect(moving.started[0]).toMatchObject({ mediaId: "pic-1", seconds: 8, company: "seedance", quality: "1080p", sound: false, endOnStart: true })
+    expect(moving.started[0].prompt.startsWith("The snow falls and the fire flickers.")).toBe(true)
+    step = stepByNode(await getFlowRun(user.id, runId, database), "clip")
+    expect(step.status).toBe("queued")
+    expect(step.note).toContain("Making the clip move")
+
+    // Ready: it waits for OK so the clip can be watched, and hands on its picture.
+    moving.ready = true
+    await insertMedia("clip-shot-1", "video")
+    step = await makeUntilStopped(runId, "clip")
+    expect(step).toMatchObject({ status: "needs_ok", planned: false, output: { mediaIds: ["clip-shot-1"], pictureId: "pic-1", lengthMs: 8000, loops: true } })
+    expect(moving.started).toHaveLength(1)
+    await approveFlowStep(user.id, { stepId: step.id }, database)
+
+    // The music: six tracks of five minutes, each told its number.
+    let run = await getFlowRun(user.id, runId, database)
+    await startFlowStep(user.id, { stepId: stepByNode(run, "music").id, inputs: {}, prompt: "Slow, warm piano." }, database, checks)
+    step = await makeUntilStopped(runId, "music")
+    expect(step).toMatchObject({ status: "needs_ok", planned: true, estimateCents: 900 })
+    expect(makers.music).toEqual([])
+    await approveFlowStep(user.id, { stepId: step.id }, database)
+    for (let n = 1; n <= 6; n += 1) await insertMedia(`music-${n}`, "audio")
+    step = await makeUntilStopped(runId, "music")
+    expect(makers.music.map((call) => call.forMs)).toEqual([300_000, 300_000, 300_000, 300_000, 300_000, 300_000])
+    expect(makers.music[2].mood).toContain("Track 3 of 6")
+    expect(makers.music[2].mood.startsWith("Slow, warm piano.")).toBe(true)
+    expect(step).toMatchObject({ status: "needs_ok", output: { mediaIds: ["music-1", "music-2", "music-3", "music-4", "music-5", "music-6"] } })
+    await approveFlowStep(user.id, { stepId: step.id }, database)
+
+    // The ambience: one 30-second loop.
+    run = await getFlowRun(user.id, runId, database)
+    await startFlowStep(user.id, { stepId: stepByNode(run, "ambience").id, inputs: {}, prompt: "A crackling fire." }, database, checks)
+    step = await makeUntilStopped(runId, "ambience")
+    expect(step).toMatchObject({ status: "needs_ok", planned: true })
+    await approveFlowStep(user.id, { stepId: step.id }, database)
+    await insertMedia("sound-1", "audio")
+    step = await makeUntilStopped(runId, "ambience")
+    expect(moving.sounds).toEqual([expect.objectContaining({ seconds: 30, loop: true })])
+    expect(moving.sounds[0].words.startsWith("A crackling fire.")).toBe(true)
+    await approveFlowStep(user.id, { stepId: step.id }, database)
+
+    // The study video: it places the clip, the six tracks and the ambience.
+    run = await getFlowRun(user.id, runId, database)
+    await startFlowStep(user.id, { stepId: stepByNode(run, "study").id, inputs: {} }, database, checks)
+    writer.answers.push({
+      title: "Study",
+      frame: "16:9",
+      actions: [
+        {
+          do: "repeat",
+          times: 6,
+          every: 1800,
+          actions: [
+            { do: "place", file: "C1", from: 0, to: 1800, role: "background", loop: true },
+            { do: "place", file: "S{n}", from: 0, to: 1500, role: "music" },
+            { do: "timer", from: 0, to: 1500, above: "FOCUS", below: "Round {n}/6" },
+          ],
+        },
+        { do: "place", file: "S7", from: 0, to: 10800, role: "ambience", loop: true },
+      ],
+    })
+    step = await makeUntilStopped(runId, "study")
+    const asked = writer.prompts.at(-1)!
+    expect(asked).toContain('C1: moving clip "clip-shot-1.mp4", from Generate video, 8 seconds, ends on its start so it loops')
+    expect(asked).toContain("S1: sound \"music-1.mp4\", from Make the music")
+    expect(asked).toContain("S7: sound \"sound-1.mp4\", from Make the ambience")
+    // Laid, and with Wait for my OK on, waiting to be checked; no plan to OK first.
+    expect(step).toMatchObject({ status: "needs_ok", planned: false })
+    expect(moving.started).toHaveLength(1)
+    expect(makers.music).toHaveLength(6)
+    const [saved] = await database.select().from(videoFlowRuns).where(eq(videoFlowRuns.id, runId))
+    const laid = new Set(saved.timeline!.tracks.flatMap((track) => track.clips.map((clip) => clip.mediaId)))
+    for (const id of ["clip-shot-1", "music-1", "music-6", "sound-1"]) expect(laid.has(id)).toBe(true)
+    // The scene picture goes on to the thumbnail.
+    expect(step.output?.mediaIds).toContain("pic-1")
+  })
+
+  it("OK on a price makes it from the Prompt card's words as they are at OK", async () => {
+    const runId = await pomodoroToClip()
+    const step = await makeUntilStopped(runId, "clip")
+    await approveFlowStep(user.id, { stepId: step.id, prompt: "Only the candle flickers." }, database)
+    await flowTick()
+    expect(moving.started[0].prompt.startsWith("Only the candle flickers.")).toBe(true)
+    expect(stepByNode(await getFlowRun(user.id, runId, database), "clip").videoPrompt).toBe("Only the candle flickers.")
+  })
+
+  it("Try again after a clip the video model refused starts a new clip, without asking the price again", async () => {
+    const runId = await pomodoroToClip()
+    let step = await makeUntilStopped(runId, "clip")
+    await approveFlowStep(user.id, { stepId: step.id }, database)
+    await flowTick()
+    moving.failed = true
+    step = await makeUntilStopped(runId, "clip")
+    expect(step).toMatchObject({ status: "failed" })
+    expect(step.error).toContain("The clip couldn't be made")
+
+    moving.failed = false
+    await retryFlowStep(user.id, { stepId: step.id }, database)
+    await flowTick()
+    expect(moving.started).toHaveLength(2)
+    step = stepByNode(await getFlowRun(user.id, runId, database), "clip")
+    expect(step.status).toBe("queued")
+    expect(step.note).toContain("Making the clip move")
+  })
+
+  it("Change it on a made clip asks the price again, then moves the same picture with the words added", async () => {
+    const runId = await pomodoroToClip()
+    let step = await makeUntilStopped(runId, "clip")
+    await approveFlowStep(user.id, { stepId: step.id }, database)
+    moving.ready = true
+    await insertMedia("clip-shot-1", "video")
+    step = await makeUntilStopped(runId, "clip")
+
+    await changeFlowStep(user.id, { stepId: step.id, words: "slower snow" }, database)
+    step = await makeUntilStopped(runId, "clip")
+    expect(step).toMatchObject({ status: "needs_ok", planned: true, changedWith: "slower snow" })
+    await approveFlowStep(user.id, { stepId: step.id }, database)
+    await insertMedia("clip-shot-2", "video")
+    step = await makeUntilStopped(runId, "clip")
+    expect(moving.started).toHaveLength(2)
+    expect(moving.started[1]).toMatchObject({ mediaId: "pic-1" })
+    expect(moving.started[1].prompt).toContain("Change: slower snow")
+    expect(step.output?.mediaIds).toEqual(["clip-shot-2"])
   })
 })
 
