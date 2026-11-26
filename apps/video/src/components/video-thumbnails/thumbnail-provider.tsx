@@ -54,7 +54,13 @@ export function ThumbnailsProvider({
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [openId, setOpenId] = React.useState<string | null>(null)
   const [design, setDesign] = React.useState<BoardDesign | null>(null)
-  const [selectedLayerId, setSelectedLayerId] = React.useState<string | null>(null)
+  const [selectedLayerIds, setSelectedLayerIds] = React.useState<string[]>([])
+  const selectLayer = React.useCallback((id: string | null) => setSelectedLayerIds(id ? [id] : []), [])
+  const toggleLayer = React.useCallback(
+    (id: string) => setSelectedLayerIds((ids) => (ids.includes(id) ? ids.filter((one) => one !== id) : [...ids, id])),
+    []
+  )
+  const selectedLayerId = selectedLayerIds.length === 1 ? selectedLayerIds[0] : null
   const [saving, setSaving] = React.useState<ThumbnailsValue["saving"]>("saved")
   const [busy, setBusy] = React.useState<string | null>(null)
   // Remembered in this browser between visits, starting on 4.
@@ -180,7 +186,7 @@ export function ThumbnailsProvider({
   const openThumbnail = React.useCallback((id: string) => {
     setOpenId(id)
     setDesign(null)
-    setSelectedLayerId(null)
+    setSelectedLayerIds([])
     setBeforeAfter(null)
   }, [])
 
@@ -214,7 +220,7 @@ export function ThumbnailsProvider({
       if (openId === id) {
         setOpenId(left?.[0]?.id ?? null)
         setDesign(null)
-        setSelectedLayerId(null)
+        setSelectedLayerIds([])
       }
     },
     [list, openId]
@@ -266,6 +272,7 @@ export function ThumbnailsProvider({
       open,
       design: shownDesign,
       selectedLayerId,
+      selectedLayerIds,
       saving,
       busy,
       tries,
@@ -279,7 +286,8 @@ export function ThumbnailsProvider({
       removeRow,
       setTemplates,
       change,
-      selectLayer: setSelectedLayerId,
+      selectLayer,
+      toggleLayer,
       setTries,
       setModel,
       setBeforeAfter,
@@ -292,6 +300,9 @@ export function ThumbnailsProvider({
       open,
       shownDesign,
       selectedLayerId,
+      selectedLayerIds,
+      selectLayer,
+      toggleLayer,
       saving,
       busy,
       tries,

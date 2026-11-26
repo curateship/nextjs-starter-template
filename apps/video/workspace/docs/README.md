@@ -100,8 +100,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
 - [stickers.md](stickers.md) — the Elements panel's stickers: each person's own
   emoji and pictures, where the list is stored, where a sticker lands, and
   what happens to a project whose picture sticker's file is deleted.
-- [text-fonts.md](text-fonts.md) — the five faces video text, captions and
-  carousel slides can be drawn in, their licences, how the preview and the export stay
+- [text-fonts.md](text-fonts.md) — the eight faces video text, captions,
+  carousel slides and thumbnail words can be drawn in, their licences, how the preview and the export stay
   in step, and what the extra files cost to download.
 - [caption-look.md](caption-look.md) — the look every new caption starts
   from, saved on Settings, Captions: font, outline, capitals, words at a time,

@@ -1,6 +1,6 @@
 # Text fonts
 
-Video text clips, captions and carousel text can be drawn in six faces.
+Video text clips, captions, carousel text and thumbnail words can be drawn in eight faces.
 Inter is the default and is what every clip made before fonts were a choice
 keeps — a clip saved with no font written down always draws as Inter.
 
@@ -14,6 +14,8 @@ keeps — a clip saved with no font written down always draws as Inter.
 | Caveat | Handwriting | SIL Open Font License 1.1 |
 | Anton | Tall, narrow and heavy, for captions in capitals | SIL Open Font License 1.1 |
 | Fredoka | Soft and round, for study timers and thumbnails | SIL Open Font License 1.1 |
+| Instrument Serif | A tall, light serif, for a big place name on a thumbnail | SIL Open Font License 1.1 |
+| Geist Mono | Every letter the same width, for a small, wide-spaced line in capitals | SIL Open Font License 1.1 |
 
 Each licence text sits beside its font file as
 `src/server/assets/<Face>-LICENSE.txt`. The SIL licence allows bundling,
@@ -40,6 +42,32 @@ the google/fonts repository's `OFL.txt`, as
 drawing a sample line with the server's own rasterizer (resvg), which read
 every other face within 0.02 of its shipped number.
 
+Instrument Serif and Geist Mono joined on 26 Nov 2026 for a thumbnail
+Tyler designed: "Toronto" in Instrument Serif over a park photo, with
+"TRINITY BELLWOODS" under it in Geist Mono capitals spaced 0.3 of the
+letter size apart ([thumbnails.md](thumbnails.md), "Toronto neighbourhood").
+Instrument Serif has one weight, its Regular (400), so it is drawn at 400 like
+Anton. Geist Mono is drawn at Medium (500), the weight the design used.
+
+- **Instrument Serif's files:** `InstrumentSerif-Regular.ttf` is from the
+  google/fonts repository, unmodified, with that repository's `OFL.txt` as
+  `InstrumentSerif-LICENSE.txt`. The latin and latin-ext woff2 files came from
+  Fontsource (cdn.jsdelivr.net/fontsource), which cuts them from the Google
+  Fonts build.
+- **Geist Mono's files:** Google Fonts only keeps Geist Mono as one file
+  holding every weight, and the server's rasterizer can't pick a weight out
+  of one of those. So the ttf is the static `GeistMono-Medium.ttf` from Geist's
+  own repository (vercel/geist-font), unmodified. The latin and latin-ext Medium woff2
+  files came from Fontsource, like Instrument Serif's. The licence is the
+  google/fonts repository's `OFL.txt`, as `GeistMono-LICENSE.txt`. The ttf's
+  family is "Geist Mono" with Medium as its style, which is the name the
+  export asks for.
+- **Letter widths** were measured with resvg on the same sample line as
+  Fredoka, in the same run that read the other six within 0.01 of their
+  numbers: Instrument Serif 0.34 → 0.39 (capitals 0.41 → 0.47), and Geist Mono
+  0.60 → 0.68 for small letters and capitals alike, because every letter in it
+  is the same width.
+
 ## Where to pick one
 
 - A text clip in the video editor: the Font dropdown in the clip's "The words"
@@ -49,6 +77,9 @@ every other face within 0.02 of its shipped number.
 - Carousel text: the Font buttons in the text layer's inspector, and the Fonts
   shelf in the left panel that starts a new text layer in a face,
   `src/components/carousel-studio/carousel-studio.tsx`.
+- Thumbnail words: the Font dropdown in the right panel when a words layer is
+  picked on the Thumbnail board,
+  `src/components/video-thumbnails/thumbnail-inspector.tsx`.
 
 ## The same face on both ends
 
@@ -56,7 +87,8 @@ Every face ships twice, and the two copies must stay in step or an export
 wraps its lines differently from the preview:
 
 - The browser loads woff2 files from `public/fonts/`. Four are declared in
-  `src/theme.css`. Anton and Fredoka are declared in the app's own
+  `src/theme.css`. Anton, Fredoka, Instrument Serif and Geist Mono are
+  declared in the app's own
   `src/components/video-editor/text-fonts.css`, because `theme.css` belongs to
   the shell and must not be edited again; the editor, the carousel studio and
   the caption look's fields import it. A face is only downloaded once
@@ -97,7 +129,7 @@ caption will stand ([safe-box.md](safe-box.md)).
 
 ## What it costs
 
-The four extra faces add nothing to a page that does not use them. When one is
+The seven faces beside Inter add nothing to a page that does not use them. When one is
 used, the browser downloads its woff2 files once:
 
 - Playfair Display: 23 KB (latin) + 13 KB (accented latin), 36 KB together
@@ -106,6 +138,8 @@ used, the browser downloads its woff2 files once:
 
 - Anton: 12 KB (latin) + 21 KB (accented latin), 33 KB together
 - Fredoka: 16 KB (latin) + 3 KB (accented latin), 19 KB together
+- Instrument Serif: 21 KB + 12 KB, 33 KB together
+- Geist Mono: 10 KB + 7 KB, 17 KB together
 
-All four together are 163 KB, about the size of one small photo. The server
+All seven together are 232 KB, about the size of one small photo. The server
 ttf files (69–252 KB each) never reach the browser.

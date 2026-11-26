@@ -106,7 +106,7 @@ export function AddLayers() {
   }
 
   return (
-    <InspectorCard title="Add" description="Drag a layer on the board to move it, and its corner dot to resize it.">
+    <InspectorCard title="Add" description="Drag a layer on the board to move it, and its corner dot to resize it. Shift-click to pick more than one.">
       <div className="grid grid-cols-2 gap-2">
         <Button
           type="button"

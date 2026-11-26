@@ -47,6 +47,19 @@ the soft round face for study timers and thumbnails. Declared in
 - Source: <https://fonts.google.com/specimen/Fredoka>
 - Licence: SIL Open Font License 1.1, <https://openfontlicense.org>
 
+## Instrument Serif and Geist Mono
+
+`instrument-serif-latin.woff2` and `instrument-serif-latin-ext.woff2`, the
+Regular (400), its only weight. `geist-mono-latin.woff2` and
+`geist-mono-latin-ext.woff2`, the Medium (500). Both are for thumbnail words,
+such as a big place name and the small spaced-out line under it. Declared in
+`src/components/video-editor/text-fonts.css`, with their ttf files in
+`src/server/assets`.
+
+- Sources: <https://fonts.google.com/specimen/Instrument+Serif>,
+  <https://fonts.google.com/specimen/Geist+Mono>
+- Licence: SIL Open Font License 1.1, <https://openfontlicense.org>
+
 All of these licences allow bundling the files with an application and serving them.
 They ask that the font names not be changed and that the licence travel with
 the files, which is what this file is for.

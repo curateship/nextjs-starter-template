@@ -19,6 +19,8 @@ const FONT_FILES: Record<TextFontId, string> = {
   caveat: "Caveat-SemiBold.ttf",
   anton: "Anton-Regular.ttf",
   fredoka: "Fredoka-SemiBold.ttf",
+  "instrument-serif": "InstrumentSerif-Regular.ttf",
+  "geist-mono": "GeistMono-Medium.ttf",
 }
 
 /**

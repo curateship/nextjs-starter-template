@@ -49,6 +49,12 @@ import { TEXT_FONTS, type TextFontId } from "@/lib/video/text-fonts"
 import {
   hasTextLook,
   OUTLINE_WIDTH_MAX,
+  SHADOW_BLUR_MAX,
+  SHADOW_OFFSET_MAX,
+  SHADOW_SPREAD_MAX,
+  SHADOW_STRENGTH_MAX,
+  TEXT_SHADOW_DEFAULTS,
+  textShadowOf,
   TEXT_LOOK_LABELS,
   TEXT_LOOKS,
   withoutTextLook,
@@ -66,8 +72,13 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * picked. It takes the clip inspector's place while the section is open.
  */
 export function ThumbnailInspector() {
-  const { open, design, change } = useThumbnails()
+  const { open, design, change, selectedLayerIds } = useThumbnails()
   const layer = useSelectedLayer()
+  // In the order they were picked, so the first one picked shows its values.
+  const several = design
+    ? selectedLayerIds.flatMap((id) => design.layers.find((one) => one.id === id) ?? [])
+    : []
+  const severalWords = several.length > 1 && several.every((one) => one.type === "text") ? (several as ThumbnailText[]) : null
 
   function patch(next: Partial<ThumbnailLayer>) {
     if (!layer) return
@@ -79,7 +90,21 @@ export function ThumbnailInspector() {
     }))
   }
 
-  const title = !layer
+  /** The same change on every picked layer (Tyler, 26 Nov 2026). */
+  function patchAll(next: Partial<ThumbnailLayer>) {
+    change((current) => ({
+      ...current,
+      layers: current.layers.map((one) =>
+        selectedLayerIds.includes(one.id) ? ({ ...one, ...next } as ThumbnailLayer) : one
+      ),
+    }))
+  }
+
+  const title = several.length > 1
+    ? severalWords
+      ? `${several.length} words layers`
+      : `${several.length} layers`
+    : !layer
     ? "Board"
     : layer.type === "text"
       ? "Words"
@@ -100,6 +125,13 @@ export function ThumbnailInspector() {
         <div className="grid auto-rows-min gap-3 p-3">
           {!open || !design ? (
             <p className="text-sm text-muted-foreground">Make a thumbnail on the left to start.</p>
+          ) : severalWords ? (
+            <>
+              <TextCards layers={severalWords} patch={patchAll} />
+              <SeveralLayersCard count={several.length} words />
+            </>
+          ) : several.length > 1 ? (
+            <SeveralLayersCard count={several.length} />
           ) : !layer ? (
             <InspectorCard title="Board" description="Pick a layer on the board to change it.">
               <ColorField
@@ -110,7 +142,7 @@ export function ThumbnailInspector() {
             </InspectorCard>
           ) : (
             <>
-              {layer.type === "text" ? <TextCards layer={layer} patch={patch} /> : null}
+              {layer.type === "text" ? <TextCards layers={[layer]} patch={patch} /> : null}
               {layer.type === "image" ? <PictureCards layer={layer} patch={patch} /> : null}
               {layer.type === "shape" ? <ShapeCard layer={layer} patch={patch} /> : null}
               {layer.type === "spot" ? (
@@ -127,35 +159,50 @@ export function ThumbnailInspector() {
   )
 }
 
+/**
+ * A words layer's settings. Given several, it shows the first one's values
+ * and every change goes to all of them; the words themselves stay each
+ * layer's own, so their box is left out.
+ */
 function TextCards({
-  layer,
+  layers,
   patch,
 }: {
-  layer: ThumbnailText
+  layers: ThumbnailText[]
   patch: (next: Partial<ThumbnailLayer>) => void
 }) {
   const { change } = useThumbnails()
-  function replace(next: ThumbnailText) {
+  const layer = layers[0]
+  const one = layers.length === 1
+  const ids = new Set(layers.map((each) => each.id))
+  /** A look put on, or taken off, every one of them. */
+  function toggleLook(look: (typeof TEXT_LOOKS)[number], on: boolean) {
     change((current) => ({
       ...current,
-      layers: current.layers.map((one) => (one.id === layer.id ? next : one)),
+      layers: current.layers.map((each) =>
+        ids.has(each.id) && each.type === "text" ? (on ? withoutTextLook(each, look) : withTextLook(each, look)) : each
+      ),
     }))
   }
   return (
     <>
-      <InspectorCard title="Words">
-        <Label htmlFor="thumbnail-words" className="sr-only">
-          Words
-        </Label>
-        <Textarea
-          id="thumbnail-words"
-          rows={1}
-          maxLength={2_000}
-          value={layer.text}
-          // Words typed afresh drop marks that no longer line up with them.
-          onChange={(event) => patch({ text: event.target.value, marks: undefined })}
-        />
-        <LengthCounter length={layer.text.length} max={2_000} />
+      <InspectorCard title={one ? "Words" : "Words, for all of them"}>
+        {one ? (
+          <>
+            <Label htmlFor="thumbnail-words" className="sr-only">
+              Words
+            </Label>
+            <Textarea
+              id="thumbnail-words"
+              rows={1}
+              maxLength={2_000}
+              value={layer.text}
+              // Words typed afresh drop marks that no longer line up with them.
+              onChange={(event) => patch({ text: event.target.value, marks: undefined })}
+            />
+            <LengthCounter length={layer.text.length} max={2_000} />
+          </>
+        ) : null}
         <div className="grid gap-2">
           <Label htmlFor="thumbnail-font">Font</Label>
           <Select value={layer.fontId} onValueChange={(fontId) => patch({ fontId: fontId as TextFontId })}>
@@ -184,33 +231,72 @@ function TextCards({
       <InspectorCard title="Styles" description="Ready-made thumbnail looks. Press one again to take it off.">
         <div className="grid grid-cols-2 gap-2">
           {TEXT_LOOKS.map((look) => {
-            const on = hasTextLook(layer, look)
+            // On only when every one of them wears it.
+            const on = layers.every((each) => hasTextLook(each, look))
             return (
               <Button
                 key={look}
                 type="button"
                 variant={on ? "secondary" : "outline"}
                 aria-pressed={on}
-                onClick={() => replace(on ? withoutTextLook(layer, look) : withTextLook(layer, look))}
+                onClick={() => toggleLook(look, on)}
               >
                 {TEXT_LOOK_LABELS[look]}
               </Button>
             )
           })}
         </div>
-        {hasTextLook(layer, "accent") ? (
+        {layers.every((each) => hasTextLook(each, "accent")) ? (
           <ColorField label="The one word's colour" value={layer.accentColor ?? "#ffd60a"} onChange={(accentColor) => patch({ accentColor })} />
         ) : null}
-        {hasTextLook(layer, "outline") ? (
+        {layers.every((each) => hasTextLook(each, "outline")) ? (
           <>
             <ColorField label="Outline colour" value={layer.outlineColor ?? "#000000"} onChange={(outlineColor) => patch({ outlineColor })} />
             <SliderField id="thumbnail-text-outline" label="Outline" value={layer.outlineWidth ?? 0} min={0} max={24} onChange={(outlineWidth) => patch({ outlineWidth })} />
           </>
         ) : null}
-        {hasTextLook(layer, "box") ? (
+        {layers.every((each) => hasTextLook(each, "shadow")) ? <ShadowFields layer={layer} patch={patch} /> : null}
+        {layers.every((each) => hasTextLook(each, "box")) ? (
           <ColorField label="Box colour" value={layer.boxColor ?? "#000000"} onChange={(boxColor) => patch({ boxColor })} />
         ) : null}
       </InspectorCard>
+    </>
+  )
+}
+
+/** A drop shadow's colour, how dark, how soft and where it falls. */
+function ShadowFields({
+  layer,
+  patch,
+}: {
+  layer: ThumbnailText
+  patch: (next: Partial<ThumbnailLayer>) => void
+}) {
+  const shadow = textShadowOf(layer)
+  const changed =
+    shadow.color !== TEXT_SHADOW_DEFAULTS.color ||
+    shadow.opacity !== TEXT_SHADOW_DEFAULTS.opacity ||
+    shadow.blur !== TEXT_SHADOW_DEFAULTS.blur ||
+    shadow.x !== TEXT_SHADOW_DEFAULTS.x ||
+    shadow.y !== TEXT_SHADOW_DEFAULTS.y ||
+    shadow.spread !== TEXT_SHADOW_DEFAULTS.spread
+  return (
+    <>
+      <ColorField label="Shadow colour" value={shadow.color} onChange={(shadowColor) => patch({ shadowColor })} />
+      <SliderField id="thumbnail-shadow-strength" label="Strength" unit="%" value={Math.round(shadow.opacity * 100)} min={0} max={SHADOW_STRENGTH_MAX * 100} onChange={(value) => patch({ shadowOpacity: Math.round(value) / 100 })} />
+      <SliderField id="thumbnail-shadow-spread" label="Spread" value={shadow.spread} min={0} max={SHADOW_SPREAD_MAX} onChange={(shadowSpread) => patch({ shadowSpread })} />
+      <SliderField id="thumbnail-shadow-softness" label="Softness" value={shadow.blur} min={0} max={SHADOW_BLUR_MAX} onChange={(shadowBlur) => patch({ shadowBlur })} />
+      <SliderField id="thumbnail-shadow-across" label="Across" value={shadow.x} min={-SHADOW_OFFSET_MAX} max={SHADOW_OFFSET_MAX} onChange={(shadowX) => patch({ shadowX })} />
+      <SliderField id="thumbnail-shadow-down" label="Down" value={shadow.y} min={-SHADOW_OFFSET_MAX} max={SHADOW_OFFSET_MAX} onChange={(shadowY) => patch({ shadowY })} />
+      {changed ? (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => patch({ shadowColor: undefined, shadowOpacity: undefined, shadowBlur: undefined, shadowX: undefined, shadowY: undefined, shadowSpread: undefined })}
+        >
+          Reset shadow
+        </Button>
+      ) : null}
     </>
   )
 }
@@ -373,6 +459,33 @@ function ShapeCard({
       ) : null}
       <ColorField label="Colour" value={layer.color} onChange={(color) => patch({ color })} />
       <SliderField id="thumbnail-line" label="Thickness" value={layer.lineWidth} min={MIN_SHAPE_LINE_WIDTH} max={MAX_SHAPE_LINE_WIDTH} onChange={(lineWidth) => patch({ lineWidth })} />
+    </InspectorCard>
+  )
+}
+
+/**
+ * Several layers picked by shift-click: they move together on the board, and
+ * go together here or with Delete.
+ */
+function SeveralLayersCard({ count, words = false }: { count: number; words?: boolean }) {
+  const { change, selectLayer, selectedLayerIds } = useThumbnails()
+  return (
+    <InspectorCard
+      title={`${count} layers picked`}
+      description={`${words ? "Changes above go to all of them. " : ""}Drag any of them to move them together. Shift-click a layer to add it or take it off.`}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        className="text-destructive"
+        onClick={() => {
+          change((current) => ({ ...current, layers: current.layers.filter((one) => !selectedLayerIds.includes(one.id)) }))
+          selectLayer(null)
+        }}
+      >
+        <Trash2Icon />
+        Delete {count} layers
+      </Button>
     </InspectorCard>
   )
 }

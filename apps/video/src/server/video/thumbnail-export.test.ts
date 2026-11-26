@@ -89,6 +89,84 @@ describe("drawing a thumbnail", () => {
     expect(yellow).toBeGreaterThan(100)
   })
 
+  it("draws a drop shadow where its sliders put it, in its colour", async () => {
+    // A red shadow pushed 40 pixels right: red shows right of the white
+    // words and none to their left.
+    const words = { ...newTextLayer("wide", []), text: "I", fontSize: 200, outlineWidth: 0, x: 0.45, y: 0.2, width: 0.2, height: 0.6, align: "left" as const }
+    const layer = { ...withTextLook(words, "shadow"), shadowColor: "#ff0000", shadowOpacity: 1, shadowBlur: 0, shadowX: 40, shadowY: 0 }
+    const image = await draw({ shape: "wide", backgroundColor: "#000000", layers: [layer] })
+    let redRight = 0
+    let redLeft = 0
+    let leftEdge = 1280
+    for (let x = 0; x < 1280; x++) {
+      const { r, g, b } = pixel(image, x, 300)
+      if (r > 230 && g > 230 && b > 230) leftEdge = Math.min(leftEdge, x)
+    }
+    for (let x = 0; x < 1280; x++) {
+      const { r, g } = pixel(image, x, 300)
+      if (r > 200 && g < 60) {
+        if (x > leftEdge) redRight += 1
+        else redLeft += 1
+      }
+    }
+    expect(leftEdge).toBeLessThan(1280)
+    expect(redRight).toBeGreaterThan(20)
+    expect(redLeft).toBe(0)
+  })
+
+  it("grows a shadow out evenly by its spread", async () => {
+    // A red shadow on the words themselves, unmoved and sharp: with no
+    // spread it hides under the white letter; with 20 it shows on both sides.
+    const words = { ...newTextLayer("wide", []), text: "I", fontSize: 200, outlineWidth: 0, x: 0.45, y: 0.2, width: 0.2, height: 0.6, align: "left" as const }
+    const base = { ...withTextLook(words, "shadow"), shadowColor: "#ff0000", shadowOpacity: 1, shadowBlur: 0, shadowX: 0, shadowY: 0 }
+    const reds = async (spread: number) => {
+      const image = await draw({ shape: "wide", backgroundColor: "#000000", layers: [{ ...base, shadowSpread: spread }] })
+      let left = 1280
+      let right = 0
+      for (let x = 0; x < 1280; x++) {
+        const { r, g, b } = pixel(image, x, 300)
+        if (r > 230 && g > 230 && b > 230) {
+          left = Math.min(left, x)
+          right = Math.max(right, x)
+        }
+      }
+      let before = 0
+      let after = 0
+      for (let x = 0; x < 1280; x++) {
+        const { r, g } = pixel(image, x, 300)
+        if (r > 200 && g < 60) {
+          if (x < left) before += 1
+          if (x > right) after += 1
+        }
+      }
+      return { before, after }
+    }
+    expect(await reds(0)).toEqual({ before: 0, after: 0 })
+    const grown = await reds(20)
+    expect(grown.before).toBeGreaterThan(8)
+    expect(grown.after).toBeGreaterThan(8)
+    expect(Math.abs(grown.before - grown.after)).toBeLessThan(6)
+  })
+
+  it("makes a soft shadow darker past 100% strength", async () => {
+    // A white shadow on a black board, so brighter means more shadow: the
+    // same spot in a blur's faded edge is brighter at 300% than at 100%.
+    const words = { ...newTextLayer("wide", []), text: "I", fontSize: 200, color: "#000000", outlineWidth: 0, x: 0.45, y: 0.2, width: 0.2, height: 0.6, align: "left" as const }
+    const base = { ...withTextLook(words, "shadow"), shadowColor: "#ffffff", shadowBlur: 20, shadowX: 0, shadowY: 0 }
+    // Where the letter starts, from the same words drawn white with no shadow.
+    const plain = await draw({ shape: "wide", backgroundColor: "#000000", layers: [{ ...words, color: "#ffffff" }] })
+    let left = 1280
+    for (let x = 0; x < 1280; x++) if (pixel(plain, x, 300).r > 230) left = Math.min(left, x)
+    expect(left).toBeLessThan(1280)
+    const at = async (opacity: number) => {
+      const image = await draw({ shape: "wide", backgroundColor: "#000000", layers: [{ ...base, shadowOpacity: opacity }] })
+      return pixel(image, left - 15, 300).r
+    }
+    const full = await at(1)
+    const triple = await at(3)
+    expect(triple).toBeGreaterThan(full + 40)
+  })
+
   it("draws an arrow inside its own box", async () => {
     const arrow = { ...newShapeLayer("arrow", []), color: "#00ff00", x: 0, y: 0, width: 1, height: 1, fromX: 0, fromY: 0.5, toX: 1, toY: 0.5, lineWidth: 30 }
     const image = await draw({ shape: "wide", backgroundColor: "#000000", layers: [arrow] })

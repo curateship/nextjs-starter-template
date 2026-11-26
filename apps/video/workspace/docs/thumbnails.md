@@ -67,12 +67,45 @@ task and his answers are in
 The board's layers are the carousel's own (words, pictures and shades,
 [carousel-layers.md](carousel-layers.md)) plus the board's own kinds. The
 right panel's Layer card moves a layer forward or back and deletes it.
-Backspace or Delete deletes the picked layer, and Escape lets go of it,
+Backspace or Delete deletes every picked layer, and Escape lets go of them,
 unless you are typing in a box. While the Thumbnail section is open those
 keys never delete a clip on the timeline.
 
 - **Moving and resizing:** drag a layer on the board, and drag its corner dot
-  to resize it.
+  to resize it. The blue outline is the layer's box, not its words: the
+  corner dot makes the box bigger or smaller, and words keep their size.
+- **Typing on the board (Tyler, 26 Nov 2026: "double click on the text let
+  me edit the text inline"):** double-clicking a words layer opens a typing
+  box over it with every word selected. The box is laid out exactly as the
+  words are, its own letters see-through, so what shows while typing is the
+  layer itself, outline and shadow included. Enter starts a new line. Escape,
+  or a press anywhere else, ends the typing and leaves the layer picked.
+  Typed words lose "One word in yellow", as words typed in the right panel's
+  Words box do. A locked layer can't be typed into.
+- **Letting go:** a press anywhere outside the board, such as the grey around
+  it, the left panel or the timeline, lets go of every picked layer (Tyler,
+  26 Nov 2026: "clicking outside the canvas unselect everything"). A press in
+  the right panel, or in a menu or window opened from it, keeps them, because
+  that is where they are changed.
+- **Picking several (Tyler, 26 Nov 2026):** shift-click adds a layer to the
+  pick, and shift-clicking a picked one takes it off. Dragging any picked
+  layer moves them all by the same amount. A plain click on one of them, with
+  no drag, picks that one alone. The corner dot only shows while one layer is
+  picked, so resizing is one layer at a time.
+- **Styling several words layers at once (Tyler, 26 Nov 2026: "I should be
+  able to select all 3 elements and apply the same styling at once"):** when
+  every picked layer is words, the right panel is headed "3 words layers" and
+  shows the Words and Styles cards. They show the first picked layer's
+  values, and any change goes to all of them: font, size, colour, line up,
+  each look and every shadow setting. A look's button shows as on, and its
+  settings show, only when every one of them wears it; pressing it then takes
+  it off all of them, otherwise it puts it on all of them. The words box is
+  left out, because each layer keeps its own words. Size sets one size on
+  all of them, so a big title and a small line under it end up the same
+  size. Under the cards, "3 layers picked" has Delete 3 layers.
+- **A pick with a picture, shape or spot in it** shows only "3 layers
+  picked" with Delete 3 layers: they move and go together, but are styled
+  one at a time.
 - **Adding:** the Add card has This frame, Picture (an upload), Words, Arrow,
   Circle and Sticker. Picture files dropped on the board are uploaded and
   added.
@@ -96,7 +129,24 @@ Four ready-made looks on a words layer. Pressing one again takes it off.
   colour field. It is a new mark on the carousel's words, "accent", that only
   the board makes. A carousel's own buttons still offer bold and highlight
   only.
-- **Drop shadow:** a soft black shadow under the words.
+- **Drop shadow:** a shadow under the words, soft black and 6 pixels straight
+  down to start with. While it is on, Styles shows its settings (Tyler, 26 Nov
+  2026: "the drop shadow has no options to adjust the shadow parameters"):
+  Shadow colour, Strength, Spread, Softness, Across and Down. Distances are
+  in pixels at the thumbnail's full size.
+  - **Strength**, 0 to 300%: up to 100% the shadow gets darker until its
+    middle is fully its colour. Past 100% it fills in a soft shadow's faded
+    edges too, so the whole shadow gets denser (Tyler, 26 Nov 2026: "expand
+    the shadows evenly and darker").
+  - **Spread**, 0 to 30: grows the shadow out the same distance on every side
+    before it is softened, the way an outline grows round a cut-out.
+  - **Softness**, 0 to 40: how blurry it is. At 0 it is a sharp copy of the
+    words.
+  - **Across and Down**, -40 to 40 each: where it falls. Minus is left or up.
+
+  Reset shadow puts all six back. Taking the shadow off forgets them. A
+  shadow put on before these settings existed draws exactly as it did. The
+  board and the download draw it with the same filter (`layerEffectFilter`).
 - **Box behind:** white words on a black box.
 
 ## Picture looks
@@ -191,6 +241,34 @@ have not been measured on youtube.com yet.**
   "YOUR WORDS". The other picture is never put on the board or kept. A link's
   thumbnail is only ever fetched from YouTube's own picture host, i.ytimg.com,
   built from the link's video id, with redirects refused.
+
+### Toronto neighbourhood
+
+A wide template made from a picture Tyler sent on 26 Nov 2026: a park photo
+with "Toronto" over it and "TRINITY BELLWOODS" under that.
+
+- **The photo** is an empty spot covering the whole board, filled with the
+  frame under the playhead.
+- **Your own photo:** Add → Picture, then Upload in the Media window. A new
+  picture always lands on top of every layer, so it covers the words at
+  first. Press Back three times in the right panel's Layer card to put it
+  under the three words layers, then delete the frame under it if you like.
+- **"Toronto"** is white Instrument Serif at 220, the biggest size a words
+  layer takes, on the left a little above the middle.
+- **Each words box fits its words**, so its outline on the board hugs them:
+  "Toronto" 0.48 of the board wide, the line 0.065, and "TRINITY BELLWOODS"
+  0.6. Thumbnails made from the template before 26 Nov 2026 have looser boxes
+  (0.6, 0.09 and 0.72) and keep them.
+- **The short line** is three dashes in Geist Mono at 50, spaced -0.1 so they
+  join into one line. It is its own words layer, so it moves on its own.
+- **"TRINITY BELLWOODS"** is white Geist Mono at 50, letters spaced 0.3 apart,
+  just right of the line.
+- **No shadow or outline**, as in the picture. On a bright photo, Drop shadow
+  under Styles makes white words easier to read.
+- **Where it is saved:** only on the local site. It was written straight into
+  the local database, so the live site has no copy. To get it there, build
+  it on a live thumbnail and save it from Templates in the ⋮ menu, after
+  the two fonts are deployed ([text-fonts.md](text-fonts.md)).
 
 ## The download and the export cover
 

@@ -74,9 +74,35 @@ const boxSchema = {
 
 export const OUTLINE_WIDTH_MAX = 40
 
+/**
+ * A drop shadow's settings, each in full-size pixels where it is a distance.
+ * A shadow saved before they could be changed has none of them, and draws
+ * with these: soft black, 6 pixels straight down (Tyler, 26 Nov 2026: "the
+ * drop shadow has no options to adjust the shadow parameters").
+ */
+export const TEXT_SHADOW_DEFAULTS = { color: "#000000", opacity: 0.75, blur: 8, x: 0, y: 6, spread: 0 } as const
+export const SHADOW_BLUR_MAX = 40
+export const SHADOW_OFFSET_MAX = 40
+/** How far a shadow can grow out on every side (Tyler, 26 Nov 2026: "expand the shadows evenly and darker"). */
+export const SHADOW_SPREAD_MAX = 30
+/**
+ * Strength past 1 fills in a soft shadow's faded edges, so the shadow gets
+ * denser and darker; at 1 its middle is already fully the shadow's colour.
+ */
+export const SHADOW_STRENGTH_MAX = 3
+
 /** A text layer: the carousel's, with a drop shadow it may have. */
 const thumbnailTextSchema = carouselTextItemSchema
-  .extend({ ...boxSchema, shadow: z.literal(true).optional() })
+  .extend({
+    ...boxSchema,
+    shadow: z.literal(true).optional(),
+    shadowColor: colorSchema.optional(),
+    shadowOpacity: z.number().min(0).max(SHADOW_STRENGTH_MAX).optional(),
+    shadowSpread: z.number().min(0).max(SHADOW_SPREAD_MAX).optional(),
+    shadowBlur: z.number().min(0).max(SHADOW_BLUR_MAX).optional(),
+    shadowX: z.number().min(-SHADOW_OFFSET_MAX).max(SHADOW_OFFSET_MAX).optional(),
+    shadowY: z.number().min(-SHADOW_OFFSET_MAX).max(SHADOW_OFFSET_MAX).optional(),
+  })
   .strict()
 
 /** A picture layer: the carousel's, with an outline, a glow and colour. */
@@ -153,7 +179,16 @@ export function readThumbnailLayers(value: unknown): ThumbnailLayer[] {
  */
 export function asCarouselItem(layer: ThumbnailLayer): CarouselSlideItem | null {
   if (layer.type === "text") {
-    const { shadow: _shadow, ...item } = layer
+    const {
+      shadow: _shadow,
+      shadowColor: _color,
+      shadowOpacity: _opacity,
+      shadowBlur: _blur,
+      shadowX: _x,
+      shadowY: _y,
+      shadowSpread: _spread,
+      ...item
+    } = layer
     return item
   }
   if (layer.type === "image") {
@@ -244,10 +279,34 @@ export function layerEffectFilter(
       )
     }
   } else if (layer.type === "text" && layer.shadow) {
+    const shadow = textShadowOf(layer)
+    // The words' shape, grown out on every side by the spread the way an
+    // outline is (blurred, then made solid again), moved, softened, then
+    // made as dark as its strength. A strength of 0.75 with no spread draws
+    // exactly what feDropShadow's flood-opacity 0.75 drew before.
+    let shape = "SourceAlpha"
+    if (shadow.spread > 0) {
+      steps.push(
+        `<feGaussianBlur in="SourceAlpha" stdDeviation="${px(shadow.spread * 0.7)}" result="spreadblur"/>`,
+        `<feComponentTransfer in="spreadblur" result="spreadalpha"><feFuncA type="linear" slope="12"/></feComponentTransfer>`
+      )
+      shape = "spreadalpha"
+    }
+    steps.push(`<feOffset in="${shape}" dx="${px(shadow.x)}" dy="${px(shadow.y)}" result="moved"/>`)
+    let soft = "moved"
+    if (shadow.blur > 0) {
+      steps.push(`<feGaussianBlur in="moved" stdDeviation="${px(shadow.blur)}" result="soft"/>`)
+      soft = "soft"
+    }
     steps.push(
-      `<feDropShadow dx="0" dy="${px(6)}" stdDeviation="${px(8)}" flood-color="#000000" flood-opacity="0.75"/>`
+      `<feComponentTransfer in="${soft}" result="dark"><feFuncA type="linear" slope="${shadow.opacity}"/></feComponentTransfer>`,
+      `<feFlood flood-color="${shadow.color}"/>`,
+      `<feComposite in2="dark" operator="in" result="shadow"/>`,
+      `<feMerge><feMergeNode in="shadow"/><feMergeNode in="SourceGraphic"/></feMerge>`
     )
-    margin = 40
+    // Room round the box for the shadow: as far as it is moved and grown,
+    // plus about three times its softness, where a blur fades out.
+    margin = Math.max(40, Math.max(Math.abs(shadow.x), Math.abs(shadow.y)) + shadow.spread * 2 + shadow.blur * 3)
   } else {
     return null
   }
@@ -256,6 +315,18 @@ export function layerEffectFilter(
   const width = (layer.width * frame.width + margin * 2) * scale
   const height = (layer.height * frame.height + margin * 2) * scale
   return `<filter id="${id}" filterUnits="userSpaceOnUse" x="${left.toFixed(1)}" y="${top.toFixed(1)}" width="${width.toFixed(1)}" height="${height.toFixed(1)}" color-interpolation-filters="sRGB">${steps.join("")}</filter>`
+}
+
+/** A words layer's drop shadow, with the defaults for anything unset. */
+export function textShadowOf(layer: ThumbnailText) {
+  return {
+    color: layer.shadowColor ?? TEXT_SHADOW_DEFAULTS.color,
+    opacity: layer.shadowOpacity ?? TEXT_SHADOW_DEFAULTS.opacity,
+    blur: layer.shadowBlur ?? TEXT_SHADOW_DEFAULTS.blur,
+    x: layer.shadowX ?? TEXT_SHADOW_DEFAULTS.x,
+    y: layer.shadowY ?? TEXT_SHADOW_DEFAULTS.y,
+    spread: layer.shadowSpread ?? TEXT_SHADOW_DEFAULTS.spread,
+  }
 }
 
 /** A new layer's id. */
@@ -338,7 +409,16 @@ export function withoutTextLook(layer: ThumbnailText, look: TextLook): Thumbnail
     return rest
   }
   if (look === "shadow") {
-    const { shadow: _shadow, ...rest } = layer
+    const {
+      shadow: _shadow,
+      shadowColor: _color,
+      shadowOpacity: _opacity,
+      shadowBlur: _blur,
+      shadowX: _x,
+      shadowY: _y,
+      shadowSpread: _spread,
+      ...rest
+    } = layer
     return rest
   }
   if (look === "box") {

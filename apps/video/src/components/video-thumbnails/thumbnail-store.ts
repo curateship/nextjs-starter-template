@@ -28,7 +28,10 @@ export type ThumbnailsValue = {
   loadError: string | null
   open: ThumbnailRow | null
   design: BoardDesign | null
+  /** The picked layer, or null when none or several are picked. */
   selectedLayerId: string | null
+  /** Every picked layer: one by a click, more by shift-click. */
+  selectedLayerIds: string[]
   saving: "saved" | "saving" | "error"
   /** Words for the AI press under way, such as "Making 4 versions…". */
   busy: string | null
@@ -47,7 +50,10 @@ export type ThumbnailsValue = {
   setTemplates: (templates: ThumbnailTemplateRow[]) => void
   /** Changes the open design; it saves itself 0.7 seconds later. */
   change: (next: (design: BoardDesign) => BoardDesign) => void
+  /** Picks this one layer alone, or none. */
   selectLayer: (id: string | null) => void
+  /** Shift-click: adds the layer to the pick, or takes it off. */
+  toggleLayer: (id: string) => void
   setTries: (tries: AiTries) => void
   setModel: (model: ImageModelId) => void
   setBeforeAfter: (value: { layerId: string; beforeUrl: string } | null) => void

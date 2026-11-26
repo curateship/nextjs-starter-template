@@ -2,8 +2,9 @@
  * The faces text clips and carousel text can be drawn in. Each one ships
  * twice: as woff2 files in `public/fonts` for the browser, and as a ttf in
  * `src/server/assets` for the server's rasterizer, so the export matches the
- * preview. Five are SemiBold; Anton comes in one weight only, its own heavy
- * Regular. All six are free under the SIL Open Font License 1.1 — each
+ * preview. Five are SemiBold; Anton and Instrument Serif come in one weight
+ * only, their own Regular, and Geist Mono ships at Medium. All eight are
+ * free under the SIL Open Font License 1.1 — each
  * licence sits beside its ttf as `<Face>-LICENSE.txt`.
  *
  * `family` is what the browser draws with, `svgFamily` is the exact family
@@ -98,6 +99,35 @@ export const TEXT_FONTS = [
     capitalsWidthRatio: 0.63,
     ascent: 0.974,
     descent: 0.236,
+  },
+  // A tall, light serif for big place names on thumbnails, and a wide-spaced
+  // monospace for the small line under one (Tyler, 26 Nov 2026, the "Toronto
+  // / TRINITY BELLWOODS" thumbnail). Instrument Serif has one weight, its
+  // Regular (400); Geist Mono ships at Medium (500). Widths measured on 26 Nov
+  // 2026 by drawing the same sample with resvg (Instrument Serif 0.34 small,
+  // 0.41 capitals; Geist Mono 0.60 for every letter), scaled by the same
+  // margin; ascent and descent from each ttf's `hhea` table.
+  {
+    id: "instrument-serif",
+    label: "Instrument Serif",
+    family: '"Instrument Serif", Georgia, serif',
+    svgFamily: "Instrument Serif",
+    weight: 400,
+    widthRatio: 0.39,
+    capitalsWidthRatio: 0.47,
+    ascent: 0.99,
+    descent: 0.31,
+  },
+  {
+    id: "geist-mono",
+    label: "Geist Mono",
+    family: '"Geist Mono", ui-monospace, monospace',
+    svgFamily: "Geist Mono",
+    weight: 500,
+    widthRatio: 0.68,
+    capitalsWidthRatio: 0.68,
+    ascent: 1.005,
+    descent: 0.295,
   },
 ] as const
 

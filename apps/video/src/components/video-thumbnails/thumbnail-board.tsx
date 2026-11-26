@@ -11,6 +11,8 @@ import {
 } from "@/components/video-thumbnails/thumbnail-layer"
 import { useThumbnails } from "@/components/video-thumbnails/thumbnail-store"
 import { uploadMedia, getMediaErrorMessage } from "@/lib/api/media/media"
+import { letterSpacingOf, lineHeightOf } from "@/lib/video/carousel-text"
+import { requireTextFont } from "@/lib/video/text-fonts"
 import {
   fullPictureLayer,
   THUMBNAIL_LAYER_MAX,
@@ -18,6 +20,7 @@ import {
   topZ,
   type ThumbnailDesign,
   type ThumbnailLayer,
+  type ThumbnailText,
 } from "@/lib/video/thumbnails"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -111,19 +114,29 @@ function BoardMessage({ children }: { children: React.ReactNode }) {
   return <div className="grid min-h-0 flex-1 place-content-center justify-items-center gap-3 p-6">{children}</div>
 }
 
+type Box = { x: number; y: number; width: number; height: number }
+
+/**
+ * A drag under way: every layer it carries with where each started, and
+ * whether the pointer has moved yet. A press on one of several picked layers
+ * that never moves narrows the pick to that one, the way design tools do.
+ */
 type Drag = {
   layerId: string
   mode: "move" | "resize"
   startX: number
   startY: number
-  start: { x: number; y: number; width: number; height: number }
+  starts: (Box & { id: string })[]
+  moved: boolean
 }
 
 function Board({ design, maxHeight }: { design: ThumbnailDesign; maxHeight: number }) {
-  const { change, selectedLayerId, selectLayer, beforeAfter, setBeforeAfter } = useThumbnails()
+  const { change, selectedLayerIds, selectLayer, toggleLayer, beforeAfter, setBeforeAfter } = useThumbnails()
   const holderRef = React.useRef<HTMLDivElement>(null)
   const boardRef = React.useRef<HTMLDivElement>(null)
   const dragRef = React.useRef<Drag | null>(null)
+  // The words layer being typed into on the board, after a double-click.
+  const [editingId, setEditingId] = React.useState<string | null>(null)
   const [room, setRoom] = React.useState(0)
   const frame = THUMBNAIL_SIZES[design.shape]
 
@@ -145,27 +158,43 @@ function Board({ design, maxHeight }: { design: ThumbnailDesign; maxHeight: numb
   const scale = width / frame.width
   const sorted = [...design.layers].filter((layer) => !layer.hidden).sort((a, b) => a.zIndex - b.zIndex)
 
-  function moveLayer(layerId: string, patch: Partial<ThumbnailLayer>) {
+  function moveLayers(patches: Map<string, Partial<ThumbnailLayer>>) {
     change((current) => ({
       ...current,
-      layers: current.layers.map((layer) =>
-        layer.id === layerId ? ({ ...layer, ...patch } as ThumbnailLayer) : layer
-      ),
+      layers: current.layers.map((layer) => {
+        const patch = patches.get(layer.id)
+        return patch ? ({ ...layer, ...patch } as ThumbnailLayer) : layer
+      }),
     }))
   }
 
   function down(event: React.PointerEvent, layer: ThumbnailLayer, mode: Drag["mode"]) {
     if (event.button !== 0) return
     event.stopPropagation()
+    // A press inside the words being typed places the cursor, as in any box.
+    if (layer.id === editingId) return
     event.preventDefault()
-    selectLayer(layer.id)
-    if (layer.locked) return
+    // Shift-click adds the layer to the pick, or takes it off.
+    if (mode === "move" && event.shiftKey) {
+      toggleLayer(layer.id)
+      return
+    }
+    // Pressing one of several picked layers drags them all together.
+    const group =
+      mode === "move" && selectedLayerIds.length > 1 && selectedLayerIds.includes(layer.id)
+        ? selectedLayerIds
+        : [layer.id]
+    if (group.length === 1) selectLayer(layer.id)
+    const starts = design.layers
+      .filter((one) => group.includes(one.id) && !one.locked)
+      .map((one) => ({ id: one.id, x: one.x, y: one.y, width: one.width, height: one.height }))
     dragRef.current = {
       layerId: layer.id,
       mode,
       startX: event.clientX,
       startY: event.clientY,
-      start: { x: layer.x, y: layer.y, width: layer.width, height: layer.height },
+      starts,
+      moved: false,
     }
     ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
   }
@@ -173,36 +202,46 @@ function Board({ design, maxHeight }: { design: ThumbnailDesign; maxHeight: numb
   function move(event: React.PointerEvent) {
     const drag = dragRef.current
     const rect = boardRef.current?.getBoundingClientRect()
-    if (!drag || !rect?.width) return
+    if (!drag || !rect?.width || !drag.starts.length) return
     const dx = (event.clientX - drag.startX) / rect.width
     const dy = (event.clientY - drag.startY) / rect.height
+    if (!drag.moved && Math.abs(event.clientX - drag.startX) + Math.abs(event.clientY - drag.startY) < 3) return
+    drag.moved = true
     // Kept to what a save accepts (thumbnailLayerSchema): a layer may hang
     // off the board, but at least a sliver of it stays on.
-    if (drag.mode === "move") {
-      moveLayer(drag.layerId, {
-        x: clamp(drag.start.x + dx, 0.02 - drag.start.width, 0.98),
-        y: clamp(drag.start.y + dy, 0.02 - drag.start.height, 0.98),
-      })
-    } else {
-      moveLayer(drag.layerId, {
-        width: clamp(drag.start.width + dx, 0.03, 3),
-        height: clamp(drag.start.height + dy, 0.03, 3),
-      })
+    const patches = new Map<string, Partial<ThumbnailLayer>>()
+    for (const start of drag.starts) {
+      patches.set(
+        start.id,
+        drag.mode === "move"
+          ? {
+              x: clamp(start.x + dx, 0.02 - start.width, 0.98),
+              y: clamp(start.y + dy, 0.02 - start.height, 0.98),
+            }
+          : {
+              width: clamp(start.width + dx, 0.03, 3),
+              height: clamp(start.height + dy, 0.03, 3),
+            }
+      )
     }
+    moveLayers(patches)
   }
 
   function up(event: React.PointerEvent) {
-    if (!dragRef.current) return
+    const drag = dragRef.current
+    if (!drag) return
     dragRef.current = null
     ;(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId)
+    // A plain click on one of several picked layers picks that one alone.
+    if (!drag.moved && selectedLayerIds.length > 1) selectLayer(drag.layerId)
   }
 
-  // Backspace or Delete takes the picked layer off, and Escape lets go of
-  // it, wherever the keyboard is, as long as nobody is typing. Clicking a
+  // Backspace or Delete takes every picked layer off, and Escape lets go of
+  // them, wherever the keyboard is, as long as nobody is typing. Clicking a
   // layer never moves the keyboard onto the board, so the board alone
   // listening heard nothing (Tyler, 3 Nov 2026).
   React.useEffect(() => {
-    if (!selectedLayerId) return
+    if (!selectedLayerIds.length) return
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null
       if (
@@ -218,7 +257,7 @@ function Board({ design, maxHeight }: { design: ThumbnailDesign; maxHeight: numb
         event.preventDefault()
         change((current) => ({
           ...current,
-          layers: current.layers.filter((layer) => layer.id !== selectedLayerId),
+          layers: current.layers.filter((layer) => !selectedLayerIds.includes(layer.id)),
         }))
         selectLayer(null)
       } else if (event.key === "Escape") {
@@ -227,7 +266,29 @@ function Board({ design, maxHeight }: { design: ThumbnailDesign; maxHeight: numb
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [change, selectLayer, selectedLayerId])
+  }, [change, selectLayer, selectedLayerIds])
+
+  // A press anywhere outside the board lets go of every picked layer (Tyler,
+  // 26 Nov 2026: "clicking outside the canvas unselect everything"). The
+  // right panel, and the menus and windows that open from it, change the
+  // picked layers, so a press there keeps them.
+  React.useEffect(() => {
+    if (!selectedLayerIds.length) return
+    function onDown(event: PointerEvent) {
+      const target = event.target as Element | null
+      if (!target || boardRef.current?.contains(target)) return
+      if (
+        target.closest(
+          '[data-screen-label="Inspector"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-slot=popover-content], [data-slot=select-content]'
+        )
+      ) {
+        return
+      }
+      selectLayer(null)
+    }
+    document.addEventListener("pointerdown", onDown)
+    return () => document.removeEventListener("pointerdown", onDown)
+  }, [selectLayer, selectedLayerIds.length])
 
   // Pictures dropped on the board go to the library and onto the board.
   async function drop(event: React.DragEvent) {
@@ -261,7 +322,9 @@ function Board({ design, maxHeight }: { design: ThumbnailDesign; maxHeight: numb
         role="application"
         aria-label="Thumbnail board"
         tabIndex={0}
-        onPointerDown={() => selectLayer(null)}
+        onPointerDown={(event) => {
+          if (!event.shiftKey) selectLayer(null)
+        }}
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={up}
@@ -271,15 +334,20 @@ function Board({ design, maxHeight }: { design: ThumbnailDesign; maxHeight: numb
         style={{ width, height: frame.height * scale, backgroundColor: design.backgroundColor }}
       >
         {sorted.map((layer) => {
-          const picked = layer.id === selectedLayerId
+          const picked = selectedLayerIds.includes(layer.id)
           return (
             <div
               key={layer.id}
               data-thumbnail-layer={layer.id}
               onPointerDown={(event) => down(event, layer, "move")}
+              onDoubleClick={() => {
+                if (layer.type !== "text" || layer.locked) return
+                selectLayer(layer.id)
+                setEditingId(layer.id)
+              }}
               className={cn(
                 "absolute",
-                layer.locked ? "cursor-default" : "cursor-move",
+                layer.id === editingId ? "cursor-text" : layer.locked ? "cursor-default" : "cursor-move",
                 picked ? "outline-2 outline-offset-0 outline-sky-400" : "hover:outline-1 hover:outline-white/60"
               )}
               style={{
@@ -291,10 +359,13 @@ function Board({ design, maxHeight }: { design: ThumbnailDesign; maxHeight: numb
               }}
             >
               <ThumbnailLayerView layer={layer} shape={design.shape} scale={scale} filterKey={`board-${layer.id}`} />
+              {layer.id === editingId && layer.type === "text" ? (
+                <InlineWords layer={layer} scale={scale} onDone={() => setEditingId(null)} />
+              ) : null}
               {beforeAfter?.layerId === layer.id && layer.type === "image" ? (
                 <BoardCompare beforeUrl={beforeAfter.beforeUrl} fit={layer.fit} onDone={() => setBeforeAfter(null)} />
               ) : null}
-              {picked && !layer.locked ? (
+              {picked && selectedLayerIds.length === 1 && !layer.locked && layer.id !== editingId ? (
                 <span
                   role="presentation"
                   onPointerDown={(event) => down(event, layer, "resize")}
@@ -307,6 +378,74 @@ function Board({ design, maxHeight }: { design: ThumbnailDesign; maxHeight: numb
         <ShapesLayer layers={design.layers} shape={design.shape} />
       </div>
     </div>
+  )
+}
+
+/**
+ * Typing straight into a words layer on the board (Tyler, 26 Nov 2026:
+ * "double click on the text let me edit the text inline"). A box laid out
+ * exactly as the words are, over them, with its own letters see-through and
+ * only its cursor and selection showing, so what shows while typing is the
+ * layer itself, every look on. Escape or a press anywhere else ends it.
+ * Typed words drop their marks, as the right panel's Words box does.
+ */
+function InlineWords({
+  layer,
+  scale,
+  onDone,
+}: {
+  layer: ThumbnailText
+  scale: number
+  onDone: () => void
+}) {
+  const { change } = useThumbnails()
+  const ref = React.useRef<HTMLTextAreaElement>(null)
+  const font = requireTextFont(layer.fontId)
+  React.useEffect(() => {
+    const box = ref.current
+    if (!box) return
+    box.focus()
+    box.select()
+  }, [])
+  return (
+    <textarea
+      ref={ref}
+      aria-label="Words"
+      value={layer.text}
+      maxLength={2_000}
+      spellCheck={false}
+      onPointerDown={(event) => event.stopPropagation()}
+      onChange={(event) => {
+        const text = event.target.value
+        change((current) => ({
+          ...current,
+          layers: current.layers.map((one) =>
+            one.id === layer.id && one.type === "text" ? { ...one, text, marks: undefined } : one
+          ),
+        }))
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault()
+          event.stopPropagation()
+          onDone()
+        }
+      }}
+      onBlur={onDone}
+      className="absolute inset-0 m-0 h-full w-full resize-none overflow-hidden border-0 bg-transparent p-0 outline-none"
+      style={{
+        fontFamily: font.family,
+        fontSize: layer.fontSize * scale,
+        fontWeight: font.weight,
+        lineHeight: lineHeightOf(layer),
+        letterSpacing: `${letterSpacingOf(layer)}em`,
+        textAlign: layer.align,
+        whiteSpace: "pre-wrap",
+        overflowWrap: "break-word",
+        color: "transparent",
+        caretColor: layer.color,
+      }}
+    />
   )
 }
 
