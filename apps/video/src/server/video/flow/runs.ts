@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import { flowFeeders, flowStepOrder, flowStepsAfter, readyFlowSteps } from "@/lib/video/flow/advance"
+import { writerCostCents } from "@/lib/video/ai-estimates"
 import {
   FLOW_INVALID_MESSAGE_PREFIX,
   FLOW_NAME_MAX,
@@ -23,15 +24,19 @@ import {
   flowButtonLabel,
   flowKindOf,
   flowNodeName,
+  CHANGEABLE_KINDS,
+  FLOW_PROMPT_MAX,
   readFlowNodeSettings,
   type FlowBox,
 } from "@/lib/video/flow/node-kinds"
+import { PROMPT_IDEA_ANSWER_TOKENS, PROMPT_IDEA_CHARACTERS } from "@/lib/video/flow/prompt-ideas"
 import {
   flowRunStatusFrom,
   type FlowRunStatus,
   type FlowStepInput,
   type FlowStepInputs,
   type FlowStepOutput,
+  type FlowStepState,
   type FlowStepStatus,
 } from "@/lib/video/flow/run-shape"
 import { validateFlow } from "@/lib/video/flow/validate"
@@ -53,6 +58,7 @@ import {
 } from "@/server/video/schema"
 
 import { getOwnedFlowRow } from "./flows"
+import { currentWriter } from "./prices"
 import { readThumbnailLayers } from "@/lib/video/thumbnails"
 import { createThumbnail } from "@/server/video/thumbnails"
 
@@ -143,7 +149,11 @@ function stepView(
     costCents: row.costCents ?? spent.get(row.id) ?? null,
     error: row.error,
     note: row.note,
-    planned: row.status === "needs_ok" && row.state?.phase === "planned",
+    planned: row.status === "needs_ok" && (row.state?.phase === "planned" || row.state?.phase === "priced"),
+    changedWith: row.state?.change?.words ?? null,
+    videoPrompt: row.videoPrompt,
+    videoPromptFromAi: row.videoPromptFromAi,
+    suggestPrompt: settings.suggestPrompt,
     attempts: row.attempts,
     startedAt: row.startedAt?.toISOString() ?? null,
     finishedAt: row.finishedAt?.toISOString() ?? null,
@@ -231,9 +241,11 @@ export async function getFlowRun(userId: string, runId: string, database: Databa
     database
   )
   const order = rows.map((row) => row.nodeId)
+  const writer = await currentWriter()
   return {
     ...item,
     videoName: video?.name ?? null,
+    ideaCents: writer ? writerCostCents(writer, PROMPT_IDEA_CHARACTERS, PROMPT_IDEA_ANSWER_TOKENS) : 0,
     hasCut: run.timeline !== null,
     error: run.error,
     steps: rows.map((row) => stepView(row, run.graph, order, spent)),
@@ -678,6 +690,18 @@ function boxHolds(given: FlowStepInput | undefined) {
   return Boolean(given?.text?.trim() || given?.link?.trim() || given?.mediaIds?.length || given?.actorId || given?.voiceId)
 }
 
+/**
+ * The step's video prompt as its button sent it. Words the AI wrote and the
+ * person left alone stay marked as the AI's, so a change above them can
+ * write them afresh; anything else is the person's own and is kept.
+ */
+function sentPrompt(step: VideoFlowRunStepRow, given: string | undefined) {
+  if (given === undefined) return {}
+  const words = given.trim().slice(0, FLOW_PROMPT_MAX)
+  const untouched = step.videoPromptFromAi && words === (step.videoPrompt ?? "").trim()
+  return { videoPrompt: words || null, videoPromptFromAi: untouched }
+}
+
 async function queueStep(stepId: string, runId: string, tx: Database) {
   await tx
     .update(videoFlowRunSteps)
@@ -694,7 +718,7 @@ async function queueStep(stepId: string, runId: string, tx: Database) {
  */
 export async function startFlowStep(
   userId: string,
-  payload: { stepId: string; inputs?: Record<string, FlowStepInput> },
+  payload: { stepId: string; inputs?: Record<string, FlowStepInput>; prompt?: string },
   database: Database = db,
   checks?: BoxChecks
 ) {
@@ -707,7 +731,10 @@ export async function startFlowStep(
     for (const box of readFlowNodeSettings(node.settings).asks) {
       inputs[box.id] = await readBox(userId, box, payload.inputs?.[box.id], tx, boxChecks)
     }
-    await tx.update(videoFlowRunSteps).set({ input: inputs, updatedAt: now() }).where(eq(videoFlowRunSteps.id, step.id))
+    await tx
+      .update(videoFlowRunSteps)
+      .set({ input: inputs, ...sentPrompt(step, payload.prompt), updatedAt: now() })
+      .where(eq(videoFlowRunSteps.id, step.id))
     const mediaIds = Object.values(inputs).flatMap((input) => input.mediaIds ?? [])
     if (run.projectId && mediaIds.length) await attachPastedMediaToProject(userId, run.projectId, mediaIds, tx)
     await queueStep(step.id, run.id, tx)
@@ -722,13 +749,30 @@ export async function startFlowStep(
  */
 export async function approveFlowStep(
   userId: string,
-  payload: { stepId: string; text?: string },
+  payload: { stepId: string; text?: string; prompt?: string },
   database: Database = db
 ) {
   const runId = await database.transaction(async (tx) => {
     const { step, run } = await ownedStepForChange(userId, payload.stepId, tx)
     if (step.status !== "needs_ok") throw new Error(FLOW_STEP_NOT_READY_MESSAGE)
     // OK on a plan: now it is made, and paid for (flow.md, "Plan, OK, then make").
+    // OK on a price: now it is made and paid for, from the Prompt card's
+    // words as they are at OK, and Wait for my OK still stops it once made
+    // (run-shape.ts, `priced`).
+    if (step.state?.phase === "priced") {
+      await tx
+        .update(videoFlowRunSteps)
+        .set({
+          status: "queued",
+          state: { ...step.state, phase: "making", priceOk: true },
+          ...sentPrompt(step, payload.prompt),
+          finishedAt: null,
+          updatedAt: now(),
+        })
+        .where(eq(videoFlowRunSteps.id, step.id))
+      await settleFlowRun(run.id, tx)
+      return run.id
+    }
     if (step.state?.phase === "planned") {
       await tx
         .update(videoFlowRunSteps)
@@ -764,7 +808,7 @@ async function sendBack(
   step: VideoFlowRunStepRow,
   run: VideoFlowRunRow,
   tx: Database,
-  { keepMade }: { keepMade: boolean }
+  { keepMade, state, prompt }: { keepMade: boolean; state?: FlowStepState; prompt?: string }
 ) {
   const at = now()
   const after = [...flowStepsAfter(run.graph, step.nodeId)]
@@ -773,35 +817,62 @@ async function sendBack(
       .update(videoFlowRunSteps)
       .set({ status: "waiting", output: null, state: null, error: null, note: null, wakeAt: null, finishedAt: null, costCents: null, updatedAt: at })
       .where(and(eq(videoFlowRunSteps.runId, run.id), inArray(videoFlowRunSteps.nodeId, after)))
+    // An idea the AI wrote from what this step made is written afresh from
+    // what it makes now; words the person wrote stay.
+    await tx
+      .update(videoFlowRunSteps)
+      .set({ videoPrompt: null, videoPromptFromAi: false })
+      .where(and(eq(videoFlowRunSteps.runId, run.id), inArray(videoFlowRunSteps.nodeId, after), eq(videoFlowRunSteps.videoPromptFromAi, true)))
   }
   // Try again keeps everything already made and paid for, so it is never
   // paid for twice; Make it again starts the step from nothing.
   await tx
     .update(videoFlowRunSteps)
-    .set({ status: "queued", state: keepMade ? step.state : null, output: null, error: null, note: null, wakeAt: null, finishedAt: null, costCents: null, updatedAt: at })
+    .set({ status: "queued", state: state ?? (keepMade ? step.state : null), ...sentPrompt(step, prompt), output: null, error: null, note: null, wakeAt: null, finishedAt: null, costCents: null, updatedAt: at })
     .where(eq(videoFlowRunSteps.id, step.id))
   await settleFlowRun(run.id, tx)
 }
 
-/** Make it again: an AI step made or waiting for its OK is made once more. */
-export async function redoFlowStep(userId: string, payload: { stepId: string }, database: Database = db) {
+/** Make it again: an AI step made or waiting for its OK is made once more, from the prompt as it is now. */
+export async function redoFlowStep(userId: string, payload: { stepId: string; prompt?: string }, database: Database = db) {
   const runId = await database.transaction(async (tx) => {
     const { step, run } = await ownedStepForChange(userId, payload.stepId, tx)
     const kind = flowKindOf(step.kind)
     const redoable = step.status === "needs_ok" || step.status === "done" || step.status === "failed"
     if (!kind || !redoable || !step.input) throw new Error(FLOW_STEP_NOT_READY_MESSAGE)
-    await sendBack(step, run, tx, { keepMade: false })
+    await sendBack(step, run, tx, { keepMade: false, prompt: payload.prompt })
     return run.id
   })
   return getFlowRun(userId, runId, database)
 }
 
-/** Try again on a failed step: made again with what its boxes held. */
-export async function retryFlowStep(userId: string, payload: { stepId: string }, database: Database = db) {
+/**
+ * Change it: a made AI picture or clip is made again with the words typed
+ * ("make it daytime", "slower snow"), keeping the rest. A picture is made from
+ * itself; a clip from the same picture, its prompt and the words, after its
+ * price is OK'd again. The steps after it go back to waiting, as on Make it
+ * again, because they read the old one.
+ */
+export async function changeFlowStep(userId: string, payload: { stepId: string; words: string }, database: Database = db) {
+  const words = payload.words.trim()
+  const runId = await database.transaction(async (tx) => {
+    const { step, run } = await ownedStepForChange(userId, payload.stepId, tx)
+    const mediaId = step.output?.mediaIds?.[0]
+    const made = step.status === "needs_ok" || step.status === "done"
+    const kind = flowKindOf(step.kind)
+    if (!kind || !CHANGEABLE_KINDS.has(kind) || !made || !mediaId || !step.input || !words) throw new Error(FLOW_STEP_NOT_READY_MESSAGE)
+    await sendBack(step, run, tx, { keepMade: false, state: { phase: "making", change: { words, mediaId } } })
+    return run.id
+  })
+  return getFlowRun(userId, runId, database)
+}
+
+/** Try again on a failed step: made again with what its boxes held and the prompt as it is now. */
+export async function retryFlowStep(userId: string, payload: { stepId: string; prompt?: string }, database: Database = db) {
   const runId = await database.transaction(async (tx) => {
     const { step, run } = await ownedStepForChange(userId, payload.stepId, tx)
     if (step.status !== "failed") throw new Error(FLOW_STEP_NOT_READY_MESSAGE)
-    await sendBack(step, run, tx, { keepMade: true })
+    await sendBack(step, run, tx, { keepMade: true, prompt: payload.prompt })
     return run.id
   })
   return getFlowRun(userId, runId, database)

@@ -1,5 +1,7 @@
 import type { AutomationGraph, AutomationValidationError } from "@/lib/automations/graph"
 
+import { VIDEO_MODELS } from "@/lib/video/video-models"
+
 import { flowStepOrder } from "./advance"
 import { flowKindOf, flowNodeName, readFlowNodeSettings } from "./node-kinds"
 
@@ -13,6 +15,8 @@ import { flowKindOf, flowNodeName, readFlowNodeSettings } from "./node-kinds"
  *   Upload node, from before a node held its own boxes.
  * - **An AI node with no prompt**: the AI does only what the prompt says, so
  *   an empty one would do nothing.
+ * - **An AI clip that loops on a model that can't**: only a model that takes
+ *   a last picture can end a clip on its start.
  * - **A loop**: a node that feeds itself through others would never be ready.
  */
 export function validateFlow(graph: Pick<AutomationGraph, "nodes" | "edges">): AutomationValidationError[] {
@@ -31,7 +35,15 @@ export function validateFlow(graph: Pick<AutomationGraph, "nodes" | "edges">): A
       })
       continue
     }
-    if (!readFlowNodeSettings(node.settings).prompt.trim()) {
+    const settings = readFlowNodeSettings(node.settings)
+    if (kind === "ai-clip" && settings.clip.loops && !VIDEO_MODELS[settings.clip.company].endFrame) {
+      errors.push({
+        code: "invalid_settings",
+        nodeId: node.id,
+        message: `"${flowNodeName(node)}" can't end on its start with ${VIDEO_MODELS[settings.clip.company].label}. Pick Seedance or Wan, or switch "Ends on its start" off.`,
+      })
+    }
+    if (!settings.prompt.trim()) {
       errors.push({
         code: "invalid_settings",
         nodeId: node.id,

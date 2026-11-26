@@ -18,6 +18,18 @@ more flexibile").
   the shape the answer must come back in so it can be read.
 - **A node reads whatever has a line into it.** He picked "Draw a line from
   each". Many lines can go into a node and out of it.
+- **A flow is a channel and a run is one video of it.** Tyler, 25 Nov 2026:
+  "a flow discribes what the video channel is about as a whole and each
+  step's promt discribes each video's scene", and "the flow's prompt is
+  mainly for the structure of the video. It should never discribes a scene
+  or details about the video itself. But it should however generate a random
+  image prompt on step 1 (that I can customize)". So a node's prompt on the
+  canvas says how every video is built at that step, and each run's step has
+  its own Prompt card for that one video. A step's prompt never changes the
+  flow. On the later steps: "Ai fills them. FOr example if an image has a
+  laptop with a candle beside it and facing a window with outside snow
+  falling. THe video step2 can suggest to animate the snow falling and make
+  the candle flicker".
 - **"Wait for my OK" is a switch on each AI node**, set while building.
 - **The project is the last step.** Of the project box that was under Run:
   "this should be removed. its the last step". Run starts the run at once;
@@ -118,7 +130,14 @@ Edit flow flips the middle in place, as Edit page does on Admin → Pages.
 - **The canvas** is the shell's automation canvas, drawing Flow's nodes. Drag
   from a node's dot to another node to draw a line.
 - **The right panel** shows the picked node, in the shell's panel cards:
-  - **Node:** its title, prompt, "Wait for my OK", and about what it costs.
+  - **Node:** its title, its prompt (how every video is built at this step),
+    "Wait for my OK", "AI suggests each video's prompt", and about what it
+    costs. With the second switch on, each run opens the step with an idea
+    from the AI for that video's Prompt card. Tyler picked a switch per node
+    over always the first step.
+  - **What it makes** (AI clip, music and sound only): the settings above in
+    each node's own words, and "About $… a run". A number is saved when its
+    field is left or Enter is pressed, held to its range then.
   - **Asks you for:** the boxes its step asks you for, in order, each with
     the name shown over it on the step and a bin that removes it. The card's
     + adds one, up to six: Text, Video upload, Pick from Media, Video link,
@@ -128,9 +147,9 @@ Edit flow flips the middle in place, as Edit page does on Admin → Pages.
     box. A run already going keeps the order it started with.
     Each box has a **Can be left empty** switch: on, the step's button works
     with that box empty, the step's card says "Can be left empty", and the
-    node gets nothing from it. The Pomodoro starter's "Your scene" is one:
-    the AI editor animates your own picture when you pick one, and the AI
-    picture when you don't.
+    node gets nothing from it. The Pomodoro starter's "Your scene", on
+    Generate video, is one: the clip moves your own picture when you pick
+    one, and the scene picture when you don't.
   - **Guide:** its step's words: Heading, Short line, Explanation, Tip and
     Button.
   - **Lines:** what the node reads from and hands on to. With no node picked, the right panel shows the
@@ -166,20 +185,41 @@ editors tools".
   project, with the words of Tyler's picture on Generate a script: "Script",
   "How the AI reads your transcript", the explanation, the tip about speaker
   names and timestamps, and the button "Generate script".
-- **Pomodoro study video** (`workspace/tasks/flow/02-pomodoro-flow.md`) is a
-  three-hour study video like Study Pomodoro's "25/5 Pomodoro Timer | Cozy
-  Coffee Shop with lofi": AI picture "Café window", then the AI editor "Make
-  the study video", then AI thumbnail. His answers are all in the prompts: a
-  ring timer with FOCUS or BREAK and the round, a new lofi track each focus
-  round, rain only in the breaks, rain all the way, a chime at each change,
-  the loop on Seedance at 1080p, nothing on the video but the timer, and the
-  thumbnail like the reference in Fredoka. The AI editor has Wait for my OK on,
-  so it shows its plan and price first, and a "Your scene" box that can be
-  left empty: his own picture when he picks one, the AI café otherwise. The
-  thumbnail comes after the AI editor, which hands on the picture it
-  animated, so the thumbnail uses whichever scene the video used.
+- **Pomodoro study video** (`workspace/tasks/flow/02-pomodoro-flow.md`, split
+  into steps by `03-each-video-its-own-prompts.md` and
+  `04-clip-music-and-ambience-steps.md`) is a three-hour study video like
+  Study Pomodoro's "25/5 Pomodoro Timer | Cozy Coffee Shop with lofi", in six
+  steps one after another, then Save (Tyler, 25 Nov 2026: "After scene
+  picture should be "Generate video" and then "Make the study video" to put
+  it all together", and "the sounds (music) should be its own node too so we
+  can connect something like suno to it"):
+  1. **Scene picture** (AI picture): a calm, cosy place to study with a few
+     small things that could move.
+  2. **Generate video** (AI clip): the scene, or "Your scene" when he picks a
+     picture of his own, made to move by Seedance at 1080p, 8 seconds ending
+     on its start so it loops, silent, the camera still (his 14 Nov picks).
+  3. **Make the music** (AI music): 6 tracks of 5 minutes of lofi for
+     studying, one per focus round.
+  4. **Make the ambience** (AI sound): a 30-second loop of whatever the scene
+     sounds like, rain or a fire.
+  5. **Make the study video** (AI editor): places the clip looping behind
+     everything, a ring timer with FOCUS or BREAK and the round, track n in
+     round n and no music in the breaks, the ambience all the way, and a
+     chime at each change. It makes nothing new.
+  6. **Thumbnail** (AI thumbnail): the scene picture, STUDY POMODORO and the
+     25/05 ring, in Fredoka.
 
-Every starter's prompts are a start meant to be rewritten.
+  The prompts say how every video of the channel is built and name no
+  scene; every step but the study video has "AI suggests each video's
+  prompt" on, so each run's scene, what moves, the mood and the ambience
+  are that run's ideas. The clip, the music and the ambience show their
+  price first and wait for OK once made; the study video waits for OK once
+  laid. The clip hands on the picture it moved, so the thumbnail uses
+  whichever scene the video used.
+
+Every starter's prompts are a start meant to be rewritten. The Pomodoro
+starter named one café until 25 Nov 2026, so every video of the channel came
+out as that café; runs started before then keep that copy.
 
 ## A run
 
@@ -200,8 +240,7 @@ Every starter's prompts are a start meant to be rewritten.
   the cut, named after the flow, puts every file the run was given or made
   on the project's Media shelf, and puts each AI thumbnail on the video's
   Thumbnail board. A run is saved once. After that, a step made again writes
-  into that project, and AI music, which makes a track for a video, can only
-  run once the run is saved.
+  into that project.
 - **The stepped guide** takes the middle, in the shape of Tyler's picture:
   - **Header:** an arrow back to the flow's canvas (Tyler, 14 Nov 2026: "Add
     arrow to go back to canvas"), the flow's name, the run's state in grey,
@@ -211,8 +250,9 @@ Every starter's prompts are a start meant to be rewritten.
   - **Down the left,** on a light grey of its own ("Add light gray bg"):
     every step, numbered and joined by a line in a darker grey of its own
     that doesn't follow Settings → Styling's divider lines ("unwire the
-    border to the styling settings and make the border darker"), each with its title and what it
-    asks you for under it (its prompt when it asks for nothing), turning a darker grey while pointed at ("add gray hover
+    border to the styling settings and make the border darker"), each with its title and under it
+    this video's words for the step once it has some, else what it asks you
+    for, else its prompt, turning a darker grey while pointed at ("add gray hover
     effect"), with Save to a project last. A done step's number is a tick. A
     press opens the step.
   - **The step:** "Step 1/3", its Heading (or its title) in big words, its
@@ -221,7 +261,10 @@ Every starter's prompts are a start meant to be rewritten.
   - **The card** shows what the step reads until the AI makes it: the
     transcript as it is typed on the right, one row a line, with its time,
     the speaker's name in blue and the words, and "4 lines · 48 words"
-    beside its name. Until words are typed, it is "What it reads": each box
+    beside its name. Until words are typed, it is "What it reads": first
+    "This video" with the Prompt card's words as they are typed ("Writing an
+    idea…" while the AI writes one), then what the steps before it made,
+    then each box
     by name with what it holds, shown as itself (Tyler, 14 Nov 2026: "this
     shouldnt just say filled in. actually show the video thumbnail and
     playable"). Words show their first three lines and a link shows the
@@ -231,9 +274,12 @@ Every starter's prompts are a start meant to be rewritten.
     like how video editor works"): it plays the smooth 720p copy once that
     is made, the original only until then, and reads only the start of it,
     for its length and first frame, until it is played. The files are read by id from your own Media, so a reload
-    shows them too. Once made, the card shows what it made as lines, or a
-    button that opens the video. A step with no boxes shows what the AI is
-    asked.
+    shows them too. Once made, the card shows what it made as lines, as the
+    tiles of the files it made (an AI picture shows the picture, music a
+    player), or a button that opens the video. A made file's name keeps its
+    accents and other letters, so a picture called "Café window" is saved as
+    "Café window.jpg". Last comes "How every video is built", the node's
+    prompt in grey.
 - **What makes a step:** each node is one step, and its boxes are on it.
 - **The right panel** is the step: its icon and title, then "Step 1 of 3 ·
   Enter the details", the words saying what it wants now. Its body is the
@@ -243,6 +289,36 @@ Every starter's prompts are a start meant to be rewritten.
   being made, why it failed, what it made), then the made words while it
   waits for an OK, then one card per box named after the box, then Tip. The
   Save step's Project box is a card too.
+  - **The Prompt card** ("Prompt · This video") is on every AI step, above
+    its boxes, and under what it made once it is made (Tyler, 25 Nov 2026,
+    picked "Right panel card"). It holds this video's words for the step;
+    the step's button, Make it again and Try again send them with the
+    node's prompt, under "How every video of this channel is built" and
+    "This video", so the AI can tell them apart. Left empty, the node's
+    prompt goes alone, exactly as typed. The words are kept on the run's
+    step, so a reload shows what was last sent or suggested; words typed
+    and never sent are kept only while the page is open. Being made, or in
+    a stopped run, the card can't change.
+  - **The AI's idea.** With the node's switch on, the AI writes the card's
+    words as soon as the step opens: at once for a step nothing feeds, and
+    for a step that reads another once that one is made, whichever step is
+    showing. "Writing an idea…" shows meanwhile, then the words and "The
+    AI's idea. Change anything." It is sent the flow's name and
+    description, the node's prompt and what the steps before it chose for
+    this video (their Prompt words, a picture's "Last change:" words, and
+    words they made), so step 2 builds on step 1's scene. The writer reads
+    words, not pixels. A step nothing feeds is also sent the same step's
+    words from the flow's 20 newest earlier videos and told to pick
+    something clearly different (Tyler picked "Avoid earlier scenes"). A
+    step asks once: a reload or a second tab doesn't pay again, and a failed
+    idea shows its reason under the card and waits for New idea.
+  - **New idea** (Tyler picked "'New idea' button") asks for another idea,
+    its price on hover. Over words you wrote, it asks first: "Replace your
+    words?". Each idea is a call on the meter, counted in the step's cost.
+  - **A step made again drops the ideas after it.** Make it again or Change
+    it on a step sends the steps after it back to waiting, and any of their
+    words the AI wrote and nobody changed are dropped and written afresh
+    from the new result. Words you wrote stay.
   - **Before it is made:** its boxes (the Transcript, an upload, a Media
     pick, a link, an actor or voice), then its Tip, and its one
     button at the foot, such as "Generate script". The button sends what is
@@ -260,6 +336,43 @@ Every starter's prompts are a start meant to be rewritten.
     it again asks the AI once more.
   - **Failed:** the reason, and Try again. **Done:** what it made, and Make
     it again.
+  - **A made file shows as itself** in the panel too (Tyler, 25 Nov 2026:
+    "image need to show up here as well"): a picture fills the card, music
+    has a player. A card with words in it is only for a step that made words.
+  - **Pictures open full size.** A picture in the middle's card fills the
+    card's width at its own shape, and a press on any Flow picture opens it
+    in a window as large as the screen allows (Tyler, 25 Nov 2026: "It
+    should fill the box and if I click on it, it should open fullsize in a
+    modal").
+  - **A step shows what it is sent from earlier steps** (Tyler, 25 Nov 2026:
+    "how come step 2 doesnt include the generated image?"). Make the study
+    video reads the scene picture, so its card has "From Scene picture" with
+    the picture above Your scene, and the right panel has the same as a
+    card. Only files show this way; words from an earlier step are named in
+    "It also reads what … made".
+  - **AI pictures are 2K** (Tyler, 25 Nov 2026), about 2752x1536 for 16:9,
+    sharp on a full-screen 1080p video. Google's default is 1K (1376x768).
+    A 2K picture is billed as one and a half 1K pictures, because Google
+    counts 1,680 tokens for it against 1,120. At 6.7¢ a 1K picture that is
+    10¢, and the meter and the estimate both say so. Nano Banana 2 can also
+    make 4K; Nano Banana (2.5) makes 1K only, so it is never asked for a
+    size. `FLOW_PICTURE_SIZE` in `src/lib/video/asset-factories.ts` holds
+    the size.
+  - **Change it on a clip** works as on a picture (Tyler picked "'Change it'
+    box on the clip"): the typed words are added to what moves and the clip
+    is made again from the same picture, after its price is OK'd again.
+  - **Videos open full size** too: a video tile plays where it is, and its
+    corner button opens it in the same window as a picture, playing on a
+    loop.
+  - **Change the picture.** Under a made AI picture, above Make it again, is
+    a box to type a change into, as to a chat (Tyler, 25 Nov 2026: "I need
+    to be able to adjust to image with an ai chatbox here"). Enter sends it
+    and Shift and Enter starts a new line. The AI makes a new picture from
+    the one shown plus the words, keeping the rest, at the price of one
+    picture. The steps after it go back to waiting, as on Make it again,
+    because they read the old picture. The card says "Last change:" with the
+    words. Make it again goes back to the node's own prompt. The old
+    picture stays in Media.
 - **The order:** a node waits until every node with a line into it is done.
   Two nodes ready together go left to right, then top to bottom, as the
   canvas shows them.
@@ -322,7 +435,11 @@ into it brought.
 - **AI editor** (stored as `ai-video`, its name until 14 Nov 2026): builds
   the video with the editor's own tools as its prompt says
   (`src/lib/video/flow/editor-actions.ts`). Its pictures and sounds are
-  named for the AI (P1…, S1…) and its footage too (F1…). It answers with
+  named for the AI (P1…, S1…) and its footage too (F1…). A clip from an AI
+  clip step is a finished moving clip (C1…): never written down as footage
+  and never made to move again, only placed. Each file in its list says
+  which step made it ("S7: sound …, from Make the ambience"), so the prompt
+  can tell the music from the ambience. It answers with
   `actions`: make a picture move (`animate_picture`, a loop when it ends on
   its start, as Make it move does), make music (`make_music`) or a sound
   (`make_sound`, looping or not), place a file for a stretch as background,
@@ -362,10 +479,34 @@ into it brought.
 - **AI voice:** every connected text read aloud, in the picked voice or the
   usual voice from the Read a script with AI window. It lands in Voices and
   Media.
-- **AI music:** the prompt is the mood. The track is as long as the run's
-  video, saved or not yet, or a minute when nothing is laid, up to 5 minutes
-  (`ai-music.md`). Before the run is saved only the month's allowance holds
-  it, and its meter row carries the step.
+- **AI clip** (task 04): the first picture in its boxes or connected to it,
+  made to move by the editor's Make it move (`moving-stills.ts`). Its
+  settings, in the builder's "What it makes" card: the video model, quality,
+  length (4, 6 or 8 seconds), "Ends on its start" (a loop with no join, only
+  on Seedance and Wan, so Run refuses a looping clip on Google) and "With
+  sound" (only Seedance can switch sound off). What moves is the step's
+  prompt, this video's words first. The AI video worker makes it and the
+  step looks again every 20 seconds. It hands on the clip, its length, and
+  the picture it moved.
+- **AI music:** the prompt is the mood, this video's words first, cut to the
+  300 characters the music tool takes. Its settings: Service (ElevenLabs; a
+  pick so Suno can join once it has an API that can be relied on: as of
+  July 2026 it only had a small invite-only partner programme), how many
+  tracks (up to 12) and how long each (3 to 300 seconds). Each track is
+  told "Track 3 of 6, a little different from the others". It makes one
+  track a pass and writes each down as soon as it is paid for, so Try again
+  never pays twice. It no longer needs the run saved or a video laid.
+- **AI sound** (task 04): one ElevenLabs sound effect from the prompt, 0.5 to
+  30 seconds, looping or not (`ai-sound-effects.md`), such as the ambience
+  under a whole video.
+- **Price first.** AI clip, music and sound always say what they will make
+  and what it costs, in "What it will make", and wait for "OK, make it ·
+  about $…" before paying (Tyler picked "Show the price first"). That OK is
+  only for the price: with Wait for my OK on, the step stops again once made
+  so the clip can be watched or the tracks heard. The Prompt card's words at
+  OK are the ones used, so an edit made while the price shows counts. A clip
+  the video model refuses fails with its reason; Try again starts a new clip
+  without asking the price again.
 - **AI thumbnail:** follows its prompt (`thumbnail-answer.ts`). The AI
   answers with the picture under it (a connected picture by name, or a
   moment of the run's video), an optional AI change to that picture, a shade
@@ -383,6 +524,12 @@ into it brought.
 - **On the steps page** each AI step shows its price worked out from what was
   really sent, then what the meter recorded for it. The meter rows carry the
   step's id, so a step's cost is exactly its own calls.
+- **AI clip, music and sound** cost what their settings say: the Pomodoro's
+  clip about 47¢ (8 seconds of Seedance at 1080p), its music about $9.00
+  (6 tracks × 5 minutes × 30¢ a minute), its ambience about 6¢.
+- **An idea for a Prompt card** is one call to the writer, a fraction of a
+  cent (worked out for a 3,000-character request and a 300-token answer),
+  shown on New idea's hover.
 - **The only stops** are the month's AI allowance and, once the run has its
   video, that video's own spend limit. A run's video starts with no spend
   limit, so in practice the month's allowance is the stop. AI music's cost is its known price, because
@@ -406,7 +553,9 @@ the left page:
   reason it failed, a wake time and note for a step waiting on an upload,
   and what a step making several paid things remembers between the worker's
   passes: its plan, whether it was OK'd, and each file made
-  (`state`, drizzle/0178).
+  (`state`, drizzle/0178). `video_prompt` holds this video's Prompt card
+  words and `video_prompt_from_ai` whether they are the AI's idea as it
+  wrote them (drizzle/0186).
 - `video_ai_generations.flow_step_id` (drizzle/0177): the Flow step a
   moving picture was made for, before the run has a project.
 
@@ -439,3 +588,17 @@ the left page:
   making one thing a pass, Try again never paying twice, and laying a
   2-round Pomodoro pass in tests with stand-ins for the AI and ElevenLabs.
 - **A real upload through a Video upload box** was not tried in the browser.
+- **No AI idea has been written locally.** The writer picked in Settings → AI
+  is OpenAI, and on 25 Nov 2026 OpenAI refused every call with "You have no
+  credits remaining" (every Flow writer call since 14 Nov had failed the same
+  way). The card showed "OpenAI has no credit left on this key…" and kept the
+  typed words, in a real browser. The ideas, Avoid earlier scenes, New idea,
+  dropping ideas after a step made again and sending both prompts pass in
+  tests with a stand-in writer.
+- **drizzle/0186 is owed on live**, with the other Flow tables.
+- **No real clip, music or ambience has been made by a Flow step.** Each
+  step's price first, OK, waiting on the clip, Change it on a clip, six
+  tracks one a pass, the ambience, and the study video placing them without
+  making anything pass in tests with stand-in makers. In a real browser:
+  the builder's settings and prices, the new nodes in the nodes panel, and a
+  new Pomodoro run's seven steps up to Generate video.

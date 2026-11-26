@@ -65,75 +65,139 @@ export function starterFlowGraph(): AutomationGraph {
 export const POMODORO_FLOW_NAME = "Pomodoro study video"
 
 export const POMODORO_FLOW_DESCRIPTION =
-  "A three-hour study video: a cosy rainy café that moves on a loop, a timer for six 25-minute rounds with 5-minute breaks, lofi, rain and a chime, and a thumbnail."
+  "A three-hour study video: a calm scene that moves on a loop, a timer for six 25-minute rounds with 5-minute breaks, lofi, the scene's own ambience and a chime, and a thumbnail."
 
 /**
- * Tyler's Pomodoro video (14 Nov 2026, workspace/tasks/flow/02-pomodoro-flow.md),
+ * Tyler's Pomodoro video (14 Nov 2026, workspace/tasks/flow/02-pomodoro-flow.md;
+ * split into its own clip, music and ambience steps on 25 Nov 2026, task 04),
  * like Study Pomodoro's "25/5 Pomodoro Timer | Cozy Coffee Shop with lofi".
- * There is nothing Pomodoro in the app: it is these three nodes and their
+ * There is nothing Pomodoro in the app: it is these six nodes and their
  * prompts ("We shouldnt be building a node for every video type. The
  * parameters, data or instructions should just be a prompt Ai can use on
- * existing video editors tools"). His answers are in the prompts: a ring
- * timer with FOCUS or BREAK and the round, a new lofi track each round, rain
- * only in breaks, rain all the way, a chime at each change, the loop on
- * Seedance at 1080p, nothing on the video but the timer, and the thumbnail
- * like the reference with Fredoka. The AI editor shows its plan and price
- * and waits for his OK before it pays for anything.
+ * existing video editors tools"). His answers are in the prompts and
+ * settings: a ring timer with FOCUS or BREAK and the round, a new lofi track
+ * each round, the ambience all the way and no music in the breaks, a chime at
+ * each change, the loop on Seedance at 1080p, nothing on the video but the
+ * timer, and the thumbnail like the reference with Fredoka. The clip, the
+ * music and the ambience each show their price first and wait for his OK once
+ * made; the AI editor only puts them together and makes nothing.
+ *
+ * The prompts say only how every video of the channel is built, never a
+ * scene (Tyler, 25 Nov 2026: "the flow's prompt is mainly for the structure
+ * of the video. It should never discribes a scene"). Each run's scene, and
+ * what moves in it, is the AI's idea in that run's Prompt cards, edited
+ * before each step is made.
  */
 export function pomodoroFlowGraph(): AutomationGraph {
-  const cafe = createFlowNode("ai-picture", { id: "cafe", x: 0, y: 0 })
-  cafe.settings = storedFlowSettings({
-    ...readFlowNodeSettings(cafe.settings),
-    title: "Café window",
+  const scene = createFlowNode("ai-picture", { id: "scene", x: 0, y: 0 })
+  scene.settings = storedFlowSettings({
+    ...readFlowNodeSettings(scene.settings),
+    title: "Scene picture",
+    suggestPrompt: true,
     prompt:
-      "A wide 16:9 photograph: a photoreal, cosy café at night seen from inside. A large window streaked with rain fills most of the frame, soft blurred lights outside. Inside, warm lamp light, a steaming cup of coffee, a few books and plants on the wooden sill. Calm and quiet. No people, no words, no logos. Keep the middle of the frame calm and darkish so a white timer reads well over it.",
+      "A wide 16:9 photograph, photoreal: a calm, cosy place to study, the scene this video's prompt describes. Calm and quiet. No people, no words, no logos. Keep the middle of the frame calm and darkish so a white timer reads well over it. Put in a few small things that could move gently in a loop, such as rain, snow, steam, a flame, leaves or distant lights.",
     heading: "The scene",
-    line: "A cosy café in the rain, painted by AI",
+    line: "This video's scene, painted by AI",
+    explanation: "The Prompt card on the right holds an idea for this video's scene, different from your earlier videos. Change any of it, or press New idea, then paint it.",
     button: "Paint the scene",
   })
-  const study = createFlowNode("ai-video", { id: "study", x: 340, y: 0 })
+  // Tyler, 25 Nov 2026: "After scene picture should be "Generate video"".
+  // His 14 Nov picks for the loop: Seedance at 1080p, 8 seconds ending on its
+  // start, silent, the camera still.
+  const clip = createFlowNode("ai-clip", { id: "clip", x: 340, y: 0 })
+  clip.settings = storedFlowSettings({
+    ...readFlowNodeSettings(clip.settings),
+    title: "Generate video",
+    waitForOk: true,
+    suggestPrompt: true,
+    clip: { company: "seedance", size: "1080p", seconds: 8, loops: true, sound: false },
+    asks: [{ ...createFlowBox("media", "scene"), label: "Your scene", optional: true }],
+    prompt:
+      "Make the picture move gently in a seamless loop. The camera stays completely still: no pan, no zoom, no cut. Only the small things this video's prompt names move, slowly and calmly, so it can repeat for three hours without the join showing.",
+    heading: "The moving scene",
+    line: "This video's scene, moving on a loop",
+    explanation:
+      "The Prompt card says what moves in this video's scene. Pick a picture of your own in Your scene to make that move instead. Press the button to see the price; nothing is paid for until you press OK.",
+    tip: "Making a clip takes a few minutes. This page looks again by itself, and the bell rings if you leave.",
+    button: "Make the clip",
+  })
+  const music = createFlowNode("ai-music", { id: "music", x: 680, y: 0 })
+  music.settings = storedFlowSettings({
+    ...readFlowNodeSettings(music.settings),
+    title: "Make the music",
+    waitForOk: true,
+    suggestPrompt: true,
+    music: { service: "elevenlabs", tracks: 6, seconds: 300 },
+    prompt: "Warm lofi hip hop for studying: soft dusty drums, mellow electric piano, vinyl crackle, slow and calm. Instrumental, no vocals.",
+    heading: "The music",
+    line: "Six lofi tracks, one for each focus round",
+    explanation: "The Prompt card holds this video's mood, suggested from its scene. Press the button to see the price; listen to the tracks once they are made.",
+    button: "Make the music",
+  })
+  const ambience = createFlowNode("ai-sound", { id: "ambience", x: 1020, y: 0 })
+  ambience.settings = storedFlowSettings({
+    ...readFlowNodeSettings(ambience.settings),
+    title: "Make the ambience",
+    waitForOk: true,
+    suggestPrompt: true,
+    sound: { seconds: 30, loops: true },
+    prompt: "A steady, gentle background sound that fits this video's scene, such as rain, a crackling fire or wind. No sudden noises, no music, no voices. It loops.",
+    heading: "The ambience",
+    line: "The sound of the scene, under the whole video",
+    explanation: "The Prompt card holds what this video's scene sounds like. Press the button to see the price; listen to it once it is made.",
+    button: "Make the ambience",
+  })
+  const study = createFlowNode("ai-video", { id: "study", x: 1360, y: 0 })
   study.settings = storedFlowSettings({
     ...readFlowNodeSettings(study.settings),
     title: "Make the study video",
     waitForOk: true,
-    asks: [{ ...createFlowBox("media", "scene"), label: "Your scene", optional: true }],
     prompt: [
       "Make a 3-hour Pomodoro study video, frame 16:9, no captions. Nothing is written on the video except the timer.",
-      "Scene: use the picture in Your scene if there is one, otherwise the café picture. Animate it with Seedance, quality 1080p, no sound, into one 8-second loop that ends on the picture it starts on. The camera stays completely still; only the rain on the glass, the steam from the cup and the lights outside move, gently. Call it L1.",
-      "Then repeat 6 times, every 1800 seconds:",
-      "- place L1 as the background from 0 to 1800, looping, filling the frame.",
+      "Use only the files connected, and make nothing new: the moving clip C1 from Generate video, the six music tracks from Make the music (S1 to S6, in order) and the sound from Make the ambience (S7).",
+      "Repeat 6 times, every 1800 seconds:",
+      "- place C1 as the background from 0 to 1800, looping, filling the frame.",
       '- a timer from 0 to 1500, centred (x 0.5, y 0.5, size 0.42), white, font fredoka, ring width 5, above "FOCUS", below "Round {n}/6".',
       '- a timer from 1500 to 1800, the same, with above "BREAK".',
-      '- make music M{n}, 300 seconds: "warm lofi hip hop for studying, soft dusty drums, mellow electric piano, vinyl crackle, slow and calm", a little different each round. Place M{n} as music from 0 to 1500, volume 0.6, crossfade 3, fade out 3.',
+      "- place S{n} as music from 0 to 1500, volume 0.6, fade in 3, fade out 3.",
       "- no music in the break.",
       '- starter sound "chime" at 1500.',
       'Also a starter sound "chime" at the start of rounds 2 to 6 (repeat 5 times every 1800 from 1800).',
-      'Make one sound RAIN, 30 seconds, looping: "steady gentle rain on a café window, no thunder". Place it as ambience from 0 to 10800, looping, volume 0.35, fade in 3, fade out 3.',
+      "Place S7 as ambience from 0 to 10800, looping, volume 0.35, fade in 3, fade out 3.",
     ].join("\n"),
     heading: "The study video",
-    line: "Three hours: the scene on a loop, the timer, lofi, rain and chimes",
-    explanation:
-      "Pick a picture of your own in Your scene, or leave it empty for the AI café. Press the button and the AI shows its plan and what it costs; nothing is paid for until you press OK.",
-    tip: "Making it takes a few minutes: the moving scene is made by a video model, and each music track by ElevenLabs.",
-    button: "Plan the video",
+    line: "Three hours: the clip on a loop, the timer, the music, the ambience and chimes",
+    explanation: "This step puts together what the steps before it made. Press the button and the AI shows its plan; nothing new is made or paid for here.",
+    button: "Put it together",
   })
-  const thumbnail = createFlowNode("ai-thumbnail", { id: "thumbnail", x: 680, y: 0 })
+  const thumbnail = createFlowNode("ai-thumbnail", { id: "thumbnail", x: 1700, y: 0 })
   thumbnail.settings = storedFlowSettings({
     ...readFlowNodeSettings(thumbnail.settings),
     title: "Thumbnail",
+    suggestPrompt: true,
     prompt:
       'Use the scene picture (P1) as it is, as the whole background, with a dark shade at the top. Put "STUDY POMODORO" in white fredoka, size 96, centred at the top (y 0.09). Draw a thin white ring centred at x 0.5, y 0.56, size 0.56, width 8. Inside it, "25/05" in white fredoka, size 200, centred at x 0.5, y 0.56. No other words.',
     heading: "Thumbnail",
     line: "The scene, the title and the ring",
     button: "Make the thumbnail",
   })
+  // One after another, his pick. The music and the ambience also read the
+  // scene, so their ideas fit it; the study video reads the clip and sounds.
+  const line = (from: string, to: string) => ({ id: `${from}-${to}`, from, sourcePort: "out", to })
   return {
-    nodes: [cafe, study, thumbnail],
+    nodes: [scene, clip, music, ambience, study, thumbnail],
     edges: [
-      { id: "cafe-study", from: "cafe", sourcePort: "out", to: "study" },
-      { id: "study-thumbnail", from: "study", sourcePort: "out", to: "thumbnail" },
+      line("scene", "clip"),
+      line("scene", "music"),
+      line("clip", "music"),
+      line("scene", "ambience"),
+      line("music", "ambience"),
+      line("clip", "study"),
+      line("music", "study"),
+      line("ambience", "study"),
+      line("study", "thumbnail"),
     ],
-    viewport: { x: 60, y: 160, zoom: 0.8 },
+    viewport: { x: 60, y: 160, zoom: 0.6 },
   }
 }
 

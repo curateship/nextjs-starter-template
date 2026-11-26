@@ -37,6 +37,7 @@ import {
   FLOW_PROMPT_MAX,
   FLOW_TITLE_MAX,
   flowKindOf,
+  PRICE_FIRST_KINDS,
   flowNodeName,
   readFlowNodeSettings,
   storedFlowSettings,
@@ -45,6 +46,7 @@ import {
   type FlowNodeSettings,
 } from "@/lib/video/flow/node-kinds"
 
+import { FlowMakingCard } from "./flow-making-card"
 import { FlowDetailsFields } from "./flow-panel"
 
 const HIDE_LABEL = "Hide the node"
@@ -53,6 +55,8 @@ const HIDE_LABEL = "Hide the node"
  * The builder's right panel with a node picked.
  *
  * - **Node:** its title, prompt, "Wait for my OK" and about what it costs.
+ * - **What it makes:** for an AI clip, music or sound node, how it is made,
+ *   and its price a run (`flow-making-card.tsx`).
  * - **Asks you for:** the boxes the node asks for on its step of a run, such
  *   as a Transcript or a Raw video, each named here. They are part of the
  *   node, as an automation's Send email holds its own email (Tyler,
@@ -125,7 +129,7 @@ export function FlowNodePanel({
                   <div className="grid gap-2">
                     <FieldLabel
                       htmlFor={`flow-node-prompt-${node.id}`}
-                      hint="Everything the AI is told. What its boxes hold, and what each line into it made, is added after it by name."
+                      hint="How every video of this flow is built at this step, never what is in one video. Each run adds that video's own prompt, then what its boxes hold and what each line into it made."
                     >
                       Prompt
                     </FieldLabel>
@@ -135,7 +139,7 @@ export function FlowNodePanel({
                       value={settings.prompt}
                       maxLength={FLOW_PROMPT_MAX}
                       aria-invalid={!settings.prompt.trim() || undefined}
-                      placeholder="Say what the AI should do."
+                      placeholder="Say how every video is built at this step."
                       onChange={(event) => set({ prompt: event.target.value })}
                     />
                   </div>
@@ -152,7 +156,20 @@ export function FlowNodePanel({
                       onCheckedChange={(checked) => set({ waitForOk: checked })}
                     />
                   </div>
-                  {prices ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <FieldLabel
+                      htmlFor={`flow-node-idea-${node.id}`}
+                      hint="On, each run opens this step with an idea from the AI for that video's prompt, different from the flow's earlier videos. You can edit it or ask for a new one."
+                    >
+                      AI suggests each video's prompt
+                    </FieldLabel>
+                    <Switch
+                      id={`flow-node-idea-${node.id}`}
+                      checked={settings.suggestPrompt}
+                      onCheckedChange={(checked) => set({ suggestPrompt: checked })}
+                    />
+                  </div>
+                  {prices && !PRICE_FIRST_KINDS.has(kind) ? (
                     <p className="text-xs text-muted-foreground">
                       From {formatAiEstimate(prices[kind])} a run. The run works it out again once it knows what it reads.
                     </p>
@@ -161,6 +178,9 @@ export function FlowNodePanel({
               ) : null}
             </div>
           </PanelCard>
+          {kind === "ai-clip" || kind === "ai-music" || kind === "ai-sound" ? (
+            <FlowMakingCard nodeId={node.id} kind={kind} settings={settings} set={set} />
+          ) : null}
           {kind ? (
             <PanelCard
               storageId="video-flow-node-asks"

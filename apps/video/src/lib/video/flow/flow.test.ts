@@ -13,7 +13,9 @@ import { flowFeeders, flowStepOrder, flowStepsAfter, readyFlowSteps } from "./ad
 import type { FlowRunStep } from "./flows"
 import { waitsOn } from "./guide"
 import { createFlowNode, FLOW_KINDS, flowBoxLabel, flowKindOf, readFlowNodeSettings, storedFlowKind } from "./node-kinds"
-import { buildFlowPrompt } from "./prompt"
+import { flowNodeMakingCents } from "./estimates"
+import { buildFlowPrompt, withVideoPrompt } from "./prompt"
+import { promptIdeaRequest } from "./prompt-ideas"
 import { flowRunStatusFrom } from "./run-shape"
 import { FLOW_STARTERS, pomodoroFlowGraph, starterFlowGraph } from "./starter"
 import { validateFlow } from "./validate"
@@ -147,14 +149,107 @@ describe("what a step waits on", () => {
 })
 
 describe("the Pomodoro starter", () => {
-  it("is three nodes that run, its details all in the prompts", () => {
+  it("is the scene, its clip, the music, the ambience, the study video and the thumbnail, one after another", () => {
     const graph = pomodoroFlowGraph()
     expect(validateFlow(graph)).toEqual([])
-    expect(graph.nodes.map((node) => flowKindOf(node.kind))).toEqual(["ai-picture", "ai-video", "ai-thumbnail"])
-    const editor = readFlowNodeSettings(graph.nodes[1].settings)
-    expect(editor.waitForOk).toBe(true)
-    expect(editor.asks).toEqual([{ id: "scene", kind: "media", label: "Your scene", optional: true }])
+    expect(graph.nodes.map((node) => flowKindOf(node.kind))).toEqual(["ai-picture", "ai-clip", "ai-music", "ai-sound", "ai-video", "ai-thumbnail"])
+    expect(flowStepOrder(graph)).toEqual(["scene", "clip", "music", "ambience", "study", "thumbnail"])
+    const [, clip, music, ambience, editor] = graph.nodes.map((node) => readFlowNodeSettings(node.settings))
+    expect(clip.clip).toEqual({ company: "seedance", size: "1080p", seconds: 8, loops: true, sound: false })
+    expect(clip.asks).toEqual([{ id: "scene", kind: "media", label: "Your scene", optional: true }])
+    expect(music.music).toEqual({ service: "elevenlabs", tracks: 6, seconds: 300 })
+    expect(ambience.sound).toEqual({ seconds: 30, loops: true })
+    for (const step of [clip, music, ambience, editor]) expect(step.waitForOk).toBe(true)
+    expect(editor.asks).toEqual([])
     expect(editor.prompt).toContain("Round {n}/6")
+    expect(editor.prompt).toContain("make nothing new")
     expect(FLOW_STARTERS.map((starter) => starter.key)).toEqual(["transcript", "pomodoro"])
+  })
+
+  it("says how every video is built and never names a scene, with the AI suggesting each video's prompts", () => {
+    const graph = pomodoroFlowGraph()
+    for (const node of graph.nodes) {
+      const settings = readFlowNodeSettings(node.settings)
+      // The study video only puts together what the steps before it made.
+      expect(settings.suggestPrompt).toBe(node.id !== "study")
+      for (const words of [settings.prompt, settings.title, settings.line, settings.explanation]) {
+        expect(words).not.toMatch(/caf[eé]|coffee|lamp|mug|window/i)
+      }
+    }
+  })
+})
+
+describe("each video's own prompt", () => {
+  it("sends how every video is built, then this video, each under its heading", () => {
+    expect(withVideoPrompt("A wide picture, no words.", "  A snowy cabin at dawn.  ")).toBe(
+      "## How every video of this channel is built\nA wide picture, no words.\n\n## This video\nA snowy cabin at dawn."
+    )
+  })
+
+  it("sends the flow's prompt alone, exactly as typed, when this video has no words", () => {
+    expect(withVideoPrompt("A wide picture, no words.", "   ")).toBe("A wide picture, no words.")
+    expect(withVideoPrompt("A wide picture, no words.", null)).toBe("A wide picture, no words.")
+  })
+
+  const base = {
+    flowName: "Pomodoro study video",
+    flowDescription: "Three hours of study.",
+    stepTitle: "Scene picture",
+    kindName: "AI picture",
+    structure: "A wide photoreal picture, no people.",
+  }
+
+  it("asks the first step for something different from the channel's earlier videos", () => {
+    const asked = promptIdeaRequest({ ...base, feeds: [], earlier: ["A café at night in the rain.", "A library\nat noon."] })
+    expect(asked).toContain("A wide photoreal picture, no people.")
+    expect(asked).toContain("- A café at night in the rain.")
+    expect(asked).toContain("- A library at noon.")
+    expect(asked).toContain("Pick something clearly different")
+    expect(asked).toContain('{"prompt": "your words"}')
+  })
+
+  it("builds a later step on what the steps before it chose, including a change to the picture", () => {
+    const asked = promptIdeaRequest({
+      ...base,
+      stepTitle: "Make the study video",
+      kindName: "AI editor",
+      feeds: [{ title: "Scene picture", videoPrompt: "A laptop and a candle by a snowy window.", changedWith: "make it dusk", text: null }],
+      earlier: [],
+    })
+    expect(asked).toContain("This video's prompt: A laptop and a candle by a snowy window.")
+    expect(asked).toContain("Changed afterwards: make it dusk")
+    expect(asked).toContain("built on what the steps before it chose")
+    expect(asked).not.toContain("Pick something clearly different")
+  })
+})
+
+describe("the clip, music and sound nodes' settings", () => {
+  it("reads each setting into its range, and falls back on the defaults", () => {
+    const read = readFlowNodeSettings({
+      clip: { company: "nobody", size: "4k", seconds: 7, loops: "yes" },
+      music: { tracks: 40, seconds: 900, service: "suno" },
+      sound: { seconds: 0.1, loops: false },
+    })
+    // An unknown size is the model's own default size.
+    expect(read.clip).toEqual({ company: "seedance", size: "720p", seconds: 8, loops: true, sound: false })
+    expect(readFlowNodeSettings({}).clip.size).toBe("1080p")
+    expect(read.music).toEqual({ service: "elevenlabs", tracks: 12, seconds: 300 })
+    expect(read.sound).toEqual({ seconds: 0.5, loops: false })
+  })
+
+  it("prices six 5-minute tracks as six, a sound by its length, and a clip by its model", () => {
+    const settings = readFlowNodeSettings({ music: { tracks: 6, seconds: 300 }, sound: { seconds: 30 } })
+    expect(flowNodeMakingCents("ai-music", settings)).toBe(6 * 150)
+    expect(flowNodeMakingCents("ai-sound", settings)).toBe(6)
+    expect(flowNodeMakingCents("ai-clip", settings)).toBeGreaterThan(0)
+  })
+
+  it("refuses a looping clip on Google, which can't end on its start", () => {
+    const node = createFlowNode("ai-clip", { id: "clip", x: 0, y: 0 })
+    node.settings = { ...node.settings, prompt: "Move gently.", clip: { company: "gemini", size: "720p", seconds: 8, loops: true, sound: false } }
+    const errors = validateFlow({ nodes: [node], edges: [] })
+    expect(errors.map((error) => error.message)).toEqual([
+      "\"AI clip\" can't end on its start with Google Omni Flash. Pick Seedance or Wan, or switch \"Ends on its start\" off.",
+    ])
   })
 })

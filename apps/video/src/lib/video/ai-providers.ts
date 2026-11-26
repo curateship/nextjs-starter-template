@@ -25,6 +25,14 @@ export const AI_TOO_BUSY_MESSAGE =
 export const AI_DAY_USED_UP_MESSAGE =
   "This key's free allowance for today is used up - it resets tomorrow, or add billing to the key. Whisper and cutting dead air still work"
 
+/**
+ * OpenAI answers 429 "insufficient_quota" when the account behind the key has
+ * no credit left. Waiting never fixes it, so it is said plainly rather than as
+ * "failed (HTTP 429)" (seen 25 Nov 2026: every Flow writer call since 14 Nov).
+ */
+export const OPENAI_NO_CREDIT_MESSAGE =
+  "OpenAI has no credit left on this key - add credit at platform.openai.com, or pick another writer in Settings → AI"
+
 export const OPENAI_KEY_MISSING_MESSAGE =
   "No OpenAI key is saved - add one in Settings → AI"
 
@@ -62,6 +70,7 @@ const PROVIDER_PROBLEMS = [
 export function isShowableProviderProblem(message: string) {
   if (message === AI_TOO_BUSY_MESSAGE) return true
   if (message === AI_DAY_USED_UP_MESSAGE) return true
+  if (message === OPENAI_NO_CREDIT_MESSAGE) return true
   if (PROVIDER_PROBLEMS.some((problem) => message.includes(problem))) return true
   // "Captions failed (HTTP 503)" — the number is the useful part.
   return /\(HTTP \d{3}\)$/.test(message)

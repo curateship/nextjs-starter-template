@@ -35,6 +35,28 @@ export const ACTOR_IMAGE_MODEL_IDS = ACTOR_IMAGE_MODELS.map((item) => item.id) a
 ]
 export const DEFAULT_IMAGE_MODEL: GeminiImageModelId = "gemini-2.5-flash-image"
 
+/**
+ * How big Google makes a picture. 1K is its default (1376x768 for 16:9), 2K
+ * about 2752x1536, 4K about 5504x3072. Nano Banana (2.5) only makes 1K.
+ */
+export type ImageSize = "1K" | "2K" | "4K"
+
+/**
+ * One picture at each size, counted in 1K pictures, which is what the price
+ * list holds: Google bills 1,120 tokens for 1K, 1,680 for 2K and 2,520 for 4K
+ * (Gemini 3.1 Flash Image docs, read 25 Nov 2026). At 6.7¢ a 1K picture, a 2K
+ * one is 10¢.
+ */
+export const IMAGE_SIZE_UNITS: Record<ImageSize, number> = { "1K": 1, "2K": 1.5, "4K": 2.25 }
+
+/** Whether this model takes a size; Nano Banana (2.5) makes 1K only. */
+export function imageModelTakesSize(model: string) {
+  return model !== "gemini-2.5-flash-image" && model.startsWith("gemini-")
+}
+
+/** Flow's AI pictures are 2K (Tyler, 25 Nov 2026), sharp on a full-screen 1080p video. */
+export const FLOW_PICTURE_SIZE: ImageSize = "2K"
+
 /** The most pictures one actor's character sheet holds. */
 export const MAX_SHEET_PICTURES = 12
 export const MAX_SHEET_LABEL_LENGTH = 60

@@ -9,6 +9,18 @@ export type FlowFeed = {
 }
 
 /**
+ * A step's whole prompt: how every video of the channel is built (the node's
+ * prompt on the canvas), then what is in this one video (the run's Prompt
+ * card), each under its own heading so the AI can tell them apart. With no
+ * words for this video, the node's prompt alone, exactly as typed.
+ */
+export function withVideoPrompt(structure: string, videoPrompt: string | null | undefined): string {
+  const video = videoPrompt?.trim()
+  if (!video) return structure
+  return `## How every video of this channel is built\n${structure.trim()}\n\n## This video\n${video}`
+}
+
+/**
  * What an AI node is sent: the prompt exactly as typed, then one labelled
  * block per node with a line into it, in step order. Nothing else is added
  * about what to do (Tyler, 14 Nov 2026: "No specific things ai should do.
