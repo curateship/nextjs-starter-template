@@ -1,16 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+const stored = vi.hoisted(() => new Map<string, { data: Uint8Array; type: string }>())
+
 vi.mock("@/server/media/storage", () => ({
   getPublicMediaUrl: vi.fn(async (key: string) => `https://files.example.com/${key}`),
-  getFromR2: vi.fn(async (key: string) => ({
-    Body: { transformToByteArray: async () => new TextEncoder().encode(`bytes of ${key}`) },
-  })),
+  getFromR2: vi.fn(async (key: string) => {
+    const upload = stored.get(key)
+    if (key.startsWith("crm-files/") && !upload) throw new Error("NoSuchKey")
+    return {
+      ContentType: upload?.type,
+      Body: { transformToByteArray: async () => upload?.data ?? new TextEncoder().encode(`bytes of ${key}`) },
+    }
+  }),
+  uploadToR2: vi.fn(async (key: string, data: Uint8Array, type: string) => {
+    stored.set(key, { data, type })
+  }),
+  // Never called here, but an app's own code can read it as it loads (Project's
+  // task files do), and a stand-in without it fails before any test runs.
+  deleteFromR2: vi.fn(async () => {}),
 }))
 
 import {
   CRM_REPLY_FILE_NOT_FOUND,
   CRM_REPLY_FILES_TOO_BIG,
   loadReplyFiles,
+  replyUploadPrefix,
+  safeUploadName,
+  storeReplyUpload,
 } from "@/server/crm/reply-files"
 import { type CustomShellDb } from "@/server/db"
 import { customShellMedia, customShellWorkspaces } from "@/server/schema"
@@ -79,5 +95,61 @@ describe("files on a reply", () => {
 
   it("sends nothing extra when no file is picked", async () => {
     expect(await loadReplyFiles(workspaceId, [], db)).toEqual([])
+  })
+
+  /** Files from the computer (CRM task 38, part 3). */
+  describe("uploaded from the computer", () => {
+    const pdf = (bytes: number) => ({ name: "Quote 42.pdf", type: "application/pdf", data: new Uint8Array(bytes) })
+
+    it("keeps a PDF under the site's own folder and sends it under its name", async () => {
+      const kept = await storeReplyUpload(workspaceId, pdf(3000))
+      expect(kept.key.startsWith(replyUploadPrefix(workspaceId))).toBe(true)
+      expect(kept).toMatchObject({ name: "Quote 42.pdf", size: 3000 })
+
+      const [file] = await loadReplyFiles(workspaceId, [], db, [{ key: kept.key, name: kept.name }])
+      expect(file.send).toMatchObject({ filename: "Quote 42.pdf", contentType: "application/pdf" })
+      expect(file.attachment).toMatchObject({ filename: "Quote 42.pdf", size: 3000, storageKey: kept.key })
+    })
+
+    it("refuses another site's upload, and a key walking out of the folder", async () => {
+      const theirs = await storeReplyUpload(otherWorkspaceId, pdf(10))
+      await expect(loadReplyFiles(workspaceId, [], db, [{ key: theirs.key, name: "x.pdf" }])).rejects.toThrow(
+        CRM_REPLY_FILE_NOT_FOUND
+      )
+      await expect(
+        loadReplyFiles(workspaceId, [], db, [{ key: `${replyUploadPrefix(workspaceId)}../../${theirs.key}`, name: "x" }])
+      ).rejects.toThrow(CRM_REPLY_FILE_NOT_FOUND)
+    })
+
+    it("sends a file with dots inside its name", async () => {
+      const kept = await storeReplyUpload(workspaceId, { ...pdf(10), name: "quote..v2.pdf" })
+      const [file] = await loadReplyFiles(workspaceId, [], db, [{ key: kept.key, name: kept.name }])
+      expect(file.send.filename).toBe("quote..v2.pdf")
+    })
+
+    it("refuses one that is gone", async () => {
+      await expect(
+        loadReplyFiles(workspaceId, [], db, [{ key: `${replyUploadPrefix(workspaceId)}nope/a.pdf`, name: "a.pdf" }])
+      ).rejects.toThrow(CRM_REPLY_FILE_NOT_FOUND)
+    })
+
+    it("refuses over 10 MB, alone or with the library's files", async () => {
+      await expect(storeReplyUpload(workspaceId, pdf(10 * 1024 * 1024 + 1))).rejects.toThrow(CRM_REPLY_FILES_TOO_BIG)
+      const nine = await storeReplyUpload(workspaceId, pdf(9.5 * 1024 * 1024))
+      const ten = await storeReplyUpload(workspaceId, pdf(1024 * 1024))
+      await expect(
+        loadReplyFiles(workspaceId, [], db, [
+          { key: nine.key, name: "a.pdf" },
+          { key: ten.key, name: "b.pdf" },
+        ])
+      ).rejects.toThrow(CRM_REPLY_FILES_TOO_BIG)
+    })
+
+    it("strips folders and characters a mail header cannot carry from the name", () => {
+      expect(safeUploadName("C:\\Users\\me\\quote.pdf")).toBe("quote.pdf")
+      expect(safeUploadName('../"evil"\nname.pdf')).toBe("evilname.pdf")
+      expect(safeUploadName("   ")).toBe("file")
+      expect(safeUploadName("..")).toBe("file")
+    })
   })
 })

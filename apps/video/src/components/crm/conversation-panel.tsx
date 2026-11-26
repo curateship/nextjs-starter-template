@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   CheckIcon,
   ChevronDownIcon,
+  ClockIcon,
   ForwardIcon,
   InboxIcon,
   PaperclipIcon,
@@ -13,6 +14,23 @@ import { CrmRecordMenu } from "@/components/crm/crm-record-menu"
 import { ForwardDialog } from "@/components/crm/forward-dialog"
 import { Dot, DOT } from "@/components/crm/crm-table"
 import { ReplyComposer } from "@/components/crm/reply-composer"
+import {
+  changeReplyDraft,
+  changeReplyFiles,
+  undoHeldReply,
+  useReplyStore,
+  useSecondsLeft,
+  type PendingReply,
+  type ReplyFile,
+} from "@/components/crm/reply-store"
+import { PickTimeForm } from "@/components/crm/send-later"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  cancelScheduledConversationReply,
+  changeScheduledConversationReply,
+  getCrmErrorMessage,
+} from "@/lib/api/crm/inbox"
+import { formatSendAt } from "@/lib/crm/send-later"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { RightPanelCover, useRightCover } from "@/components/shared/notes/page-cover"
 import { SidePanelCollapseButton } from "@/components/shared/three-panels"
@@ -27,15 +45,15 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import type { Conversation, ConversationFile, ConversationMessage } from "@/lib/api/crm/inbox"
+import type { Conversation, ConversationFile, ConversationMessage, ScheduledReply } from "@/lib/api/crm/inbox"
 import { getLeadErrorMessage, saveLead, type LeadPanel as LeadRecord } from "@/lib/api/crm/leads"
 import {
   CRM_STAGE_LABELS,
   CRM_STAGES,
   type CrmStage,
+  crmFileNameFromUrl,
 } from "@/lib/crm/crm"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import type { ReplyDraftUpdate } from "@/lib/crm/reply-drafts"
 import { initialsFor } from "@/lib/crm/inbox-time"
 import { htmlToText, splitQuotedText } from "@/lib/crm/message-text"
 import { formatClockTime, formatDate } from "@/lib/format/format-time"
@@ -72,16 +90,16 @@ export function ConversationPanel({
   emptyLine,
   canSend,
   replyFrom,
-  replyDraft,
-  onReplyDraftChange,
   onSavedChange,
   onMarkUnread,
+  onRobot,
   onSummarise,
   onBlockSender,
   onLeadChanged,
   onFetchBody,
   onSent,
   onDraft,
+  onScheduledChanged,
   onOpenContact,
 }: {
   conversation: Conversation | null
@@ -103,24 +121,31 @@ export function ConversationPanel({
    * null when there is no address for mail to arrive at.
    */
   replyFrom: string | null
-  /** What is half typed in the reply box for this conversation. */
-  replyDraft: string
-  onReplyDraftChange: (threadId: string, update: ReplyDraftUpdate) => void
   onSavedChange: (saved: boolean) => void
   onMarkUnread: () => void
+  /** "Not a robot" or "Move to Other" (CRM task 38, part 4). */
+  onRobot: (robot: boolean) => void
   /** Writes what the conversation is about, through the metered AI path. */
   onSummarise: () => Promise<void>
   /** Blocks the address this conversation is with, and closes the thread. */
   onBlockSender: () => Promise<void>
   onLeadChanged: () => void
   onFetchBody: (messageId: string) => Promise<void>
+  /** A forward went out. */
   onSent: () => void
   onDraft: () => Promise<string>
+  /** A reply was scheduled, moved or cancelled, so the conversation is read again. */
+  onScheduledChanged: () => void
   /** Opens the person's contact, from the ⋮, for a lead already on the list. */
   onOpenContact?: (contactId: string) => void
 }) {
   const endRef = React.useRef<HTMLDivElement | null>(null)
   const cover = useRightCover()
+  // A reply sent and waiting out its ten seconds, drawn at the foot of the
+  // conversation with Undo (CRM task 38, part 1).
+  const replies = useReplyStore()
+  const held = conversation ? (replies.pending[conversation.id] ?? null) : null
+  const holding = held !== null
   const [blockOpen, setBlockOpen] = React.useState(false)
   const [blocking, setBlocking] = React.useState(false)
   const [summarising, setSummarising] = React.useState(false)
@@ -140,7 +165,7 @@ export function ConversationPanel({
   // this component does not own.
   React.useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" })
-  }, [conversation?.id, conversation?.messages.length])
+  }, [conversation?.id, conversation?.messages.length, holding])
 
   if (!conversation) {
     // No ×, never emptied by hand: the dashboard opens the first row on
@@ -231,6 +256,7 @@ export function ConversationPanel({
             siteTags={siteTags}
             onLeadChanged={onLeadChanged}
             onMarkUnread={onMarkUnread}
+            onRobot={onRobot}
             onSummarise={conversation.canSummarise ? summarise : null}
             onForward={() => setForwarding(true)}
             onBlock={() => setBlockOpen(true)}
@@ -317,6 +343,16 @@ export function ConversationPanel({
               </React.Fragment>
             )
           })}
+          {conversation.scheduled.map((reply) => (
+            <ScheduledReplyBubble
+              key={reply.id}
+              threadId={conversation.id}
+              reply={reply}
+              initials={initialsFor(ourName, "")}
+              onChanged={onScheduledChanged}
+            />
+          ))}
+          {held ? <HeldReplyBubble held={held} initials={initialsFor(ourName, "")} /> : null}
           <div ref={endRef} aria-hidden />
         </div>
       </ScrollArea>
@@ -356,12 +392,10 @@ export function ConversationPanel({
         <ReplyComposer
           status={<LeadStatusMenu lead={lead} onLeadChanged={onLeadChanged} />}
           threadId={conversation.id}
-          body={replyDraft}
           canSend={canSend}
-          onBodyChange={onReplyDraftChange}
           replyFrom={replyFrom}
-          onSent={onSent}
           onDraft={onDraft}
+          onScheduled={onScheduledChanged}
         />
       </footer>
     </div>
@@ -417,6 +451,148 @@ function LeadStatusMenu({ lead, onLeadChanged }: { lead: LeadRecord | null; onLe
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/**
+ * A reply sent and waiting out its ten seconds (CRM task 38, part 1): drawn
+ * where it will land, faint, with how long is left and Undo. Undo puts the
+ * words and files back in the box. Once it is on its way it says Sending,
+ * and Undo goes, because the mail can no longer be pulled back.
+ */
+function HeldReplyBubble({ held, initials }: { held: PendingReply; initials: string }) {
+  const seconds = useSecondsLeft(held.sending ? null : held.sendAt)
+  return (
+    <article className="flex w-full flex-col items-end gap-1" aria-live="polite">
+      <span className="sr-only">You wrote, not sent yet</span>
+      <div className="flex w-full min-w-0 flex-row-reverse items-start gap-2">
+        <Avatar aria-hidden className="size-7">
+          <AvatarFallback className="text-[0.5625rem] font-medium">{initials}</AvatarFallback>
+        </Avatar>
+        <div className="max-w-[85%] min-w-0 rounded-2xl border border-dashed bg-primary/5 px-3.5 py-2.5 text-sm text-muted-foreground">
+          <p className="whitespace-pre-wrap break-words">{held.body}</p>
+          {held.files.length ? (
+            <p className="mt-1.5 flex items-center gap-1 text-xs">
+              <PaperclipIcon className="size-3" aria-hidden />
+              {held.files.map((file) => file.name).join(", ")}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <p className="flex items-center gap-2 pr-9 text-xs text-muted-foreground">
+        {held.sending ? "Sending…" : `Sending in ${seconds}s`}
+        {held.sending ? null : (
+          <Button type="button" variant="outline" size="xs" onClick={() => undoHeldReply(held.threadId)}>
+            Undo
+          </Button>
+        )}
+      </p>
+    </article>
+  )
+}
+
+/**
+ * A reply put off to a later time (CRM task 38, part 6), drawn faint where it
+ * will land: when it goes, Change and Cancel. Cancel puts its words and files
+ * back in the box. One that could not go says why and keeps both buttons, so
+ * it can be given a new time. If they wrote again since it was scheduled, it
+ * says so: it still goes, unless it is cancelled.
+ */
+function ScheduledReplyBubble({
+  threadId,
+  reply,
+  initials,
+  onChanged,
+}: {
+  threadId: string
+  reply: ScheduledReply
+  initials: string
+  onChanged: () => void
+}) {
+  const [changing, setChanging] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+
+  const cancel = async () => {
+    setBusy(true)
+    try {
+      const back = await cancelScheduledConversationReply(reply.id)
+      changeReplyDraft(threadId, (current) => (current.trim() ? `${back.body}\n\n${current}` : back.body))
+      changeReplyFiles(threadId, (current) => [
+        ...back.files.urls.map((url): ReplyFile => ({
+          kind: "media",
+          url,
+          name: crmFileNameFromUrl(url),
+        })),
+        ...back.files.uploads.map((upload): ReplyFile => ({ kind: "upload", key: upload.key, name: upload.name })),
+        ...current,
+      ])
+      onChanged()
+    } catch (error) {
+      showErrorToast(getCrmErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const change = async (sendAt: Date) => {
+    setChanging(false)
+    setBusy(true)
+    try {
+      await changeScheduledConversationReply(reply.id, sendAt.toISOString())
+      onChanged()
+    } catch (error) {
+      showErrorToast(getCrmErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <article className="flex w-full flex-col items-end gap-1">
+      <span className="sr-only">You wrote, scheduled to go later</span>
+      <div className="flex w-full min-w-0 flex-row-reverse items-start gap-2">
+        <Avatar aria-hidden className="size-7">
+          <AvatarFallback className="text-[0.5625rem] font-medium">{initials}</AvatarFallback>
+        </Avatar>
+        <div className="max-w-[85%] min-w-0 rounded-2xl border border-dashed bg-primary/5 px-3.5 py-2.5 text-sm text-muted-foreground">
+          <p className="whitespace-pre-wrap break-words">{reply.body}</p>
+          {reply.fileNames.length ? (
+            <p className="mt-1.5 flex items-center gap-1 text-xs">
+              <PaperclipIcon className="size-3" aria-hidden />
+              {reply.fileNames.join(", ")}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <div className="grid justify-items-end gap-1 pr-9 text-xs text-muted-foreground">
+        <p className="flex items-center gap-1.5">
+          <ClockIcon className="size-3.5" aria-hidden />
+          {reply.state === "sending"
+            ? "Sending…"
+            : reply.state === "failed"
+              ? `Could not send: ${reply.error ?? "the email was not accepted."}`
+              : `Goes out ${formatSendAt(new Date(reply.send_at))}`}
+        </p>
+        {reply.wroteSince && reply.state !== "sending" ? <p>They wrote again since you scheduled this.</p> : null}
+        {reply.state === "sending" ? null : (
+          <div className="flex items-center gap-1.5">
+            <Popover open={changing} onOpenChange={setChanging}>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="xs" disabled={busy}>
+                  Change
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" side="top" className="w-72 p-3">
+                <PickTimeForm submitLabel="Move it" initial={new Date(reply.send_at)} onPick={(at) => void change(at)} />
+              </PopoverContent>
+            </Popover>
+            <Button type="button" variant="outline" size="xs" disabled={busy} onClick={() => void cancel()}>
+              Cancel
+            </Button>
+          </div>
+        )}
+      </div>
+    </article>
   )
 }
 

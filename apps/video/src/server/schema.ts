@@ -2511,10 +2511,17 @@ export const customShellCrmLeads = pgTable(
     followUpNotifiedAt: timestamp("follow_up_notified_at", {
       withTimezone: true,
     }),
+    /**
+     * A person's "Not a robot" or "Move to Other" for this address, so their
+     * next conversation lands where the last one was put (CRM task 38, part
+     * 4). Null until somebody says.
+     */
+    robotChoice: varchar("robot_choice", { length: 8 }).$type<"person" | "robot">(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    check("crm_leads_robot_choice_check", sql`${table.robotChoice} is null or ${table.robotChoice} in ('person', 'robot')`),
     check(
       "crm_leads_stage_check",
       sql`${table.stage} in ('new', 'contacted', 'quoted', 'won', 'lost')`
@@ -2559,6 +2566,74 @@ export const customShellCrmThreadForwards = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [index("ix_crm_thread_forwards_thread").on(table.threadId, table.createdAt)]
+)
+
+/**
+ * A half-written CRM reply, kept so it survives a reload (CRM task 38, part
+ * 5). One per conversation per admin: two admins typing in one conversation
+ * each keep their own. An empty box is no row, sending removes it, and the
+ * background pass removes rows untouched for 30 days. Only the words: files
+ * picked for the reply are not kept.
+ */
+export const customShellCrmReplyDrafts = pgTable(
+  "crm_reply_drafts",
+  {
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    threadId: varchar("thread_id", { length: 36 })
+      .notNull()
+      .references(() => customShellCrmThreads.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "crm_reply_drafts_pk", columns: [table.threadId, table.userId] }),
+    index("ix_crm_reply_drafts_user").on(table.workspaceId, table.userId),
+    index("ix_crm_reply_drafts_updated").on(table.updatedAt),
+  ]
+)
+
+/**
+ * A CRM reply written now and sent later (CRM task 38, part 6). The
+ * background pass claims each waiting one whose time has come, sends it
+ * through `sendCrmReply` as a reply sent now, and deletes it once it has
+ * gone: the message it became is the record. One that could not go stays,
+ * failed, with the reason, until it is given a new time or cancelled.
+ */
+export const customShellCrmScheduledReplies = pgTable(
+  "crm_scheduled_replies",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    threadId: varchar("thread_id", { length: 36 })
+      .notNull()
+      .references(() => customShellCrmThreads.id, { onDelete: "cascade" }),
+    scheduledByUserId: varchar("scheduled_by_user_id", { length: 36 }).references(() => customShellUsers.id, {
+      onDelete: "set null",
+    }),
+    body: text("body").notNull(),
+    /** The media library's files by address, and the uploaded ones by key and name. */
+    files: jsonb("files")
+      .$type<{ urls: string[]; uploads: { key: string; name: string }[] }>()
+      .notNull()
+      .default({ urls: [], uploads: [] }),
+    sendAt: timestamp("send_at", { withTimezone: true }).notNull(),
+    state: varchar("state", { length: 16 }).$type<"waiting" | "sending" | "failed">().notNull().default("waiting"),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("crm_scheduled_replies_state_check", sql`${table.state} in ('waiting', 'sending', 'failed')`),
+    index("ix_crm_scheduled_replies_due").on(table.sendAt).where(sql`${table.state} = 'waiting'`),
+    index("ix_crm_scheduled_replies_thread").on(table.threadId),
+  ]
 )
 
 /**
@@ -2754,6 +2829,13 @@ export const customShellCrmThreads = pgTable(
      * chased twice.
      */
     unansweredNotifiedAt: timestamp("unanswered_notified_at", { withTimezone: true }),
+    /**
+     * Sent by a machine: no-reply notices, receipts and newsletters, shown in
+     * the Inbox's Other view and never in All (CRM task 38, part 4).
+     */
+    robot: boolean("robot").notNull().default(false),
+    /** A person said which it is, so the rule never changes it back. */
+    robotByHand: boolean("robot_by_hand").notNull().default(false),
     /**
      * A short summary somebody asked for (CRM task 32), and the message count
      * it was made at. More messages than that means it is stale.

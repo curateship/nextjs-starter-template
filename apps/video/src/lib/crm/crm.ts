@@ -80,6 +80,22 @@ export const CRM_MAX_BODY_LENGTH = 20_000
 /** How many threads one page of the inbox holds. */
 export const CRM_INBOX_PAGE_SIZE = 30
 
+/** The most files one reply carries, picked or uploaded. The server's cap is the same. */
+export const CRM_REPLY_FILES_MAX = 10
+
+/** The most one reply's files may come to, and so the most one upload may be. */
+export const CRM_REPLY_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
+
+/** A media library file's name, from the end of its address. */
+export function crmFileNameFromUrl(url: string) {
+  const last = url.split("?")[0]?.split("/").pop() ?? url
+  try {
+    return decodeURIComponent(last) || url
+  } catch {
+    return last || url
+  }
+}
+
 /**
  * The most conversations one ticked-rows press may carry.
  *

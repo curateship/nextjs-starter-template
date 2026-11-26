@@ -207,16 +207,25 @@ export function UsersTab({
       key: "email",
       label: "Email",
       column: "preview",
-      // Right-aligned, so the address sits beside Role rather than leaving
-      // the gap after it (Tyler, 8 Nov 2026: "align email to right").
+      // Right-aligned, so the address sits beside the next column rather
+      // than leaving the gap after it (Tyler, 8 Nov 2026: "align email to
+      // right").
       // The sort button sits at the right edge with its arrow before the word,
-      // so "Email" ends where the addresses do.
+      // so "Email" ends where the addresses do. Its floor is 6rem, not 10rem,
+      // so a name as long as MainCell's 10rem cap still fits beside Status,
+      // Plan and Joined in a 908px middle without running the row's buttons
+      // off the edge (Tyler, 25 Nov 2026: "users col got cut off").
       className:
-        "hidden w-full max-w-none min-w-40 text-right md:hidden @2xl:table-cell [&_button]:ml-auto [&_button]:w-fit [&_button]:flex-row-reverse",
+        "hidden w-full max-w-none min-w-24 text-right md:hidden @2xl:table-cell [&_button]:ml-auto [&_button]:w-fit [&_button]:flex-row-reverse",
     },
-    { key: "role", label: "Role", column: "preview", className: "hidden md:hidden @4xl:table-cell" },
+    // Role and Plan show only once there is room for whole names beside
+    // them, as the Inbox's columns do: at @4xl and @3xl a 908px middle left
+    // the names 160px and a long one ran the row's buttons off the edge
+    // (Tyler, 25 Nov 2026: "users col got cut off"). The role tabs above and
+    // the right panel still say both.
+    { key: "role", label: "Role", column: "preview", className: "hidden md:hidden @5xl:table-cell" },
     { key: "status", label: "Status", column: "preview" },
-    { key: "plan", label: "Plan", column: "preview", className: "hidden md:hidden @3xl:table-cell" },
+    { key: "plan", label: "Plan", column: "preview", className: "hidden md:hidden @4xl:table-cell" },
     { key: "tags", label: "Tags", sortable: false, column: "preview", className: "hidden md:hidden @6xl:table-cell" },
     { key: "created", label: "Joined", column: "meta" },
   ]
@@ -417,13 +426,13 @@ export function UsersTab({
                 onDelete={own ? undefined : () => setAsk({ kind: "delete", account: targetOfRow(account) })}
                 onRightClick={(x, y) => setRightClick({ id: account.id, x, y })}
               >
-                <MainCell name={account.name} avatar={{ name: account.name, email: account.email }} lead={<Dot className={STANDING_DOT[words.standing]} label={words.label} />}>
+                <MainCell oneLine name={account.name} avatar={{ name: account.name, email: account.email }} lead={<Dot className={STANDING_DOT[words.standing]} label={words.label} />}>
                   {own ? <Chip muted>You</Chip> : null}
                 </MainCell>
-                <TableCell column="preview" className="hidden w-full max-w-0 min-w-40 text-right md:hidden @2xl:table-cell">
+                <TableCell column="preview" className="hidden w-full max-w-0 min-w-24 text-right md:hidden @2xl:table-cell">
                   <span className="block truncate text-muted-foreground">{account.email}</span>
                 </TableCell>
-                <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">
+                <TableCell column="preview" className="hidden md:hidden @5xl:table-cell">
                   <Chip muted={account.role !== "admin"}>{roleLabel(account.role)}</Chip>
                 </TableCell>
                 <TableCell column="preview">
@@ -432,7 +441,7 @@ export function UsersTab({
                 </TableCell>
                 {/* The plan's name alone: whether it was granted or is ending
                     is on the right panel. */}
-                <TableCell column="preview" className="hidden md:hidden @3xl:table-cell">
+                <TableCell column="preview" className="hidden md:hidden @4xl:table-cell">
                   <Chip muted>{planCellLabel(account)}</Chip>
                 </TableCell>
                 <TableCell column="preview" className="hidden md:hidden @6xl:table-cell">

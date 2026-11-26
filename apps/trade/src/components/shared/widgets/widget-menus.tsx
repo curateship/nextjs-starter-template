@@ -226,23 +226,28 @@ export function EmptySpot({
       </div>
     )
   }
+  // The menu hangs from the words in the middle, not from the whole box. A
+  // spot in a one-row Overview is as tall as the screen, and a menu hung from
+  // it had no room above or below, so it opened off the top of the screen
+  // (25 Nov 2026). The whole box still opens it.
   return (
     <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "grid min-h-32 place-items-center rounded-[var(--shell-widget-radius,1rem)] border border-dashed p-4 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground",
-            open && "bg-muted/40 text-foreground",
-            focusRingInset
-          )}
-        >
-          <span className="flex items-center gap-2">
+      <div
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setOpen(true)
+        }}
+        className={cn(
+          "grid min-h-32 cursor-pointer place-items-center rounded-[var(--shell-widget-radius,1rem)] border border-dashed p-4 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+          open && "bg-muted/40 text-foreground"
+        )}
+      >
+        <DropdownMenuTrigger asChild>
+          <button type="button" className={cn("flex items-center gap-2 rounded-md px-2 py-1", focusRingInset)}>
             <PlusIcon className="size-4" />
             Add a widget
-          </span>
-        </button>
-      </DropdownMenuTrigger>
+          </button>
+        </DropdownMenuTrigger>
+      </div>
       <DropdownMenuContent align="center" collisionPadding={16} className="max-h-[min(60vh,24rem)] w-max min-w-60">
         <WidgetChoices source={source} layout={layout} current={null} onPick={(id) => onChange(placeWidget(layout, spot.row, spot.index, id))} />
       </DropdownMenuContent>

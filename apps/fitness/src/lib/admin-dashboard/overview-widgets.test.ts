@@ -33,15 +33,27 @@ describe("Overview's widget layout", () => {
     ])
   })
 
-  it("offers the CRM nothing when the app adds none", () => {
-    expect(widgetChoices("crm")).toEqual([])
+  it("offers the CRM the shell's four Inbox widgets when the app adds none", () => {
+    expect(widgetChoices("crm").map((widget) => widget.id)).toEqual([
+      "unread",
+      "waiting",
+      "mail-per-day",
+      "first-answer",
+    ])
   })
 
-  it("reads a CRM row never saved as the CRM's own empty default", () => {
-    expect(cleanWidgetLayout(undefined, [], DEFAULT_CRM_WIDGET_LAYOUT)).toEqual({
-      top: { columns: 2, spots: [null, null] },
-      bottom: { columns: 0, spots: [] },
+  it("starts the CRM with the Inbox widgets, two on top and two under them", () => {
+    const crmKnown = widgetChoices("crm").map((widget) => widget.id)
+    expect(cleanWidgetLayout(undefined, crmKnown, DEFAULT_CRM_WIDGET_LAYOUT)).toEqual({
+      top: { columns: 2, spots: ["unread", "waiting"] },
+      bottom: { columns: 2, spots: ["mail-per-day", "first-answer"] },
     })
+  })
+
+  it("keeps a CRM layout saved with empty spots as it was", () => {
+    const crmKnown = widgetChoices("crm").map((widget) => widget.id)
+    const saved = { top: { columns: 2, spots: [null, null] }, bottom: { columns: 0, spots: [] } }
+    expect(cleanWidgetLayout(saved, crmKnown, DEFAULT_CRM_WIDGET_LAYOUT)).toEqual(saved)
   })
 
   it("starts with two charts on top and three lists under them", () => {
@@ -107,9 +119,9 @@ describe("Overview's widget layout", () => {
   it("offers an app's own list in place of a board's, with its own empty words", () => {
     const own = [{ id: "pnl", label: "PnL Graph", icon: SparklesIcon }]
     expect(offeredWidgets({ offer: { choices: own } })).toBe(own)
-    expect(offeredWidgets({ board: "crm" })).toEqual([])
+    expect(offeredWidgets({ board: "crm" }).map((widget) => widget.id)).toContain("unread")
     expect(noWidgetsText({ offer: { choices: [], none: "No trading widgets." } })).toBe("No trading widgets.")
     expect(noWidgetsText({ offer: { choices: [] } })).toBe("No widgets yet.")
-    expect(noWidgetsText({ board: "crm" })).toBe("No CRM widgets yet.")
+    expect(noWidgetsText({ board: "crm" })).toBe("No widgets yet.")
   })
 })

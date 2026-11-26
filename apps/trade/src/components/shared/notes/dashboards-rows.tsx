@@ -78,7 +78,11 @@ export function DashboardsRows<Key extends string>({
   }
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-0.5 p-1.5">
+    // Every row always shows. A block card stops at 28rem and hides what is
+    // under it, except for a list it holds in full, which is what this mark
+    // says (`data-side-rows-all`, read by block-card.tsx). The Listings
+    // dashboard's 18 rows needed 622px and lost its last six to the cap.
+    <div data-side-rows-all="" className="grid grid-cols-[minmax(0,1fr)] gap-0.5 p-1.5">
       {sections.map((section) => {
         const picked = section.key === shown
         return (

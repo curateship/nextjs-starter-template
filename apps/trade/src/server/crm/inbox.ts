@@ -15,7 +15,7 @@ import {
 } from "drizzle-orm"
 
 import type { CrmAttachment, CrmInboxSort, CrmStage, CrmThreadStatus } from "@/lib/crm/crm"
-import { messageSnippet } from "@/lib/crm/message-text"
+import { matchSnippet, messageSnippet, type SnippetMatch } from "@/lib/crm/message-text"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -49,6 +49,11 @@ export type InboxFilter = {
   waitingSince?: Date
   /** Only leads carrying this tag (CRM task 27). */
   tag?: string
+  /**
+   * Machines' mail (CRM task 38, part 4). Left out unless asked for: "only" is
+   * the Other view, "include" counts both, as the view counts do.
+   */
+  robots?: "only" | "include"
   /** Which end of the conversation list comes first. Newest when unsaid. */
   sort?: CrmInboxSort
   limit?: number
@@ -66,6 +71,8 @@ export type InboxThreadRow = {
   savedAt: Date | null
   /** The address the mail arrived at, or null for mail from before the list. */
   toAddress: string | null
+  /** Sent by a machine, so it belongs to the Other view. */
+  robot: boolean
   leadId: string
   leadEmail: string
   leadName: string | null
@@ -73,6 +80,12 @@ export type InboxThreadRow = {
   followUpAt: Date | null
   /** The start of the newest message, or null when its body has not landed. */
   snippet: string | null
+  /**
+   * While searching, the line of the newest message whose own words hold the
+   * search, when the row matched only inside its mail. Null otherwise, and
+   * the row shows `snippet` as ever.
+   */
+  match: (SnippetMatch & { fromUs: boolean }) | null
   /** The lead's tags, A to Z. */
   tags: string[]
 }
@@ -86,6 +99,8 @@ export type InboxThreadRow = {
 export function waitingConditions(waitedSince: Date) {
   return and(
     eq(customShellCrmThreads.status, "open"),
+    // A machine's mail is never waiting on anybody (CRM task 38, part 4).
+    eq(customShellCrmThreads.robot, false),
     eq(customShellCrmThreads.lastDirection, "in"),
     lte(customShellCrmThreads.lastMessageAt, waitedSince),
     notInArray(customShellCrmLeads.stage, ["won", "lost"])
@@ -111,6 +126,11 @@ function filterConditions(workspaceId: string, filter: InboxFilter) {
   }
   if (filter.savedOnly) {
     conditions.push(isNotNull(customShellCrmThreads.savedAt))
+  }
+  if (filter.robots === "only") {
+    conditions.push(eq(customShellCrmThreads.robot, true))
+  } else if (filter.robots !== "include") {
+    conditions.push(eq(customShellCrmThreads.robot, false))
   }
   const toAddress = filter.toAddress?.trim().toLowerCase()
   if (toAddress) {
@@ -163,6 +183,23 @@ function filterConditions(workspaceId: string, filter: InboxFilter) {
 }
 
 /**
+ * The view counts. `savedUnread` and `waitingUnread` are the unread ones
+ * inside Saved and Waiting, which is what "Mark all read" counts on those
+ * views (CRM task 38, part 7).
+ */
+export type InboxCounts = {
+  all: number
+  unread: number
+  /** The Other view: machines' mail, which none of the others count. */
+  other: number
+  otherUnread: number
+  saved: number
+  savedUnread: number
+  waiting: number
+  waitingUnread: number
+}
+
+/**
  * How many conversations the filters match, how many of those are unread,
  * and how many are saved.
  *
@@ -186,14 +223,20 @@ export async function countInboxThreads(
    * count must not move when it is pressed.
    */
   waitingSince: Date | null = null
-): Promise<{ all: number; unread: number; saved: number; waiting: number }> {
+): Promise<InboxCounts> {
   const [row] = await database
     .select({
-      all: count(),
-      unread: sql<number>`count(*) filter (where ${customShellCrmThreads.readAt} is null)`,
-      saved: sql<number>`count(*) filter (where ${customShellCrmThreads.savedAt} is not null)`,
+      all: sql<number>`count(*) filter (where not ${customShellCrmThreads.robot})`,
+      unread: sql<number>`count(*) filter (where not ${customShellCrmThreads.robot} and ${customShellCrmThreads.readAt} is null)`,
+      other: sql<number>`count(*) filter (where ${customShellCrmThreads.robot})`,
+      otherUnread: sql<number>`count(*) filter (where ${customShellCrmThreads.robot} and ${customShellCrmThreads.readAt} is null)`,
+      saved: sql<number>`count(*) filter (where not ${customShellCrmThreads.robot} and ${customShellCrmThreads.savedAt} is not null)`,
+      savedUnread: sql<number>`count(*) filter (where not ${customShellCrmThreads.robot} and ${customShellCrmThreads.savedAt} is not null and ${customShellCrmThreads.readAt} is null)`,
       waiting: waitingSince
         ? sql<number>`count(*) filter (where ${waitingConditions(waitingSince)})`
+        : sql<number>`0`,
+      waitingUnread: waitingSince
+        ? sql<number>`count(*) filter (where ${waitingConditions(waitingSince)} and ${customShellCrmThreads.readAt} is null)`
         : sql<number>`0`,
     })
     .from(customShellCrmThreads)
@@ -207,14 +250,19 @@ export async function countInboxThreads(
         unreadOnly: false,
         savedOnly: false,
         waitingSince: undefined,
+        robots: "include",
       })
     )
 
   return {
     all: Number(row?.all ?? 0),
     unread: Number(row?.unread ?? 0),
+    other: Number(row?.other ?? 0),
+    otherUnread: Number(row?.otherUnread ?? 0),
     saved: Number(row?.saved ?? 0),
+    savedUnread: Number(row?.savedUnread ?? 0),
     waiting: Number(row?.waiting ?? 0),
+    waitingUnread: Number(row?.waitingUnread ?? 0),
   }
 }
 
@@ -251,10 +299,12 @@ export async function listInboxThreads(
       readAt: customShellCrmThreads.readAt,
       savedAt: customShellCrmThreads.savedAt,
       toAddress: customShellCrmThreads.toAddress,
+      robot: customShellCrmThreads.robot,
       leadId: customShellCrmLeads.id,
       leadEmail: customShellCrmLeads.email,
       leadName: customShellCrmLeads.name,
       leadStage: customShellCrmLeads.stage,
+      leadCompany: customShellCrmLeads.company,
       followUpAt: customShellCrmLeads.followUpAt,
     })
     .from(customShellCrmThreads)
@@ -271,7 +321,22 @@ export async function listInboxThreads(
     .limit(filter.limit ?? 30)
     .offset(filter.offset ?? 0)
 
-  const [snippets, tags] = await Promise.all([
+  // A row that matched on who it is with or its subject already says why it
+  // is here. Only the ones that matched inside their mail need the line.
+  const search = filter.search?.trim() ?? ""
+  const needle = search.toLowerCase()
+  const matchedInMail = needle
+    ? rows
+        .filter(
+          (row) =>
+            ![row.subject, row.leadEmail, row.leadName, row.leadCompany].some((field) =>
+              field?.toLowerCase().includes(needle)
+            )
+        )
+        .map((row) => row.id)
+    : []
+
+  const [snippets, tags, matches] = await Promise.all([
     newestSnippets(
       rows.map((row) => row.id),
       database
@@ -280,13 +345,56 @@ export async function listInboxThreads(
       [...new Set(rows.map((row) => row.leadId))],
       database
     ),
+    matchingSnippets(matchedInMail, search, database),
   ])
 
   return rows.map((row) => ({
     ...row,
     snippet: snippets.get(row.id) ?? null,
+    match: matches.get(row.id) ?? null,
     tags: tags.get(row.leadId) ?? [],
   }))
+}
+
+/**
+ * For each thread, the newest message whose own words hold the search, cut
+ * around it (CRM task 38, part 8). Asked only for the rows on the page that
+ * matched inside their mail, and only for the messages the search itself
+ * matched, so it reads a handful of rows rather than whole conversations.
+ */
+async function matchingSnippets(
+  threadIds: string[],
+  search: string,
+  database: CustomShellDb
+): Promise<Map<string, SnippetMatch & { fromUs: boolean }>> {
+  const matches = new Map<string, SnippetMatch & { fromUs: boolean }>()
+  if (threadIds.length === 0 || !search) return matches
+
+  const like = `%${search}%`
+  const rows = await database
+    .select({
+      threadId: customShellCrmMessages.threadId,
+      direction: customShellCrmMessages.direction,
+      textBody: customShellCrmMessages.textBody,
+      htmlBody: customShellCrmMessages.htmlBody,
+    })
+    .from(customShellCrmMessages)
+    .where(
+      and(
+        inArray(customShellCrmMessages.threadId, threadIds),
+        ilike(customShellCrmMessages.textBody, like)
+      )
+    )
+    .orderBy(desc(customShellCrmMessages.occurredAt))
+
+  // Newest first, so the first message whose own words hold it wins. One that
+  // holds it only in the history it quoted gives way to an older one.
+  for (const row of rows) {
+    if (matches.has(row.threadId)) continue
+    const match = matchSnippet(row.textBody, row.htmlBody, search)
+    if (match) matches.set(row.threadId, { ...match, fromUs: row.direction === "out" })
+  }
+  return matches
 }
 
 /** The newest message of each thread, as a snippet, keyed by thread id. */
@@ -359,6 +467,7 @@ export async function getThread(
       toAddress: customShellCrmThreads.toAddress,
       summary: customShellCrmThreads.summary,
       summaryMessageCount: customShellCrmThreads.summaryMessageCount,
+      robot: customShellCrmThreads.robot,
       leadId: customShellCrmLeads.id,
     })
     .from(customShellCrmThreads)
@@ -568,4 +677,75 @@ export async function markThreadsRead(
 
   const here = await countThreadsHere(workspaceId, threadIds, database)
   return { changed: changed.length, unchanged: here - changed.length }
+}
+
+/**
+ * Stamps read every unread conversation the inbox's search, filters and view
+ * match, in one statement (CRM task 38, part 7: "Mark all 612 read").
+ *
+ * The server works the set out from the filter itself rather than taking ids
+ * from the browser, so there is no cap of 200 and nothing to send but the
+ * filter. Mail newer than `listedBefore`, the moment the list somebody was
+ * looking at was read, is left unread: they have not seen it yet, and marking
+ * it read would bury it.
+ */
+export async function markMatchingThreadsRead(
+  workspaceId: string,
+  filter: InboxFilter,
+  listedBefore: Date,
+  database: CustomShellDb = db
+): Promise<number> {
+  const matching = database
+    .select({ id: customShellCrmThreads.id })
+    .from(customShellCrmThreads)
+    .innerJoin(
+      customShellCrmLeads,
+      eq(customShellCrmLeads.id, customShellCrmThreads.leadId)
+    )
+    .where(
+      and(
+        filterConditions(workspaceId, { ...filter, unreadOnly: true }),
+        lte(customShellCrmThreads.lastMessageAt, listedBefore)
+      )
+    )
+
+  const at = now()
+  const changed = await database
+    .update(customShellCrmThreads)
+    .set({ readAt: at, updatedAt: at })
+    .where(
+      and(
+        eq(customShellCrmThreads.workspaceId, workspaceId),
+        isNull(customShellCrmThreads.readAt),
+        inArray(customShellCrmThreads.id, matching)
+      )
+    )
+    .returning({ id: customShellCrmThreads.id })
+  return changed.length
+}
+
+/**
+ * A person's word on whether a conversation is a machine's (CRM task 38, part
+ * 4): "Not a robot" or "Move to Other". The rule never changes it back, and
+ * the choice is kept for the address, so the next conversation from it lands
+ * in the same place.
+ */
+export async function setThreadRobot(
+  workspaceId: string,
+  threadId: string,
+  robot: boolean,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const at = now()
+  const [thread] = await database
+    .update(customShellCrmThreads)
+    .set({ robot, robotByHand: true, updatedAt: at })
+    .where(and(eq(customShellCrmThreads.workspaceId, workspaceId), eq(customShellCrmThreads.id, threadId)))
+    .returning({ leadId: customShellCrmThreads.leadId })
+  if (!thread) return false
+  await database
+    .update(customShellCrmLeads)
+    .set({ robotChoice: robot ? "robot" : "person", updatedAt: at })
+    .where(eq(customShellCrmLeads.id, thread.leadId))
+  return true
 }

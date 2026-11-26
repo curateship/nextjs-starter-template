@@ -419,6 +419,7 @@ export function MainCell({
   line,
   avatar,
   strong = false,
+  oneLine = false,
   children,
 }: {
   lead?: React.ReactNode
@@ -433,8 +434,22 @@ export function MainCell({
   avatar?: { name: string | null | undefined; email: string }
   /** Unread: full weight. */
   strong?: boolean
+  /**
+   * Keep the whole name on one line, up to 10rem, once the table's container
+   * is `@2xl` wide. For a column sized to its names (`w-px`) beside one that
+   * takes the rest (`w-full`), as Users and the Inbox lay out Name and Email:
+   * a name allowed to break anywhere is one letter wide to the table, so the
+   * column fell to its 160px floor and every name read "Test..." (Tyler,
+   * 25 Nov 2026: "users col got cut off"). Below `@2xl` the name wraps and
+   * clamps as any other, so a phone's table still fits its screen.
+   */
+  oneLine?: boolean
   children?: React.ReactNode
 }) {
+  const wrap = cn(
+    "line-clamp-1 break-all whitespace-normal",
+    oneLine && "@2xl:block @2xl:max-w-40 @2xl:truncate @2xl:break-normal"
+  )
   return (
     <TableCell column="main" className="min-w-40">
       {/* The name is clamped to one line rather than kept on one line
@@ -447,7 +462,8 @@ export function MainCell({
           2026). `whitespace-normal` because the cell itself is
           `whitespace-nowrap`: with nothing allowed to wrap there was no second
           line to clamp, so a long name was clipped mid-word with no "…"
-          (Directory's "Two-for-one pasta Tuesd", 24 Nov 2026). */}
+          (Directory's "Two-for-one pasta Tuesd", 24 Nov 2026). A column sized
+          to its names passes `oneLine` instead, see the prop. */}
       <span className="flex min-w-0 items-center gap-2">
         <OpenBar />
         {lead}
@@ -458,13 +474,13 @@ export function MainCell({
         ) : null}
         {line ? (
           <span className="grid min-w-0 leading-tight">
-            <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all whitespace-normal", strong ? "font-semibold" : "font-medium")}>
+            <span data-row-name="" className={cn("min-w-0", wrap, strong ? "font-semibold" : "font-medium")}>
               {name}
             </span>
-            <span className="line-clamp-1 min-w-0 break-all whitespace-normal text-xs text-muted-foreground">{line}</span>
+            <span className={cn("min-w-0 text-xs text-muted-foreground", wrap)}>{line}</span>
           </span>
         ) : (
-          <span data-row-name="" className={cn("line-clamp-1 min-w-0 break-all whitespace-normal", strong ? "font-semibold" : "font-medium")}>
+          <span data-row-name="" className={cn("min-w-0", wrap, strong ? "font-semibold" : "font-medium")}>
             {name}
           </span>
         )}

@@ -1,10 +1,14 @@
 import {
+  BarChart3Icon,
   CpuIcon,
   FileTextIcon,
   GaugeIcon,
   Globe2Icon,
+  HourglassIcon,
+  MailIcon,
   MonitorSmartphoneIcon,
   SparklesIcon,
+  TimerIcon,
   TrendingUpIcon,
   UsersIcon,
   WorkflowIcon,
@@ -26,8 +30,7 @@ import { appAdminWidgets, appCrmWidgets } from "@/lib/app-options"
  *   `admin_widget_layouts`, one per dashboard (`WidgetBoard`).
  *
  * Two dashboards have an Overview of widgets: the Admin dashboard's, with the
- * shell's nine below, and the CRM's, with none of the shell's yet (Tyler,
- * 8 Nov 2026: "We dont have any CRM widgets so lets leave it empty for now").
+ * shell's nine below, and the CRM's, with the shell's four Inbox widgets.
  * An app adds its own through `admin.widgets` and `crm.widgets` in its
  * `src/app/options.ts`, keyed `app:<key>` so they never meet the shell's.
  */
@@ -52,6 +55,25 @@ export type ShellWidgetId = (typeof SHELL_WIDGETS)[number]["id"]
 
 export const SHELL_WIDGET_IDS: readonly string[] = SHELL_WIDGETS.map((widget) => widget.id)
 
+/**
+ * The shell's own widgets on the CRM's Overview, all about the Inbox (CRM
+ * task 38, part 2; Tyler picked "Inbox widgets on Overview" on 25 Nov 2026).
+ * Their ids are the CRM board's alone, so they never meet Admin's.
+ */
+export const CRM_SHELL_WIDGETS = [
+  { id: "unread", label: "Unread", icon: MailIcon },
+  { id: "waiting", label: "Waiting on you", icon: HourglassIcon },
+  { id: "mail-per-day", label: "Mail per day", icon: BarChart3Icon },
+  { id: "first-answer", label: "Time to first answer", icon: TimerIcon },
+] as const satisfies readonly { id: string; label: string; icon: LucideIcon }[]
+
+export type CrmShellWidgetId = (typeof CRM_SHELL_WIDGETS)[number]["id"]
+
+/** Whether a CRM Overview spot holds one of the shell's own widgets rather than the app's. */
+export function isCrmShellWidgetId(id: string): id is CrmShellWidgetId {
+  return CRM_SHELL_WIDGETS.some((widget) => widget.id === id)
+}
+
 /** An app's widget as the layout stores it. */
 export function appWidgetId(key: string) {
   return `app:${key}`
@@ -61,11 +83,11 @@ export function appWidgetId(key: string) {
 export type WidgetChoice = { id: string; label: string; icon: LucideIcon }
 
 /**
- * Every widget a dashboard offers: on Admin the shell's nine, then the app's;
- * on the CRM only the app's, so none until an app adds one.
+ * Every widget a dashboard offers: the shell's own first (Admin's nine, the
+ * CRM's four Inbox widgets), then the app's.
  */
 export function widgetChoices(board: WidgetBoard): WidgetChoice[] {
-  const shell: readonly WidgetChoice[] = board === "admin" ? SHELL_WIDGETS : []
+  const shell: readonly WidgetChoice[] = board === "admin" ? SHELL_WIDGETS : CRM_SHELL_WIDGETS
   const app = board === "admin" ? appAdminWidgets(SHELL_WIDGET_IDS) : appCrmWidgets()
   return [
     ...shell,
@@ -87,23 +109,18 @@ export type WidgetOffer = { choices: readonly WidgetChoice[]; none?: string }
  */
 export type WidgetSource = { board: WidgetBoard; offer?: undefined } | { board?: undefined; offer: WidgetOffer }
 
-const NO_WIDGETS: Record<WidgetBoard, string> = {
-  admin: "No widgets yet.",
-  crm: "No CRM widgets yet.",
-}
-
 /** The widgets a grid offers, from its board or its own offer. */
 export function offeredWidgets(source: WidgetSource): readonly WidgetChoice[] {
   return source.offer ? source.offer.choices : widgetChoices(source.board)
 }
 
 /**
- * What a grid with nothing to offer says: the CRM's, until an app adds one
- * (Tyler, 8 Nov 2026: "We dont have any CRM widgets so lets leave it empty
- * for now").
+ * What a grid with nothing to offer says. Both boards have the shell's own
+ * widgets, so only an app's own offer can be empty, and it may say so in its
+ * own words.
  */
 export function noWidgetsText(source: WidgetSource): string {
-  return source.offer ? (source.offer.none ?? "No widgets yet.") : NO_WIDGETS[source.board]
+  return source.offer?.none ?? "No widgets yet."
 }
 
 export const TOP_ROW_COLUMNS = [1, 2, 3, 4] as const
@@ -120,10 +137,14 @@ export const DEFAULT_WIDGET_LAYOUT: WidgetLayout = {
   bottom: { columns: 3, spots: ["top-pages", "ai-features", "by-person"] },
 }
 
-/** What the CRM's Overview starts with: one row of two empty spots. */
+/**
+ * What the CRM's Overview starts with: Unread and Waiting on you on top, Mail
+ * per day and Time to first answer under them. A site that saved a layout
+ * keeps it; the new widgets are offered there, never pushed in.
+ */
 export const DEFAULT_CRM_WIDGET_LAYOUT: WidgetLayout = {
-  top: { columns: 2, spots: [null, null] },
-  bottom: { columns: 0, spots: [] },
+  top: { columns: 2, spots: ["unread", "waiting"] },
+  bottom: { columns: 2, spots: ["mail-per-day", "first-answer"] },
 }
 
 export function defaultWidgetLayout(board: WidgetBoard): WidgetLayout {

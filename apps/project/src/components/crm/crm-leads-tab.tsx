@@ -28,7 +28,6 @@ import type { LeadPersonItem, LeadsPage } from "@/lib/api/people/contacts"
 import { CRM_STAGE_LABELS, CRM_STAGES } from "@/lib/crm/crm"
 import type { CrmLeadsSearch, CrmSearch } from "@/lib/crm/crm-search"
 import { formatInboxTime } from "@/lib/crm/inbox-time"
-import { applyReplyDraft, noReplyDrafts, replyDraftFor, type ReplyDrafts } from "@/lib/crm/reply-drafts"
 import { formatMoney } from "@/lib/format/money"
 import { useListSearchNavigate, useListSort, useOpenRecord } from "@/lib/nav/list-search"
 
@@ -135,10 +134,6 @@ export function CrmLeadsTab({
       { label: "Delete lead", icon: <Trash2Icon className="size-4" />, destructive: true, onSelect: () => setDeleteTarget(lead) },
     ]
   }
-
-  // Half-written replies, kept here so moving to another lead and back keeps
-  // them, as the Inbox's are.
-  const [replyDrafts, setReplyDrafts] = React.useState<ReplyDrafts>(noReplyDrafts)
 
   // Newest, the biggest deal and the furthest stage first; words A to Z.
   const toggleSort = useListSort<LeadSort>({ sort, direction }, (column) =>
@@ -339,8 +334,6 @@ export function CrmLeadsTab({
           fallbackEmail={openLead.email}
           emptyLine={null}
           replyFromFallback={null}
-          replyDraft={replyDraftFor(replyDrafts, openLead.newestThreadId)}
-          onReplyDraftChange={(threadId, update) => setReplyDrafts((current) => applyReplyDraft(current, threadId, update))}
           onListChanged={refresh}
           onOpenContact={onOpenSubscriber}
         />

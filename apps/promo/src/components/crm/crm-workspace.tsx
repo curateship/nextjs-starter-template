@@ -14,6 +14,8 @@ import {
   loadInbox,
   markConversationsRead,
   markConversationUnread,
+  markMatchingConversationsRead,
+  setConversationRobot,
   setConversationSaved,
   type InboxPage,
   type InboxThread,
@@ -21,13 +23,8 @@ import {
 } from "@/lib/api/crm/inbox"
 import type { DevOutboxItem } from "@/lib/api/email/dev-outbox"
 import { CRM_MAX_THREADS_PER_PRESS } from "@/lib/crm/crm"
-import {
-  applyReplyDraft,
-  noReplyDrafts,
-  replyDraftFor,
-  type ReplyDraftUpdate,
-  type ReplyDrafts,
-} from "@/lib/crm/reply-drafts"
+import { useReplyStore } from "@/components/crm/reply-store"
+import { inboxListChoices } from "@/lib/crm/crm-search"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { STREAM_NUDGE_EVENT } from "@/lib/hooks/use-notification-stream"
@@ -136,14 +133,8 @@ export function CrmWorkspace({
     })
   }
 
-  // The half-written replies, one per conversation. They live here because
-  // this component stays mounted while the conversation panel below it is
-  // rebuilt for every thread opened, so state inside that panel is lost on
-  // every switch. A reload clears them on purpose.
-  const [replyDrafts, setReplyDrafts] =
-    React.useState<ReplyDrafts>(noReplyDrafts)
-  const changeReplyDraft = (threadId: string, update: ReplyDraftUpdate) =>
-    setReplyDrafts((current) => applyReplyDraft(current, threadId, update))
+  // The half-written replies, for the rows' "Unsent draft" (`reply-store.ts`).
+  const replyDrafts = useReplyStore().drafts
 
   // Bumped to read the open conversation again from here: a new message
   // in it from the live inbox, a press on ticked rows that included it, or a
@@ -162,7 +153,7 @@ export function CrmWorkspace({
   // the live bell off there is no nudge, and the screen is what it was.
   const [live, setLive] = React.useState<{
     news: number
-    counts: { all: number; unread: number; saved: number; waiting: number }
+    counts: { all: number; unread: number; saved: number; waiting: number; other: number }
   } | null>(null)
   const liveRef = React.useRef({ threads, filters, openThreadId, pageSize: page.pageSize })
   React.useEffect(() => {
@@ -172,17 +163,7 @@ export function CrmWorkspace({
     let cancelled = false
     const check = () => {
       const { threads: shown, filters: current, openThreadId: open } = liveRef.current
-      void loadInbox({
-        search: current.search || undefined,
-        stage: current.stage,
-        unreadOnly: current.view === "unread" || undefined,
-        savedOnly: current.view === "saved" || undefined,
-        waitingOnly: current.view === "waiting" || undefined,
-        toAddress: current.toAddress || undefined,
-        tag: current.tag || undefined,
-        followUpDue: current.followUpDue || undefined,
-        sort: current.sort,
-      })
+      void loadInbox(inboxListChoices(current))
         .then((fresh) => {
           if (cancelled) return
           const before = new Map(shown.map((row) => [row.id, row.last_message_at]))
@@ -196,6 +177,7 @@ export function CrmWorkspace({
               unread: fresh.unreadCount,
               saved: fresh.savedCount,
               waiting: fresh.waitingCount,
+              other: fresh.otherCount,
             },
           })
           if (open && news.some((row) => row.id === open)) reloadThread()
@@ -225,17 +207,9 @@ export function CrmWorkspace({
     setLoadingMore(true)
     try {
       const next = await loadInbox({
-        search: filters.search || undefined,
-        stage: filters.stage,
-        unreadOnly: filters.view === "unread" || undefined,
-        savedOnly: filters.view === "saved" || undefined,
-        waitingOnly: filters.view === "waiting" || undefined,
-        toAddress: filters.toAddress || undefined,
-        tag: filters.tag || undefined,
-        followUpDue: filters.followUpDue || undefined,
-        // Without this the next page comes back newest first, so Load more
-        // would restart the order halfway down the list.
-        sort: filters.sort,
+        // The order rides along: without it the next page comes back newest
+        // first, so Load more would restart the order halfway down the list.
+        ...inboxListChoices(filters),
         page: Math.floor(threads.length / page.pageSize) + 1,
       })
       // Filtered by id: a message arriving mid-scroll reorders the list on the
@@ -283,6 +257,25 @@ export function CrmWorkspace({
     }
   }
 
+  // "Mark all 612 read" (CRM task 38, part 7): every unread conversation the
+  // search, filters and view match, not only the ticked rows. It asks first
+  // with the real number, and leaves alone mail newer than the list on screen.
+  const [markAllAsk, setMarkAllAsk] = React.useState(false)
+  const [markingAll, setMarkingAll] = React.useState(false)
+  const markAllRead = async () => {
+    setMarkingAll(true)
+    try {
+      await markMatchingConversationsRead(inboxListChoices(filters), page.listedAt)
+      ticks.clear()
+      reloadBoth()
+    } catch (error) {
+      showErrorToast(getCrmErrorMessage(error))
+    } finally {
+      setMarkingAll(false)
+      setMarkAllAsk(false)
+    }
+  }
+
   const blockThread = (threadId: string, address: string) => blockAndCloseThread(threadId, address, reloadBoth)
 
   const markUnread = async (threadId: string) => {
@@ -311,8 +304,21 @@ export function CrmWorkspace({
   const [blockAsk, setBlockAsk] = React.useState<InboxThread | null>(null)
   const [blockingRow, setBlockingRow] = React.useState(false)
 
+  // "Not a robot" or "Move to Other" (CRM task 38, part 4): one press, kept
+  // for the address, and the list read again so the row moves view.
+  const changeRobot = async (threadId: string, robot: boolean) => {
+    try {
+      await setConversationRobot(threadId, robot)
+      if (threadId === openThreadId) reloadThread()
+      onReloadInbox()
+    } catch (error) {
+      showErrorToast(getCrmErrorMessage(error))
+    }
+  }
+
   const rowActions: InboxRowActions = {
     onSave: (thread, saved) => void changeSaved(thread.id, saved),
+    onRobot: (thread, robot) => void changeRobot(thread.id, robot),
     onMarkUnread: (thread) => void markUnread(thread.id),
     onBlock: (thread) => setBlockAsk(thread),
   }
@@ -331,6 +337,7 @@ export function CrmWorkspace({
       unreadCount={live?.counts.unread ?? page.unreadCount}
       savedCount={live?.counts.saved ?? page.savedCount}
       waitingCount={live?.counts.waiting ?? page.waitingCount}
+      otherCount={live?.counts.other ?? page.otherCount}
       waitingShown={page.unansweredDays > 0}
       outboxShown={page.outboxAvailable}
       outbox={outbox}
@@ -366,6 +373,8 @@ export function CrmWorkspace({
       onMarkTickedRead={() =>
         void runOnTicked(markConversationsRead)
       }
+      unreadInView={page.unreadInView}
+      onMarkAllRead={() => setMarkAllAsk(true)}
       onLoadMore={loadMore}
     />
   )
@@ -382,6 +391,8 @@ export function CrmWorkspace({
             ? "No conversation is saved."
             : filters.view === "waiting"
               ? "Nobody is waiting on you."
+              : filters.view === "other"
+                ? "No mail from no-reply addresses or mailing lists."
               : filters.view === "unread" ||
                   filters.search ||
                   filters.stage !== "all" ||
@@ -392,8 +403,6 @@ export function CrmWorkspace({
                 : "No mail has arrived yet."
       }
       replyFromFallback={page.replyFrom}
-      replyDraft={replyDraftFor(replyDrafts, openThreadId)}
-      onReplyDraftChange={changeReplyDraft}
       reloadToken={reloadToken}
       onListChanged={onReloadInbox}
       onOpenContact={onOpenContact}
@@ -416,6 +425,17 @@ export function CrmWorkspace({
         ),
     },
     windows: (
+      <>
+      <ConfirmDialog
+        open={markAllAsk}
+        onOpenChange={(open) => (open ? undefined : setMarkAllAsk(false))}
+        destructive={false}
+        title={`Mark ${page.unreadInView.toLocaleString()} ${page.unreadInView === 1 ? "conversation" : "conversations"} read?`}
+        description="Every unread conversation this search, filter and view match, including the ones not loaded yet. Mail that arrived after the list was drawn stays unread."
+        confirmLabel="Mark them read"
+        loading={markingAll}
+        onConfirm={() => void markAllRead()}
+      />
       <ConfirmDialog
         open={blockAsk !== null}
         onOpenChange={(open) => (open ? undefined : setBlockAsk(null))}
@@ -433,6 +453,7 @@ export function CrmWorkspace({
           })
         }}
       />
+      </>
     ),
   })
 }

@@ -48,8 +48,12 @@ export const CRM_TAB_LABELS: Record<CrmTab, string> = {
  * once because the loader and the filter control both use it.
  */
 
-/** Inbox's views. Outbox is the local development outbox, shown only where it exists. */
-export const CRM_INBOX_VIEWS = ["all", "unread", "saved", "waiting", "outbox"] as const
+/**
+ * Inbox's views. Other is machines' mail, which no other view shows (CRM task
+ * 38, part 4). Outbox is the local development outbox, shown only where it
+ * exists.
+ */
+export const CRM_INBOX_VIEWS = ["all", "unread", "saved", "waiting", "other", "outbox"] as const
 export type CrmInboxView = (typeof CRM_INBOX_VIEWS)[number]
 
 
@@ -196,4 +200,35 @@ export function crmTabOf(search: CrmSearch): CrmTab {
  */
 export function crmTabSearch(tab: CrmTab, extra: Partial<CrmSearch> = {}): CrmSearch {
   return { tab, ...extra }
+}
+
+/**
+ * The Inbox's choices as the server's list reads them: the search, the
+ * filters, the view and the order. The route's first read, Load more, the
+ * live check and "Mark all read" all build them here, so none of them can
+ * mean a different set of conversations (the Other view was missed by one
+ * hand-written copy on 25 Nov 2026).
+ */
+export function inboxListChoices(choices: {
+  search?: string
+  stage?: CrmStage | "all"
+  view?: CrmInboxView | CrmBroadcastView
+  toAddress?: string
+  tag?: string
+  followUpDue?: boolean
+  sort?: CrmInboxSort
+}) {
+  const view = choices.view
+  return {
+    search: choices.search || undefined,
+    stage: choices.stage,
+    unreadOnly: view === "unread" || undefined,
+    savedOnly: view === "saved" || undefined,
+    waitingOnly: view === "waiting" || undefined,
+    robotsOnly: view === "other" || undefined,
+    toAddress: choices.toAddress || undefined,
+    tag: choices.tag || undefined,
+    followUpDue: choices.followUpDue || undefined,
+    sort: choices.sort,
+  }
 }

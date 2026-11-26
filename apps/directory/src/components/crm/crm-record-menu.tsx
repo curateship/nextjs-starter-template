@@ -1,5 +1,16 @@
 import * as React from "react"
-import { BanIcon, ForwardIcon, MailOpenIcon, PaperclipIcon, SparklesIcon, UserPlusIcon, UsersIcon, XIcon } from "lucide-react"
+import {
+  BanIcon,
+  BotIcon,
+  ForwardIcon,
+  MailOpenIcon,
+  PaperclipIcon,
+  SparklesIcon,
+  UserIcon,
+  UserPlusIcon,
+  UsersIcon,
+  XIcon,
+} from "lucide-react"
 
 import {
   PickDayRow,
@@ -50,6 +61,7 @@ export function CrmRecordMenu({
   siteTags,
   onLeadChanged,
   onMarkUnread,
+  onRobot,
   onSummarise,
   onForward,
   onBlock,
@@ -62,6 +74,8 @@ export function CrmRecordMenu({
   siteTags: string[]
   onLeadChanged: () => void
   onMarkUnread: () => void
+  /** "Not a robot" or "Move to Other" (CRM task 38, part 4). */
+  onRobot: (robot: boolean) => void
   /** Writes what the conversation is about (CRM task 32); null when it is too short to need one. */
   onSummarise: (() => void) | null
   onForward: () => void
@@ -118,6 +132,15 @@ export function CrmRecordMenu({
                   }}
                 >
                   Mark unread
+                </ActionRow>
+                <ActionRow
+                  icon={conversation.robot ? <UserIcon className="size-4" /> : <BotIcon className="size-4" />}
+                  onClick={() => {
+                    setOpen(false)
+                    onRobot(!conversation.robot)
+                  }}
+                >
+                  {conversation.robot ? "Not a robot" : "Move to Other"}
                 </ActionRow>
                 <ActionRow
                   icon={<ForwardIcon className="size-4" />}

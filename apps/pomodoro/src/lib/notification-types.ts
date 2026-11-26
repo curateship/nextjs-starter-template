@@ -191,6 +191,21 @@ export function crmMailArrivedNotificationText(
   }
 }
 
+/**
+ * The words of the notice that says a scheduled reply could not go out (CRM
+ * task 38, part 6). The same `crm_follow_up` kind as the other CRM chases, so
+ * it opens the conversation, where the reply waits with its reason.
+ */
+export function crmScheduledReplyFailedText(
+  who: string,
+  reason: string
+): { message: string; detail: string } {
+  return {
+    message: `Your reply to ${who} did not go out`,
+    detail: reason.trim() || "The email was not accepted.",
+  }
+}
+
 /** Whether a notice opens a CRM conversation when pressed. */
 export function opensCrmConversation(type: NotificationType) {
   return type === "crm_follow_up" || type === "crm_mail_arrived"

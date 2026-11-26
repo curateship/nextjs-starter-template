@@ -253,13 +253,15 @@ export async function getCrmBlockFigures(
   }
 
   const open = new Map(openByAddress.map((row) => [row.address, Number(row.open)]))
+  // The Dashboards block's Inbox count is All's: machines' mail is in Other.
   const [openRow] = await database
     .select({ open: count() })
     .from(customShellCrmThreads)
     .where(
       and(
         eq(customShellCrmThreads.workspaceId, workspaceId),
-        eq(customShellCrmThreads.status, "open")
+        eq(customShellCrmThreads.status, "open"),
+        eq(customShellCrmThreads.robot, false)
       )
     )
   // Conversations from before the list have no address recorded. They came to

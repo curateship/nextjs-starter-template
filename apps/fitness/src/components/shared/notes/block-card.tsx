@@ -382,9 +382,11 @@ export function BlockCard({
               Settings → Styling → Blocks → Body shade, white unless changed
               (Tyler, 9 Nov 2026: "change the shade of the block body bg"),
               and the table rows follow it. */}
-          {/* Capped at 28rem, except while a list in it is opened by its
-              "Show all" (`data-side-rows-all` in side-rows.tsx): then it
-              grows to the list's full length and the panel scrolls. */}
+          {/* Capped at 28rem, except while a list in it is shown in full:
+              one opened by its "Show all" (`data-side-rows-all` in
+              side-rows.tsx), or a Dashboards block's rows, which always are
+              (dashboards-rows.tsx). Then it grows to the list's full length
+              and the panel scrolls. */}
           <div data-block-tile="" className="flex max-h-[28rem] min-h-0 has-[[data-side-rows-all]]:max-h-none flex-col overflow-hidden rounded-[calc(var(--shell-block-radius,1rem)-var(--shell-block-inset,3px)-var(--shell-block-border,0px))] [--block-body:color-mix(in_oklab,var(--muted)_var(--shell-block-body-shade,0%),var(--card))] bg-[var(--block-body)] text-sm [&_tfoot_td]:!bg-[var(--block-body)] [&_tfoot_tr]:!bg-[var(--block-body)] [&_thead_th]:!bg-[var(--block-body)] [&_thead_th]:![--shell-table-band:transparent] [&_[data-slot=table-footer]]:![--shell-table-band:transparent]">
             {children}
           </div>

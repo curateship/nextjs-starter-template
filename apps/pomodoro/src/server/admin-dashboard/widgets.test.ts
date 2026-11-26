@@ -47,7 +47,7 @@ describe("the Overview widget layout", () => {
   })
 
   it("keeps the CRM's layout apart from the Admin one", async () => {
-    // The CRM offers no widgets of the shell's, so one sent is emptied.
+    // An Admin widget sent to the CRM is not one of the CRM's, so it is emptied.
     expect(await getWidgetLayout("ws-a", "crm", db)).toEqual(DEFAULT_CRM_WIDGET_LAYOUT)
     const stored = await saveWidgetLayout(
       "ws-a",

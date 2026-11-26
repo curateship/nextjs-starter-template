@@ -6,6 +6,7 @@ import { restoreDashboardPlace, ssrUnlessBare } from "@/lib/layout/dashboard-pla
 import { panelLayoutKey } from "@/lib/layout/panel-layout"
 import { loadOverviewWidgets } from "@/lib/api/admin-dashboard"
 import { getCrmErrorMessage, loadInbox } from "@/lib/api/crm/inbox"
+import { loadCrmOverview } from "@/lib/api/crm/overview"
 import {
   loadBroadcastBlockDefaults,
   loadBroadcastsPage,
@@ -20,6 +21,7 @@ import type { ContactSortColumn } from "@/lib/contacts/contact-sort"
 import type { CrmInboxSort } from "@/lib/crm/crm"
 import {
   crmTabOf,
+  inboxListChoices,
   readCrmSearch,
   type CrmSearch,
   type CrmLeadSort,
@@ -50,7 +52,8 @@ async function loadCrm(search: CrmSearch): Promise<CrmLoaded> {
   const tab = crmTabOf(search)
 
   if (tab === "overview") {
-    return { tab, widgets: await loadOverviewWidgets("crm") }
+    const [widgets, figures] = await Promise.all([loadOverviewWidgets("crm"), loadCrmOverview()])
+    return { tab, widgets, figures }
   }
 
   if (tab === "leads") {
@@ -118,17 +121,17 @@ async function loadCrm(search: CrmSearch): Promise<CrmLoaded> {
 
   const view = search.view
   const [inbox, outbox] = await Promise.all([
-    loadInbox({
-      search: search.q,
-      stage: search.stage,
-      unreadOnly: view === "unread" || undefined,
-      savedOnly: view === "saved" || undefined,
-      waitingOnly: view === "waiting" || undefined,
-      toAddress: search.to,
-      tag: search.tag,
-      followUpDue: search.due,
-      sort: search.sort as CrmInboxSort | undefined,
-    }),
+    loadInbox(
+      inboxListChoices({
+        search: search.q,
+        stage: search.stage,
+        view,
+        toAddress: search.to,
+        tag: search.tag,
+        followUpDue: search.due,
+        sort: search.sort as CrmInboxSort | undefined,
+      })
+    ),
     // Only where the server keeps one; anywhere else the pill is not drawn.
     view === "outbox" ? loadDevOutbox().catch(() => []) : Promise.resolve(null),
   ])

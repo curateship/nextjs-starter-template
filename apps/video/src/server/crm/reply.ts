@@ -11,7 +11,7 @@ import {
 } from "@/lib/crm/message-text"
 import { now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
-import { loadReplyFiles } from "@/server/crm/reply-files"
+import { loadReplyFiles, type ReplyUpload } from "@/server/crm/reply-files"
 import { getCrmOutgoingReply } from "@/server/crm/sender"
 import { getEmailProvider } from "@/server/email/provider"
 import { getAppEmailApiKey } from "@/server/email/settings"
@@ -193,7 +193,9 @@ export async function sendCrmReply(
   body: string,
   database: CustomShellDb = db,
   /** Files from the site's media library, by the address the picker gave (CRM task 22). */
-  fileUrls: string[] = []
+  fileUrls: string[] = [],
+  /** Files uploaded from the computer for this reply (CRM task 38, part 3). */
+  uploads: ReplyUpload[] = []
 ): Promise<SendReplyResult> {
   const [thread] = await database
     .select({
@@ -259,7 +261,7 @@ export async function sendCrmReply(
   const subject = replySubject(thread.subject)
   // Read before the send, so a file that is missing or too big refuses the
   // reply with the words kept, rather than sending half of what was meant.
-  const files = await loadReplyFiles(workspaceId, fileUrls, database)
+  const files = await loadReplyFiles(workspaceId, fileUrls, database, uploads)
   const apiKey = await getAppEmailApiKey(database, workspaceId)
   const result = await getEmailProvider(apiKey ?? "").send({
     from: sender.from,

@@ -146,6 +146,7 @@ export async function notifyUnansweredThreads(
         join ${customShellCrmLeads} on ${customShellCrmLeads.id} = ${customShellCrmThreads.leadId}
         where ${customShellCrmThreads.unansweredNotifiedAt} is null
           and ${customShellCrmThreads.status} = 'open'
+          and not ${customShellCrmThreads.robot}
           and ${customShellCrmThreads.lastDirection} = 'in'
           and ${customShellCrmLeads.stage} not in ('won', 'lost')
           and ${days} > 0

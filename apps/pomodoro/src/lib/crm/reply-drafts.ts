@@ -1,14 +1,11 @@
 /**
- * The half-written replies, one per conversation, for as long as the CRM
- * screen is open.
+ * The half-written replies, one per conversation.
  *
  * Switching conversation used to empty the box, so three paragraphs went in
  * the bin the moment you clicked another thread to check a date. The words are
- * held here instead, by conversation id, and put back when you come back.
- *
- * In memory only. A reload clears them, which is the deliberate line: a draft
- * that survives a reload needs its own column, its own cleanup and an answer
- * for two admins typing in one conversation.
+ * held by conversation id and put back when you come back. These are the pure
+ * rules; `src/components/crm/reply-store.ts` holds them on the page and keeps
+ * them on the server, each admin's own, so a reload loses nothing either.
  *
  * An empty box is not a draft. Nothing is stored for one, so a row never shows
  * a draft mark for words that were deleted again.

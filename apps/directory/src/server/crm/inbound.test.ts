@@ -240,6 +240,7 @@ describe("inbound mail", () => {
           html: "<p>Morning</p>",
           messageId: "<first@buyer.com>",
           inReplyTo: null,
+          robotHeaders: false,
         },
       })
       const { messageId } = await recordInboundEmail(
@@ -254,6 +255,55 @@ describe("inbound mail", () => {
       expect(message.htmlBody).toBe("<p>Morning</p>")
       expect(message.bodyFetchedAt).not.toBeNull()
       expect(message.bodyAttempts).toBe(1)
+    })
+
+    /** Machines' mail (CRM task 38, part 4). */
+    it("moves a conversation its own first mail started to Other when the headers say a machine sent it", async () => {
+      stubReceive({
+        success: true,
+        email: { text: "Your order shipped", html: null, messageId: null, inReplyTo: null, robotHeaders: true },
+      })
+      const { messageId } = await recordInboundEmail(workspaceId, inboundEvent(), db)
+      await fillMessageBody(workspaceId, messageId!, db)
+      const [thread] = await db.select().from(customShellCrmThreads)
+      expect(thread.robot).toBe(true)
+    })
+
+    it("never moves a person's conversation over an automatic reply inside it", async () => {
+      stubReceive({
+        success: true,
+        email: { text: "Out of office", html: null, messageId: null, inReplyTo: null, robotHeaders: false },
+      })
+      const first = await recordInboundEmail(workspaceId, inboundEvent(), db)
+      await fillMessageBody(workspaceId, first.messageId!, db)
+      stubReceive({
+        success: true,
+        email: { text: "I am away", html: null, messageId: null, inReplyTo: null, robotHeaders: true },
+      })
+      const second = await recordInboundEmail(
+        workspaceId,
+        inboundEvent({ email_id: "re_in_2", message_id: "<second@buyer.com>", subject: "Re: Can you quote a kitchen" }),
+        db
+      )
+      await fillMessageBody(workspaceId, second.messageId!, db)
+      const threads = await db.select().from(customShellCrmThreads)
+      expect(threads).toHaveLength(1)
+      expect(threads[0].robot).toBe(false)
+    })
+
+    it("files a no-reply address in Other at once, unless a person said otherwise for it", async () => {
+      await recordInboundEmail(workspaceId, inboundEvent({ from: "Shop <noreply@shop.com>" }), db)
+      expect((await db.select().from(customShellCrmThreads))[0].robot).toBe(true)
+
+      await db.update(customShellCrmLeads).set({ robotChoice: "person" })
+      await recordInboundEmail(
+        workspaceId,
+        inboundEvent({ email_id: "re_in_3", from: "Shop <noreply@shop.com>", subject: "Another order" }),
+        db
+      )
+      const threads = await db.select().from(customShellCrmThreads)
+      const another = threads.find((thread) => thread.subject === "Another order")
+      expect(another).toMatchObject({ robot: false, robotByHand: true })
     })
 
     it("counts the attempt when the fetch fails and gives up after five", async () => {
@@ -296,7 +346,7 @@ describe("inbound mail", () => {
     it("moves a renamed reply into the conversation its header points at", async () => {
       stubReceive({
         success: true,
-        email: { text: "first", html: null, messageId: null, inReplyTo: null },
+        email: { text: "first", html: null, messageId: null, inReplyTo: null, robotHeaders: false },
       })
       await recordInboundEmail(workspaceId, inboundEvent(), db)
 
@@ -320,6 +370,7 @@ describe("inbound mail", () => {
           html: null,
           messageId: "<second@buyer.com>",
           inReplyTo: "<first@buyer.com>",
+          robotHeaders: false,
         },
       })
       await fillMessageBody(workspaceId, messageId!, db)
@@ -339,7 +390,7 @@ describe("inbound mail", () => {
     it("leaves a conversation that holds other mail alone", async () => {
       stubReceive({
         success: true,
-        email: { text: "x", html: null, messageId: null, inReplyTo: null },
+        email: { text: "x", html: null, messageId: null, inReplyTo: null, robotHeaders: false },
       })
       await recordInboundEmail(workspaceId, inboundEvent(), db)
       // Two in the second thread, so it is a conversation somebody may have
@@ -370,6 +421,7 @@ describe("inbound mail", () => {
           html: null,
           messageId: "<second@buyer.com>",
           inReplyTo: "<first@buyer.com>",
+          robotHeaders: false,
         },
       })
       await fillMessageBody(workspaceId, second.messageId!, db)
@@ -381,7 +433,7 @@ describe("inbound mail", () => {
   it("refuses to fetch a body for another workspace's message", async () => {
     stubReceive({
       success: true,
-      email: { text: "secret", html: null, messageId: null, inReplyTo: null },
+      email: { text: "secret", html: null, messageId: null, inReplyTo: null, robotHeaders: false },
     })
     const { messageId } = await recordInboundEmail(
       workspaceId,
@@ -403,7 +455,7 @@ describe("inbound mail", () => {
   it("records mail arriving through the signed webhook", async () => {
     stubReceive({
       success: true,
-      email: { text: "hello", html: null, messageId: null, inReplyTo: null },
+      email: { text: "hello", html: null, messageId: null, inReplyTo: null, robotHeaders: false },
     })
     const body = JSON.stringify(inboundEvent())
     const result = await handleResendWebhook(body, headersFor(body), db)

@@ -1,12 +1,33 @@
 import * as React from "react"
-import { PaperclipIcon, SparklesIcon, XIcon } from "lucide-react"
+import { ImageIcon, Loader2Icon, PaperclipIcon, SparklesIcon, UploadIcon, XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Textarea } from "@/components/ui/textarea"
-import { CRM_MAX_BODY_LENGTH } from "@/lib/crm/crm"
+import {
+  changeReplyDraft,
+  changeReplyFiles,
+  holdReply,
+  replyDraftOf,
+  replyFilesOf,
+  useReplyStore,
+  type ReplyFile,
+} from "@/components/crm/reply-store"
+import {
+  CRM_MAX_BODY_LENGTH,
+  CRM_REPLY_FILES_MAX,
+  CRM_REPLY_UPLOAD_MAX_BYTES,
+  crmFileNameFromUrl,
+} from "@/lib/crm/crm"
 import type { ReplyDraftUpdate } from "@/lib/crm/reply-drafts"
-import { getCrmErrorMessage, sendReply } from "@/lib/api/crm/inbox"
+import { getCrmErrorMessage, scheduleConversationReply, uploadReplyFile } from "@/lib/api/crm/inbox"
+import { SendLaterButton } from "@/components/crm/send-later"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { cn } from "@/lib/utils"
 import { MediaPicker } from "@/components/media/media-picker"
@@ -21,30 +42,26 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * that footer belongs on a newsletter, and offering to unsubscribe somebody
  * from a conversation they started would be absurd.
  *
- * What is typed stays in the box when a send fails. Clearing it would lose the
- * words over something the person could just try again.
+ * What is typed comes back to the box when a send fails. Losing it would
+ * throw the words away over something the person could just try again.
  *
- * The words themselves live on the CRM screen, not here, because this
- * component is thrown away and rebuilt every time another conversation is
- * opened. See `src/lib/crm/reply-drafts.ts`.
+ * The words, the files and a reply waiting out its ten seconds live in the
+ * CRM's reply store (`reply-store.ts`), not here, because this component is
+ * thrown away and rebuilt every time another conversation is opened.
  */
 export function ReplyComposer({
   className,
   threadId,
-  body,
   canSend,
   replyFrom,
-  onBodyChange,
-  onSent,
   onDraft,
+  onScheduled,
   status,
 }: {
   /** The conversation's status dropdown, on the left of the last line. */
   status: React.ReactNode
   className?: string
   threadId: string
-  /** What is in the box, held by the screen so it survives a switch. */
-  body: string
   canSend: boolean
   /**
    * The whole From line the reply will carry, worked out on the server. Shown
@@ -56,29 +73,54 @@ export function ReplyComposer({
    * Send.
    */
   replyFrom: string | null
-  /**
-   * Carries the conversation's id, so a send that lands late cannot empty the
-   * box of whichever conversation is open by then.
-   */
-  onBodyChange: (threadId: string, update: ReplyDraftUpdate) => void
-  onSent: () => void
   onDraft: () => Promise<string>
+  /** A reply was put off to a later time, so the conversation reads it again to draw it. */
+  onScheduled: () => void
 }) {
-  const [sending, setSending] = React.useState(false)
-  // Files from the media library, by the address the picker gave (CRM task
-  // 22). Kept through a refused send; a sent reply clears them, and so does
-  // opening another conversation.
-  const [files, setFiles] = React.useState<string[]>([])
-  const [filesFor, setFilesFor] = React.useState(threadId)
-  if (filesFor !== threadId) {
-    setFilesFor(threadId)
-    setFiles([])
-  }
+  // The words, the files and a reply waiting to send all live in the CRM's
+  // reply store, keyed by conversation, because this box is rebuilt for every
+  // conversation opened and the Inbox and Leads sections each draw their own
+  // (`reply-store.ts`).
+  const store = useReplyStore()
+  const body = replyDraftOf(store, threadId)
+  const files = replyFilesOf(store, threadId)
+  const held = store.pending[threadId] ?? null
   const [picking, setPicking] = React.useState(false)
   const [drafting, setDrafting] = React.useState(false)
+  // How many files from the computer are still on their way up.
+  const [uploading, setUploading] = React.useState(0)
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null)
+
+  // Each file goes up as it is picked and joins the reply once it is kept.
+  // One that is refused says why and joins nothing; the rest still go. The
+  // 10 MB is checked here first only to save sending a file that cannot go.
+  const uploadPicked = async (picked: File[]) => {
+    const room = CRM_REPLY_FILES_MAX - files.length
+    if (picked.length > room) {
+      showErrorToast(`A reply carries ${CRM_REPLY_FILES_MAX} files at most. Only the first ${Math.max(0, room)} were added.`)
+    }
+    for (const file of picked.slice(0, Math.max(0, room))) {
+      if (file.size > CRM_REPLY_UPLOAD_MAX_BYTES) {
+        showErrorToast(`${file.name} is over 10 MB, the most one reply can carry.`)
+        continue
+      }
+      setUploading((count) => count + 1)
+      try {
+        const kept = await uploadReplyFile(file)
+        changeReplyFiles(threadId, (current) => [
+          ...current,
+          { kind: "upload", key: kept.key, name: kept.name },
+        ])
+      } catch (error) {
+        showErrorToast(`${file.name}: ${getCrmErrorMessage(error)}`)
+      } finally {
+        setUploading((count) => count - 1)
+      }
+    }
+  }
   const boxRef = React.useRef<HTMLTextAreaElement | null>(null)
 
-  const setBody = (update: ReplyDraftUpdate) => onBodyChange(threadId, update)
+  const setBody = (update: ReplyDraftUpdate) => changeReplyDraft(threadId, update)
 
   // Coming back to a conversation you left half answered puts the caret after
   // the last word, so you carry on typing instead of hunting for the end.
@@ -94,18 +136,40 @@ export function ReplyComposer({
     box.setSelectionRange(box.value.length, box.value.length)
   }, [threadId])
 
-  const send = async () => {
-    if (!body.trim() || sending) return
-    setSending(true)
+  // Send holds the reply for ten seconds with Undo in the conversation, then
+  // it goes (CRM task 38, part 1). A refused send puts the words and files
+  // back here with the reason.
+  // A file still on its way up is not in `files` yet, so a reply sent now
+  // would go without it. Send and Send later wait for it.
+  const waitingForFiles = uploading > 0
+
+  const send = () => {
+    if (!body.trim() || held || waitingForFiles) return
+    holdReply(threadId, body.trim(), files)
+  }
+
+  // Send later (CRM task 38, part 6): the words and files go to the server
+  // with the moment, and the box empties. Cancel on the scheduled reply puts
+  // them back.
+  const [scheduling, setScheduling] = React.useState(false)
+  const scheduleFor = async (sendAt: Date) => {
+    if (!body.trim() || scheduling || waitingForFiles) return
+    setScheduling(true)
     try {
-      await sendReply(threadId, body.trim(), files)
-      setBody("")
-      setFiles([])
-      onSent()
+      await scheduleConversationReply({
+        threadId,
+        body: body.trim(),
+        files: files.flatMap((file) => (file.kind === "media" ? [file.url] : [])),
+        uploads: files.flatMap((file) => (file.kind === "upload" ? [{ key: file.key, name: file.name }] : [])),
+        sendAt: sendAt.toISOString(),
+      })
+      changeReplyDraft(threadId, "")
+      changeReplyFiles(threadId, () => [])
+      onScheduled()
     } catch (error) {
       showErrorToast(getCrmErrorMessage(error))
     } finally {
-      setSending(false)
+      setScheduling(false)
     }
   }
 
@@ -157,19 +221,23 @@ export function ReplyComposer({
           />
           {files.length ? (
             <ul className="flex flex-wrap gap-1.5 px-3 pb-2" aria-label="Files going with the reply">
-              {files.map((url) => (
+              {files.map((file) => (
                 <li
-                  key={url}
+                  key={replyFileKey(file)}
                   className="flex max-w-full items-center gap-1 rounded-md bg-muted py-0.5 pr-0.5 pl-2 text-xs"
                 >
                   <PaperclipIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="min-w-0 truncate">{fileName(url)}</span>
+                  <span className="min-w-0 truncate">{file.name}</span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    aria-label={`Take off ${fileName(url)}`}
-                    onClick={() => setFiles((current) => current.filter((item) => item !== url))}
+                    aria-label={`Take off ${file.name}`}
+                    onClick={() =>
+                      changeReplyFiles(threadId, (current) =>
+                        current.filter((item) => replyFileKey(item) !== replyFileKey(file))
+                      )
+                    }
                   >
                     <XIcon className="size-3" />
                   </Button>
@@ -185,8 +253,10 @@ export function ReplyComposer({
 
       {/* No line between the box and this row (Tyler, 7 Nov 2026: "remove the
           divider"); the whole footer is one light grey ground. */}
-      <div className="flex items-center gap-1 px-3.75 pb-2.5">
-        <div className="flex min-w-0 flex-1">{status}</div>
+      {/* Wraps rather than overlapping: in a narrow right panel the buttons
+          go to a line of their own under the status, at the right. */}
+      <div className="flex flex-wrap items-center gap-1 px-3.75 pb-2.5">
+        <div className="flex min-w-fit flex-1">{status}</div>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -204,26 +274,59 @@ export function ReplyComposer({
             </TooltipTrigger>
             <TooltipContent>Writes a reply from the conversation, under anything typed</TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Attach a file from the media library, up to 10 MB in all"
-                onClick={() => setPicking(true)}
-              >
-                <PaperclipIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Attach a file, up to 10 MB in all</TooltipContent>
-          </Tooltip>
+          {/* Two ways in (CRM task 38, part 3): the media library, or any
+              file from the computer, such as a PDF quote. */}
+          <DropdownMenu modal={false}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Attach a file, up to 10 MB in all"
+                    disabled={uploading > 0}
+                  >
+                    {uploading > 0 ? <Loader2Icon className="size-4 animate-spin" /> : <PaperclipIcon className="size-4" />}
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Attach a file, up to 10 MB in all</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" side="top" className="w-52">
+              <DropdownMenuItem onSelect={() => setPicking(true)}>
+                <ImageIcon className="size-4" />
+                From the media library
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>
+                <UploadIcon className="size-4" />
+                From your computer
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
+            onChange={(event) => {
+              const picked = Array.from(event.target.files ?? [])
+              event.target.value = ""
+              void uploadPicked(picked)
+            }}
+          />
           <MediaPicker
             open={picking}
             onOpenChange={setPicking}
             onSelectMedia={(url) => {
               setPicking(false)
-              setFiles((current) => (current.includes(url) || current.length >= 10 ? current : [...current, url]))
+              changeReplyFiles(threadId, (current) =>
+                current.some((file) => file.kind === "media" && file.url === url) || current.length >= CRM_REPLY_FILES_MAX
+                  ? current
+                  : [...current, { kind: "media", url, name: crmFileNameFromUrl(url) }]
+              )
             }}
           />
           <DisabledReason
@@ -234,23 +337,22 @@ export function ReplyComposer({
               type="button"
               size="sm"
               onClick={send}
-              disabled={noAddress || sending || !body.trim() || !canSend}
+              disabled={noAddress || held !== null || scheduling || waitingForFiles || !body.trim() || !canSend}
             >
-              {sending ? "Sending…" : "Send"}
+              Send
             </Button>
           </DisabledReason>
+          <SendLaterButton
+            disabled={noAddress || held !== null || scheduling || waitingForFiles || !body.trim() || !canSend}
+            onPick={(sendAt) => void scheduleFor(sendAt)}
+          />
         </div>
       </div>
     </div>
   )
 }
 
-/** A picked file's name, from the end of its address. */
-function fileName(url: string) {
-  const last = url.split("?")[0]?.split("/").pop() ?? url
-  try {
-    return decodeURIComponent(last) || url
-  } catch {
-    return last || url
-  }
+/** One picked file, told apart from the others however it was picked. */
+function replyFileKey(file: ReplyFile) {
+  return file.kind === "media" ? `media:${file.url}` : `upload:${file.key}`
 }

@@ -16,10 +16,12 @@ import { useShellRuntime } from "@/components/shell/shell-layout"
 import { middleGutterClassName, MiddleHeading, PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
 import { useWidgetLayout } from "@/components/shared/widgets/use-widget-layout"
 import { WidgetGrid } from "@/components/shared/widgets/widget-grid"
+import { CrmOverviewWidget } from "@/components/crm/crm-overview-widgets"
+import type { CrmOverviewFigures } from "@/lib/api/crm/overview"
 import { ManageWidgetsProvider, WidgetSettings } from "@/components/shared/widgets/widget-menus"
 import { useTabbedMenuState } from "@/components/shared/notes/tabbed-menu"
 import { ErrorRow } from "@/components/ui/error-row"
-import { widgetsShown, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
+import { isCrmShellWidgetId, widgetsShown, type WidgetLayout } from "@/lib/admin-dashboard/overview-widgets"
 import { ANALYTICS_DEFAULT_RANGE } from "@/lib/analytics/range"
 import type { InboxPage } from "@/lib/api/crm/inbox"
 import {
@@ -52,7 +54,7 @@ import { cn } from "@/lib/utils"
 
 /** What the route's loader read, for the section showing. */
 export type CrmLoaded =
-  | { tab: "overview"; widgets: WidgetLayout }
+  | { tab: "overview"; widgets: WidgetLayout; figures: CrmOverviewFigures }
   | { tab: "inbox"; inbox: InboxPage; outbox: DevOutboxItem[] | null }
   | { tab: "leads"; leads: LeadsPage }
   | { tab: "subscribers"; people: ContactsPage }
@@ -108,8 +110,9 @@ const CRM_PAGE_READ = "crm-page"
  * - **Middle:** one header (the section's icon and name, then its own
  *   toolbar), a pill row, and a table of one shape (`CrmTable`). Overview
  *   has no middle panel: its widgets sit straight on the dashboard and take
- *   the right panel's room too, as on Admin. The CRM has no widgets of its
- *   own yet, so its spots say so until an app adds one (`crm.widgets`).
+ *   the right panel's room too, as on Admin. The shell's four are about the
+ *   Inbox (Unread, Waiting on you, Mail per day, Time to first answer;
+ *   `crm-overview-widgets.tsx`), and an app adds its own (`crm.widgets`).
  * - **Right:** the open record in one frame (`RecordFrame`): a
  *   conversation, a person, a newsletter being written, a template, a system
  *   email.
@@ -179,7 +182,11 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
     search: search.q ?? "",
     stage: search.stage ?? "all",
     view:
-      search.view === "unread" || search.view === "saved" || search.view === "waiting" || search.view === "outbox"
+      search.view === "unread" ||
+      search.view === "saved" ||
+      search.view === "waiting" ||
+      search.view === "other" ||
+      search.view === "outbox"
         ? search.view
         : "all",
     toAddress: search.to ?? "",
@@ -394,7 +401,21 @@ export function CrmDashboard({ loaded, search }: { loaded: CrmLoaded; search: Cr
     )
   } else {
     middle = widgets.layout ? (
-      <WidgetGrid board="crm" layout={widgets.layout} days={ANALYTICS_DEFAULT_RANGE} onChange={widgets.change} />
+      <WidgetGrid
+        board="crm"
+        layout={widgets.layout}
+        days={ANALYTICS_DEFAULT_RANGE}
+        onChange={widgets.change}
+        drawWidget={(id) =>
+          isCrmShellWidgetId(id) ? (
+            <CrmOverviewWidget
+              id={id}
+              figures={loaded.figures}
+              onOpenInbox={(view) => goTo(crmTabSearch("inbox", { view }))}
+            />
+          ) : null
+        }
+      />
     ) : widgets.error ? (
       <ErrorRow message={widgets.error} onRetry={widgets.retry} />
     ) : null

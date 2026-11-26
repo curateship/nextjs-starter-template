@@ -1,3 +1,4 @@
+import { hasRobotHeaders } from "@/lib/crm/robot-mail"
 import {
   describeResendFailure,
   unreachableEmailServiceFailure,
@@ -56,6 +57,11 @@ export type ReceivedEmail = {
   html: string | null
   messageId: string | null
   inReplyTo: string | null
+  /**
+   * The headers say a machine sent it: a mailing list, an automatic notice
+   * or bulk mail (`hasRobotHeaders`, CRM task 38, part 4).
+   */
+  robotHeaders: boolean
 }
 
 export type ReceiveEmailResult = {
@@ -306,6 +312,7 @@ class ResendProvider implements EmailProvider {
             ? body.message_id
             : readEmailHeader(body.headers, "message-id"),
         inReplyTo: readEmailHeader(body.headers, "in-reply-to"),
+        robotHeaders: hasRobotHeaders((name) => readEmailHeader(body.headers, name)),
       },
     }
   }

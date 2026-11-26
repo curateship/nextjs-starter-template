@@ -13,7 +13,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { getCrmErrorMessage, startConversation } from "@/lib/api/crm/inbox"
+import {
+  holdNewEmail,
+  undoHeldNewEmail,
+  useReplyStore,
+  useReplySent,
+  useSecondsLeft,
+} from "@/components/crm/reply-store"
+import { Button } from "@/components/ui/button"
 import { CRM_MAX_BODY_LENGTH } from "@/lib/crm/crm"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -24,8 +31,8 @@ const EMPTY: Draft = { to: "", name: "", subject: "", body: "", from: "" }
  * The inbox header's one primary button, New email (CRM task 15, built in
  * task 36 on 7 Nov 2026): write to somebody who has not written first. It
  * opens the shell's New dropdown. What is typed stays when it is clicked
- * away from, and goes once the mail is sent. Sending opens the new
- * conversation on the right.
+ * away from, and goes once the mail is sent. Send waits ten seconds with
+ * Undo before the mail goes; then the new conversation opens on the right.
  */
 export function NewEmailButton({
   addresses,
@@ -37,32 +44,35 @@ export function NewEmailButton({
 }) {
   const [open, setOpen] = React.useState(false)
   const [draft, setDraft] = React.useState<Draft>(EMPTY)
-  const [busy, setBusy] = React.useState(false)
   const set = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }))
+  // Send holds the email for ten seconds, with Undo here, before it goes
+  // (CRM task 38, part 1). It is held in the CRM's reply store, so it still
+  // goes if the dropdown or the Inbox is left meanwhile.
+  const held = useReplyStore().newEmail
+  const seconds = useSecondsLeft(held && !held.sending ? held.sendAt : null)
 
-  const send = async () => {
-    if (busy) return
+  // Gone: what was typed goes, and the new conversation opens. A refused one
+  // keeps what was typed here, with the reason in the error toast.
+  useReplySent((event) => {
+    if (event.kind !== "new-email") return
+    setDraft(EMPTY)
+    setOpen(false)
+    onSent(event.threadId)
+  })
+
+  const send = () => {
+    if (held) return
     if (!draft.to.trim() || !draft.subject.trim() || !draft.body.trim()) {
       showErrorToast("Fill in who it is to, the subject and the message.")
       return
     }
-    setBusy(true)
-    try {
-      const { threadId } = await startConversation({
-        to: draft.to,
-        name: draft.name || undefined,
-        subject: draft.subject,
-        body: draft.body,
-        fromAddress: draft.from || undefined,
-      })
-      setDraft(EMPTY)
-      setOpen(false)
-      onSent(threadId)
-    } catch (error) {
-      showErrorToast(getCrmErrorMessage(error))
-    } finally {
-      setBusy(false)
-    }
+    holdNewEmail({
+      to: draft.to,
+      name: draft.name || undefined,
+      subject: draft.subject,
+      body: draft.body,
+      fromAddress: draft.from || undefined,
+    })
   }
 
   return (
@@ -71,8 +81,8 @@ export function NewEmailButton({
       open={open}
       onOpenChange={setOpen}
       submitLabel="Send"
-      busy={busy}
-      onSubmit={() => void send()}
+      busy={held !== null}
+      onSubmit={send}
       trigger={
         <DashboardToolbarButton type="button" aria-label="New email">
           <PlusIcon className="size-4" />
@@ -140,6 +150,16 @@ export function NewEmailButton({
           onChange={(event) => set({ body: event.target.value })}
         />
       </div>
+      {held ? (
+        <p className="flex items-center justify-end gap-2 text-xs text-muted-foreground" aria-live="polite">
+          {held.sending ? "Sending…" : `Sending in ${seconds}s`}
+          {held.sending ? null : (
+            <Button type="button" variant="outline" size="xs" onClick={undoHeldNewEmail}>
+              Undo
+            </Button>
+          )}
+        </p>
+      ) : null}
     </NewRecordDropdown>
   )
 }

@@ -4,6 +4,7 @@ import {
   ArrowLeftIcon,
   ArrowUpIcon,
   CopyIcon,
+  HourglassIcon,
   ListOrderedIcon,
   Loader2Icon,
   MailIcon,
@@ -35,7 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   getSequenceErrorMessage,
@@ -484,6 +485,7 @@ function EmailRow({
   onDelete: () => void
 }) {
   const [waitOpen, setWaitOpen] = React.useState(false)
+  const handingOver = React.useRef(false)
   return (
     <li className="group/email flex items-center gap-1 rounded-md hover:bg-muted/60">
       <button type="button" className="flex min-w-0 flex-1 items-center gap-3 px-1 py-2 text-left" onClick={onOpen}>
@@ -503,34 +505,56 @@ function EmailRow({
           ) : null}
         </span>
       </button>
-      {index > 0 ? <WaitPopover open={waitOpen} onOpenChange={setWaitOpen} wait={email.wait} onChange={onWait} /> : null}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={`More for email ${index + 1}`}>
-            <MoreHorizontalIcon className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {index > 0 ? <DropdownMenuItem onSelect={() => setWaitOpen(true)}>Change the wait</DropdownMenuItem> : null}
-          <DropdownMenuItem onSelect={onAddAfter}>
-            <PlusIcon className="size-4" />
-            Add an email after
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={index === 0} onSelect={() => onMove(-1)}>
-            <ArrowUpIcon className="size-4" />
-            Move up
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled={index === count - 1} onSelect={() => onMove(1)}>
-            <ArrowDownIcon className="size-4" />
-            Move down
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-            <Trash2Icon className="size-4" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <WaitPopover open={waitOpen} onOpenChange={setWaitOpen} wait={email.wait} onChange={onWait}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label={`More for email ${index + 1}`}>
+              <MoreHorizontalIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            // As wide as its longest line, so "Add an email after" stays on one.
+            className="w-max"
+            // Closing, the menu hands focus back to its ⋯, which is outside the
+            // wait box, and the box takes that as a click away and shuts at once.
+            onCloseAutoFocus={(event) => {
+              if (!handingOver.current) return
+              handingOver.current = false
+              event.preventDefault()
+            }}
+          >
+            {index > 0 ? (
+              <DropdownMenuItem
+                onSelect={() => {
+                  handingOver.current = true
+                  setWaitOpen(true)
+                }}
+              >
+                <HourglassIcon className="size-4" />
+                Change the wait
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem onSelect={onAddAfter}>
+              <PlusIcon className="size-4" />
+              Add an email after
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={index === 0} onSelect={() => onMove(-1)}>
+              <ArrowUpIcon className="size-4" />
+              Move up
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={index === count - 1} onSelect={() => onMove(1)}>
+              <ArrowDownIcon className="size-4" />
+              Move down
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+              <Trash2Icon className="size-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </WaitPopover>
     </li>
   )
 }
@@ -586,24 +610,29 @@ function WaitRow({ wait, onChange }: { wait: SequenceWait; onChange: (wait: Sequ
   )
 }
 
-/** The wait opened from an email row's ⋮, anchored on the row. */
+/**
+ * The wait opened from an email row's ⋯. It hangs from the ⋯ itself, so it
+ * drops down from the button that was pressed, as the menu did.
+ */
 function WaitPopover({
   open,
   onOpenChange,
   wait,
   onChange,
+  children,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   wait: SequenceWait
   onChange: (wait: SequenceWait) => void
+  /** The row's ⋯ menu, which the box hangs from. */
+  children: React.ReactNode
 }) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      {/* The box opens from the row's ⋮, so its anchor is a mark at the row's end. */}
-      <PopoverTrigger asChild>
-        <span aria-hidden className="self-end" />
-      </PopoverTrigger>
+      <PopoverAnchor asChild>
+        <span className="inline-flex shrink-0">{children}</span>
+      </PopoverAnchor>
       <PopoverContent align="end" collisionPadding={16} onInteractOutside={keepOpenForInnerBoxes} className="w-[min(18rem,calc(100vw-2rem))] p-3">
         <WaitFields wait={wait} onChange={onChange} />
       </PopoverContent>

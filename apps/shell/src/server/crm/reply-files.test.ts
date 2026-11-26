@@ -15,6 +15,9 @@ vi.mock("@/server/media/storage", () => ({
   uploadToR2: vi.fn(async (key: string, data: Uint8Array, type: string) => {
     stored.set(key, { data, type })
   }),
+  // Never called here, but an app's own code can read it as it loads (Project's
+  // task files do), and a stand-in without it fails before any test runs.
+  deleteFromR2: vi.fn(async () => {}),
 }))
 
 import {

@@ -15,6 +15,13 @@ function PopoverTrigger({
   return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
 }
 
+/** Where a popover opened by something else hangs from, such as a menu's own button. */
+function PopoverAnchor({
+  ...props
+}: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
+  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />
+}
+
 /**
  * One wheel turn in pixels. A mouse reports pixels, a few setups report lines or
  * pages instead, and a line left at 1px would make a list crawl.
@@ -141,4 +148,4 @@ function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
   )
 }
 
-export { Popover, PopoverClose, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger }
+export { Popover, PopoverAnchor, PopoverClose, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger }

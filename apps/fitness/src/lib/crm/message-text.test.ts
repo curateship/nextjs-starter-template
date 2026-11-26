@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   htmlToText,
+  matchSnippet,
   messageSnippet,
   quoteAsHtml,
   quoteAsText,
@@ -193,5 +194,49 @@ describe("quoteAsHtml", () => {
     })
     expect(html).not.toContain("<script>")
     expect(html).toContain("&lt;script&gt;")
+  })
+})
+
+describe("matchSnippet", () => {
+  it("cuts the line around the word, keeping the message's own capitals", () => {
+    expect(matchSnippet("Is the Deposit due before you start?", null, "deposit")).toEqual({
+      before: "Is the ",
+      word: "Deposit",
+      after: " due before you start?",
+    })
+  })
+
+  it("marks where it cut the start and the end", () => {
+    const words = `${"a".repeat(60)} deposit ${"b".repeat(200)}`
+    const match = matchSnippet(words, null, "deposit")
+    expect(match?.before.startsWith("…")).toBe(true)
+    expect(match?.word).toBe("deposit")
+    expect(match?.after.endsWith("…")).toBe(true)
+  })
+
+  it("starts the line on a whole word", () => {
+    const match = matchSnippet("Hello there, could you confirm the deposit amount?", null, "deposit")
+    expect(match?.before).toBe("…could you confirm the ")
+  })
+
+  it("finds a word at the very start or the very end", () => {
+    expect(matchSnippet("Deposit paid", null, "deposit")?.before).toBe("")
+    expect(matchSnippet("Paid the deposit", null, "deposit")?.after).toBe("")
+  })
+
+  it("skips their quoted history, so the match is something this message said", () => {
+    expect(
+      matchSnippet("Thanks, see you then.\n\nOn Mon, Jane wrote:\n> about the deposit", null, "deposit")
+    ).toBeNull()
+  })
+
+  it("reads HTML-only mail as words", () => {
+    expect(matchSnippet(null, "<p>The <b>deposit</b> is $200</p>", "deposit")?.after).toBe(" is $200")
+  })
+
+  it("answers null for no search, no words or no match", () => {
+    expect(matchSnippet("Hello", null, "  ")).toBeNull()
+    expect(matchSnippet(null, null, "hello")).toBeNull()
+    expect(matchSnippet("Hello", null, "deposit")).toBeNull()
   })
 })

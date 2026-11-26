@@ -11,6 +11,7 @@ import {
 import { now, uuid } from "@/server/auth/security"
 import { notifyMailArrived } from "@/server/crm/mail-notice"
 import { isSenderBlocked } from "@/server/crm/blocked"
+import { isRobotAddress } from "@/lib/crm/robot-mail"
 import { db, type CustomShellDb } from "@/server/db"
 import { getAppEmailApiKey } from "@/server/email/settings"
 import { getEmailProvider } from "@/server/email/provider"
@@ -174,9 +175,13 @@ async function leadForAddress(
   email: string,
   name: string | null,
   database: CustomShellDb
-): Promise<string> {
+): Promise<{ id: string; robotChoice: "person" | "robot" | null }> {
   const [existing] = await database
-    .select({ id: customShellCrmLeads.id, name: customShellCrmLeads.name })
+    .select({
+      id: customShellCrmLeads.id,
+      name: customShellCrmLeads.name,
+      robotChoice: customShellCrmLeads.robotChoice,
+    })
     .from(customShellCrmLeads)
     .where(
       and(
@@ -197,7 +202,7 @@ async function leadForAddress(
         .set({ name, updatedAt: at })
         .where(eq(customShellCrmLeads.id, existing.id))
     }
-    return existing.id
+    return { id: existing.id, robotChoice: existing.robotChoice }
   }
 
   const id = uuid()
@@ -211,7 +216,7 @@ async function leadForAddress(
     createdAt: at,
     updatedAt: at,
   })
-  return id
+  return { id, robotChoice: null }
 }
 
 /**
@@ -224,16 +229,17 @@ async function leadForAddress(
  */
 async function threadForMessage(
   workspaceId: string,
-  leadId: string,
+  lead: { id: string; robotChoice: "person" | "robot" | null },
   mail: InboundEmail,
   blocked: boolean,
   database: CustomShellDb
-): Promise<{ id: string; created: boolean }> {
+): Promise<{ id: string; created: boolean; robot: boolean }> {
+  const leadId = lead.id
   const subjectKey = normalizeSubject(mail.subject).slice(0, 500)
 
   if (subjectKey) {
     const [match] = await database
-      .select({ id: customShellCrmThreads.id })
+      .select({ id: customShellCrmThreads.id, robot: customShellCrmThreads.robot })
       .from(customShellCrmThreads)
       .where(
         and(
@@ -247,8 +253,14 @@ async function threadForMessage(
       )
       .orderBy(desc(customShellCrmThreads.lastMessageAt))
       .limit(1)
-    if (match) return { id: match.id, created: false }
+    if (match) return { id: match.id, created: false, robot: match.robot }
   }
+
+  // A machine's mail goes to the Other view (CRM task 38, part 4). What a
+  // person said about this address before wins over the rule; the headers
+  // are read once the body lands (`markRobotByHeaders`).
+  const robot =
+    lead.robotChoice === "robot" || (lead.robotChoice === null && isRobotAddress(mail.fromEmail))
 
   const at = now()
   const id = uuid()
@@ -270,17 +282,32 @@ async function threadForMessage(
     lastDirection: "in",
     messageCount: 0,
     readAt: blocked ? at : null,
+    robot,
+    robotByHand: lead.robotChoice !== null,
     createdAt: at,
     updatedAt: at,
   })
-  return { id, created: true }
+  return { id, created: true, robot }
 }
 
 export type RecordInboundResult = {
   /** 1 when a message was written, 0 when the event was a replay or unusable. */
   changed: number
   messageId?: string
+  /**
+   * The bell notice still owed for a conversation this mail started, sent by
+   * `applyInboundEmail` once the body has been asked for, because only the
+   * body's headers can say the mail came from a machine (CRM task 38, part 4).
+   */
+  owedNotice?: OwedMailNotice
 }
+
+/**
+ * A new conversation's bell notice, kept by its message rather than its
+ * conversation: the body fetch may move the message into the conversation
+ * its `In-Reply-To` names and delete the one it started.
+ */
+export type OwedMailNotice = { messageId: string; who: string; subject: string }
 
 /**
  * Writes one received email.
@@ -324,7 +351,7 @@ export async function recordInboundEmail(
 
   const blocked = await isSenderBlocked(workspaceId, mail.fromEmail, database)
 
-  const leadId = await leadForAddress(
+  const lead = await leadForAddress(
     workspaceId,
     mail.fromEmail,
     mail.fromName,
@@ -332,7 +359,7 @@ export async function recordInboundEmail(
   )
   const thread = await threadForMessage(
     workspaceId,
-    leadId,
+    lead,
     mail,
     blocked,
     database
@@ -385,20 +412,80 @@ export async function recordInboundEmail(
     })
     .where(eq(customShellCrmThreads.id, thread.id))
 
-  // The bell, after the mail is safely written, and never for a blocked
-  // sender. A notice that fails must not undo or refuse the mail, so its
+  // The bell, after the mail is safely written, never for a blocked sender
+  // and never for a machine's mail. A conversation this mail started owes its
+  // notice until the body's headers have been read: they may say a machine
+  // sent it. A notice that fails must not undo or refuse the mail, so its
   // error stops here.
-  if (!blocked) {
-    await notifyMailArrived(
-      workspaceId,
-      thread.id,
-      mail.fromName?.trim() || mail.fromEmail,
-      mail.subject,
-      database
-    ).catch((error) => console.error("CRM mail notice failed", error))
-  }
-
+  if (blocked || thread.robot) return { changed: 1, messageId }
+  const who = mail.fromName?.trim() || mail.fromEmail
+  if (thread.created) return { changed: 1, messageId, owedNotice: { messageId, who, subject: mail.subject } }
+  await sendMailNotice(workspaceId, thread.id, who, mail.subject, database)
   return { changed: 1, messageId }
+}
+
+/**
+ * The bell notice a conversation this mail started was owed, now its headers
+ * have been read, unless they said a machine sent it. The conversation is
+ * found from the message, so a reply the body fetch moved into an older
+ * conversation rings for that one.
+ */
+export async function sendOwedMailNotice(
+  workspaceId: string,
+  notice: OwedMailNotice,
+  database: CustomShellDb = db
+) {
+  const [thread] = await database
+    .select({
+      id: customShellCrmThreads.id,
+      robot: customShellCrmThreads.robot,
+      status: customShellCrmThreads.status,
+    })
+    .from(customShellCrmMessages)
+    .innerJoin(customShellCrmThreads, eq(customShellCrmThreads.id, customShellCrmMessages.threadId))
+    .where(and(eq(customShellCrmMessages.workspaceId, workspaceId), eq(customShellCrmMessages.id, notice.messageId)))
+    .limit(1)
+  if (!thread || thread.robot || thread.status === "closed") return
+  await sendMailNotice(workspaceId, thread.id, notice.who, notice.subject, database)
+}
+
+async function sendMailNotice(
+  workspaceId: string,
+  threadId: string,
+  who: string,
+  subject: string,
+  database: CustomShellDb
+) {
+  await notifyMailArrived(workspaceId, threadId, who, subject, database).catch((error) =>
+    console.error("CRM mail notice failed", error)
+  )
+}
+
+/**
+ * A machine's headers on a message that started its own conversation move
+ * that conversation to the Other view (CRM task 38, part 4). Only a message
+ * alone in its conversation: an automatic reply inside a conversation with a
+ * person, such as an out-of-office, must never move the person's mail. And
+ * never one a person has said about, or an address a person has said about.
+ */
+async function markRobotByHeaders(workspaceId: string, messageId: string, database: CustomShellDb) {
+  const [row] = await database
+    .select({
+      threadId: customShellCrmThreads.id,
+      messageCount: customShellCrmThreads.messageCount,
+      robotByHand: customShellCrmThreads.robotByHand,
+      robotChoice: customShellCrmLeads.robotChoice,
+    })
+    .from(customShellCrmMessages)
+    .innerJoin(customShellCrmThreads, eq(customShellCrmThreads.id, customShellCrmMessages.threadId))
+    .innerJoin(customShellCrmLeads, eq(customShellCrmLeads.id, customShellCrmThreads.leadId))
+    .where(and(eq(customShellCrmMessages.workspaceId, workspaceId), eq(customShellCrmMessages.id, messageId)))
+    .limit(1)
+  if (!row || row.messageCount !== 1 || row.robotByHand || row.robotChoice !== null) return
+  await database
+    .update(customShellCrmThreads)
+    .set({ robot: true, updatedAt: now() })
+    .where(eq(customShellCrmThreads.id, row.threadId))
 }
 
 /**
@@ -556,6 +643,7 @@ export async function fillMessageBody(
     .where(eq(customShellCrmMessages.id, messageId))
 
   await mergeByHeaders(workspaceId, messageId, result.email.inReplyTo, database)
+  if (result.email.robotHeaders) await markRobotByHeaders(workspaceId, messageId, database)
   return true
 }
 

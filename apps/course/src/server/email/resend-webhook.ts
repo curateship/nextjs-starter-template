@@ -7,6 +7,7 @@ import {
   fillMessageBody,
   INBOUND_EVENT,
   recordInboundEmail,
+  sendOwedMailNotice,
   type ResendInboundEvent,
 } from "@/server/crm/inbound"
 import { listResendWebhookSecrets } from "@/server/email/settings"
@@ -363,6 +364,9 @@ async function applyInboundEmail(
   } catch (error) {
     console.error("Inbound email body could not be fetched", error)
   }
+  // The notice a new conversation owed, now its headers have been read (or
+  // could not be: then it is a person's, and the bell rings).
+  if (recorded.owedNotice) await sendOwedMailNotice(workspaceId, recorded.owedNotice, database)
   return recorded.changed
 }
 

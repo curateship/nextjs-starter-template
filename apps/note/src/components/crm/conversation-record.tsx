@@ -9,13 +9,14 @@ import {
   loadConversation,
   markConversationRead,
   markConversationUnread,
+  setConversationRobot,
   setConversationSaved,
   setConversationStatus,
   summariseConversation,
   type Conversation,
 } from "@/lib/api/crm/inbox"
 import { loadLead, type LeadBundle } from "@/lib/api/crm/leads"
-import type { ReplyDraftUpdate } from "@/lib/crm/reply-drafts"
+import { useReplySent } from "@/components/crm/reply-store"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
@@ -54,9 +55,10 @@ export async function blockAndCloseThread(threadId: string, address: string, onD
  * and holds what pressing anything in `ConversationPanel` does, so both
  * places behave the same.
  *
- * What it does not own: the half-written reply, which the screen keeps so it
- * survives switching conversations (`replyDraft`), and the list beside it,
- * which `onListChanged` asks the screen to read again. `reloadToken` reads
+ * What it does not own: the half-written reply and a reply waiting to send,
+ * which the CRM's reply store keeps so they survive switching conversations
+ * and sections (`reply-store.ts`), and the list beside it, which
+ * `onListChanged` asks the screen to read again. `reloadToken` reads
  * the conversation again from outside, as the live inbox does when it gets a
  * new message.
  */
@@ -66,8 +68,6 @@ export function ConversationRecord({
   fallbackEmail,
   emptyLine,
   replyFromFallback,
-  replyDraft,
-  onReplyDraftChange,
   reloadToken = 0,
   onListChanged,
   onOpenContact,
@@ -81,8 +81,6 @@ export function ConversationRecord({
   emptyLine: string | null
   /** The From line a reply carries when the conversation does not say. */
   replyFromFallback: string | null
-  replyDraft: string
-  onReplyDraftChange: (threadId: string, update: ReplyDraftUpdate) => void
   reloadToken?: number
   /** The list beside it is read again after a change made here. */
   onListChanged: () => void
@@ -166,6 +164,14 @@ export function ConversationRecord({
     onListChanged()
   }
 
+  // A reply that waited out its ten seconds has gone: the conversation it went
+  // in is read again if it is the one open, and the list beside it either way.
+  useReplySent((event) => {
+    if (event.kind !== "reply") return
+    if (event.threadId === threadId) reloadBoth()
+    else onListChanged()
+  })
+
   const blockSender = async () => {
     const address = lead?.lead.email ?? fallbackEmail
     if (!conversation || !address) return
@@ -193,8 +199,6 @@ export function ConversationRecord({
       emptyLine={emptyLine}
       canSend={conversation !== null}
       replyFrom={conversation?.replyFrom ?? replyFromFallback}
-      replyDraft={replyDraft}
-      onReplyDraftChange={onReplyDraftChange}
       onSavedChange={async (saved) => {
         if (!conversation) return
         try {
@@ -215,6 +219,15 @@ export function ConversationRecord({
           showErrorToast(getCrmErrorMessage(error))
         }
       }}
+      onRobot={async (robot) => {
+        if (!conversation) return
+        try {
+          await setConversationRobot(conversation.id, robot)
+          reloadBoth()
+        } catch (error) {
+          showErrorToast(getCrmErrorMessage(error))
+        }
+      }}
       onSummarise={async () => {
         if (!conversation) return
         try {
@@ -227,6 +240,7 @@ export function ConversationRecord({
       onBlockSender={blockSender}
       onLeadChanged={reloadBoth}
       onFetchBody={refetchBody}
+      onScheduledChanged={reloadThread}
       onSent={reloadBoth}
       onDraft={async () => {
         if (!conversation) return ""

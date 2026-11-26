@@ -7,8 +7,10 @@ import {
   listInboxThreads,
   listThreadMessages,
   markThreadRead,
+  markMatchingThreadsRead,
   markThreadsRead,
   markThreadUnread,
+  setThreadRobot,
   setThreadSaved,
   setThreadStatus,
   waitingCutoff,
@@ -242,6 +244,30 @@ describe("the reads the CRM screen makes", () => {
       expect(oldest.map((row) => row.id)).toEqual(["thread-2", "thread-1"])
     })
 
+    /**
+     * The searched-for line (CRM task 38, part 8). "new shop" is only in
+     * Jane's first message, under a newer one that does not say it, so the row
+     * shows that line with the words apart. A search matching her name keeps
+     * the newest line.
+     */
+    it("shows the line a search was found in, when it was found in the mail", async () => {
+      const [row] = await listInboxThreads(workspaceId, { search: "NEW SHOP" }, db)
+      expect(row.id).toBe("thread-1")
+      expect(row.snippet).toBe("About $4,800 all in.")
+      expect(row.match).toEqual({
+        before: "…quote a kitchen for the ",
+        word: "new shop",
+        after: "?",
+        fromUs: false,
+      })
+
+      const [byName] = await listInboxThreads(workspaceId, { search: "Okafor" }, db)
+      expect(byName.match).toBeNull()
+
+      const [none] = await listInboxThreads(workspaceId, {}, db)
+      expect(none.match).toBeNull()
+    })
+
     /** One row per page, so paging is what the order has to survive. */
     it("pages through the longest-waiting order without repeating a row", async () => {
       const first = await listInboxThreads(
@@ -330,6 +356,10 @@ describe("the reads the CRM screen makes", () => {
         unread: 1,
         saved: 0,
         waiting: 0,
+        savedUnread: 0,
+        waitingUnread: 0,
+        other: 0,
+        otherUnread: 0,
       })
     })
 
@@ -346,24 +376,24 @@ describe("the reads the CRM screen makes", () => {
 
     it("still obeys every other filter", async () => {
       const open = await countInboxThreads(workspaceId, { status: "open" }, db)
-      expect(open).toEqual({ all: 1, unread: 1, saved: 0, waiting: 0 })
+      expect(open).toEqual({ all: 1, unread: 1, saved: 0, savedUnread: 0, waiting: 0, waitingUnread: 0, other: 0, otherUnread: 0 })
 
       const searched = await countInboxThreads(
         workspaceId,
         { search: "flats" },
         db
       )
-      expect(searched).toEqual({ all: 1, unread: 0, saved: 0, waiting: 0 })
+      expect(searched).toEqual({ all: 1, unread: 0, saved: 0, savedUnread: 0, waiting: 0, waitingUnread: 0, other: 0, otherUnread: 0 })
     })
 
     it("never counts another workspace's", async () => {
       const counts = await countInboxThreads(otherWorkspaceId, {}, db)
-      expect(counts).toEqual({ all: 1, unread: 1, saved: 0, waiting: 0 })
+      expect(counts).toEqual({ all: 1, unread: 1, saved: 0, savedUnread: 0, waiting: 0, waitingUnread: 0, other: 0, otherUnread: 0 })
     })
 
     it("answers zero rather than nothing when none match", async () => {
       expect(await countInboxThreads(workspaceId, { search: "zzzz" }, db)).toEqual(
-        { all: 0, unread: 0, saved: 0, waiting: 0 }
+        { all: 0, unread: 0, saved: 0, savedUnread: 0, waiting: 0, waitingUnread: 0, other: 0, otherUnread: 0 }
       )
     })
   })
@@ -472,6 +502,82 @@ describe("the reads the CRM screen makes", () => {
       expect(await markThreadsRead(workspaceId, ["thread-1", "thread-2"], db))
         .toEqual({ changed: 1, unchanged: 1 })
       expect((await countInboxThreads(workspaceId, {}, db)).unread).toBe(0)
+    })
+  })
+
+  /**
+   * "Mark all read" (CRM task 38, part 7). The set comes from the filter, not
+   * from ids, and stays inside the workspace, the filter and the moment the
+   * list was read.
+   */
+  describe("every conversation a filter matches", () => {
+    beforeEach(async () => {
+      await db
+        .update(customShellCrmThreads)
+        .set({ status: "open", readAt: null })
+        .where(eq(customShellCrmThreads.id, "thread-2"))
+    })
+
+    it("marks the matching unread ones read, and no others", async () => {
+      const changed = await markMatchingThreadsRead(
+        workspaceId,
+        { status: "open", stage: "quoted" },
+        new Date("2027-01-01T00:00:00.000Z"),
+        db
+      )
+      expect(changed).toBe(1)
+      expect((await getThread(workspaceId, "thread-1", db))?.readAt).not.toBeNull()
+      expect((await getThread(workspaceId, "thread-2", db))?.readAt).toBeNull()
+      expect((await getThread(otherWorkspaceId, "thread-elsewhere", db))?.readAt).toBeNull()
+    })
+
+    it("leaves alone mail newer than the list on screen", async () => {
+      const changed = await markMatchingThreadsRead(
+        workspaceId,
+        { status: "open" },
+        new Date("2026-09-15T00:00:00.000Z"),
+        db
+      )
+      // thread-2's newest mail is 1 Sep and is marked; thread-1's is 1 Oct.
+      expect(changed).toBe(1)
+      expect((await getThread(workspaceId, "thread-1", db))?.readAt).toBeNull()
+    })
+
+    it("counts the unread inside Saved, for the confirmation", async () => {
+      await setThreadSaved(workspaceId, "thread-1", true, db)
+      const counts = await countInboxThreads(workspaceId, { status: "open" }, db)
+      expect(counts.unread).toBe(2)
+      expect(counts.savedUnread).toBe(1)
+    })
+  })
+
+  /** Machines' mail in the Other view (CRM task 38, part 4). */
+  describe("mail from robots", () => {
+    beforeEach(async () => {
+      await db.update(customShellCrmThreads).set({ robot: true }).where(eq(customShellCrmThreads.id, "thread-1"))
+    })
+
+    it("is left out of every view but Other, and counted only there", async () => {
+      expect((await listInboxThreads(workspaceId, {}, db)).map((row) => row.id)).toEqual(["thread-2"])
+      expect((await listInboxThreads(workspaceId, { robots: "only" }, db)).map((row) => row.id)).toEqual(["thread-1"])
+      const counts = await countInboxThreads(workspaceId, {}, db)
+      expect(counts).toMatchObject({ all: 1, unread: 0, other: 1, otherUnread: 1 })
+      expect((await countInboxThreads(workspaceId, { robots: "only" }, db)).other).toBe(1)
+    })
+
+    it("never waits on anybody", async () => {
+      const counts = await countInboxThreads(workspaceId, { status: "open" }, db, new Date("2099-01-01"))
+      expect(counts.waiting).toBe(0)
+    })
+
+    it("goes back to All on Not a robot, and the address keeps that choice", async () => {
+      expect(await setThreadRobot(workspaceId, "thread-1", false, db)).toBe(true)
+      expect((await listInboxThreads(workspaceId, {}, db)).map((row) => row.id)).toContain("thread-1")
+      const [lead] = await db.select().from(customShellCrmLeads).where(eq(customShellCrmLeads.id, "lead-1"))
+      expect(lead.robotChoice).toBe("person")
+      const [thread] = await db.select().from(customShellCrmThreads).where(eq(customShellCrmThreads.id, "thread-1"))
+      expect(thread.robotByHand).toBe(true)
+      expect(await setThreadRobot(otherWorkspaceId, "thread-1", false, db)).toBe(false)
     })
   })
 
