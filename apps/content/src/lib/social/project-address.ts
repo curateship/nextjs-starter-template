@@ -60,13 +60,13 @@ export type ProjectSearch = Omit<ArchiveSearch, "project" | "open"> &
   /** The keyword whose posts are listed on Commenting; none is every keyword's. */
   keyword?: string
   /**
-   * Content's All items, the project's Archive, with its filters. The plain
+   * Content's All content, the project's Archive, with its filters. The plain
    * address is Content too; this key carries the Archive's filters, which are
    * read only beside it, and a guest's Content, since a guest's plain address
    * is Promote.
    */
   archive?: "1"
-  /** Content's Videos tab, the project's videos; none is All items. */
+  /** Content's Drafts, the project's videos in the editor; none is All content. */
   content?: "videos"
   /** Promote on a project with no network yet, where no network can be named. */
   promote?: "1"

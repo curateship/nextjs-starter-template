@@ -6,8 +6,8 @@ the keywords that find other people's posts for them. There are two screens:
 
 - **The Projects dashboard** at `/admin/projects`, reached from **Projects** in
   the left menu: one three-panel dashboard whose sections are Overview,
-  Projects, Accounts and Messages, and in Content Vault, Hooks and Formats in
-  a Viral block. Tyler, 12 Nov 2026: "We need to consolidate projects,
+  Projects, Accounts and Messages, and in Content a Viral row whose middle
+  has Vault, Hooks and Formats as tabs. Tyler, 12 Nov 2026: "We need to consolidate projects,
   voices, accounts, archive and messages into one cohesive 3 panel design."
   On 27 Nov 2026 Content took Voices and the Archive out: each is a
   project's own now ([content-app.md](content-app.md), "The Projects
@@ -74,8 +74,8 @@ edited. Tyler's answers of 12 Nov 2026 are in
 
 - **Sections:** Overview of widgets first, then Projects, Voices, Accounts,
   Archive, Messages. Overview has no right panel. In Content since 27 Nov
-  2026: Overview, Projects, Accounts and Messages, with Vault, Hooks and
-  Formats in a Viral block (Tyler: "The voice should not be its own sidebar
+  2026: Overview, Projects, Accounts, Messages and Viral, whose middle has
+  Vault, Hooks and Formats as tabs (Tyler: "The voice should not be its own sidebar
   link", "Archive should also not have its own link either").
 - **Widgets:** Posts that need you, Messages waiting, Accounts by status,
   Bans in the last 30 days and Archive room. Content adds Found today and
@@ -97,15 +97,19 @@ edited. Tyler's answers of 12 Nov 2026 are in
   photo, and Lock the notes at its foot) and Widgets, Overview's rows and
   spots. It is stored in `promo_projects_pages`, one row per person
   (`drizzle/0233_promo_projects_dashboard.sql`).
-- **The Dashboards block** lists Overview, Projects, Accounts and Messages
-  with a count each: Overview's widgets, the projects, the accounts in use
-  and the open conversations. The block is fixed: it is never in the "/"
+- **The Dashboards block** lists Overview, Projects, Accounts, Messages and
+  Viral, with a count each but Viral's: Overview's widgets, the projects, the
+  accounts in use and the open conversations. The block is fixed: it is never in the "/"
   list, the page can't lose it, and its ⋮ moves it up or down and hides or
   reorders every section but Overview, kept per person.
-- **The Viral block**, under it, lists Vault, Hooks and Formats, with no
-  count, since they are read when they show. It is fixed in the same way, a
-  page saved before it existed gets it under Dashboards, and its ⋮ shows,
-  hides and orders its three rows.
+- **Viral is one row** for Vault, Hooks and Formats (Tyler, 27 Nov 2026: "remove the viral block and add a "Viral" link in the dashboard. Clicking on that link will show 3 middle tabs "Vault, hooks and format""). Pressing it opens
+  the one of the three last shown, Vault the first time, with the three as
+  tabs first in the middle's header; the row stays picked on each. It has
+  no count, since they are read when they show. The ⋮ hides and moves it as
+  one row. The Viral block it replaced is gone: a page saved with it is read
+  and saved without it (`src/components/dashboard-page/dashboard-blocks.tsx`,
+  `folded`). The tabs are Content's own tab row (`project-tabs.tsx`), so the
+  line slides on as the next list draws its header.
 - **There is no Projects block** since 27 Nov 2026. A page saved with it is
   read and saved without it, as any block the page does not know.
 - **The same left panel shows on a project's page** and its Research, with
@@ -193,7 +197,7 @@ section beside them. The records on the right are `account-record.tsx`,
 `voice-record.tsx`, the Archive's `archive-item-panel.tsx`, and the project
 summary (grey cards: What it makes, Networks, Archive, as the shell's
 records are) and conversation inside their sections. The page's server is
-`src/server/social/projects-dashboard.ts`. The Dashboards and Viral blocks and the left
+`src/server/social/projects-dashboard.ts`. The Dashboards block and the left
 page panel are drawn by `src/components/dashboard-page/`, which [the Anti
 Detect dashboard](anti-detect-dashboard.md) shares, with its Projects block;
 `projects-blocks.tsx` and `projects-page-panel.tsx` only name the Projects
@@ -265,14 +269,16 @@ search is an icon, the dropdowns come right after it, and Select is in the ⋮.
   - **It does not move until its first frame**, so its first placing never
     shows as a slide back from the press.
   - Tests: `src/components/content-app/project-tabs.test.tsx`.
-- **On the right, the search icon**, then **the tab's own dropdown**, the shell's `ViewMenu`: Content's All items or
-  Videos; Research's Found videos, Hooks, Sounds or Creators, one dropdown for what were the Research block's rows and the videos'
+- **On the right, the search icon**, then **the tab's own dropdown**, the shell's `ViewMenu`: Research's Found videos, Hooks, Sounds or Creators, one dropdown for what were the Research block's rows and the videos'
   own tabs; Promote's network and side together, "Reddit · Posts", "Reddit ·
   Commenting", "X · Posts" and so on.
 - **The list's own dropdown** of which list shows: a network's own lists
   (To look at, Replied, Sent and the rest) with Voices and Accounts after
   them (`NetworkTabs` in `src/components/content-app/network-panes.tsx`), and
-  the Archive's kind (Every kind, Videos, Carousels, Pictures).
+  Content's one dropdown: All content, Videos, Carousels, Pictures, then
+  Drafts, the editor's videos (`content-kind-menu.tsx`; Tyler, 27 Nov 2026:
+  "remove the all items and videos dropdown and rename every kind to "All
+  content"").
 - **The list's buttons**: Filter, Views, its keyword picker and its New
   button. YouTube's and Instagram's tables draw this same header above
   themselves, with the shell table's own toolbar hidden (Tyler, 27 Nov 2026:
@@ -290,7 +296,7 @@ list's header is one 57px line with nothing past its edge.
 ### Addresses
 
 - **Content is the plain address** (Tyler: "middle panel first load will be
-  it's content archive"). `?content=videos` is its Videos, and `?archive=1`
+  it's content archive"). `?content=videos` is its Drafts, and `?archive=1`
   carries the Archive's filters (a guest's Content too).
 - **Research** is `/admin/projects/<id>/research`, its list in `?view=`.
 - **Promote** is `?network=` with `?side=commenting` for Commenting, the first

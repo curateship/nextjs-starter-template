@@ -10,6 +10,7 @@ import { useCrmFrame } from "@/components/crm/crm-frame"
 import { RightCoverProvider } from "@/components/shared/notes/page-cover"
 import { middleGutterClassName, ThreePanels } from "@/components/shared/three-panels"
 import { ManageWidgetsProvider } from "@/components/shared/widgets/widget-menus"
+import { ProjectTabs } from "@/components/content-app/project-tabs"
 import { useProjectsLeft } from "@/components/content-app/projects-left"
 import { AccountsSection } from "@/components/social/projects-dashboard/accounts-section"
 import { MessagesSection } from "@/components/social/projects-dashboard/messages-section"
@@ -22,6 +23,7 @@ import type { ProjectRow } from "@/lib/api/social/projects"
 import type { RedditAccountsPage } from "@/lib/api/social/reddit-accounts"
 import {
   PROJECTS_SECTION_LABELS,
+  RESEARCH_SECTIONS,
   sectionOf,
   isResearchSection,
   sectionSearch,
@@ -52,7 +54,8 @@ export type ProjectsDashboardData = {
  * dashboard are.
  *
  * - **Left:** the person's page of blocks (`useProjectsLeft`). Its fixed
- *   Dashboards and Viral blocks pick the section. Its ⋮ holds General (cover,
+ *   Dashboards block picks the section; its Viral row opens Vault, Hooks and
+ *   Formats, tabs in the middle. Its ⋮ holds General (cover,
  *   Lock blocks) and Widgets. A project's page draws the same left panel.
  * - **Middle:** Overview's widgets straight on the dashboard, taking the
  *   right panel's room too; or a section's list, each in one header and
@@ -89,7 +92,16 @@ export function ProjectsDashboard({ data, search }: { data: ProjectsDashboardDat
   if (research && isResearchSection(section)) {
     // Research's own section screens, as on its dashboard before Content (`content-app.md`).
     const loaded = data.research
-    const props = { search: withOpen(research, search), frame, onChanged: () => router.invalidate() }
+    // Viral's three lists as tabs, first in each one's header (Tyler, 27 Nov 2026: "Clicking on that link will
+    // show 3 middle tabs"). Content's own tab row, so the line slides on as the next list draws its header.
+    const tabs = (
+      <ProjectTabs
+        value={section}
+        onValueChange={(next) => void navigate({ search: sectionSearch(next as ProjectsSection) })}
+        choices={RESEARCH_SECTIONS.map((each) => ({ value: each, label: PROJECTS_SECTION_LABELS[each] }))}
+      />
+    )
+    const props = { search: withOpen(research, search), frame, onChanged: () => router.invalidate(), tabs }
     middle =
       !loaded || loaded.section !== section ? null : loaded.section === "vault" ? (
         <VaultSection key="vault" {...props} data={loaded} />

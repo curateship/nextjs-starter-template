@@ -125,12 +125,11 @@ summary on the right.
 Its left panel keeps what belongs to every project at once (Tyler, 27 Nov
 2026: "Right now the dashboard doesnt make a lot of sense"):
 
-- **The Dashboards block:** Overview, Projects, Accounts and Messages.
+- **The Dashboards block:** Overview, Projects, Accounts, Messages and Viral.
   Accounts stays every project's accounts with a tab per network (Tyler: "Just
   leave the unified accounts dashboard the way it is now").
-- **The Viral block:** Vault, Hooks and Formats (Tyler: "should be its own
-  block called "Viral""). It is fixed as the Dashboards block is, sits under
-  it, and its ⋮ shows, hides and orders its rows.
+- **Viral:** one row whose middle has Vault, Hooks and Formats as tabs
+  (Tyler, 27 Nov 2026: "remove the viral block and add a "Viral" link in the dashboard. Clicking on that link will show 3 middle tabs "Vault, hooks and format""). It replaced the Viral block of the same day.
 - **Voices and the Archive are not sections.** Each is a project's own: a
   Voices tab on each network of a project's page, and the project's Content
   block (Tyler: "The voice should not be its own sidebar link", "Archive
@@ -198,12 +197,18 @@ and "move discritption to general. it dfoesnt need its own tab". The task is
   and Promote, the tab's own dropdown, the list's own dropdown and buttons,
   then the project's ⋮. `projects-dashboard.md`, "The one header", has the
   order and how it gives way on a narrow window.
-- **Content** is the page's home and its plain address. Its dropdown picks
-  **All items**, the project's Archive with its first item on the right
-  (`archive.md`), or **Videos**, the project's videos with their status,
-  length and last edit and New video, Video's own window
-  (`src/components/content-app/project-videos.tsx`). A video opens the editor
-  on the whole screen; Videos has no right panel, so the list takes its room.
+- **Content** is the page's home and its plain address. It has one
+  dropdown, after the search icon (Tyler, 27 Nov 2026: "remove the all items and videos dropdown and rename every kind to "All content"", with the editor's videos "In All content"):
+  - **All content**, the project's Archive with its first item on the right
+    (`archive.md`), and **Videos, Carousels, Pictures**, one kind of it;
+  - **Drafts**, the project's videos in the editor with their status, length
+    and last edit and New video, Video's own window
+    (`src/components/content-app/project-videos.tsx`). A video opens the
+    editor on the whole screen; Drafts has no right panel, so the list takes
+    its room. A guest has no Drafts.
+
+  Both lists draw the same dropdown (`content-kind-menu.tsx`), so either
+  reaches the other.
 - **Research** is `/admin/projects/<id>/research`: Viral's project screen
   with this left panel. Its dropdown picks Found videos, Hooks, Sounds or
   Creators. The vault is the Projects dashboard's own Vault, which can show
@@ -230,7 +235,7 @@ and "move discritption to general. it dfoesnt need its own tab". The task is
 - **A guest sent from Project** has no left panel, since it lists every
   project, no arrow back and no Research. A guest's plain address opens
   Promote's first network, as it always did, and Content is `?archive=1`,
-  All items alone. The ⋮ holds General with the Description row alone. Viral's
+  All content alone. The ⋮ holds General with the Description row alone. Viral's
   and Video's screens have no way in for a Promo guest. This was a reading,
   not one of Tyler's answers.
 

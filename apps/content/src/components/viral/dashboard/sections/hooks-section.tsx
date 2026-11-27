@@ -7,7 +7,7 @@ import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-tabl
 import { EmptyRecord } from "@/components/crm/record-frame"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { SavedViewsControls, SaveViewDialog, type EditFields, type SavedViewsScreen } from "@/components/shared/saved-views"
-import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -42,7 +42,7 @@ const ANY = "any"
  * its winners) and Views sit in the one header, then "+ New hook". The open
  * hook is on the right in the shell's record frame.
  */
-export function HooksSection({ data, search, frame }: SectionProps<Data>) {
+export function HooksSection({ data, search, frame, tabs }: SectionProps<Data>) {
   const setSearch = useListSearchNavigate()
   const [filterOpen, setFilterOpen] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
@@ -160,7 +160,7 @@ export function HooksSection({ data, search, frame }: SectionProps<Data>) {
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <ListHeader
-        tabs={<MiddleHeading icon={QuoteIcon} label={project ? `Hooks in ${project.name}` : "Hooks"} />}
+        tabs={tabs}
         end={<PanelReopenButton side="right" label="Show the hook" />}
         menuLabel="More for hooks"
         search={{

@@ -1,7 +1,5 @@
-import { FlameIcon } from "lucide-react"
-
 import { makeDashboardBlocks, type DashboardBlocks } from "@/components/dashboard-page/dashboard-blocks"
-import { PROJECTS_SECTIONS_NODE, PROJECTS_VIRAL_NODE } from "@/lib/social/projects-dashboard-page"
+import { PROJECTS_SECTIONS_NODE } from "@/lib/social/projects-dashboard-page"
 import {
   RESEARCH_SECTIONS,
   PROJECTS_LIST_SECTIONS,
@@ -12,11 +10,12 @@ import {
 } from "@/lib/social/projects-dashboard-search"
 
 /**
- * The Projects dashboard's own "/" blocks on its left page (Tyler, 12 Nov
- * 2026): Dashboards (Overview, Projects, Accounts and Messages) and Content's
- * Viral (Vault, Hooks and Formats; Tyler, 27 Nov 2026: "should be its own
- * block called "Viral""). Drawn by the shared `makeDashboardBlocks`, as the
- * Anti Detect dashboard's are. The same left panel shows on a project's page
+ * The Projects dashboard's own "/" block on its left page (Tyler, 12 Nov
+ * 2026): Dashboards, with Overview, Projects, Accounts, Messages and Viral.
+ * Viral is one row for Vault, Hooks and Formats, which are tabs in the middle
+ * (Tyler, 27 Nov 2026: "remove the viral block and add a "Viral" link in the
+ * dashboard. Clicking on that link will show 3 middle tabs"). Drawn by the
+ * shared `makeDashboardBlocks`, as the Anti Detect dashboard's are. The same left panel shows on a project's page
  * (`content-app/projects-left.tsx`).
  *
  * It has no Projects block (Tyler, 27 Nov 2026: "Remove projects block. List
@@ -33,14 +32,7 @@ const blocks = makeDashboardBlocks<ProjectsSection, ProjectsListSection>({
   labels: PROJECTS_SECTION_LABELS,
   sectionsNode: PROJECTS_SECTIONS_NODE,
   sectionsKind: "promo-sections",
-  group: {
-    title: "Viral",
-    icon: FlameIcon,
-    sections: RESEARCH_SECTIONS,
-    node: PROJECTS_VIRAL_NODE,
-    kind: "content-viral-sections",
-    key: "contentViralSections",
-  },
+  folded: { key: "viral", label: "Viral", sections: RESEARCH_SECTIONS },
 })
 
 export const ProjectsBlocksProvider = blocks.Provider

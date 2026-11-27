@@ -214,7 +214,7 @@ window listing your other projects, leaving out archived ones and samples
   (`src/components/viral/vault-list.tsx`, `vault-item-panel.tsx`). A video
   already in the vault says "In vault · save again" under Analyse with AI,
   and saving again updates that idea.
-- **The Vault row** of the Projects dashboard's Viral block (`viral-dashboard.md`;
+- **The Vault tab** of the Projects dashboard's Viral row (`viral-dashboard.md`;
   `src/components/viral/dashboard/sections/vault-section.tsx`) lists every
   project's ideas, or one project's, picked in the left page's Projects
   block (`?project=`).

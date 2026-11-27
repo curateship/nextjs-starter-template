@@ -64,7 +64,7 @@ async function readCounts(): Promise<ProjectsLeftCounts> {
  * project's own page"; Tyler, 27 Nov 2026: "When clicking on a project. I
  * dont want the left panel to change").
  *
- * It holds the person's left page with its Dashboards and Viral blocks, the
+ * It holds the person's left page with its Dashboards block, the
  * ⋮ with General and Widgets, and Overview's widget layout, which the ⋮'s
  * Widgets tab sets. `section` is the Dashboards row picked: a project's page
  * passes Projects, since the project was opened from that list.

@@ -28,8 +28,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * Content, Research and Promote.
  *
  * `sub` is the tab's own choice, a dropdown after the tabs, which the page
- * fills: Content's All items or Videos, Research's three, or Promote's
- * network.
+ * fills: Research's lists or Promote's network. Content has none.
  */
 export function useProjectTop({
   view,

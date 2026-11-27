@@ -11,8 +11,8 @@ apps' docs, listed below under the app each came from. Where one of them says
 
 - [content-app.md](content-app.md) — how the three fit together: one project
   under one id, a project's page under the Projects dashboard's left panel
-  with Content, Research and Promote in one header, Content's All items and
-  Videos, each network's Voices and Accounts, Research's address and its
+  with Content, Research and Promote in one header, Content's one dropdown
+  (All content to Drafts), each network's Voices and Accounts, Research's address and its
   settings in the project's ⋮, the editor's back button,
   the Projects dashboard's Found today, Videos in progress, Vault, Hooks and
   Formats, the one left menu, the sample project, the Project app's two
@@ -422,7 +422,7 @@ turn as the code. Write it the way `.agents/skills/unslop/SKILL.md` says.
 
 - [The Projects dashboard](projects-dashboard.md): Tyler's answers of
   12 Nov 2026, one three-panel dashboard of Overview, Projects, Accounts and
-  Messages, the left page with its Dashboards and Viral blocks, Overview's
+  Messages, the left page with its Dashboards block and Viral row, Overview's
   widgets, a project's summary with Open project, the old addresses that
   still land; and a project's own page with the same left panel, its one
   header (the project's tabs, dropdowns and ⋮), Promote's networks, the
@@ -440,7 +440,7 @@ turn as the code. Write it the way `.agents/skills/unslop/SKILL.md` says.
   columns with your own posts on it, the two sides of each network,
   Reddit's screens folded into its module as tabs and windows, the tables that
   fold by the column's width, and where the old addresses lead.
-- [The Archive](archive.md): each project's Content, All items, the project's
+- [The Archive](archive.md): each project's Content, All content, the project's
   videos, carousels and pictures, sent from Video
   or uploaded, the key on Settings → Video, how a send is copied,
   the Bin as a tab of the project's ⋮, and posting from it with drafts, warnings and several
@@ -723,7 +723,7 @@ turn as the code. Write it the way `.agents/skills/unslop/SKILL.md` says.
 
 ## From Viral
 
-- [viral-dashboard.md](viral-dashboard.md): Vault, Hooks and Formats, the Projects dashboard's Viral block, once rows of Viral's own dashboard.
+- [viral-dashboard.md](viral-dashboard.md): Vault, Hooks and Formats, the tabs of the Projects dashboard's Viral row, once rows of Viral's own dashboard.
 - [project-page.md](project-page.md): a project's own dashboard, copied from Promo's project page: its page with the fixed Socials and Vault blocks on the left, its ⋮ (General, Socials), the Videos, Hooks and Sounds header with the Keywords dropdown, and the right panels.
 - [projects-and-socials.md](projects-and-socials.md): a project, its topic, and the socials added to it like Promo's networks, including X, Reddit and LinkedIn read through Promo.
 - [finding-content.md](finding-content.md): YouTube keyword search, followed creators, pasted links, the daily re-check and its bell, the New mark, top comments, sounds, "same idea, other creators", and the YouTube units.

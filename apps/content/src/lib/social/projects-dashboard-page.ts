@@ -21,29 +21,23 @@ import type { NoteNode } from "@/lib/notes/note-blocks"
  * both clean a page with this list, so a block missing here is dropped on
  * save.
  */
-export const PROJECTS_PAGE_BLOCK_TYPES = ["notePromoSections", "contentViralSections"] as const
+export const PROJECTS_PAGE_BLOCK_TYPES = ["notePromoSections"] as const
 
 /**
- * The Dashboards block: Overview, Projects, Accounts and Messages, one row
- * each. Fixed, as the Admin, CRM and Trips pages' are: never offered in the
+ * The Dashboards block: Overview, Projects, Accounts, Messages and Viral, one
+ * row each. Fixed, as the Admin, CRM and Trips pages' are: never offered in the
  * "/" list, the editor refuses to take it off, the server puts it back at the
  * top of a page saved without it, and its ⋮ moves it up and down.
  */
 export const PROJECTS_SECTIONS_NODE = "notePromoSections"
 
-/**
- * Content's Viral block: Research's Vault, Hooks and Formats, every
- * project's (Tyler, 27 Nov 2026: Vault, Hooks and Formats "should be its own
- * block called "Viral""). Fixed as the Dashboards block is, and put back
- * under it on a page saved without it.
- */
-export const PROJECTS_VIRAL_NODE = "contentViralSections"
-
 /*
  * The Projects block (`notePromoProjects`), which narrowed the sections to one
  * project, is gone (Tyler, 27 Nov 2026: "Remove projects block. List row
- * only"). It is not in the list above, so a page saved with it is read and
- * saved without it, as any block the page does not know.
+ * only"), and so is the Viral block (`contentViralSections`), now the Viral
+ * row of Dashboards ("remove the viral block and add a "Viral" link in the
+ * dashboard"). Neither is in the list above, so a page saved with one is read
+ * and saved without it, as any block the page does not know.
  */
 
 /** What a refused save of the page says. */
@@ -52,27 +46,17 @@ export const PROJECTS_PAGE_ERRORS = {
   locked: "The page is locked. Unlock the notes in its ⋮ first.",
 } as const
 
-/** A page nobody has written on: the Dashboards block, then Viral. */
+/** A page nobody has written on: the Dashboards block. */
 export function defaultProjectsPage(): NoteNode {
   return {
     type: "doc",
-    content: [{ type: PROJECTS_SECTIONS_NODE }, { type: PROJECTS_VIRAL_NODE }, { type: "paragraph" }],
+    content: [{ type: PROJECTS_SECTIONS_NODE }, { type: "paragraph" }],
   }
 }
 
-/**
- * The page with its one Dashboards block (`withFixedBlock`) and its one Viral
- * block. A page saved before Viral was a block gets it right under
- * Dashboards; one that was moved stays where it was put.
- */
+/** The page with its one Dashboards block (`withFixedBlock`). */
 export function withProjectsSectionsBlock(body: NoteNode): NoteNode {
-  const page = withFixedBlock(withFixedBlock(body, PROJECTS_VIRAL_NODE), PROJECTS_SECTIONS_NODE)
-  const content = page.content ?? []
-  if (body.content?.some((node) => node.type === PROJECTS_VIRAL_NODE)) return page
-  // Just added on top by withFixedBlock: moved to under Dashboards.
-  const rest = content.filter((node) => node.type !== PROJECTS_VIRAL_NODE)
-  const at = rest.findIndex((node) => node.type === PROJECTS_SECTIONS_NODE) + 1
-  return { ...page, content: [...rest.slice(0, at), { type: PROJECTS_VIRAL_NODE }, ...rest.slice(at)] }
+  return withFixedBlock(body, PROJECTS_SECTIONS_NODE)
 }
 
 /**

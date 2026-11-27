@@ -18,7 +18,9 @@ import type { VaultStatus } from "@/lib/viral/vault"
  * Content's sections (`workspace/docs/content-app.md`, "The Projects
  * dashboard"): Overview, Projects, Accounts and Messages in the Dashboards
  * block, and Research's three lists that belong to no one project, every
- * project's Vault, Hooks and Formats, in the Viral block. Research itself
+ * project's Vault, Hooks and Formats, under its one Viral row, as tabs in the
+ * middle (Tyler, 27 Nov 2026: "remove the viral block and add a "Viral" link
+ * in the dashboard. Clicking on that link will show 3 middle tabs"). Research itself
  * lives inside each project. Voices and the Archive are each project's: a
  * network's Voices tab and the project's Content tab (Tyler, 27 Nov 2026:
  * "The voice should not be its own sidebar link", "Archive should also not
@@ -30,9 +32,6 @@ export type ProjectsSection = (typeof PROJECTS_SECTIONS)[number]
 /** A section the Dashboards block can hide or move: every one but Overview. */
 export type ProjectsListSection = Exclude<ProjectsSection, "overview">
 export const PROJECTS_LIST_SECTIONS: readonly ProjectsListSection[] = ["projects", "accounts", "messages", "vault", "hooks", "formats"]
-
-/** The Dashboards block's rows; Research's are the Viral block's. */
-export const DASHBOARDS_SECTIONS = ["overview", "projects", "accounts", "messages"] as const satisfies readonly ProjectsSection[]
 
 /** The sections that are Research's, drawn by its own section screens. */
 export const RESEARCH_SECTIONS = VIRAL_SECTIONS
@@ -140,7 +139,7 @@ export function sectionOf(search: ProjectsSearch): ProjectsSection {
   return search.section ?? "projects"
 }
 
-/** The address for a section picked in the Dashboards or Viral block: a fresh start in that section. */
+/** The address for a section picked in the Dashboards block or Viral's tabs: a fresh start in that section. */
 export function sectionSearch(section: ProjectsSection): ProjectsSearch {
   return section === "projects" ? {} : { section }
 }

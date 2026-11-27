@@ -21,8 +21,9 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
  * - Content, Research and Promote as tabs.
  *
  * The tab's own choice is a dropdown on the right, first after the search
- * icon (`ProjectSubChoice`): Content's All items or Videos, Promote's network
- * with its Posts or Commenting ("Reddit · Commenting").
+ * icon (`ProjectSubChoice`): Promote's network with its Posts or Commenting
+ * ("Reddit · Commenting"). Content has none: its one dropdown is in its
+ * lists' own headers (`content-kind-menu.tsx`).
  *
  * The project's ⋮ is the last thing in the same header, after the list's own
  * New button (`ProjectMenuButton`; Tyler, 27 Nov 2026, pointing past Add:

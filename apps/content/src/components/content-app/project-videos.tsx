@@ -2,6 +2,7 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { PlusIcon } from "lucide-react"
 
+import { ContentKindMenu, type ContentKind } from "@/components/content-app/content-kind-menu"
 import { ListHeader } from "@/components/content-app/list-header"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -20,9 +21,10 @@ import { VIDEO_STATUS_LABELS } from "@/lib/video/project-videos"
 type Column = "name" | "status" | "length" | "edited"
 
 /**
- * Content's Videos tab (`workspace/docs/content-app.md`, "A project's own
- * page"; Tyler, 27 Nov 2026, of the project's videos: "Inside Content"): the
- * project's videos with their status, length and last edit, and New video,
+ * Content's Drafts (`workspace/docs/content-app.md`, "A project's own page";
+ * Tyler, 27 Nov 2026, of the project's videos: "Inside Content", then "In All
+ * content"), picked in Content's one dropdown (`ContentKindMenu`): the
+ * project's videos in the editor with their status, length and last edit, and New video,
  * Video's own window (a name and a shape, or a template, never a made-up
  * name). A video opens the editor on the whole screen, as the Videos block's
  * rows did (Tyler, 26 Nov 2026: "Option 1: whole screen"), so this tab has no
@@ -30,7 +32,7 @@ type Column = "name" | "status" | "length" | "edited"
  *
  * Archived videos stay out, as they did from the block.
  */
-export function ProjectVideos({ projectId }: { projectId: string }) {
+export function ProjectVideos({ projectId, onKind }: { projectId: string; onKind: (kind: Exclude<ContentKind, "drafts">) => void }) {
   const navigate = useNavigate()
   const [q, setQ] = React.useState("")
   const [sort, setSort] = React.useState<Column>("edited")
@@ -58,12 +60,13 @@ export function ProjectVideos({ projectId }: { projectId: string }) {
     <>
       <ListHeader
         tabs={
-          // The project's controls name this list: its dropdown says Videos.
+          // The project's controls, then the content dropdown, which says Drafts, names this list.
           <span className="flex min-w-0 items-center gap-1">
             <PanelReopenButton side="left" label="Show the Projects page" />
             <ProjectHeaderLead />
           </span>
         }
+        choices={<ContentKindMenu value="drafts" drafts onPick={(next) => (next === "drafts" ? undefined : onKind(next))} />}
         end={<ProjectMenuButton />}
         menuLabel="More for these videos"
         search={{

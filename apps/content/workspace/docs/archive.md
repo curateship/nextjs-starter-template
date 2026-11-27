@@ -31,7 +31,7 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
 
 ## Where it is
 
-- **Each project's Content**, All items, on its page (`/admin/projects/<id>`,
+- **Each project's Content**, All content, on its page (`/admin/projects/<id>`,
   the plain address, or `?archive=1` with filters), since 27 Nov 2026 (Tyler:
   "Archive should also not have its own link either", then "middle panel first
   load will be it's content archive"). Links to an item, as Video's Open in Promo, open it there
@@ -52,7 +52,7 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
     the room they take with what that costs, "12.4 GB, about $0.19 a month",
     as Tyler's rule says.
 - **Inside a project.** Content is the first of a project's three tabs, and
-  All items its first choice: the project's items in the middle and the open
+  shows All content first: the project's items in the middle and the open
   one on the right. A guest from Project reaches it from Content too
   (`?archive=1`).
 
@@ -60,8 +60,11 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
 
 - **The one header, left to right** ([list-header.md](list-header.md)): the
   arrow back, Content, Research and Promote; then on the right the search
-  icon, the All items dropdown, the kind dropdown (Every kind, Videos,
-  Carousels, Pictures), Filter, Add, and the project's ⋮. Select is the first
+  icon, Content's one dropdown, Filter, Add, and the project's ⋮. The
+  dropdown is All content, Videos, Carousels, Pictures, then Drafts, the
+  project's videos in the editor ("remove the all items and videos dropdown
+  and rename every kind to "All content"", then the editor's videos "In All
+  content"; `content-kind-menu.tsx`). Select is the first
   action on the ⋮'s General tab.
 - **The Bin is a tab of the project's ⋮** (Tyler, 27 Nov 2026: "The bin
   should open up a modal instead", then "move bin into the tab here

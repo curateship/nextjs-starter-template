@@ -14,7 +14,7 @@ import { readProjectsSearch } from "@/lib/social/projects-dashboard-search"
  * The Projects dashboard (`workspace/docs/projects-dashboard.md`), where
  * Projects in the left menu leads: Overview, Projects, Accounts and Messages
  * as sections of one three-panel dashboard (Tyler, 12 Nov 2026), and in
- * Content Research's Vault, Hooks and Formats in the Viral block. The section, the project picked, the filters and the open
+ * Content Research's Vault, Hooks and Formats under the Viral row. The section, the project picked, the filters and the open
  * row live in the address (`readProjectsSearch`). A project's own page,
  * where its posting and commenting happen, is `/admin/projects/<id>`.
  *

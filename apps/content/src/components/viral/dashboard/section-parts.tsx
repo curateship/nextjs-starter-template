@@ -22,6 +22,8 @@ export type SectionProps<Data> = {
   frame: CrmFrame
   /** Something changed: the counts on the left and the list read again. */
   onChanged: () => Promise<unknown>
+  /** The start of the header: Viral's Vault, Hooks and Formats tabs, where the list's own name was. */
+  tabs: React.ReactNode
 }
 
 /** A list with nothing to show for its words or filters: what was asked, and Clear filters. */

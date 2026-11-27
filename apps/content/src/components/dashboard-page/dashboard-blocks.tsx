@@ -1,5 +1,5 @@
 import * as React from "react"
-import { EyeIcon, EyeOffIcon, FolderOpenIcon, LayoutDashboardIcon, type LucideIcon } from "lucide-react"
+import { EyeIcon, EyeOffIcon, FolderOpenIcon, LayoutDashboardIcon } from "lucide-react"
 
 import { blockView, useBlockCount, useBlockMenu } from "@/components/shared/notes/block-card"
 import { DashboardsRows } from "@/components/shared/notes/dashboards-rows"
@@ -19,10 +19,11 @@ import { orderSections } from "@/lib/layout/styling-values"
  *   go. The Anti Detect dashboard has it; Content's Projects dashboard does
  *   not, since a row of its Projects list opens the project (Tyler, 27 Nov
  *   2026: "Remove projects block. List row only").
- * - **A group of its own**, fixed, when `group` names one: some sections in a
- *   block of their own under Dashboards, as Content's Viral block holds
- *   Vault, Hooks and Formats. Its ⋮ shows, hides and orders them as the
- *   Dashboards block's does.
+ * - **One row for several sections**, when `folded` names them: Content's
+ *   Viral row stands for Vault, Hooks and Formats, which show as tabs in the
+ *   middle (Tyler, 27 Nov 2026: "remove the viral block and add a "Viral"
+ *   link in the dashboard"). It is picked while any of them shows, and opens
+ *   the one last shown. The ⋮ shows, hides and moves it as one row.
  *
  * Each keeps no values: it draws what the dashboard hands down through the
  * blocks' Provider.
@@ -62,15 +63,8 @@ export function makeDashboardBlocks<Section extends string, ListSection extends 
   sectionsKind: string
   /** The Projects block, when the dashboard has one: its node, its kind and its line with no project yet. */
   projectsBlock?: { node: string; kind: string; empty: string }
-  /** Sections drawn in a fixed block of their own, under Dashboards, rather than in it. */
-  group?: {
-    title: string
-    icon: LucideIcon
-    sections: readonly ListSection[]
-    node: string
-    kind: string
-    key: string
-  }
+  /** Sections the Dashboards block draws as one row: its key and name, and the sections, the first opened first. */
+  folded?: { key: string; label: string; sections: readonly ListSection[] }
 }) {
   type Blocks = DashboardBlocks<Section, ListSection>
   const Context = React.createContext<Blocks | null>(null)
@@ -86,58 +80,84 @@ export function makeDashboardBlocks<Section extends string, ListSection extends 
     return <p className="p-3 text-xs text-muted-foreground">This block shows on the {config.dashboard} dashboard.</p>
   }
 
-  const grouped = (section: string) => (config.group?.sections as readonly string[] | undefined)?.includes(section) ?? false
+  const folded = config.folded
+  const isFolded = (section: string) => (folded?.sections as readonly string[] | undefined)?.includes(section) ?? false
+  /** The folded section last shown, which its row opens again. */
+  const remembered: { section: ListSection | null } = { section: null }
 
-  /** The Dashboards block, or with `inGroup` the group's block: the same rows, menu and picking. */
-  function SectionsBlock({ inGroup = false }: { inGroup?: boolean } = {}) {
+  /** A row of the Dashboards block: one section, or the folded ones under one key. */
+  type Row = { key: string; label: string; sections: Section[] }
+
+  /** The Dashboards block: a row per section, the folded ones as one, with its menu and picking. */
+  function SectionsBlock() {
     const blocks = React.useContext(Context)
     const hidden: readonly Section[] = blocks?.hiddenSections ?? []
-    // Every section's order, which a save keeps whole, and this block's share of it.
+    // Every section's order, which a save keeps whole; the folded ones sit where the first of them is.
     const everyOrdered = orderSections(config.sections, blocks?.sectionOrder)
-    const ordered = everyOrdered.filter((section) => grouped(section) === inGroup)
+    const rows: Row[] = []
+    for (const section of everyOrdered) {
+      if (folded && isFolded(section)) {
+        if (!rows.some((row) => row.key === folded.key)) rows.push({ key: folded.key, label: folded.label, sections: everyOrdered.filter(isFolded) })
+      } else rows.push({ key: section, label: config.labels[section], sections: [section] })
+    }
+    const rowHidden = (row: Row) => row.sections.every((section) => hidden.includes(section))
+    const current = blocks ? (folded && isFolded(blocks.section) ? folded.key : blocks.section) : ""
+    const showing = blocks?.section
+    React.useEffect(() => {
+      if (showing && isFolded(showing)) remembered.section = showing as ListSection
+    }, [showing])
     const change = blocks?.onSectionsChange
     useBlockMenu(
       change
-        ? ordered
-            .filter((section) => (config.listSections as readonly string[]).includes(section))
-            .map((section) => {
-              const isHidden = hidden.includes(section)
+        ? rows
+            .filter((row) => row.sections.every((section) => (config.listSections as readonly string[]).includes(section)))
+            .map((row) => {
+              const isHidden = rowHidden(row)
               return {
-                label: config.labels[section],
-                ariaLabel: `${isHidden ? "Show" : "Hide"} ${config.labels[section]}`,
+                label: row.label,
+                ariaLabel: `${isHidden ? "Show" : "Hide"} ${row.label}`,
                 muted: isHidden,
                 keepOpen: true,
                 end: isHidden ? <EyeOffIcon aria-hidden /> : <EyeIcon aria-hidden />,
-                sortKey: section,
+                sortKey: row.key,
                 onSelect: () =>
                   change({
-                    hidden: listOnly(isHidden ? hidden.filter((other) => other !== section) : [...hidden, section]),
+                    hidden: listOnly(isHidden ? hidden.filter((other) => !row.sections.includes(other)) : [...hidden, ...row.sections]),
                     order: listOnly(everyOrdered),
                   }),
               }
             })
         : undefined,
-      // Dragged within this block, kept beside the other block's order.
+      // Dragged rows, each opened back into its sections.
       change
         ? (keys) =>
             change({
               hidden: listOnly(hidden),
-              order: listOnly([...keys, ...everyOrdered.filter((section) => grouped(section) !== inGroup)]),
+              order: listOnly(keys.flatMap((key) => rows.find((row) => row.key === key)?.sections ?? [])),
             })
         : undefined
     )
     if (!blocks) return <NotHere />
     return (
       <DashboardsRows
-        current={blocks.section}
-        onPick={blocks.onPickSection}
-        sections={ordered
-          .filter((section) => section === blocks.section || !hidden.includes(section))
-          .map((section) => ({
-            key: section,
-            label: config.labels[section],
-            value: blocks.counts[section]?.toLocaleString(),
-          }))}
+        current={current}
+        onPick={(key) => {
+          const row = rows.find((one) => one.key === key)
+          if (!row) return
+          const last = remembered.section
+          const open = row.key === folded?.key ? (last && !hidden.includes(last) ? last : row.sections.find((section) => !hidden.includes(section))) : row.sections[0]
+          if (open) blocks.onPickSection(open)
+        }}
+        sections={rows
+          .filter((row) => row.key === current || !rowHidden(row))
+          .map((row) => {
+            const counts = row.sections.map((section) => blocks.counts[section]).filter((count): count is number => count !== null)
+            return {
+              key: row.key,
+              label: row.label,
+              value: counts.length ? counts.reduce((sum, count) => sum + count, 0).toLocaleString() : undefined,
+            }
+          })}
       />
     )
   }
@@ -179,18 +199,7 @@ export function makeDashboardBlocks<Section extends string, ListSection extends 
       })
     : null
 
-  const group = config.group
-  const GroupView = group
-    ? blockView({
-        kind: group.kind,
-        title: group.title,
-        icon: <group.icon />,
-        Draw: () => <SectionsBlock inGroup />,
-        fixed: true,
-      })
-    : null
-
-  /** Dashboards (fixed, never in the "/" list), the group's block when there is one, then Projects under Advanced blocks when there is one. */
+  /** Dashboards (fixed, never in the "/" list), then Projects under Advanced blocks when there is one. */
   const appBlocks: readonly AppBlock[] = [
     {
       key: "promoSections",
@@ -200,18 +209,6 @@ export function makeDashboardBlocks<Section extends string, ListSection extends 
       extension: keepOnPage(blockNode(config.sectionsNode, {}, SectionsView)),
       offered: false,
     },
-    ...(group && GroupView
-      ? [
-          {
-            key: group.key,
-            label: group.title,
-            icon: group.icon,
-            node: group.node,
-            extension: keepOnPage(blockNode(group.node, {}, GroupView)),
-            offered: false,
-          },
-        ]
-      : []),
     ...(projectsBlock && ProjectsView
       ? [
           {

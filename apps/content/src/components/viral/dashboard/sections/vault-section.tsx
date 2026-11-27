@@ -7,7 +7,7 @@ import { EmptyRecord } from "@/components/crm/record-frame"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { SavedViewsControls, SaveViewDialog, type EditFields, type SavedViewsScreen } from "@/components/shared/saved-views"
-import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
@@ -43,7 +43,7 @@ type Data = Extract<ViralLoaded, { section: "vault" }>
  * card on Sent in the Board stays refused: Sent turns on by itself after
  * Send to Video.
  */
-export function VaultSection({ data, search, frame, onChanged }: SectionProps<Data>) {
+export function VaultSection({ data, search, frame, onChanged, tabs }: SectionProps<Data>) {
   const setSearch = useListSearchNavigate()
   const [filterOpen, setFilterOpen] = React.useState(false)
   const [savingView, setSavingView] = React.useState(false)
@@ -175,7 +175,7 @@ export function VaultSection({ data, search, frame, onChanged }: SectionProps<Da
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <ListHeader
-        tabs={<MiddleHeading icon={VaultIcon} label={project?.name ?? "Vault"} />}
+        tabs={tabs}
         end={<PanelReopenButton side="right" label="Show the idea" />}
         menuLabel="More for the vault"
         selected={

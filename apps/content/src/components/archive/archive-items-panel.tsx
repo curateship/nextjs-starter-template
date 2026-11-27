@@ -10,7 +10,6 @@ import {
   UploadIcon,
 } from "lucide-react"
 
-import { ViewMenu } from "@/components/shared/view-menu"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
@@ -42,7 +41,8 @@ import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { ListHeader } from "@/components/content-app/list-header"
-import { ProjectMenuButton, SHRINKING_MENU } from "@/components/content-app/project-top"
+import { ProjectMenuButton } from "@/components/content-app/project-top"
+import { ContentKindMenu } from "@/components/content-app/content-kind-menu"
 import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
 
 /** How often the list asks again while something is still arriving from Video. */
@@ -71,6 +71,7 @@ export function ArchiveItemsPanel({
   onOpen,
   onShown,
   canManage,
+  onDrafts,
 }: {
     projectId: string
     projectName: string
@@ -82,6 +83,8 @@ export function ArchiveItemsPanel({
     onShown?: (ids: string[]) => void
     /** False for a guest from Project: no Bin, no uploads, no select. */
     canManage: boolean
+    /** Opens the project's editor videos, Drafts in the content dropdown; none leaves Drafts out. */
+    onDrafts?: () => void
 }) {
   const [items, setItems] = React.useState<ArchiveCard[] | null>(null)
   const [binCount, setBinCount] = React.useState(0)
@@ -169,7 +172,7 @@ export function ArchiveItemsPanel({
   return (
     <>
       {/* The one list header every dashboard in Content has (`ListHeader`): the project's controls, then
-          the search icon, which kind shows, Filter, the Bin, Add, and the project's ⋮ last. Select is in
+          the search icon, what content shows (`ContentKindMenu`), Filter, the Bin, Add, and the project's ⋮ last. Select is in
           that ⋮, at the top of General (Tyler, 27 Nov 2026, `workspace/tasks/Misc/misc.md`). */}
       <ListHeader
         tabs={
@@ -178,19 +181,14 @@ export function ArchiveItemsPanel({
           </span>
         }
         choices={
-          <span className={SHRINKING_MENU}>
-            <ViewMenu
-              label="Which kind of item"
-              value={search.kind ?? "all"}
-              onValueChange={(value) => onSearch({ kind: value === "all" ? undefined : (value as ArchiveItemKind), open: undefined })}
-              choices={[
-                { value: "all", label: "Every kind" },
-                { value: "video", label: "Videos" },
-                { value: "carousel", label: "Carousels" },
-                { value: "picture", label: "Pictures" },
-              ]}
-            />
-          </span>
+          <ContentKindMenu
+            value={search.kind ?? "all"}
+            drafts={Boolean(onDrafts)}
+            onPick={(next) => {
+              if (next === "drafts") onDrafts?.()
+              else onSearch({ kind: next === "all" ? undefined : next, open: undefined })
+            }}
+          />
         }
         selected={
           selected.size && canManage ? (

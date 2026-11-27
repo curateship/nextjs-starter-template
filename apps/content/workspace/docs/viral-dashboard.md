@@ -1,9 +1,7 @@
 # Vault, Hooks and Formats
 
-In Content these are the three rows of the Viral block on the Projects
-dashboard's left page (`content-app.md`, "The Projects dashboard"; Tyler,
-27 Nov 2026: "should be its own block called "Viral""), and the Viral block
-on each project's page opens them. They were rows of Viral's own dashboard at
+In Content these are the three tabs of the Viral row in the Projects
+dashboard's Dashboards block (`content-app.md`, "The Projects dashboard"; Tyler, 27 Nov 2026: "remove the viral block and add a "Viral" link in the dashboard. Clicking on that link will show 3 middle tabs "Vault, hooks and format""), on the dashboard and on each project's page. They were rows of Viral's own dashboard at
 `/admin/viral`, which went on 27 Nov 2026 with its left page, Overview and
 Projects row; a project's research is on its own page now.
 

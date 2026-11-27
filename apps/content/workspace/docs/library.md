@@ -1,7 +1,7 @@
 # Hooks and Formats
 
 Tyler, 4 Nov 2026: "One Library page", with Hooks and Formats. In Content
-they are two rows of the Projects dashboard's Viral block
+they are two tabs of the Projects dashboard's Viral row
 (`viral-dashboard.md`): they show every project's, the list is in the middle on the shell's table, and the open hook
 or format is on the right in the shell's record frame
 (`src/components/viral/dashboard/sections/hooks-section.tsx` and

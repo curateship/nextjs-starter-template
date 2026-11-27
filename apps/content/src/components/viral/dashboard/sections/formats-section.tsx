@@ -4,7 +4,7 @@ import { LayoutTemplateIcon } from "lucide-react"
 import { ListHeader } from "@/components/content-app/list-header"
 import { CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord } from "@/components/crm/record-frame"
-import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
+import { PanelReopenButton } from "@/components/shared/three-panels"
 import { TableCell } from "@/components/ui/table"
 import type { ViralLoaded } from "@/components/viral/dashboard/load-section"
 import { NoMatches, useOpenFirstRow, type SectionProps } from "@/components/viral/dashboard/section-parts"
@@ -26,7 +26,7 @@ type FormatColumn = "format" | "length" | "saved"
  * otherwise the person's first project does. The Projects block that picked
  * it went on 27 Nov 2026.
  */
-export function FormatsSection({ data, search, frame }: SectionProps<Data>) {
+export function FormatsSection({ data, search, frame, tabs }: SectionProps<Data>) {
   const setSearch = useListSearchNavigate()
   const { projects } = data
   const { scriptPrice } = data.library
@@ -65,7 +65,7 @@ export function FormatsSection({ data, search, frame }: SectionProps<Data>) {
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <ListHeader
-        tabs={<MiddleHeading icon={LayoutTemplateIcon} label="Formats" />}
+        tabs={tabs}
         end={<PanelReopenButton side="right" label="Show the format" />}
         menuLabel="More for formats"
         search={{

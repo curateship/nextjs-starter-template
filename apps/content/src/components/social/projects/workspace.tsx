@@ -112,8 +112,8 @@ function OwnerProjectPage(props: WorkspaceProps) {
 /**
  * The project in the middle and right, under its tab row (`project-top.tsx`):
  *
- * - **Content**, the plain address: All items, the project's Archive, and
- *   Videos (`?content=videos`), its videos ("Inside Content").
+ * - **Content**, the plain address: All content, the project's Archive, and
+ *   Drafts (`?content=videos`), its videos in the editor ("In All content").
  * - **Research**, `/admin/projects/<id>/research`, a route of its own.
  * - **Promote**, `?network=`: a tab per network under the row, and on the
  *   network's own header the Posts / Commenting switch ("A Posts /
@@ -158,7 +158,7 @@ function ProjectPage({
   const pick = React.useMemo(
     () =>
       tab === "content"
-        ? { key: `content:${contentView}`, label: contentView === "videos" ? "Videos" : "All items" }
+        ? { key: `content:${contentView}`, label: contentView === "videos" ? "Drafts" : "All content" }
         : network
           ? { key: `${network}:${side}`, label: NETWORK_NAMES[network] }
           : { key: "promote", label: "Promote" },
@@ -183,19 +183,10 @@ function ProjectPage({
 
   // The tab's own choice, a dropdown after the project's tabs: Content's two, or on Promote the
   // network and its side in one, "Reddit · Posts" and "Reddit · Commenting" (`networkChoices`).
+  // Content has none: its one dropdown, All content to Drafts, is in its lists' own headers (`ContentKindMenu`).
   const sub: ProjectSubChoice | null =
     tab === "content"
-      ? guest
-        ? null
-        : {
-            label: "Which content",
-            value: contentView,
-            choices: [
-              { value: "items", label: "All items", count: view.project.archiveCount },
-              { value: "videos", label: "Videos" },
-            ],
-            onChange: (next: string) => setSearch(next === "videos" ? { ...CONTENT_START, content: "videos" } : CONTENT_START),
-          }
+      ? null
       : network
         ? {
             label: "Which network",
@@ -275,13 +266,28 @@ function ProjectPage({
   if (tab === "content") {
     if (contentView === "videos") {
       return framed(
-        <ProjectColumns left={left} middle={<ProjectVideos projectId={projectId} />} right={null} rightOpen={false} rightLabel="" reopenInHeader>
+        <ProjectColumns
+          left={left}
+          middle={<ProjectVideos projectId={projectId} onKind={(kind) => setSearch({ ...CONTENT_START, kind: kind === "all" ? undefined : kind })} />}
+          right={null}
+          rightOpen={false}
+          rightLabel=""
+          reopenInHeader
+        >
           {dialogs}
         </ProjectColumns>
       )
     }
     return framed(
-      <ProjectArchive projectId={projectId} projectName={view.project.name} canManage={!guest} left={left} search={search} onSearch={setSearch}>
+      <ProjectArchive
+        projectId={projectId}
+        projectName={view.project.name}
+        canManage={!guest}
+        left={left}
+        search={search}
+        onSearch={setSearch}
+        onDrafts={guest ? undefined : () => setSearch({ ...CONTENT_START, content: "videos" })}
+      >
         {dialogs}
       </ProjectArchive>
     )
@@ -460,7 +466,7 @@ const CONTENT_START: ProjectSearch = {
 }
 
 /**
- * Content's All items: the project's own Archive in its middle and right
+ * Content's All content: the project's own Archive in its middle and right
  * columns (part 21), the same panels as the Archive dashboard had, for this
  * project only. A guest from Project sees and posts its items, with nothing
  * to manage (part 33). The first item opens on arrival, as on every
@@ -476,6 +482,7 @@ function ProjectArchive({
   left,
   search,
   onSearch,
+  onDrafts,
   children,
 }: {
   projectId: string
@@ -484,6 +491,8 @@ function ProjectArchive({
   left: React.ReactNode | null
   search: ProjectSearch
   onSearch: (patch: ProjectSearch, options?: { replace?: boolean }) => void
+  /** Drafts in Content's dropdown; none for a guest. */
+  onDrafts?: () => void
   children: React.ReactNode
 }) {
   const [listKey, setListKey] = React.useState(0)
@@ -520,6 +529,7 @@ function ProjectArchive({
           onOpen={pickItem}
           onShown={onShown}
           canManage={canManage}
+          onDrafts={onDrafts}
         />
       }
       right={
