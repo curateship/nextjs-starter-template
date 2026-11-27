@@ -263,8 +263,9 @@ async function checkPicks(
   refuseImportantOnProfile(group, input)
   await refuseThrowawayOnImportantPhone(userId, group, input.phoneId, db)
   await refusePhoneNotReady(userId, input.phoneId, accountId, db)
-  // A phone that lost two accounts to this app, or a proxy that was in one
-  // of its bans, takes no new account of it (Bans task, parts 3 and 5).
+  // A phone that lost two accounts to this app, a browser profile that lost
+  // one, or a proxy or SIM that was in one of its bans, takes no new account
+  // of it (Bans task, parts 3 and 5).
   await refuseBannedPlace(userId, input, platform, accountId, db)
 
   if (input.phoneId) {

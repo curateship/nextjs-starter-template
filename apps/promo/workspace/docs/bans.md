@@ -24,8 +24,13 @@ ban, and accounts in trouble slow down before they are lost. The task is
 - **Slow restart:** half pace for 7 days after "Let it run again".
 - **Neighbours go easy:** every account on the same phone, proxy or SIM goes
   at half pace for 2 days.
-- **A banned proxy is refused for that app. A banned SIM only warns,**
-  because a new SIM takes a trip to the shop.
+- **A banned proxy is refused for that app.**
+- **A banned SIM is refused for that app** (26 Nov 2026: "It should
+  refuse"). It only warned before, because a new SIM takes a trip to the
+  shop.
+- **A browser profile that held a banned account is refused for that app**
+  after one ban (26 Nov 2026, Tyler's pick: refuse new YouTube channels on that
+  profile).
 - **At risk** counts shadowbanned, hidden reach, a "confirm it's you" or
   locked screen in the last 7 days, and a neighbour banned in the last 2
   days.
@@ -94,9 +99,22 @@ Instagram twice".
   proxy was in a counted ban of an app takes no new account of that app
   until it is on a different proxy. The words name the proxy and where to
   pick another.
-- **A banned SIM warns.** A SIM phone whose number was in a counted ban of an
-  app says "This SIM was used by a banned Instagram account" when it takes a
-  new one, and saving still goes through. An empty SIM number never matches.
+- **A banned SIM is refused.** A SIM phone whose number was in a counted ban
+  of an app takes no new account of that app until it has another SIM: "This
+  SIM was used by a banned Instagram account. Put another SIM in the phone
+  and type its number on the phone's Settings tab before it takes an
+  Instagram account." The phone pickers still list it, with "its SIM was in
+  an Instagram ban" beside it. It stays open to other apps, and an empty SIM
+  number never matches.
+- **So a SIM phone is kept off after one ban.** The phone's own SIM was in the
+  ban, so the phone refuses that app until the SIM is changed, even though
+  the phone's own count only warns after one.
+- **A banned browser profile is refused.** A browser profile that held an
+  account lost to a counted ban of an app takes no new account of that app:
+  "This browser profile held a banned YouTube account. Use another browser
+  profile for YouTube." Clean up still keeps the profile, and it stays open to
+  other apps. The refusal shows when saving where an account runs; the
+  profile pickers do not mark it in advance.
 - **Finding usable phones.** The "Banned on" filter in the Anti Detect dashboard's Phones lives
   in the address as `?banned=instagram`, and the back button undoes it. The
   Map draws a ban mark on each slot with a ban, naming the apps on hover.

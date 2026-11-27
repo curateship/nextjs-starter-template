@@ -188,16 +188,34 @@ describe("bans", () => {
       await expect(addAccount(userId, { profileId: null, phoneId: A1, voiceId: null, platform: "instagram" }, db)).resolves.toBeTruthy()
     })
 
-    it("a SIM in a ban only warns, and an empty SIM number never matches", async () => {
+    it("refuses a SIM in a ban for that app until the phone has another SIM, and an empty SIM number never matches", async () => {
       const { A1, B2, C3 } = await plugIn(T0, "A1", "B2", "C3")
       await db.update(promoPhones).set({ simNumber: "+1 555 0100" }).where(eq(promoPhones.id, A1))
       await account(A1, "instagram", "simmed")
       await ban(A1, "instagram", hours(1))
       // The SIM moved to B2.
       await db.update(promoPhones).set({ simNumber: "+1 555 0100" }).where(eq(promoPhones.id, B2))
+      const words =
+        "This SIM was used by a banned Instagram account. Put another SIM in the phone and type its number on the phone's Settings tab before it takes an Instagram account."
       const onB = await placeBanCheck(userId, { phoneId: B2, profileId: null }, "instagram", db)
-      expect(onB).toEqual({ refusal: null, warnings: ["This SIM was used by a banned Instagram account."], note: "its SIM was in an Instagram ban" })
-      expect((await placeBanCheck(userId, { phoneId: C3, profileId: null }, "instagram", db)).warnings).toEqual([])
+      expect(onB).toEqual({ refusal: words, warnings: [], note: "its SIM was in an Instagram ban" })
+      await expect(addAccount(userId, { profileId: null, phoneId: B2, voiceId: null, platform: "instagram" }, db)).rejects.toThrow(words)
+      await expect(addAccount(userId, { profileId: null, phoneId: B2, voiceId: null, platform: "tiktok" }, db)).resolves.toBeTruthy()
+      await db.update(promoPhones).set({ simNumber: "+1 555 0199" }).where(eq(promoPhones.id, B2))
+      await expect(addAccount(userId, { profileId: null, phoneId: B2, voiceId: null, platform: "instagram" }, db)).resolves.toBeTruthy()
+      expect(await placeBanCheck(userId, { phoneId: C3, profileId: null }, "instagram", db)).toEqual({ refusal: null, warnings: [], note: "" })
+    })
+
+    it("refuses a browser profile for an app after one lost account of it, and keeps it open to the others", async () => {
+      const profileId = await createProfile(userId, { name: "Persona" }, db)
+      const lost = await addAccount(userId, { profileId, phoneId: null, voiceId: null, platform: "youtube" }, db)
+      await db.update(promoAccounts).set({ handle: "lost", banScreenAt: T0 }).where(eq(promoAccounts.id, lost))
+      await recordBan(userId, { accountId: lost, kind: "suspended", words: "This channel was terminated" }, db, T0)
+      await cleanUpBan(userId, lost, db, hours(1))
+      const words = "This browser profile held a banned YouTube account. Use another browser profile for YouTube."
+      expect((await placeBanCheck(userId, { phoneId: null, profileId }, "youtube", db)).refusal).toBe(words)
+      await expect(addAccount(userId, { profileId, phoneId: null, voiceId: null, platform: "youtube" }, db)).rejects.toThrow(words)
+      await expect(addAccount(userId, { profileId, phoneId: null, voiceId: null, platform: "reddit" }, db)).resolves.toBeTruthy()
     })
   })
 

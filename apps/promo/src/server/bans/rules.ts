@@ -20,8 +20,9 @@ import { promoAppBrakes, promoBans } from "./schema"
  * What a ban leaves behind, read back (Bans task, parts 3, 5, 11, 13, 20, 21,
  * 23 and 24). Only rows are read here; nothing is written.
  *
- * Only the kinds in `COUNTED_BAN_KINDS` mark a phone, a proxy or a SIM. A ban
- * that was let run again still counts, because the app still saw it.
+ * Only the kinds in `COUNTED_BAN_KINDS` mark a phone, a browser profile, a
+ * proxy or a SIM. A ban that was let run again still counts, because the app
+ * still saw it.
  */
 
 /**
@@ -52,6 +53,17 @@ export async function proxyBanCounts(userId: string, proxyIds: string[] | null, 
     .from(promoBans)
     .where(and(eq(promoBans.userId, userId), counted, isNotNull(promoBans.proxyId), ...(proxyIds ? [inArray(promoBans.proxyId, proxyIds)] : [])))
     .groupBy(promoBans.proxyId, promoBans.app)
+  return gather(rows)
+}
+
+/** Counted bans per browser profile and app (Tyler, 26 Nov 2026). */
+async function profileBanCounts(userId: string, profileIds: string[], db: CustomShellDb = defaultDb): Promise<Map<string, BanCounts>> {
+  if (!profileIds.length) return new Map()
+  const rows = await db
+    .select({ place: promoBans.profileId, app: promoBans.app, count: sql<number>`count(DISTINCT coalesce(${promoBans.accountId}, ${promoBans.id}))::int` })
+    .from(promoBans)
+    .where(and(eq(promoBans.userId, userId), counted, inArray(promoBans.profileId, profileIds)))
+    .groupBy(promoBans.profileId, promoBans.app)
   return gather(rows)
 }
 
@@ -103,10 +115,12 @@ export type PlaceBanCheck = {
  *
  * - the phone after one counted ban of the app warns, after two it is
  *   refused for that app and stays open to the others;
+ * - a browser profile that held an account lost to a counted ban of the
+ *   app is refused for that app after one, and stays open to the others;
  * - a proxy that was in a counted ban of the app is refused for that app,
  *   on a Wi-Fi phone and on a browser profile alike;
- * - a SIM that was in a counted ban of the app warns, because a new SIM is a
- *   trip to the shop (Tyler, 3 Nov 2026).
+ * - a SIM that was in a counted ban of the app is refused for that app until
+ *   the phone has another SIM (Tyler, 26 Nov 2026: "It should refuse").
  */
 export async function placeBanCheck(
   userId: string,
@@ -129,9 +143,11 @@ export async function placeBanCheck(
     .from(promoProfiles)
     .where(and(eq(promoProfiles.id, place.profileId), eq(promoProfiles.userId, userId)))
     .limit(1)
-  const proxyId = profile?.proxyId ?? null
+  if (!profile) return { refusal: null, warnings: [], note: "" }
+  const proxyId = profile.proxyId ?? null
   const proxy = proxyId && ((await proxyBanCounts(userId, [proxyId], db)).get(proxyId)?.[app] ?? 0) > 0 ? await proxyName(proxyId, db) : null
-  return describePlace(app, { phoneCount: 0, simBanned: false, proxy, proxyOn: "profile" })
+  const profileCount = (await profileBanCounts(userId, [place.profileId], db)).get(place.profileId)?.[app] ?? 0
+  return describePlace(app, { phoneCount: 0, profileCount, simBanned: false, proxy, proxyOn: "profile" })
 }
 
 type PhonePlace = { id: string; proxyId: string | null; connection: string; simNumber: string }
@@ -157,6 +173,7 @@ export async function phonesBanChecks(userId: string, phones: readonly PhonePlac
       phone.id,
       describePlace(app, {
         phoneCount: byPhone.get(phone.id)?.[app] ?? 0,
+        profileCount: 0,
         simBanned: Boolean(sim && (bySim.get(sim)?.[app] ?? 0) > 0),
         proxy: proxyBanned && proxyId ? await proxyName(proxyId, db) : null,
         proxyOn: "phone",
@@ -174,7 +191,7 @@ async function proxyName(proxyId: string, db: CustomShellDb): Promise<string> {
 /** The words for one place, from what its bans add up to. One place for them, so the picker and the refusal never differ. */
 function describePlace(
   app: string,
-  found: { phoneCount: number; simBanned: boolean; proxy: string | null; proxyOn: "phone" | "profile" }
+  found: { phoneCount: number; profileCount: number; simBanned: boolean; proxy: string | null; proxyOn: "phone" | "profile" }
 ): PlaceBanCheck {
   const name = appName(app)
   const article = isNetwork(app) ? aNetwork(app).split(" ")[0] : "a"
@@ -188,8 +205,12 @@ function describePlace(
     warnings.push(`Banned on ${name} ${timesWords(found.phoneCount)}.`)
     notes.push(`banned on ${name} ${timesWords(found.phoneCount)}`)
   }
+  if (found.profileCount > 0) {
+    refusal = `This browser profile held a banned ${name} account. Use another browser profile for ${name}.`
+    notes.push(`held a banned ${name} account`)
+  }
   if (found.simBanned) {
-    warnings.push(`This SIM was used by a banned ${name} account.`)
+    refusal ??= `This SIM was used by a banned ${name} account. Put another SIM in the phone and type its number on the phone's Settings tab before it takes ${article} ${name} account.`
     notes.push(`its SIM was in ${article} ${name} ban`)
   }
   if (!refusal && found.proxy) {
