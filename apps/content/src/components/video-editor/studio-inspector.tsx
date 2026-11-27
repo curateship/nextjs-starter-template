@@ -1,0 +1,1910 @@
+import * as React from "react"
+import {
+  Loader2Icon,
+  Replace,
+  RotateCcw,
+  SlidersHorizontal,
+} from "lucide-react"
+import { toast } from "sonner"
+
+import {
+  ColorField,
+  FieldLabel,
+  InspectorCard,
+  SliderField,
+  SwitchField,
+} from "@/components/broadcasts/inspector-fields"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Slider } from "@/components/ui/slider"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  DEFAULT_TIMER_COLOR,
+  DEFAULT_TIMER_FONT,
+  DEFAULT_TIMER_LINE_WIDTH,
+  isTimerClip,
+  TIMER_LABEL_MAX,
+} from "@/lib/video/timer"
+import {
+  CLIP_SPEED_STEP,
+  CLIP_VOLUME_STEP,
+  clipSpeed,
+  clipVolume,
+  DEFAULT_CLIP_VOLUME,
+  MAX_CLIP_SPEED,
+  MAX_CLIP_VOLUME,
+  MIN_CLIP_SPEED,
+  MIN_CLIP_VOLUME,
+  sourceSpanMs,
+  storedPlaybackValue,
+} from "@/lib/video/clip-playback"
+import {
+  clipFillFocus,
+  clipFit,
+  CLIP_FIT_OPTIONS,
+  storedClipFit,
+  storedFillFocus,
+  type ClipFit,
+} from "@/lib/video/clip-frame-fit"
+import {
+  CLIP_SCALE_STEP,
+  clipScale,
+  MAX_CLIP_SCALE,
+  MIN_CLIP_SCALE,
+  storedClipScale,
+} from "@/lib/video/clip-size"
+import {
+  layoutPatches,
+  splitPartner,
+  VIDEO_LAYOUTS,
+  type VideoLayoutId,
+} from "@/lib/video/video-layouts"
+import { usePlatformInset } from "@/components/video-editor/caption-settings-context"
+import {
+  retryCleanSound,
+  useCleanSounds,
+} from "@/components/video-editor/sound-tool-store"
+import {
+  cleanSoundKey,
+  DEFAULT_VOICE_CLEAN,
+  VOICE_CLEAN_OPTIONS,
+  type VoiceCleanStrength,
+} from "@/lib/video/voice-clean"
+import {
+  MAX_PROGRESS_BAR_THICKNESS,
+  MIN_PROGRESS_BAR_THICKNESS,
+  newProgressBar,
+  PROGRESS_BAR_EDGE_OPTIONS,
+  type ProgressBar,
+  type ProgressBarEdge,
+} from "@/lib/video/progress-bar"
+import {
+  DEFAULT_SHAPE_COLOR,
+  MAX_SHAPE_LINE_WIDTH,
+  MIN_SHAPE_LINE_WIDTH,
+  SHAPE_KINDS,
+  SHAPE_LABELS,
+  shapeLineWidth,
+  type ShapeKind,
+} from "@/lib/video/shapes"
+import {
+  BLUR_SHAPE_LABELS,
+  BLUR_SHAPES,
+  blurShape,
+  blurStrength,
+  isBlurClip,
+  MAX_BLUR_STRENGTH,
+  MIN_BLUR_STRENGTH,
+  type BlurShape,
+} from "@/lib/video/blur"
+import { BlurFollowCard, ItemFollowCard } from "@/components/video-editor/blur-follow-card"
+import { SocialStickerCards } from "@/components/video-editor/social-sticker-inspector"
+import { AdInspectorCard } from "@/components/video-editor/ad-inspector-card"
+import {
+  InspectorCollapseAllButton,
+  InspectorCollapseAllProvider,
+  useInspectorCollapseAll,
+} from "@/components/shared/inspector-card"
+import { ColourLookField } from "@/components/video-editor/colour-look-field"
+import {
+  canTakeFrameShape,
+  clipCornerShare,
+  clipFrameBorder,
+  clipFrameShape,
+  DEFAULT_FRAME_BORDER,
+  DEFAULT_FRAME_BORDER_COLOR,
+  FRAME_SHAPE_LABELS,
+  FRAME_SHAPES,
+  MAX_CORNER_SHARE,
+  MAX_FRAME_BORDER,
+  MIN_CORNER_SHARE,
+  MIN_FRAME_BORDER,
+  squareBox,
+  type FrameShape,
+} from "@/lib/video/clip-frame-shape"
+import { isSocialClip } from "@/lib/video/social-stickers"
+import {
+  CLIP_COLOUR_STEP,
+  clipColour,
+  isColourTouched,
+  MAX_CLIP_BRIGHTNESS,
+  MAX_CLIP_CONTRAST,
+  MAX_CLIP_SATURATION,
+  MIN_CLIP_BRIGHTNESS,
+  MIN_CLIP_CONTRAST,
+  MIN_CLIP_SATURATION,
+  UNTOUCHED_COLOUR,
+  type ClipColour,
+} from "@/lib/video/clip-colour"
+import {
+  clipMotion,
+  CLIP_MOTION_OPTIONS,
+  type ClipMotion,
+} from "@/lib/video/clip-motion"
+import {
+  CAPTION_ANIMATIONS,
+  resolveCaptionAnimation,
+} from "@/lib/video/caption-animations"
+import {
+  clampTransitionMs,
+  DEFAULT_TRANSITION_MS,
+  isTransitionableKind,
+  MAX_TRANSITION_MS,
+  MIN_TRANSITION_MS,
+  precedingClipOnTrack,
+  TRANSITION_ADJACENCY_EPS_MS,
+  TRANSITION_OPTIONS,
+  type TransitionKind,
+} from "@/lib/video/clip-transitions"
+import {
+  FADE_SLIDER_MAX,
+  FADE_SLIDER_OFF,
+  FADE_SLIDER_STEP,
+  fadeSliderValue,
+  fitFadePair,
+  formatFade,
+  pictureFadesOverruled,
+  storedFade,
+  type FadePair,
+} from "@/lib/video/clip-fades"
+import {
+  captionWordsMatchTimes,
+  DEFAULT_CAPTION_WORD_COLOR,
+} from "@/lib/video/caption-words"
+import {
+  requireTextFont,
+  TEXT_FONTS,
+  type TextFontId,
+} from "@/lib/video/text-fonts"
+import {
+  DEFAULT_TEXT_STROKE_COLOR,
+  DEFAULT_TEXT_STROKE_WIDTH,
+  TEXT_STROKE_WIDTH_MAX,
+} from "@/lib/video/text-lines"
+import { formatClock, MIN_CLIP_MS } from "@/lib/video/timeline-utils"
+import { cn } from "@/lib/utils"
+import { MakeItMoveCard } from "@/components/video-editor/moving-stills"
+import { RemakeCard } from "@/components/video-editor/remake-clips"
+import { ZoomInspectorCard } from "@/components/video-editor/zoom-inspector-card"
+import { AiBudgetCard } from "@/components/video-editor/ai-budget-indicator"
+import { formatCents } from "@/lib/video/project-spend"
+import { useProjectGuest } from "@/components/video-editor/project-guest"
+import { useProjectSettings } from "@/components/video-editor/project-settings-context"
+import { SteadyInspectorCard } from "@/components/video-editor/steady-inspector-card"
+import {
+  ReplaceMediaDialog,
+  type ReplacementMedia,
+} from "@/components/video-editor/replace-media-dialog"
+import {
+  findClip,
+  useEditorDurationMs,
+  useEditorRuntime,
+  useEditorSelector,
+  type AspectRatio,
+  type EditorClip,
+} from "@/components/video-editor/editor-store"
+
+/**
+ * The right-hand panel: what the selected clip is, and every setting on it.
+ * With nothing selected it shows the video's stats and the AI budget instead.
+ *
+ * It is built from the app's own options-panel parts — the same cards, sliders,
+ * colour rows and switches the newsletter editor uses — so a setting here looks
+ * and behaves like a setting anywhere else in the app.
+ */
+
+const CLIP_KIND_LABEL: Record<EditorClip["kind"], string> = {
+  video: "Video",
+  audio: "Audio",
+  image: "Picture",
+  text: "Text",
+  shape: "Shape",
+}
+
+export function StudioInspector() {
+  const clip = useEditorSelector((state) =>
+    state.selectedClipId
+      ? (findClip(state.tracks, state.selectedClipId)?.clip ?? null)
+      : null
+  )
+  // Shuts or opens every card at once (Tyler, 4 Nov 2026: "add an icon in the
+  // inspector panel to collapse and uncollapse all the cards at once"). The
+  // shell's own button, as the page editor's panel uses it.
+  const collapseAll = useInspectorCollapseAll()
+
+  return (
+    <div data-screen-label="Inspector" className="flex h-full min-h-0 flex-col">
+      <DashboardCardTitleHeader
+        icon={<SlidersHorizontal className="size-4" />}
+        title={
+          clip
+            ? isBlurClip(clip)
+              ? "Blur"
+              : isSocialClip(clip)
+                ? "Sticker"
+                : isTimerClip(clip)
+                  ? "Timer"
+                  : CLIP_KIND_LABEL[clip.kind]
+            : "Inspector"
+        }
+        meta={clip ? clip.name : undefined}
+        action={
+          <InspectorCollapseAllButton
+            nextOpen={collapseAll.nextOpen}
+            onPress={() => collapseAll.setAll(collapseAll.nextOpen)}
+          />
+        }
+      />
+
+      <InspectorCollapseAllProvider signal={collapseAll.signal}>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="grid auto-rows-min gap-3 p-3">
+          {clip?.ad ? <AdInspectorCard clip={clip} /> : null}
+          {!clip ? (
+            <ProjectProps />
+          ) : clip.kind === "text" ? (
+            <TextInspector clip={clip} />
+          ) : isBlurClip(clip) ? (
+            <BlurInspector clip={clip} />
+          ) : isSocialClip(clip) ? (
+            <>
+              <SocialStickerCards clip={clip} />
+              <FadesSection clip={clip} />
+              <Timing clip={clip} />
+            </>
+          ) : isTimerClip(clip) ? (
+            <TimerInspector clip={clip} />
+          ) : clip.kind === "shape" ? (
+            <ShapeInspector clip={clip} />
+          ) : (
+            <MediaInspector clip={clip} />
+          )}
+          {clip && !clip.ad && !isBlurClip(clip) ? <ItemFollowCard clip={clip} /> : null}
+        </div>
+      </ScrollArea>
+      </InspectorCollapseAllProvider>
+    </div>
+  )
+}
+
+/**
+ * Facts about the project or clip: name on the left, value on the right.
+ *
+ * They sit close together on purpose. The gap a card puts between its fields
+ * is right for things you type into and wrong for a list of one-line facts,
+ * which drift apart and stop reading as one thing.
+ */
+function ReadOnlyRows({ rows }: { rows: [string, string][] }) {
+  return (
+    <div className="grid gap-2">
+      {rows.map(([label, value]) => (
+        <div key={label} className="flex items-baseline justify-between gap-3">
+          <span className="text-[15px] font-medium">{label}</span>
+          <span className="text-[15px] text-muted-foreground tabular-nums">
+            {value}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const RESOLUTION: Record<AspectRatio, string> = {
+  "9:16": "1080 × 1920",
+  "16:9": "1920 × 1080",
+  "1:1": "1080 × 1080",
+  "4:3": "1440 × 1080",
+}
+
+/**
+ * The inspector with no clip picked: the video's stats and this month's AI
+ * budget. Tyler, 5 Nov 2026: "This panel should now show all the video
+ * stats. Move this Ai stats there", after taking off the "Select a clip"
+ * line, the Project card and the Progress bar card shown by default. The
+ * Progress bar card shows only once the Elements panel has put a bar on the
+ * video, since its settings live nowhere else.
+ */
+function ProjectProps() {
+  const guest = useProjectGuest() !== null
+  const bar = useEditorSelector((state) => state.progressBar)
+  return (
+    <>
+      <VideoStatsCard />
+      {/* A guest sent from Project uses no AI and sees no spending. */}
+      {guest ? null : <AiBudgetCard />}
+      {bar ? <ProgressBarCard /> : null}
+    </>
+  )
+}
+
+/** Everything about the open video at a glance, its AI spending included. */
+function VideoStatsCard() {
+  const durationMs = useEditorDurationMs()
+  const aspect = useEditorSelector((state) => state.aspect)
+  const tracks = useEditorSelector((state) => state.tracks)
+  const guest = useProjectGuest() !== null
+  const { spend } = useProjectSettings()
+  const clips = tracks.reduce((sum, track) => sum + track.clips.length, 0)
+
+  return (
+    <InspectorCard title="This video">
+      <ReadOnlyRows
+        rows={[
+          ["Shape", aspect],
+          ["Size", RESOLUTION[aspect]],
+          ["Length", formatClock(durationMs)],
+          ["Clips", String(clips)],
+          ["Lanes", String(tracks.length)],
+        ]}
+      />
+      {spend && !guest ? (
+        <div className="grid gap-2">
+          <ReadOnlyRows
+            rows={[
+              ["AI spent", formatCents(spend.total_cents)],
+              ["Spend limit", spend.limit_cents === null ? "None" : formatCents(spend.limit_cents)],
+              ["Whole project", formatCents(spend.project_total_cents)],
+            ]}
+          />
+          {spend.by_tool.length ? (
+            <ul className="grid gap-1" aria-label="AI spent on this video, by tool">
+              {spend.by_tool.map((line) => (
+                <li key={line.label} className="flex items-baseline justify-between gap-3 text-sm text-muted-foreground">
+                  <span className="truncate">{line.label}</span>
+                  <span className="tabular-nums">{formatCents(line.cents)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </InspectorCard>
+  )
+}
+
+/**
+ * The bar along one edge that fills as the video plays. It belongs to the
+ * project, so it is set here with no clip picked. The Elements panel's Progress
+ * bar button is the other way to switch it on.
+ */
+function ProgressBarCard() {
+  const { dispatch } = useEditorRuntime()
+  const bar = useEditorSelector((state) => state.progressBar)
+  const inset = usePlatformInset()
+
+  function set(next: ProgressBar | null) {
+    dispatch({ type: "SET_PROGRESS_BAR", progressBar: next })
+  }
+
+  return (
+    <InspectorCard
+      title="Progress bar"
+      description="A thin bar that fills as the video plays."
+    >
+      <SwitchField
+        id="progress-bar-on"
+        label="Show a progress bar"
+        description="It runs the whole length of the video."
+        checked={!!bar}
+        onChange={(on) => set(on ? newProgressBar(inset.bottom) : null)}
+      />
+      {bar ? (
+        <>
+          <Tabs
+            value={bar.edge}
+            onValueChange={(edge) =>
+              set({
+                ...bar,
+                edge: edge as ProgressBarEdge,
+                // Kept clear of the platform's strip on whichever edge it moves to.
+                inset: newProgressBar(edge === "top" ? inset.top : inset.bottom).inset,
+              })
+            }
+          >
+            <TabsList aria-label="Which edge the bar runs along">
+              {PROGRESS_BAR_EDGE_OPTIONS.map((option) => (
+                <TabsTrigger key={option.id} value={option.id}>
+                  {option.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <ColorField
+            label="Colour"
+            value={bar.color}
+            onChange={(color) => set({ ...bar, color })}
+          />
+          <SliderField
+            id="progress-bar-thickness"
+            label="Thickness"
+            value={bar.thickness}
+            min={MIN_PROGRESS_BAR_THICKNESS}
+            max={MAX_PROGRESS_BAR_THICKNESS}
+            onChange={(thickness) => set({ ...bar, thickness })}
+          />
+        </>
+      ) : null}
+    </InspectorCard>
+  )
+}
+
+/**
+ * An arrow or a circle drawn over the video. It is moved on the preview: the
+ * box round it drags the whole shape, and the two dots drag its ends.
+ */
+function ShapeInspector({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+
+  function patch(next: Partial<EditorClip>, transient = false) {
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: next, transient })
+  }
+
+  return (
+    <>
+      <InspectorCard
+        title="Shape"
+        description="Drag it on the preview, or drag a dot to move one end."
+      >
+        <Tabs
+          value={clip.shape ?? "arrow"}
+          onValueChange={(shape) =>
+            patch({ shape: shape as ShapeKind, name: SHAPE_LABELS[shape as ShapeKind] })
+          }
+        >
+          <TabsList aria-label="Which shape">
+            {SHAPE_KINDS.map((kind) => (
+              <TabsTrigger key={kind} value={kind}>
+                {SHAPE_LABELS[kind]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <ColorField
+          label="Colour"
+          value={clip.color ?? DEFAULT_SHAPE_COLOR}
+          onChange={(color) => patch({ color }, true)}
+        />
+        <SliderField
+          id="shape-line-width"
+          label="Line thickness"
+          value={shapeLineWidth(clip)}
+          min={MIN_SHAPE_LINE_WIDTH}
+          max={MAX_SHAPE_LINE_WIDTH}
+          onChange={(lineWidth) => patch({ lineWidth }, true)}
+        />
+        <SwitchField
+          id="shape-draw-on"
+          label="Draws itself on"
+          description="Over its first half second. Off, it is simply there."
+          checked={!!clip.drawOn}
+          onChange={(drawOn) => patch({ drawOn: drawOn || undefined })}
+        />
+      </InspectorCard>
+
+      <FadesSection clip={clip} />
+
+      <Timing clip={clip} />
+    </>
+  )
+}
+
+/**
+ * A timer (timer.md): it counts down over its own length, so making it
+ * longer on the timeline is what sets its time. Dragged and resized on the
+ * preview like a circle.
+ */
+function TimerInspector({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+
+  function patch(next: Partial<EditorClip>, transient = false) {
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: next, transient })
+  }
+
+  return (
+    <>
+      <InspectorCard
+        title="Timer"
+        description="Counts down over its own length on the timeline. Drag it on the preview, or a dot to resize it."
+      >
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="timer-above">Words above the time</FieldLabel>
+          <Textarea
+            id="timer-above"
+            rows={1}
+            maxLength={TIMER_LABEL_MAX}
+            value={clip.timerAbove ?? ""}
+            placeholder="FOCUS"
+            onChange={(event) => patch({ timerAbove: event.target.value || undefined })}
+          />
+        </div>
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="timer-below">Words below the time</FieldLabel>
+          <Textarea
+            id="timer-below"
+            rows={1}
+            maxLength={TIMER_LABEL_MAX}
+            value={clip.timerBelow ?? ""}
+            placeholder="Round 1/6"
+            onChange={(event) => patch({ timerBelow: event.target.value || undefined })}
+          />
+        </div>
+        <SwitchField
+          id="timer-up"
+          label="Count up"
+          description="From 00:00 instead of down to it."
+          checked={!!clip.timerUp}
+          onChange={(on) => patch({ timerUp: on || undefined })}
+        />
+        <SwitchField
+          id="timer-ring"
+          label="Ring"
+          description="A ring round the time that empties as it runs."
+          checked={clip.timerRing !== false}
+          onChange={(on) => patch({ timerRing: on ? undefined : false })}
+        />
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="timer-font">Font</FieldLabel>
+          <Select
+            value={requireTextFont(clip.fontId ?? DEFAULT_TIMER_FONT).id}
+            onValueChange={(fontId) => patch({ fontId: requireTextFont(fontId as TextFontId).id })}
+          >
+            <SelectTrigger id="timer-font" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TEXT_FONTS.map((font) => (
+                <SelectItem key={font.id} value={font.id} style={{ fontFamily: font.family }}>
+                  {font.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <ColorField
+          label="Colour"
+          value={clip.color ?? DEFAULT_TIMER_COLOR}
+          onChange={(color) => patch({ color }, true)}
+        />
+        {clip.timerRing !== false ? (
+          <SliderField
+            id="timer-line-width"
+            label="Ring thickness"
+            value={clip.lineWidth ?? DEFAULT_TIMER_LINE_WIDTH}
+            min={MIN_SHAPE_LINE_WIDTH}
+            max={MAX_SHAPE_LINE_WIDTH}
+            onChange={(lineWidth) => patch({ lineWidth }, true)}
+          />
+        ) : null}
+      </InspectorCard>
+
+      <FadesSection clip={clip} />
+
+      <Timing clip={clip} />
+    </>
+  )
+}
+
+/**
+ * A blur over one spot (blur.md). It is moved on the preview like a circle:
+ * the box drags it whole, and the two dots drag its corners.
+ */
+function BlurInspector({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+
+  function patch(next: Partial<EditorClip>, transient = false) {
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: next, transient })
+  }
+
+  return (
+    <>
+      <InspectorCard
+        title="Blur"
+        description="Drag it over what should not show, or drag a dot to resize it."
+      >
+        <Tabs
+          value={blurShape(clip)}
+          onValueChange={(shape) => patch({ blurShape: shape as BlurShape })}
+        >
+          <TabsList aria-label="Blur shape">
+            {BLUR_SHAPES.map((shape) => (
+              <TabsTrigger key={shape} value={shape}>
+                {BLUR_SHAPE_LABELS[shape]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <SliderField
+          id="blur-strength"
+          label="Strength"
+          value={blurStrength(clip)}
+          min={MIN_BLUR_STRENGTH}
+          max={MAX_BLUR_STRENGTH}
+          onChange={(blurStrength) => patch({ blurStrength }, true)}
+        />
+      </InspectorCard>
+
+      <BlurFollowCard clip={clip} />
+
+      <FadesSection clip={clip} />
+
+      <Timing clip={clip} />
+    </>
+  )
+}
+
+function TextInspector({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+
+  function patch(next: Partial<EditorClip>) {
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: clip.id,
+      patch: next,
+      transient: true,
+    })
+  }
+
+  const boxed = !!clip.highlightColor
+  const outlined = !!clip.strokeColor && !!clip.strokeWidth
+
+  return (
+    <>
+      <InspectorCard
+        title="The words"
+        description="What this appears as on the picture."
+      >
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="clip-text">Words on it</FieldLabel>
+          <Textarea
+            id="clip-text"
+            rows={1}
+            value={clip.text ?? ""}
+            onChange={(event) => patch({ text: event.target.value })}
+          />
+        </div>
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="clip-font">Font</FieldLabel>
+          <Select
+            value={requireTextFont(clip.fontId).id}
+            onValueChange={(fontId) =>
+              patch({ fontId: requireTextFont(fontId as TextFontId).id })
+            }
+          >
+            <SelectTrigger id="clip-font" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TEXT_FONTS.map((font) => (
+                <SelectItem
+                  key={font.id}
+                  value={font.id}
+                  style={{ fontFamily: font.family }}
+                >
+                  {font.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <SliderField
+          id="clip-font-size"
+          label="Size"
+          value={clip.fontSize ?? 78}
+          min={40}
+          max={140}
+          onChange={(fontSize) => patch({ fontSize })}
+        />
+        <ColorField
+          label="Colour"
+          value={clip.color ?? "#ffffff"}
+          onChange={(color) => patch({ color })}
+        />
+        <SwitchField
+          id="clip-outline"
+          label="Outline"
+          description="A line round each letter."
+          checked={outlined}
+          onChange={(on) =>
+            patch(
+              on
+                ? {
+                    strokeColor: DEFAULT_TEXT_STROKE_COLOR,
+                    strokeWidth: DEFAULT_TEXT_STROKE_WIDTH,
+                  }
+                : { strokeColor: undefined, strokeWidth: undefined }
+            )
+          }
+        />
+        {outlined ? (
+          <>
+            <ColorField
+              label="Outline colour"
+              value={clip.strokeColor ?? DEFAULT_TEXT_STROKE_COLOR}
+              onChange={(strokeColor) => patch({ strokeColor })}
+            />
+            <SliderField
+              id="clip-outline-width"
+              label="Outline thickness"
+              value={clip.strokeWidth ?? DEFAULT_TEXT_STROKE_WIDTH}
+              min={1}
+              max={TEXT_STROKE_WIDTH_MAX}
+              onChange={(strokeWidth) => patch({ strokeWidth })}
+            />
+          </>
+        ) : null}
+      </InspectorCard>
+
+      <InspectorCard
+        title="How it arrives"
+        description="What the words do the moment they appear."
+      >
+        <div className="grid gap-2.5">
+          <FieldLabel htmlFor="clip-animation">Entrance</FieldLabel>
+          <Select
+            value={resolveCaptionAnimation(clip.animation)}
+            onValueChange={(animation) =>
+              patch({ animation: resolveCaptionAnimation(animation) })
+            }
+          >
+            <SelectTrigger id="clip-animation" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CAPTION_ANIMATIONS.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label} - {option.description}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </InspectorCard>
+
+      {clip.wordTimes?.length ? <WordByWord clip={clip} /> : null}
+
+      <FadesSection clip={clip} />
+
+      <InspectorCard title="Behind it">
+        <SwitchField
+          id="clip-highlight"
+          label="Highlight box"
+          description="A block of colour behind the words."
+          checked={boxed}
+          onChange={(on) => patch({ highlightColor: on ? "#111827" : undefined })}
+        />
+        {boxed ? (
+          <ColorField
+            label="Box colour"
+            value={clip.highlightColor ?? "#111827"}
+            onChange={(highlightColor) => patch({ highlightColor })}
+          />
+        ) : null}
+      </InspectorCard>
+
+      <Timing clip={clip} />
+    </>
+  )
+}
+
+/**
+ * Lighting up each word as it is said. Only a caption written from speech
+ * knows when its words are said, so only those show this card.
+ */
+function WordByWord({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  const lit = !!clip.activeWordColor
+
+  // The switch is one press, so it is one step of undo. The colour arrives
+  // in a stream while the picker is dragged, so it is not, the same as every
+  // other colour in this panel.
+  function patch(next: Partial<EditorClip>, transient: boolean) {
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: next, transient })
+  }
+
+  return (
+    <InspectorCard
+      title="Word by word"
+      description={
+        captionWordsMatchTimes(clip)
+          ? undefined
+          : "The words were edited to a different number than were said, so no word lights up. Put the same number back to bring it back."
+      }
+    >
+      <SwitchField
+        id="clip-word-highlight"
+        label="Light up each word"
+        description="The word being said turns a colour of its own."
+        checked={lit}
+        onChange={(on) =>
+          patch(
+            { activeWordColor: on ? DEFAULT_CAPTION_WORD_COLOR : undefined },
+            false
+          )
+        }
+      />
+      {lit ? (
+        <ColorField
+          label="Spoken word colour"
+          value={clip.activeWordColor ?? DEFAULT_CAPTION_WORD_COLOR}
+          onChange={(activeWordColor) => patch({ activeWordColor }, true)}
+        />
+      ) : null}
+    </InspectorCard>
+  )
+}
+
+/**
+ * A setting that lives between two fractions, with its value spelled out.
+ *
+ * The panel's own `SliderField` steps in whole numbers, which is right for a
+ * font size and useless for a volume between 0 and 1. This is the same row in
+ * the same sizes, taking a step and writing the number the way that setting is
+ * read: "20%" of full, "2x" as fast.
+ *
+ * `onChange` is told whether this is the first value of a drag. Only that
+ * first one is worth remembering for undo: it is the moment the clip still
+ * held the value it started with, so one press of undo puts the whole drag
+ * back rather than the last position the handle passed through.
+ */
+function FractionSliderField({
+  id,
+  label,
+  value,
+  min,
+  max,
+  step,
+  format,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  format: (value: number) => string
+  onChange: (value: number, firstOfDrag: boolean) => void
+}) {
+  const dragging = React.useRef(false)
+
+  return (
+    <div className="grid gap-2.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        <span className="text-[15px] text-muted-foreground tabular-nums">
+          {format(value)}
+        </span>
+      </div>
+      <Slider
+        id={id}
+        aria-label={label}
+        aria-valuetext={format(value)}
+        min={min}
+        max={max}
+        step={step}
+        value={[value]}
+        onValueChange={([next]) => {
+          const first = !dragging.current
+          dragging.current = true
+          onChange(round(next), first)
+        }}
+        onValueCommit={() => {
+          dragging.current = false
+        }}
+      />
+    </div>
+  )
+}
+
+/** Slider maths lands on values like 0.30000000000000004. */
+function round(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+function formatVolume(value: number) {
+  return `${Math.round(value * 100)}%`
+}
+
+function formatSpeed(value: number) {
+  return `${value.toFixed(2).replace(/\.?0+$/, "")}x`
+}
+
+/**
+ * How loud this clip's own sound plays. Nothing for a picture, which has none.
+ *
+ * Full is as loud as it goes, because that is as loud as the browser can play
+ * a file in the preview, and a slider that promised more would be right only
+ * after an export.
+ *
+ * The slider reports while it is dragged and again when it is let go. The
+ * reports during the drag are marked as one continuous edit, so undo steps
+ * back over the whole drag rather than over every value it passed through.
+ */
+function VolumeField({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if (clip.kind !== "video" && clip.kind !== "audio") return null
+
+  return (
+    <FractionSliderField
+      id="clip-volume"
+      label="Volume"
+      value={clipVolume(clip)}
+      min={MIN_CLIP_VOLUME}
+      max={MAX_CLIP_VOLUME}
+      step={CLIP_VOLUME_STEP}
+      format={formatVolume}
+      onChange={(volume, firstOfDrag) =>
+        dispatch({
+          type: "UPDATE_CLIP",
+          clipId: clip.id,
+          patch: { volume: storedPlaybackValue(volume, DEFAULT_CLIP_VOLUME) },
+          transient: !firstOfDrag,
+        })
+      }
+    />
+  )
+}
+
+/**
+ * Taking hum, hiss and room noise out of the clip's sound (voice-clean.ts).
+ * The export cleans the sound itself; the preview waits for the background
+ * worker's cleaned copy and says so on the clip until it arrives.
+ */
+function VoiceCleanField({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  const states = useCleanSounds(React.useMemo(() => [clip], [clip]))
+  if ((clip.kind !== "video" && clip.kind !== "audio") || !clip.mediaId) {
+    return null
+  }
+  const mediaId = clip.mediaId
+  const strength = clip.voiceClean
+  const state = strength ? states.get(cleanSoundKey(mediaId, strength)) : undefined
+
+  return (
+    <>
+      <SwitchField
+        id="clip-voice-clean"
+        label="Clean up the voice"
+        description="Takes out hum, hiss and steady room noise."
+        checked={!!strength}
+        onChange={(on) =>
+          dispatch({
+            type: "UPDATE_CLIP",
+            clipId: clip.id,
+            patch: { voiceClean: on ? DEFAULT_VOICE_CLEAN : undefined },
+          })
+        }
+      />
+      {strength ? (
+        <>
+          <Tabs
+            value={strength}
+            onValueChange={(next) =>
+              dispatch({
+                type: "UPDATE_CLIP",
+                clipId: clip.id,
+                patch: { voiceClean: next as VoiceCleanStrength },
+              })
+            }
+          >
+            <TabsList aria-label="How strongly the voice is cleaned">
+              {VOICE_CLEAN_OPTIONS.map((option) => (
+                <TabsTrigger key={option.id} value={option.id}>
+                  {option.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          {state?.status === "preparing" ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+              <Loader2Icon className="size-4 motion-safe:animate-spin" aria-hidden />
+              Getting the cleaned sound ready to play here. The export cleans it either way.
+            </p>
+          ) : state?.status === "failed" ? (
+            <div className="grid gap-2" role="status">
+              <p className="text-sm text-muted-foreground">
+                The cleaned sound could not be made: {state.error}. The preview plays the sound as recorded.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => retryCleanSound(mediaId, strength)}
+              >
+                <RotateCcw />
+                Try again
+              </Button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * How fast this clip plays, and therefore how much of the timeline it takes.
+ *
+ * The line under the slider is the point: the clip keeps the same stretch of
+ * recording and changes how long it takes to play it, so the number people
+ * actually want to see is the new length.
+ */
+/**
+ * The Loop switch on a video or sound (clip-loop.md). On, the file starts
+ * again from its beginning when it runs out, so the clip can be stretched on
+ * the timeline as long as it is wanted: an 8-second scene under a 3-hour
+ * video, or 30 seconds of rain under all of it. Off again, the clip is cut
+ * back to what is left of its file.
+ */
+function LoopSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if ((clip.kind !== "video" && clip.kind !== "audio") || !clip.sourceDurationMs) return null
+  const sourceMs = clip.sourceDurationMs
+
+  return (
+    <InspectorCard title="Loop" description="Plays the file again from the start when it runs out.">
+      <SwitchField
+        id="clip-loop"
+        label="Loop this clip"
+        description="Drag its right edge out as far as you like; it keeps playing round."
+        checked={!!clip.loop}
+        onChange={(on) =>
+          dispatch({
+            type: "UPDATE_CLIP",
+            clipId: clip.id,
+            patch: on
+              ? { loop: true }
+              : {
+                  loop: undefined,
+                  durationMs: Math.min(
+                    clip.durationMs,
+                    Math.max(MIN_CLIP_MS, (sourceMs - clip.trimStartMs) / clipSpeed(clip))
+                  ),
+                },
+          })
+        }
+      />
+    </InspectorCard>
+  )
+}
+
+function SpeedSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if (clip.kind !== "video" && clip.kind !== "audio") return null
+
+  return (
+    <InspectorCard
+      title="Speed"
+      description="Playing it faster leaves it less room on the timeline."
+    >
+      <FractionSliderField
+        id="clip-speed"
+        label="How fast"
+        value={clipSpeed(clip)}
+        min={MIN_CLIP_SPEED}
+        max={MAX_CLIP_SPEED}
+        step={CLIP_SPEED_STEP}
+        format={formatSpeed}
+        onChange={(speed, firstOfDrag) =>
+          dispatch({
+            type: "SET_CLIP_SPEED",
+            clipId: clip.id,
+            speed,
+            transient: !firstOfDrag,
+          })
+        }
+      />
+      <ReadOnlyRows
+        rows={[
+          ["Footage used", `${(sourceSpanMs(clip) / 1000).toFixed(1)}s`],
+          ["Room on the timeline", `${(clip.durationMs / 1000).toFixed(1)}s`],
+        ]}
+      />
+    </InspectorCard>
+  )
+}
+
+/**
+ * Whether this picture fits inside the frame or fills it.
+ *
+ * Fitting keeps all of the footage and pays for it with black at two edges,
+ * which is what a wide clip does in a tall project. Filling has no black and
+ * pays for it by cutting the sides off. Only a clip with a picture gets the
+ * choice.
+ *
+ * A filled clip also has a crop spot: which part of the overflow stays on
+ * screen, the same number dragging the picture in the preview sets.
+ *
+ * A picture or video can also be smaller than the frame, which is how a
+ * picture sticker arrives. Below full size it is dragged around the preview
+ * like text (see clip-size.ts).
+ */
+function FrameFitSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if (clip.kind !== "video" && clip.kind !== "image") return null
+
+  return (
+    <InspectorCard
+      title="The frame"
+      description="Filling crops whatever hangs over the edges."
+    >
+      <Tabs
+        value={clipFit(clip)}
+        onValueChange={(next) =>
+          dispatch({
+            type: "UPDATE_CLIP",
+            clipId: clip.id,
+            patch: { fit: storedClipFit(next as ClipFit) },
+          })
+        }
+      >
+        <TabsList aria-label="How this clip meets the frame">
+          {CLIP_FIT_OPTIONS.map((option) => (
+            <TabsTrigger key={option.id} value={option.id}>
+              {option.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+      {clipFit(clip) === "cover" ? (
+        <FractionSliderField
+          id="clip-fill-focus"
+          label="Which part shows"
+          value={clipFillFocus(clip)}
+          min={0}
+          max={1}
+          step={0.01}
+          format={formatFillFocus}
+          onChange={(focus, firstOfDrag) =>
+            dispatch({
+              type: "UPDATE_CLIP",
+              clipId: clip.id,
+              patch: { fillFocus: storedFillFocus(focus) },
+              transient: !firstOfDrag,
+            })
+          }
+        />
+      ) : null}
+      <FractionSliderField
+        id="clip-scale"
+        label="Size"
+        value={clipScale(clip)}
+        min={MIN_CLIP_SCALE}
+        max={MAX_CLIP_SCALE}
+        step={CLIP_SCALE_STEP}
+        format={formatPercent}
+        onChange={(scale, firstOfDrag) =>
+          dispatch({
+            type: "UPDATE_CLIP",
+            clipId: clip.id,
+            patch: { scale: storedClipScale(scale) },
+            transient: !firstOfDrag,
+          })
+        }
+      />
+    </InspectorCard>
+  )
+}
+
+// 0 keeps one edge, 1 the other, and the middle is what filling always kept.
+function formatFillFocus(value: number) {
+  if (value === 0.5) return "Middle"
+  return `${Math.round(value * 100)}%`
+}
+
+/**
+ * One-press places for a picture or video over another: a corner box kept
+ * clear of the platform's buttons, the two splits, and back to full frame. A
+ * split also places the clip under this one on the lane below, in one Undo.
+ */
+function LayoutSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  const tracks = useEditorSelector((state) => state.tracks)
+  const inset = usePlatformInset()
+  if (clip.kind !== "video" && clip.kind !== "image") return null
+
+  function apply(layout: VideoLayoutId) {
+    const partner =
+      layout === "stacked" || layout === "side-by-side"
+        ? splitPartner(tracks, clip.id)
+        : null
+    dispatch({
+      type: "UPDATE_CLIPS",
+      patches: layoutPatches(layout, clip, partner, inset),
+    })
+    if ((layout === "stacked" || layout === "side-by-side") && !partner) {
+      toast("Only this clip moved. Put another clip on the lane below to fill the other half.")
+    }
+  }
+
+  return (
+    <InspectorCard
+      title="Layout"
+      description="A split puts the clip on the lane below in the other half."
+    >
+      <div className="grid grid-cols-2 gap-2">
+        {VIDEO_LAYOUTS.map((layout) => (
+          <Button
+            key={layout.id}
+            type="button"
+            variant="outline"
+            onClick={() => apply(layout.id)}
+          >
+            {layout.label}
+          </Button>
+        ))}
+      </div>
+    </InspectorCard>
+  )
+}
+
+/**
+ * The shape of a picture or video: rectangle, rounded corners or a circle,
+ * and an optional border inside its edge (clip-frame-shape.ts). It is on
+ * every video and picture clip (Tyler, 4 Nov 2026: "too confusing. how do i
+ * even shrink a clip for this to work"). A shape needs a clip smaller than the
+ * frame that fills its box, so picking Rounded or Circle, or switching on the
+ * border, on a full-frame clip shrinks it into the corner box first, in the
+ * same Undo. Circle also makes the box square.
+ */
+function FrameShapeSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  const aspect = useEditorSelector((state) => state.aspect)
+  const inset = usePlatformInset()
+  if (clip.kind !== "video" && clip.kind !== "image") return null
+  const placed = canTakeFrameShape(clip)
+
+  function patch(next: Partial<EditorClip>, transient = false) {
+    dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: next, transient })
+  }
+
+  // What a shape or border needs first: the corner box for a full-frame
+  // clip, or filling its box for a smaller one.
+  function room(): Partial<EditorClip> {
+    return placed ? { fit: "cover" } : layoutPatches("corner", clip, null, inset)[0].patch
+  }
+
+  function pickShape(shape: FrameShape) {
+    if (shape === "rectangle") {
+      patch({ frameShape: undefined })
+      return
+    }
+    const [across, down] = aspect.split(":").map(Number)
+    const base = room()
+    if (shape !== "circle") {
+      patch({ ...base, frameShape: shape })
+      return
+    }
+    // The square box is shorter (or narrower) than the frame-shaped corner
+    // box it replaces, so a clip just shrunk into the corner moves out by the
+    // difference, keeping the same gap to the corner.
+    const square = squareBox(across / down)
+    const shrunk = !placed && typeof base.scale === "number"
+    const half = shrunk ? base.scale! / 2 : 0
+    patch({
+      ...base,
+      ...square,
+      ...(shrunk && typeof base.x === "number" ? { x: base.x + half * (1 - square.boxWidth) } : {}),
+      ...(shrunk && typeof base.y === "number" ? { y: base.y + half * (1 - square.boxHeight) } : {}),
+      frameShape: shape,
+    })
+  }
+
+  const shape = clipFrameShape(clip)
+  const border = clipFrameBorder(clip)
+
+  return (
+    <InspectorCard
+      title="Shape"
+      description={
+        placed
+          ? "Round the corners or make it a circle, with a border if you like."
+          : "Picking Rounded or Circle, or a border, shrinks the clip into the corner."
+      }
+    >
+      <div className="grid gap-2.5">
+        <FieldLabel htmlFor="clip-frame-shape">Shape</FieldLabel>
+        <Select value={shape} onValueChange={(value) => pickShape(value as FrameShape)}>
+          <SelectTrigger id="clip-frame-shape" className="w-0 min-w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FRAME_SHAPES.map((option) => (
+              <SelectItem key={option} value={option}>
+                {FRAME_SHAPE_LABELS[option]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {shape === "rounded" ? (
+        <SliderField
+          id="clip-corner"
+          label="Corner size"
+          value={Math.round(clipCornerShare(clip) * 100)}
+          min={Math.round(MIN_CORNER_SHARE * 100)}
+          max={Math.round(MAX_CORNER_SHARE * 100)}
+          onChange={(value) => patch({ cornerRadius: value / 100 }, true)}
+        />
+      ) : null}
+      <SwitchField
+        id="clip-border"
+        label="Border"
+        description="A line just inside the edge."
+        checked={border !== null}
+        onChange={(on) =>
+          patch(
+            on
+              ? {
+                  ...room(),
+                  borderWidth: DEFAULT_FRAME_BORDER,
+                  borderColor: clip.borderColor ?? DEFAULT_FRAME_BORDER_COLOR,
+                }
+              : { borderWidth: undefined, borderColor: undefined }
+          )
+        }
+      />
+      {border ? (
+        <>
+          <ColorField
+            label="Border colour"
+            value={border.color}
+            onChange={(borderColor) => patch({ borderColor }, true)}
+          />
+          <SliderField
+            id="clip-border-width"
+            label="Border thickness"
+            value={border.width}
+            min={MIN_FRAME_BORDER}
+            max={MAX_FRAME_BORDER}
+            onChange={(borderWidth) => patch({ borderWidth }, true)}
+          />
+        </>
+      ) : null}
+    </InspectorCard>
+  )
+}
+
+/**
+ * A slow move across a still picture. Only a picture gets the choice: footage
+ * already moves, and sound and text have no picture to move.
+ */
+function MotionSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if (clip.kind !== "image") return null
+
+  return (
+    <InspectorCard
+      title="Movement"
+      description="A slow move across the picture while it is on screen."
+    >
+      <div className="grid gap-2.5">
+        <FieldLabel htmlFor="clip-motion">Move</FieldLabel>
+        <Select
+          value={clipMotion(clip) ?? "none"}
+          onValueChange={(next) =>
+            dispatch({
+              type: "UPDATE_CLIP",
+              clipId: clip.id,
+              patch: {
+                motion: next === "none" ? undefined : (next as ClipMotion),
+              },
+            })
+          }
+        >
+          <SelectTrigger id="clip-motion" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CLIP_MOTION_OPTIONS.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </InspectorCard>
+  )
+}
+
+function formatBrightness(value: number) {
+  const amount = Math.round(value * 100)
+  return amount > 0 ? `+${amount}` : String(amount)
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`
+}
+
+/**
+ * Brightness, contrast and saturation on a clip with a picture. The preview
+ * and the export use the same three numbers, so what is set here is what the
+ * finished film shows.
+ *
+ * Each slider is one undo step per drag, like volume. The reset clears all
+ * three in one step, so one undo brings all three back.
+ */
+function ColourSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  if (clip.kind !== "video" && clip.kind !== "image") return null
+  const colour = clipColour(clip)
+
+  function set(key: keyof ClipColour, value: number, firstOfDrag: boolean) {
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: clip.id,
+      patch: { [key]: storedPlaybackValue(value, UNTOUCHED_COLOUR[key]) },
+      transient: !firstOfDrag,
+    })
+  }
+
+  function reset() {
+    if (!isColourTouched(colour) && !clip.look) {
+      toast("This clip's colour is already untouched.")
+      return
+    }
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: clip.id,
+      patch: {
+        look: undefined,
+        brightness: undefined,
+        contrast: undefined,
+        saturation: undefined,
+      },
+    })
+  }
+
+  return (
+    <InspectorCard
+      title="Colour"
+      description="A film look, then lift a dark shot or make the colours stronger or softer."
+    >
+      <ColourLookField clip={clip} />
+      <FractionSliderField
+        id="clip-brightness"
+        label="Brightness"
+        value={colour.brightness}
+        min={MIN_CLIP_BRIGHTNESS}
+        max={MAX_CLIP_BRIGHTNESS}
+        step={CLIP_COLOUR_STEP}
+        format={formatBrightness}
+        onChange={(value, first) => set("brightness", value, first)}
+      />
+      <FractionSliderField
+        id="clip-contrast"
+        label="Contrast"
+        value={colour.contrast}
+        min={MIN_CLIP_CONTRAST}
+        max={MAX_CLIP_CONTRAST}
+        step={CLIP_COLOUR_STEP}
+        format={formatPercent}
+        onChange={(value, first) => set("contrast", value, first)}
+      />
+      <FractionSliderField
+        id="clip-saturation"
+        label="Saturation"
+        value={colour.saturation}
+        min={MIN_CLIP_SATURATION}
+        max={MAX_CLIP_SATURATION}
+        step={CLIP_COLOUR_STEP}
+        format={formatPercent}
+        onChange={(value, first) => set("saturation", value, first)}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full"
+        onClick={reset}
+      >
+        <RotateCcw />
+        Reset colour
+      </Button>
+    </InspectorCard>
+  )
+}
+
+function MediaInspector({ clip }: { clip: EditorClip }) {
+  const track = useEditorSelector(
+    (state) => findClip(state.tracks, clip.id)?.track
+  )
+  const { dispatch } = useEditorRuntime()
+  const [replaceOpen, setReplaceOpen] = React.useState(false)
+
+  function handleReplace(media: ReplacementMedia) {
+    dispatch({ type: "REPLACE_CLIP_MEDIA", clipId: clip.id, media })
+    setReplaceOpen(false)
+  }
+
+  return (
+    <>
+      <InspectorCard title="The footage">
+        {/* Whatever shape the file is. A box of a fixed shape either crops a
+            tall picture down to a slice of itself or leaves a video floating
+            in grey, and neither shows you what you picked. So the box takes
+            its height from the media, up to the point where it would take over
+            the panel. Video shows its first frame, which is why it is a paused
+            player rather than a picture. */}
+        <div className="grid place-items-center overflow-hidden rounded-lg bg-muted">
+          {clip.kind === "video" && clip.url ? (
+            <video
+              src={clip.url}
+              preload="metadata"
+              muted
+              playsInline
+              className="max-h-64 w-full object-contain"
+            />
+          ) : clip.url ? (
+            <img
+              src={clip.url}
+              alt={clip.name}
+              className="max-h-64 w-full object-contain"
+            />
+          ) : (
+            <span className="grid h-24 place-items-center text-sm text-muted-foreground">
+              No file on this clip
+            </span>
+          )}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={() => setReplaceOpen(true)}
+        >
+          <Replace />
+          Replace media
+        </Button>
+      </InspectorCard>
+
+      <MakeItMoveCard clip={clip} />
+
+      <RemakeCard clip={clip} />
+
+      <FrameFitSection clip={clip} />
+
+      <LayoutSection clip={clip} />
+      <FrameShapeSection clip={clip} />
+
+      <MotionSection clip={clip} />
+
+      <SteadyInspectorCard clip={clip} />
+
+      <ZoomInspectorCard clip={clip} />
+
+      <ColourSection clip={clip} />
+
+      <InspectorCard title="Sound">
+        <SwitchField
+          id="clip-muted"
+          label="Mute this clip"
+          description="Its own sound is silenced."
+          checked={!!clip.muted}
+          onChange={(muted) =>
+            dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: { muted } })
+          }
+        />
+        <VolumeField clip={clip} />
+        <VoiceCleanField clip={clip} />
+        {track ? (
+          <SwitchField
+            id="track-duck"
+            label="Duck under voice"
+            description="This whole track drops while another one is playing."
+            checked={!!track.duck}
+            onChange={() =>
+              dispatch({ type: "TOGGLE_TRACK_DUCK", trackId: track.id })
+            }
+          />
+        ) : null}
+      </InspectorCard>
+
+      <FadesSection clip={clip} />
+
+      <SpeedSection clip={clip} />
+
+      <LoopSection clip={clip} />
+
+      <TransitionSection clip={clip} />
+
+      <Timing clip={clip} />
+
+      <ReplaceMediaDialog
+        open={replaceOpen}
+        onOpenChange={setReplaceOpen}
+        onReplace={handleReplace}
+      />
+    </>
+  )
+}
+
+/**
+ * The blend coming into this clip from the one before it. Shown only when the
+ * clip is visual and butts directly against another visual clip — the same test
+ * the preview applies — so a blend can never be set where none would be drawn.
+ */
+function TransitionSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  const prevClip = useEditorSelector((state) => {
+    const found = findClip(state.tracks, clip.id)
+    return found ? precedingClipOnTrack(found.track.clips, clip) : null
+  })
+
+  const eligible =
+    isTransitionableKind(clip.kind) &&
+    !!prevClip &&
+    isTransitionableKind(prevClip.kind) &&
+    Math.abs(clip.startMs - (prevClip.startMs + prevClip.durationMs)) <=
+      TRANSITION_ADJACENCY_EPS_MS
+  if (!eligible || !prevClip) return null
+
+  const active = clip.transition ?? null
+  const currentId: TransitionKind | "none" = active?.kind ?? "none"
+  const maxMs = Math.max(
+    MIN_TRANSITION_MS,
+    Math.min(MAX_TRANSITION_MS, prevClip.durationMs, clip.durationMs)
+  )
+  const durationMs = clampTransitionMs(
+    active?.durationMs ?? DEFAULT_TRANSITION_MS,
+    prevClip.durationMs,
+    clip.durationMs
+  )
+
+  return (
+    <InspectorCard
+      title="Coming in"
+      description="How this clip arrives over the one before it."
+    >
+      <div className="grid gap-2.5">
+        <FieldLabel>Blend</FieldLabel>
+        <div className="grid grid-cols-2 gap-2">
+          {TRANSITION_OPTIONS.map((option) => {
+            const on = currentId === option.id
+            return (
+              <button
+                key={option.id}
+                type="button"
+                title={option.description}
+                aria-pressed={on}
+                onClick={() =>
+                  dispatch({
+                    type: "UPDATE_CLIP",
+                    clipId: clip.id,
+                    patch: {
+                      transition:
+                        option.id === "none"
+                          ? undefined
+                          : { kind: option.id, durationMs },
+                    },
+                  })
+                }
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-sm transition-colors",
+                  on
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-foreground/10 bg-background hover:border-foreground/25"
+                )}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      {active ? (
+        <SliderField
+          id="clip-transition-ms"
+          label="How long"
+          unit="ms"
+          value={durationMs}
+          min={MIN_TRANSITION_MS}
+          max={maxMs}
+          onChange={(ms) =>
+            dispatch({
+              type: "UPDATE_CLIP",
+              clipId: clip.id,
+              patch: {
+                transition: {
+                  kind: active.kind,
+                  durationMs: clampTransitionMs(
+                    ms,
+                    prevClip.durationMs,
+                    clip.durationMs
+                  ),
+                },
+              },
+              transient: true,
+            })
+          }
+        />
+      ) : null}
+    </InspectorCard>
+  )
+}
+
+type FadeKey = "fadeInMs" | "fadeOutMs" | "pictureFadeInMs" | "pictureFadeOutMs"
+
+const TRANSITION_NAME: Record<TransitionKind, string> = {
+  crossfade: "crossfade",
+  dip: "dip to black",
+  slide: "slide",
+}
+
+/**
+ * How the clip's sound and picture fade in and out. Sound is on video and
+ * sound clips, the picture on video, picture and text clips.
+ *
+ * Each slider's first stop is off, and the rest run from 0.2 to 5 seconds in
+ * tenths. A drag is one undo step, like volume. Two fades longer than the
+ * clip between them both play shorter, and the card says by how much, so a
+ * fade that plays shorter than its slider says is never a surprise.
+ */
+function FadesSection({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditorRuntime()
+  // The lane's clips, for the transitions either side. The array itself is
+  // what the store holds, so it only changes when the lane does.
+  const laneClips = useEditorSelector(
+    (state) => findClip(state.tracks, clip.id)?.track.clips
+  )
+  const sound = clip.kind === "video" || clip.kind === "audio"
+  const picture =
+    clip.kind === "video" ||
+    clip.kind === "image" ||
+    clip.kind === "text" ||
+    clip.kind === "shape"
+  if (!sound && !picture) return null
+
+  const index = laneClips?.findIndex((candidate) => candidate.id === clip.id)
+  const previous =
+    laneClips && index !== undefined && index > 0 ? laneClips[index - 1] : null
+  const next =
+    laneClips && index !== undefined && index >= 0
+      ? (laneClips[index + 1] ?? null)
+      : null
+  const overruled = pictureFadesOverruled(clip, previous, next)
+
+  function set(key: FadeKey, sliderValue: number, firstOfDrag: boolean) {
+    dispatch({
+      type: "UPDATE_CLIP",
+      clipId: clip.id,
+      patch: { [key]: storedFade(sliderValue) },
+      transient: !firstOfDrag,
+    })
+  }
+
+  function slider(key: FadeKey, label: string) {
+    return (
+      <FractionSliderField
+        id={`clip-${key}`}
+        label={label}
+        value={fadeSliderValue(clip[key])}
+        min={FADE_SLIDER_OFF}
+        max={FADE_SLIDER_MAX}
+        step={FADE_SLIDER_STEP}
+        format={formatFade}
+        onChange={(value, first) => set(key, value, first)}
+      />
+    )
+  }
+
+  return (
+    <InspectorCard
+      title="Fades"
+      description="Bring it in gently and take it out gently."
+    >
+      {sound ? (
+        <>
+          {slider("fadeInMs", "Sound fade in")}
+          {slider("fadeOutMs", "Sound fade out")}
+          <ShortenedFades
+            clip={clip}
+            fades={fitFadePair(clip.fadeInMs, clip.fadeOutMs, clip.durationMs)}
+            inMs={clip.fadeInMs}
+            outMs={clip.fadeOutMs}
+            what="sound fades"
+          />
+        </>
+      ) : null}
+      {picture ? (
+        <>
+          {slider("pictureFadeInMs", "Picture fade in")}
+          {overruled.in && clip.transition ? (
+            <FadeNote>
+              The {TRANSITION_NAME[clip.transition.kind]} from the clip before
+              is used at the start instead of this fade.
+            </FadeNote>
+          ) : null}
+          {slider("pictureFadeOutMs", "Picture fade out")}
+          {overruled.out && next?.transition ? (
+            <FadeNote>
+              The {TRANSITION_NAME[next.transition.kind]} into the next clip is
+              used at the end instead of this fade.
+            </FadeNote>
+          ) : null}
+          <ShortenedFades
+            clip={clip}
+            fades={fitFadePair(
+              overruled.in ? 0 : clip.pictureFadeInMs,
+              overruled.out ? 0 : clip.pictureFadeOutMs,
+              clip.durationMs
+            )}
+            inMs={overruled.in ? undefined : clip.pictureFadeInMs}
+            outMs={overruled.out ? undefined : clip.pictureFadeOutMs}
+            what="picture fades"
+          />
+        </>
+      ) : null}
+    </InspectorCard>
+  )
+}
+
+function FadeNote({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm text-muted-foreground">{children}</p>
+}
+
+/** Said only when two fades are too long for the clip between them. */
+function ShortenedFades({
+  clip,
+  fades,
+  inMs = 0,
+  outMs = 0,
+  what,
+}: {
+  clip: EditorClip
+  fades: FadePair
+  inMs?: number
+  outMs?: number
+  what: string
+}) {
+  if (!(inMs > 0 && outMs > 0) || inMs + outMs <= clip.durationMs) return null
+  const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`
+  return (
+    <FadeNote>
+      This clip runs {seconds(clip.durationMs)}, so the two {what} play as{" "}
+      {seconds(fades.inMs)} and {seconds(fades.outMs)}.
+    </FadeNote>
+  )
+}
+
+function Timing({ clip }: { clip: EditorClip }) {
+  return (
+    <InspectorCard title="Timing">
+      <ReadOnlyRows
+        rows={[
+          ["Starts at", formatClock(clip.startMs)],
+          ["Runs for", `${(clip.durationMs / 1000).toFixed(1)}s`],
+        ]}
+      />
+    </InspectorCard>
+  )
+}

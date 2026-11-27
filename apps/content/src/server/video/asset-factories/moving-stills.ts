@@ -1,0 +1,552 @@
+import { and, asc, eq, gte, inArray, isNotNull, isNull, notExists } from "drizzle-orm"
+
+import {
+  assetPrompt,
+  shotCostCents,
+  shotPieces,
+  type ShotLengthSeconds,
+  type VideoQuality,
+} from "@/lib/video/asset-factories"
+import { isMovingOrigin } from "@/lib/video/clip-origin"
+import {
+  companyOf,
+  sizeFor,
+  VIDEO_MODELS,
+  type VideoCompany,
+} from "@/lib/video/video-models"
+import { EDITOR_WINDOW_GONE_AFTER_MS } from "@/lib/video/editor-windows"
+import {
+  landMovingShot,
+  MOVING_STILL_BUSY_MESSAGE,
+  MOVING_STILL_NOT_FOUND_MESSAGE,
+  MOVING_STILL_LOOP_COMPANY_MESSAGE,
+  MOVING_STILL_LOOP_LENGTH_MESSAGE,
+  MOVING_STILL_UNREADABLE_MESSAGE,
+  type MovingPiece,
+  stillRefusal,
+  stillShotAspect,
+  stillShotLengths,
+  type ClipOutcome,
+} from "@/lib/video/moving-still"
+import {
+  REMAKE_ACTOR_GONE_MESSAGE,
+  REMAKE_BUSY_MESSAGE,
+  REMAKE_NOT_FOUND_MESSAGE,
+  REMAKE_START_GONE_MESSAGE,
+} from "@/lib/video/remake-clip"
+import { parseTimelineForReset } from "@/lib/video/timeline-schema"
+import { now, uuid } from "@/server/auth/security"
+import { db } from "@/server/db"
+import { publishNotificationCreated } from "@/server/notifications/events"
+import { customShellMedia, customShellNotifications } from "@/server/schema"
+import { attachPastedMediaToProject } from "@/server/video/media-list"
+import { getOwnedVideo, writeVideoTimeline } from "@/server/video/project-videos"
+import { saveAiDefaults } from "@/server/video/settings"
+import {
+  videoActors,
+  videoAiGenerations,
+  videoEditorWindows,
+  videoProjectVideos,
+} from "@/server/video/schema"
+import {
+  companiesReady,
+  generationRows,
+  missingKeyMessage,
+  getShot,
+  groupShots,
+  pieceOrigin,
+  requireRoomForShot,
+  rethrowShotsFull,
+  serializeShot,
+  shotNames,
+  type GenerationJoin,
+} from "./generations"
+import { pictureSize, readStoredPicture } from "./person-board"
+
+/**
+ * A picture on the timeline made to move where it sits
+ * (`workspace/docs/animate-a-still.md`).
+ *
+ * The shot is an ordinary AI shot whose first frame is the picture, so the
+ * background worker in generations.ts makes it like any other. What is
+ * different is the end: a finished shot replaces the picture on the timeline
+ * instead of waiting in the AI clip panel. An editor that has the project
+ * open lands it itself, as one Undo step, so its saves never clash with the
+ * worker's; with no editor open, `movingStillTick` lands it.
+ *
+ * Make it again on a moving clip is the same job with a different start: the
+ * shot starts on the picture the clip was first made from, is sent what that
+ * clip was sent, and replaces the moving clip instead of a picture
+ * (`workspace/docs/regenerate-a-scene.md`).
+ */
+
+/** How many finished shots one worker pass lands. */
+const LANDINGS_PER_PASS = 10
+
+/**
+ * Asks for a moving shot of one clip on the timeline: a picture to make it
+ * move, or a moving clip the AI made, to make it again. The clip is checked
+ * on the saved timeline, so the editor saves first. An earlier try for the
+ * same clip that failed is cleared, because the new one takes its marker.
+ */
+export async function createStillShot(
+  userId: string,
+  payload: {
+    /** The video whose timeline holds the clip. It pays for the shot. */
+    videoId: string
+    clipId: string
+    prompts: string[]
+    lengthSeconds: ShotLengthSeconds
+    quality: VideoQuality
+    /** Who makes it. A clip made again stays with the company that made it. */
+    company?: VideoCompany
+    sound?: boolean
+    /**
+     * End on the picture it starts on, so the shot loops without a join and
+     * lands as one looped clip as long as the picture (animate-a-still.md).
+     * Only the companies that take a last frame can.
+     */
+    endOnStart?: boolean
+  }
+) {
+  const loop = Boolean(payload.endOnStart)
+  const pieces = shotPieces(payload.lengthSeconds)
+  if (loop && pieces.count !== 1) throw new Error(MOVING_STILL_LOOP_LENGTH_MESSAGE)
+  if (payload.prompts.length !== pieces.count) {
+    throw new Error("Write one direction for each piece of the shot")
+  }
+  const prompts = payload.prompts.map(assetPrompt)
+  const video = await getOwnedVideo(userId, payload.videoId)
+  const { timeline } = parseTimelineForReset(video.timeline)
+  const clip = timeline.tracks
+    .flatMap((track) => track.clips)
+    .find((candidate) => candidate.id === payload.clipId)
+  const remade = clip?.kind === "video" && clip.origin && isMovingOrigin(clip.origin)
+    ? clip.origin
+    : null
+  if (clip?.kind === "video" && !remade) throw new Error(REMAKE_NOT_FOUND_MESSAGE)
+  if (!clip?.mediaId || (clip.kind !== "image" && !remade)) {
+    throw new Error(MOVING_STILL_NOT_FOUND_MESSAGE)
+  }
+  const refusal = stillRefusal(clip, loop)
+  if (refusal) throw new Error(refusal)
+  if (!stillShotLengths(clip.durationMs, loop).includes(payload.lengthSeconds)) {
+    throw new Error("Pick a length at least as long as the picture")
+  }
+  // The picture the shot starts on: the clip itself, or for a clip made
+  // again, the picture it was first made from.
+  const [media] = await db
+    .select()
+    .from(customShellMedia)
+    .where(
+      and(
+        eq(customShellMedia.id, remade ? remade.firstFrameMediaId : clip.mediaId),
+        eq(customShellMedia.userId, userId)
+      )
+    )
+    .limit(1)
+  if (!media || media.fileType !== "image") {
+    throw new Error(remade ? REMAKE_START_GONE_MESSAGE : MOVING_STILL_NOT_FOUND_MESSAGE)
+  }
+  if (remade?.actorId) {
+    const [actor] = await db
+      .select({ id: videoActors.id })
+      .from(videoActors)
+      .where(and(eq(videoActors.id, remade.actorId), eq(videoActors.userId, userId)))
+      .limit(1)
+    if (!actor) throw new Error(REMAKE_ACTOR_GONE_MESSAGE)
+  }
+
+  const earlier = await db
+    .select({
+      shotId: videoAiGenerations.shotId,
+      status: videoAiGenerations.status,
+    })
+    .from(videoAiGenerations)
+    .where(
+      and(
+        eq(videoAiGenerations.userId, userId),
+        eq(videoAiGenerations.videoId, video.id),
+        eq(videoAiGenerations.clipId, clip.id),
+        isNull(videoAiGenerations.clipOutcome)
+      )
+    )
+  const failedShots = new Set(
+    earlier.filter((row) => row.status === "error").map((row) => row.shotId)
+  )
+  if (earlier.some((row) => !failedShots.has(row.shotId))) {
+    throw new Error(remade ? REMAKE_BUSY_MESSAGE : MOVING_STILL_BUSY_MESSAGE)
+  }
+  const company =
+    payload.company ?? (remade ? companyOf(remade.model) : null) ?? "gemini"
+  const model = VIDEO_MODELS[company]
+  if (loop && !model.endFrame) throw new Error(MOVING_STILL_LOOP_COMPANY_MESSAGE)
+  const size = sizeFor(company, payload.quality)
+  const sound = model.soundSwitch ? (payload.sound ?? remade?.sound ?? true) : true
+  if (!(await companiesReady())[company]) throw new Error(missingKeyMessage(company))
+  await requireRoomForShot(
+    userId,
+    { projectId: video.projectId, videoId: video.id },
+    shotCostCents(payload.lengthSeconds, model.id, size, sound)
+  )
+  const aspectRatio = remade
+    ? remade.aspectRatio
+    : await pictureSize(await readStoredPicture(media.storagePath)).then(
+        (size) => stillShotAspect(size.width, size.height, timeline.aspect),
+        () => {
+          throw new Error(MOVING_STILL_UNREADABLE_MESSAGE)
+        }
+      )
+  if (company === "gemini") await saveAiDefaults({ videoQuality: size })
+
+  const at = now()
+  const shotId = uuid()
+  const created = await db.transaction(async (tx) => {
+    if (failedShots.size) {
+      await tx
+        .delete(videoAiGenerations)
+        .where(
+          and(
+            eq(videoAiGenerations.userId, userId),
+            inArray(videoAiGenerations.shotId, [...failedShots])
+          )
+        )
+    }
+    return await tx
+      .insert(videoAiGenerations)
+      .values(
+        prompts.map((prompt, index) => ({
+          id: index === 0 ? shotId : uuid(),
+          userId,
+          projectId: video.projectId,
+          videoId: video.id,
+          firstFrameId: null,
+          firstFrameMediaId: index === 0 ? media.id : null,
+          // A loop ends on the picture it starts on.
+          endFrameMediaId: loop && index === prompts.length - 1 ? media.id : null,
+          prompt,
+          model: model.id,
+          aspectRatio,
+          durationSeconds: pieces.seconds,
+          resolution: size,
+          withSound: sound,
+          shotId,
+          shotIndex: index + 1,
+          shotPieces: pieces.count,
+          status: index === 0 ? "queued" : "waiting",
+          attempts: 0,
+          // A clip made again is sent what it was sent the first time.
+          ...(remade
+            ? {
+                actorId: remade.actorId ?? null,
+                referenceMediaIds: remade.referenceMediaIds,
+                extras: remade.extras,
+              }
+            : {}),
+          clipId: clip.id,
+          clipMediaId: clip.mediaId,
+          clipStartMs: clip.startMs,
+          clipDurationMs: clip.durationMs,
+          createdAt: at,
+          updatedAt: at,
+        }))
+      )
+      .returning()
+  }).catch(rethrowShotsFull)
+  const rows = created.map((generation) => ({ generation, output: null }))
+  return await serializeShot(rows, await shotNames(userId, rows))
+}
+
+/**
+ * This video's shots for timeline clips that have not landed yet: being
+ * made, failed, or ready and waiting for the editor or the worker to land.
+ */
+export async function listStillShots(userId: string, videoId: string) {
+  await getOwnedVideo(userId, videoId)
+  const rows = (
+    await generationRows(userId, { videoId }).orderBy(
+      asc(videoAiGenerations.shotId),
+      asc(videoAiGenerations.shotIndex)
+    )
+  ).filter((row) => row.generation.clipId && !row.generation.clipOutcome)
+  const names = await shotNames(userId, rows)
+  return {
+    shots: await Promise.all(groupShots(rows).map((shot) => serializeShot(shot, names))),
+  }
+}
+
+/** Every piece of a shot ready, read from its rows in order. */
+function readyPieces(rows: GenerationJoin[]): MovingPiece[] | null {
+  const first = rows[0].generation
+  if (rows.length !== first.shotPieces) return null
+  const pieces = rows.flatMap(({ generation }) =>
+    generation.status === "ready" && generation.outputMediaId
+      ? [
+          {
+            mediaId: generation.outputMediaId,
+            durationMs: generation.durationSeconds * 1000,
+            origin: pieceOrigin(generation) ?? undefined,
+          },
+        ]
+      : []
+  )
+  return pieces.length === rows.length ? pieces : null
+}
+
+/**
+ * Records that the open editor has landed a finished shot, and puts its
+ * clips on the project's Media panel so an Undo back to the picture never
+ * loses them. Only one of the editor and the worker gets to land a shot:
+ * `settled` is false when the other one already has.
+ */
+export async function settleStillShot(
+  userId: string,
+  shotId: string,
+  outcome: ClipOutcome
+) {
+  const rows = await getShot(userId, shotId)
+  const first = rows[0].generation
+  const pieces = readyPieces(rows)
+  if (!first.clipId || !pieces) throw new Error("This shot is not ready to land")
+  const settled = await db.transaction(async (tx) => {
+    const claimed = await tx
+      .update(videoAiGenerations)
+      .set({ clipOutcome: outcome, updatedAt: now() })
+      .where(
+        and(
+          eq(videoAiGenerations.userId, userId),
+          eq(videoAiGenerations.shotId, shotId),
+          isNull(videoAiGenerations.clipOutcome)
+        )
+      )
+      .returning({ id: videoAiGenerations.id })
+    if (!claimed.length) return false
+    // A picture on a clip is always in a project; a Flow's loop is not
+    // landed here (flow.md).
+    if (first.projectId) {
+      await attachPastedMediaToProject(
+        userId,
+        first.projectId,
+        pieces.map((piece) => piece.mediaId),
+        tx
+      )
+    }
+    return true
+  })
+  return { settled }
+}
+
+/**
+ * Lands one finished shot with nobody editing the video: swaps the picture
+ * for the shot and saves the video, as one change, in the same step that
+ * marks the shot landed. A save that meets a newer version rolls the whole
+ * step back, and the next pass tries again.
+ */
+async function landStillShot(userId: string, shotId: string) {
+  const rows = await getShot(userId, shotId)
+  const first = rows[0].generation
+  const pieces = readyPieces(rows)
+  if (!first.clipId || first.clipOutcome || !pieces) return
+
+  // A deleted video blanks the shot's video, and then its clip is gone too.
+  const [video] = first.videoId
+    ? await db
+        .select()
+        .from(videoProjectVideos)
+        .where(and(eq(videoProjectVideos.id, first.videoId), eq(videoProjectVideos.userId, userId)))
+        .limit(1)
+    : []
+  const { timeline } = parseTimelineForReset(video?.timeline ?? { tracks: [], aspect: "9:16" })
+  const landed = landMovingShot(timeline.tracks, {
+    clipId: first.clipId,
+    clipMediaId: first.clipMediaId,
+    pieces,
+    newId: uuid,
+    loop: rows.some((row) => row.generation.endFrameMediaId),
+  })
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(videoAiGenerations)
+      .set({ clipOutcome: landed.outcome, updatedAt: now() })
+      .where(
+        and(
+          eq(videoAiGenerations.userId, userId),
+          eq(videoAiGenerations.shotId, shotId),
+          isNull(videoAiGenerations.clipOutcome)
+        )
+      )
+      .returning({ id: videoAiGenerations.id })
+    if (!row) return
+    if (landed.outcome === "replaced" && video) {
+      await writeVideoTimeline(
+        userId,
+        video.id,
+        { ...timeline, tracks: landed.tracks },
+        video.version,
+        tx
+      )
+    }
+    // A picture on a clip is always in a project; a Flow's loop is not
+    // landed here (flow.md).
+    if (first.projectId) {
+      await attachPastedMediaToProject(
+        userId,
+        first.projectId,
+        pieces.map((piece) => piece.mediaId),
+        tx
+      )
+    }
+    if (landed.outcome === "gone") {
+      await tx.insert(customShellNotifications).values({
+        id: uuid(),
+        recipientUserId: userId,
+        type: "app_activity",
+        message: "A moving shot arrived after its clip was gone",
+        detail: video
+          ? `The clip it was for was deleted from "${video.name}" while the shot was being made. The shot is in that project's Media panel.`
+          : "The video it was for was deleted while the shot was being made. The shot is in that project's Media panel.",
+        createdAt: now(),
+      })
+      await publishNotificationCreated(userId, tx)
+    }
+  })
+}
+
+/**
+ * One worker pass: lands shots for timeline clips once every piece is
+ * ready. Pieces finish one after another, so a ready last piece means a
+ * finished shot. A video a window is editing is passed over, because that
+ * editor lands the shot itself, and passing it over here means a video
+ * left open for hours never holds up anybody else's.
+ */
+export async function movingStillTick() {
+  const editing = db
+    .select({ windowId: videoEditorWindows.windowId })
+    .from(videoEditorWindows)
+    .where(
+      and(
+        eq(videoEditorWindows.videoId, videoAiGenerations.videoId),
+        eq(videoEditorWindows.mode, "edit"),
+        gte(
+          videoEditorWindows.seenAt,
+          new Date(now().getTime() - EDITOR_WINDOW_GONE_AFTER_MS)
+        )
+      )
+    )
+  const finished = await db
+    .select({
+      userId: videoAiGenerations.userId,
+      shotId: videoAiGenerations.shotId,
+    })
+    .from(videoAiGenerations)
+    .where(
+      and(
+        isNotNull(videoAiGenerations.clipId),
+        isNull(videoAiGenerations.clipOutcome),
+        eq(videoAiGenerations.status, "ready"),
+        eq(videoAiGenerations.shotIndex, videoAiGenerations.shotPieces),
+        notExists(editing)
+      )
+    )
+    .orderBy(asc(videoAiGenerations.finishedAt))
+    .limit(LANDINGS_PER_PASS)
+  for (const shot of finished) {
+    try {
+      await landStillShot(shot.userId, shot.shotId)
+    } catch (error) {
+      // One project's save failing must not hold up the others. A clash
+      // with a save made meanwhile is tried again on the next pass.
+      console.error("A moving shot could not land yet", error)
+    }
+  }
+}
+
+/**
+ * A picture made to move that sits on no clip: one 4, 6 or 8 second piece,
+ * for a Flow run that has no project or video yet (flow.md, the AI editor's
+ * `animate_picture`). With `endOnStart` it ends on the picture it starts on,
+ * so it loops with no join (animate-a-still.md). The worker makes it as it
+ * makes any shot; nothing lands it, the Flow step reads it back with
+ * `pictureShotState` and lays it itself. Its meter rows carry the Flow step.
+ */
+export async function createPictureShot(
+  userId: string,
+  payload: {
+    mediaId: string
+    prompt: string
+    seconds: 4 | 6 | 8
+    company: VideoCompany
+    quality: VideoQuality
+    sound: boolean
+    endOnStart: boolean
+    /** The shape of video it is for, when the picture is square. */
+    aspect: "16:9" | "9:16" | "1:1" | "4:3"
+    projectId: string | null
+    videoId: string | null
+    flowStepId: string
+  }
+) {
+  const model = VIDEO_MODELS[payload.company]
+  if (payload.endOnStart && !model.endFrame) throw new Error(MOVING_STILL_LOOP_COMPANY_MESSAGE)
+  const [media] = await db
+    .select()
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, payload.mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+  if (!media || media.fileType !== "image") throw new Error(MOVING_STILL_NOT_FOUND_MESSAGE)
+  const size = sizeFor(payload.company, payload.quality)
+  const sound = model.soundSwitch ? payload.sound : true
+  if (!(await companiesReady())[payload.company]) throw new Error(missingKeyMessage(payload.company))
+  await requireRoomForShot(
+    userId,
+    { projectId: payload.projectId, videoId: payload.videoId },
+    shotCostCents(payload.seconds, model.id, size, sound)
+  )
+  const aspectRatio = await pictureSize(await readStoredPicture(media.storagePath)).then(
+    (picture) => stillShotAspect(picture.width, picture.height, payload.aspect),
+    () => {
+      throw new Error(MOVING_STILL_UNREADABLE_MESSAGE)
+    }
+  )
+  const at = now()
+  const shotId = uuid()
+  await db
+    .insert(videoAiGenerations)
+    .values({
+      id: shotId,
+      userId,
+      projectId: payload.projectId,
+      videoId: payload.videoId,
+      flowStepId: payload.flowStepId,
+      firstFrameId: null,
+      firstFrameMediaId: media.id,
+      endFrameMediaId: payload.endOnStart ? media.id : null,
+      prompt: assetPrompt(payload.prompt),
+      model: model.id,
+      aspectRatio,
+      durationSeconds: payload.seconds,
+      resolution: size,
+      withSound: sound,
+      shotId,
+      shotIndex: 1,
+      shotPieces: 1,
+      status: "queued",
+      attempts: 0,
+      createdAt: at,
+      updatedAt: at,
+    })
+    .catch(rethrowShotsFull)
+  return { shotId, cents: shotCostCents(payload.seconds, model.id, size, sound) }
+}
+
+/** Where a picture shot made for a Flow step has got to, and its file once made. */
+export async function pictureShotState(userId: string, shotId: string) {
+  const [row] = await getShot(userId, shotId)
+  const job = row.generation
+  return {
+    status: job.status as "waiting" | "queued" | "processing" | "ready" | "error",
+    mediaId: job.status === "ready" ? job.outputMediaId : null,
+    durationMs: job.durationSeconds * 1000,
+    error: job.errorMessage,
+  }
+}

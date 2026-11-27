@@ -1,0 +1,357 @@
+import * as React from "react"
+import {
+  ChevronDownIcon,
+  Loader2Icon,
+  PlusIcon,
+  XIcon,
+} from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { FormDialog } from "@/components/ui/form-dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  addMediaToCollection,
+  createMediaCollection,
+  getVideoMediaErrorMessage,
+  removeMediaFromCollection,
+  renameMediaCollection,
+  type MediaCollectionSummary,
+} from "@/lib/api/video/media"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
+import {
+  cleanCollectionName,
+  MEDIA_COLLECTION_NAME_MAX,
+} from "@/lib/video/media-collections"
+
+/**
+ * Everything the Media panel needs to make, name and fill collections. A
+ * collection is one person's named group of their own files; deleting one
+ * never touches the files in it.
+ */
+
+
+// ------------------------------------------------------ Name window -------
+
+/** Creates a collection when `collection` is null, renames it otherwise. */
+export function CollectionNameDialog({
+  open,
+  onOpenChange,
+  collection,
+  onSaved,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  collection: MediaCollectionSummary | null
+  /** Handed the saved collection; the window closes once this settles. */
+  onSaved: (saved: { id: string; name: string }) => void | Promise<void>
+}) {
+  const [name, setName] = React.useState("")
+  const [invalid, setInvalid] = React.useState(false)
+  const [busy, setBusy] = React.useState(false)
+
+  const [wasOpen, setWasOpen] = React.useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setName(collection?.name ?? "")
+      setInvalid(false)
+    }
+  }
+
+  const original = collection?.name ?? ""
+
+  async function submit() {
+    if (busy) return
+    let cleaned: string
+    try {
+      cleaned = cleanCollectionName(name)
+    } catch (error) {
+      setInvalid(true)
+      showErrorToast(getVideoMediaErrorMessage(error))
+      return
+    }
+    if (collection && cleaned === collection.name) {
+      onOpenChange(false)
+      return
+    }
+    setBusy(true)
+    dismissErrorToast()
+    try {
+      if (collection) {
+        await renameMediaCollection(collection.id, cleaned)
+        await onSaved({ id: collection.id, name: cleaned })
+      } else {
+        await onSaved(await createMediaCollection(cleaned))
+      }
+      onOpenChange(false)
+    } catch (error) {
+      // A taken name is the usual reason, and the server's sentence says so.
+      setInvalid(true)
+      showErrorToast(getVideoMediaErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <FormDialog
+      open={open}
+      dirty={name.trim() !== original}
+      busy={busy}
+      onClose={() => onOpenChange(false)}
+    >
+      {(requestClose) => (
+        <DialogContent variant="admin" className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {collection ? "Rename collection" : "New collection"}
+            </DialogTitle>
+            <DialogDescription>
+              {collection
+                ? "The files in it stay exactly as they are."
+                : "Groups your files so the Media panel can show just them. Only you see it."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Collection</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="media-collection-name">Name</Label>
+                  <Input
+                    id="media-collection-name"
+                    autoFocus
+                    maxLength={MEDIA_COLLECTION_NAME_MAX}
+                    value={name}
+                    placeholder="B-roll"
+                    aria-invalid={invalid || undefined}
+                    onChange={(event) => {
+                      setName(event.target.value)
+                      setInvalid(false)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return
+                      event.preventDefault()
+                      void submit()
+                    }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={requestClose}
+            >
+              Cancel
+            </Button>
+            <Button type="button" disabled={busy} onClick={() => void submit()}>
+              {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              {collection ? "Save changes" : "Create collection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      )}
+    </FormDialog>
+  )
+}
+
+// --------------------------------------------------------- Selecting ------
+
+/**
+ * Laid over a tile while selecting. The whole tile is the label, so a click
+ * anywhere on it ticks the box, and nothing underneath (adding at the
+ * playhead, dragging) can fire.
+ */
+export function SelectTileOverlay({
+  name,
+  selected,
+  onToggle,
+}: {
+  name: string
+  selected: boolean
+  onToggle: () => void
+}) {
+  return (
+    <label
+      className={cn(
+        "absolute inset-0 z-10 cursor-pointer rounded-xl",
+        selected && "ring-2 ring-primary ring-inset"
+      )}
+    >
+      <Checkbox
+        className="absolute top-2 right-2 bg-background"
+        checked={selected}
+        onCheckedChange={onToggle}
+        // Space ticks the focused box instead of reaching the editor's
+        // play-and-pause shortcut.
+        onKeyDown={(event) => {
+          if (event.code === "Space") event.stopPropagation()
+        }}
+        aria-label={`Select ${name}`}
+      />
+    </label>
+  )
+}
+
+/**
+ * The bar under the grid while selecting: one pick from its menu puts every
+ * ticked file into a collection (or takes them out of the one being shown) in
+ * a single request.
+ */
+export function MediaSelectionBar({
+  selectedIds,
+  collections,
+  activeCollection,
+  onDone,
+  onCancel,
+}: {
+  selectedIds: string[]
+  collections: MediaCollectionSummary[]
+  /** The collection the grid is filtered to, if any — the one "Remove" means. */
+  activeCollection: MediaCollectionSummary | null
+  /** Memberships changed; the panel reloads and stops selecting. */
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const [busy, setBusy] = React.useState(false)
+  const [creating, setCreating] = React.useState(false)
+  const count = selectedIds.length
+
+  function requireSelection() {
+    if (count) return true
+    showErrorToast("Tick some files first.")
+    return false
+  }
+
+  async function add(collection: { id: string; name: string }) {
+    await addMediaToCollection(collection.id, selectedIds)
+    onDone()
+  }
+
+  async function run(action: () => Promise<void>) {
+    if (!requireSelection() || busy) return
+    setBusy(true)
+    dismissErrorToast()
+    try {
+      await action()
+    } catch (error) {
+      showErrorToast(getVideoMediaErrorMessage(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(collection: MediaCollectionSummary) {
+    await removeMediaFromCollection(collection.id, selectedIds)
+    onDone()
+  }
+
+  return (
+    // Two rows: the panel is under 200px wide, too narrow for the count and
+    // both buttons side by side.
+    <div className="grid gap-2 border-t p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-sm" aria-live="polite">
+          {count} selected
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Stop selecting"
+          title="Stop selecting"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          <XIcon />
+        </Button>
+      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" className="w-full" disabled={busy}>
+            {busy ? <Loader2Icon className="animate-spin" /> : null}
+            Add to collection
+            <ChevronDownIcon data-icon="inline-end" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {collections.map((collection) => (
+            <DropdownMenuItem
+              key={collection.id}
+              onSelect={() => void run(() => add(collection))}
+            >
+              <span className="truncate">{collection.name}</span>
+            </DropdownMenuItem>
+          ))}
+          {collections.length ? <DropdownMenuSeparator /> : null}
+          <DropdownMenuItem
+            onSelect={() => {
+              if (requireSelection()) setCreating(true)
+            }}
+          >
+            <PlusIcon />
+            New collection
+          </DropdownMenuItem>
+          {activeCollection ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => void run(() => remove(activeCollection))}
+              >
+                <XIcon />
+                <span className="truncate">
+                  Remove from “{activeCollection.name}”
+                </span>
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* A new collection made from here is filled with the ticked files in
+          the same go, so it is still one action. */}
+      <CollectionNameDialog
+        open={creating}
+        onOpenChange={setCreating}
+        collection={null}
+        onSaved={async (created) => {
+          // The collection exists by now, so a failed add must not leave the
+          // window open offering to create it again.
+          try {
+            await add(created)
+          } catch (error) {
+            showErrorToast(
+              `Created “${created.name}”, but the files were not added: ${getVideoMediaErrorMessage(error)}`
+            )
+            onDone()
+          }
+        }}
+      />
+    </div>
+  )
+}

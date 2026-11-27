@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" resource-id="" class="android.widget.FrameLayout" package="com.linkedin.android" content-desc="" bounds="[0,0][1080,2400]">
+    <node index="0" text="Let’s do a quick verification" resource-id="" class="android.widget.TextView" package="com.linkedin.android" content-desc="" bounds="[48,400][1032,500]" />
+    <node index="1" text="The login attempt seems suspicious. To finish signing in please enter the verification code we sent to your email address." resource-id="" class="android.widget.TextView" package="com.linkedin.android" content-desc="" bounds="[48,520][1032,620]" />
+    <node index="2" text="Enter code" resource-id="" class="android.widget.EditText" package="com.linkedin.android" content-desc="" bounds="[48,640][1032,740]" />
+    <node index="3" text="Submit" resource-id="" class="android.widget.Button" package="com.linkedin.android" content-desc="" bounds="[48,760][1032,860]" />
+    <node index="4" text="Resend code" resource-id="" class="android.widget.TextView" package="com.linkedin.android" content-desc="" bounds="[48,880][1032,980]" />
+  </node>
+  <node index="1" text="12:04" resource-id="com.android.systemui:id/clock" class="android.widget.TextView" package="com.android.systemui" content-desc="" bounds="[40,0][160,80]" />
+</hierarchy>

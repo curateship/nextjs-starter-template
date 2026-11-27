@@ -1,0 +1,634 @@
+import type { PGlite } from "@electric-sql/pglite"
+import { eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import { NO_PROFILE_MESSAGE, NO_READER_MESSAGE } from "@/lib/social/options"
+import { localMinutes } from "@/lib/social/waking"
+import { uuid } from "@/server/auth/security"
+import { createProfile } from "@/server/browser/profiles"
+import {
+  createTestDatabase,
+  insertUser,
+  type TestDatabase,
+} from "@/server/test-support"
+
+import { promoAccounts, promoJobs } from "./schema"
+
+vi.mock("@/server/browser/session", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/browser/session")>()
+  return {
+    ...actual,
+    ensureSession: vi.fn(),
+    stopSession: vi.fn(),
+    touchSession: vi.fn(),
+  }
+})
+
+vi.mock("@/server/browser/command", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/browser/command")>()
+  return {
+    ...actual,
+    redditQuickState: vi.fn(),
+    redditState: vi.fn(),
+    redditHealth: vi.fn(),
+    redditStrangerProfile: vi.fn(),
+  }
+})
+
+vi.mock("./reddit/post-comment", () => ({ postComment: vi.fn() }))
+vi.mock("./reddit/post-reply", () => ({ postReply: vi.fn() }))
+
+vi.mock("./reddit/search", () => ({
+  runKeywordSearch: vi.fn(),
+  loadFindThread: vi.fn(),
+}))
+
+const session = await import("@/server/browser/session")
+const command = await import("@/server/browser/command")
+const search = await import("./reddit/search")
+const { runOneJob } = await import("./runner")
+const { queueJob } = await import("./jobs")
+const { createProject, readProjectView } = await import("./projects")
+const { queueDueHealthChecks, queueHealthCheck, readAccountHealth } = await import("./health")
+const { readBehaviour, saveBehaviour } = await import("./behaviour")
+
+const ensureSession = vi.mocked(session.ensureSession)
+const stopSession = vi.mocked(session.stopSession)
+const quickState = vi.mocked(command.redditQuickState)
+const fullState = vi.mocked(command.redditState)
+const healthRead = vi.mocked(command.redditHealth)
+const strangerRead = vi.mocked(command.redditStrangerProfile)
+const runKeywordSearch = vi.mocked(search.runKeywordSearch)
+
+const target = { port: 7900, token: "key" }
+const readerTarget = { port: 7901, token: "reader-key" }
+
+/** Waking hours around this minute, UTC, so a test is awake or asleep whenever it runs. */
+function hoursAround(now: Date, awake: boolean) {
+  const minute = localMinutes(now, "UTC")
+  const shift = (by: number) => (((minute + by) % 1440) + 1440) % 1440
+  return awake
+    ? { wakeFromMinute: shift(-120), wakeUntilMinute: shift(120) }
+    : { wakeFromMinute: shift(120), wakeUntilMinute: shift(240) }
+}
+
+/** A reader profile, picked in Settings → Behaviour, with waking hours around now. */
+async function pickReader(db: TestDatabase, userId: string, awake = true): Promise<string> {
+  const readerId = await createProfile(userId, { name: "Reader" }, db)
+  await saveBehaviour(
+    userId,
+    { ...(await readBehaviour(userId, db)), readerProfileId: readerId, ...hoursAround(new Date(), awake) },
+    db
+  )
+  return readerId
+}
+
+const signedInHealth = {
+  handle: "a_persona",
+  karma: 120,
+  createdSeconds: 1_600_000_000,
+  blocked: false,
+  reason: "",
+  banScreen: null,
+  profile: { signedIn: { status: 200, found: true, suspended: false } },
+}
+
+/**
+ * The browser program's turn: a job finds its account, the account's profile,
+ * and that profile's browser, and afterwards it writes down what the browser
+ * could see. The browser and Reddit are faked; the rows are real.
+ */
+describe("running a browser job", () => {
+  let client: PGlite
+  let db: TestDatabase
+  let userId: string
+  let profileId: string
+  let readerId: string
+  let accountId: string
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    const made = await createTestDatabase()
+    client = made.client
+    db = made.db
+    userId = (await insertUser(db, { role: "admin" })).id
+    profileId = await createProfile(userId, { name: "Main" }, db)
+    accountId = uuid()
+    await db.insert(promoAccounts).values({ id: accountId, userId, profileId })
+    readerId = await pickReader(db, userId)
+
+    ensureSession.mockImplementation(async (_user, id) => ({
+      id: `session-${id}`,
+      profileId: id,
+      target: id === readerId ? readerTarget : target,
+    }))
+    // The account's browser is signed in; the reader is signed in to nobody.
+    quickState.mockImplementation(async (at) =>
+      at === readerTarget
+        ? { checked: true, handle: null, karma: null, createdSeconds: null, blocked: false, reason: "", banScreen: null }
+        : { checked: true, handle: "a_persona", karma: 120, createdSeconds: 1_600_000_000, blocked: false, reason: "", banScreen: null }
+    )
+    healthRead.mockResolvedValue(signedInHealth)
+  })
+
+  afterEach(async () => {
+    await client.close()
+  })
+
+  async function account() {
+    const [row] = await db.select().from(promoAccounts).where(eq(promoAccounts.id, accountId))
+    return row
+  }
+
+  async function job(id: string) {
+    const [row] = await db.select().from(promoJobs).where(eq(promoJobs.id, id))
+    return row
+  }
+
+  it("runs a search in the reader's browser and never opens the account's", async () => {
+    await queueJob(userId, "search", { keywordId: "k1" }, db)
+
+    const result = await runOneJob("worker", db)
+
+    expect(result).toMatchObject({ did: "job", ok: true })
+    expect(ensureSession).toHaveBeenCalledWith(userId, readerId, db)
+    expect(ensureSession).not.toHaveBeenCalledWith(userId, profileId, db)
+    expect(runKeywordSearch).toHaveBeenCalledWith(userId, "k1", readerTarget, db)
+    // The reader's signed-out look is not written onto the account.
+    expect((await account()).handle).toBe("")
+  })
+
+  it("files a search under the reader's lane, so it never waits on a comment", async () => {
+    const id = await queueJob(userId, "search", { keywordId: "k1" }, db)
+    expect((await job(id)).lane).toBe(readerId)
+  })
+
+  it("files a reader job queued under another lane again under the reader's, untried, before opening anything", async () => {
+    const id = await queueJob(userId, "search", { keywordId: "k1" }, db)
+    // Queued before readers existed, under the account's profile.
+    await db.update(promoJobs).set({ lane: profileId }).where(eq(promoJobs.id, id))
+
+    expect(await runOneJob("worker", db)).toMatchObject({ did: "put back", jobId: id })
+    expect(await job(id)).toMatchObject({ status: "queued", lane: readerId, attempts: 0 })
+    expect(ensureSession).not.toHaveBeenCalled()
+
+    expect(await runOneJob("worker", db)).toMatchObject({ did: "job", ok: true })
+    expect(runKeywordSearch).toHaveBeenCalledTimes(1)
+  })
+
+  it("refuses a search when no reader is picked, rather than using the account's browser", async () => {
+    await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), readerProfileId: null }, db)
+
+    await expect(queueJob(userId, "search", { keywordId: "k1" }, db)).rejects.toThrow(NO_READER_MESSAGE)
+  })
+
+  it("refuses a reader that is signed in to Reddit, before it searches", async () => {
+    quickState.mockResolvedValue({
+      checked: true,
+      handle: "someone",
+      karma: 1,
+      createdSeconds: 1,
+      blocked: false,
+      reason: "",
+      banScreen: null,
+    })
+    const id = await queueJob(userId, "search", { keywordId: "k1" }, db)
+
+    const result = await runOneJob("worker", db)
+
+    expect(result).toMatchObject({ ok: false })
+    expect((await job(id)).lastError).toContain("is signed in to Reddit as u/someone")
+    expect((await job(id)).attempts).toBe(1)
+    expect(runKeywordSearch).not.toHaveBeenCalled()
+  })
+
+  it("writes down who is signed in after an account job, without moving the page", async () => {
+    await queueJob(userId, "health", { accountId }, db)
+
+    await runOneJob("worker", db)
+
+    const saved = await account()
+    expect(saved.handle).toBe("a_persona")
+    expect(saved.blocked).toBe(false)
+    expect(saved.stateReadAt).toBeInstanceOf(Date)
+    // The navigating check is only for a person who asked for it.
+    expect(quickState).toHaveBeenCalledTimes(1)
+    expect(fullState).not.toHaveBeenCalled()
+  })
+
+  it("still writes down a captcha when the job itself failed", async () => {
+    healthRead.mockRejectedValueOnce(new Error("the page never loaded"))
+    quickState.mockResolvedValue({
+      checked: true,
+      handle: "a_persona",
+      karma: null,
+      createdSeconds: null,
+      blocked: true,
+      reason: "a challenge or captcha is on screen",
+      banScreen: null,
+    })
+    const id = await queueJob(userId, "health", { accountId }, db)
+
+    await runOneJob("worker", db)
+
+    expect((await job(id)).lastError).toBe("the page never loaded")
+    const saved = await account()
+    expect(saved.blocked).toBe(true)
+    expect(saved.blockedReason).toBe("a challenge or captcha is on screen")
+  })
+
+  it("keeps the last answer when the page was not on Reddit", async () => {
+    await db.update(promoAccounts).set({ handle: "a_persona" })
+    healthRead.mockRejectedValueOnce(new Error("no answer"))
+    quickState.mockResolvedValue({
+      checked: false,
+      handle: null,
+      karma: null,
+      createdSeconds: null,
+      blocked: false,
+      reason: "",
+      banScreen: null,
+    })
+    await queueJob(userId, "health", { accountId }, db)
+
+    await runOneJob("worker", db)
+
+    // A cookie read from another site's page would have said "signed out".
+    expect((await account()).handle).toBe("a_persona")
+  })
+
+  it("refuses a job whose account has no profile, in words a person can act on", async () => {
+    await db.update(promoAccounts).set({ profileId: null })
+    const id = await queueJob(userId, "health", { accountId }, db)
+
+    const result = await runOneJob("worker", db)
+
+    expect(result).toMatchObject({ ok: false, error: NO_PROFILE_MESSAGE })
+    expect((await job(id)).lastError).toBe(NO_PROFILE_MESSAGE)
+    expect(ensureSession).not.toHaveBeenCalled()
+  })
+
+  it("opens a profile's browser for an open job and reads who is signed in", async () => {
+    await queueJob(userId, "open", { profileId }, db)
+
+    await runOneJob("worker", db)
+
+    expect(ensureSession).toHaveBeenCalledWith(userId, profileId, db)
+    expect((await account()).handle).toBe("a_persona")
+  })
+
+  it("closes a profile's browser for a close job", async () => {
+    await queueJob(userId, "close", { profileId }, db)
+
+    await runOneJob("worker", db)
+
+    expect(stopSession).toHaveBeenCalledWith(profileId, db)
+    expect(ensureSession).not.toHaveBeenCalled()
+  })
+
+  it("refuses to close another person's browser", async () => {
+    const other = (await insertUser(db, { role: "admin" })).id
+    const id = await queueJob(other, "close", { profileId }, db)
+
+    await runOneJob("worker", db)
+
+    expect((await job(id)).lastError).toBe("That browser profile does not exist.")
+    expect(stopSession).not.toHaveBeenCalled()
+  })
+
+  it("runs the navigating check only for a check job", async () => {
+    fullState.mockResolvedValue({
+      handle: "someone_else",
+      karma: null,
+      createdSeconds: null,
+      blocked: false,
+      reason: "",
+      banScreen: null,
+      url: "https://www.reddit.com/",
+    })
+    await queueJob(userId, "check", { profileId }, db)
+
+    await runOneJob("worker", db)
+
+    expect(fullState).toHaveBeenCalledTimes(1)
+    expect(quickState).not.toHaveBeenCalled()
+    expect((await account()).handle).toBe("someone_else")
+  })
+
+  it("does not look at another person's account from a job naming its profile", async () => {
+    const other = (await insertUser(db, { role: "admin" })).id
+    await queueJob(other, "check", { profileId }, db)
+
+    await runOneJob("worker", db)
+
+    // ensureSession is faked here, so the guard that matters is the one that
+    // reads accounts: only the job owner's accounts are ever looked at.
+    expect(fullState).not.toHaveBeenCalled()
+  })
+
+  it("tries a comment once and never again, whatever went wrong", async () => {
+    vi.mocked((await import("./reddit/post-comment")).postComment).mockRejectedValueOnce(
+      new Error("The browser did not answer reddit/comment within 300 seconds.")
+    )
+    const id = await queueJob(userId, "comment", { findId: "f1", text: "Hello.", accountId }, db)
+
+    await runOneJob("worker", db)
+
+    const failed = await job(id)
+    expect(failed.status).toBe("failed")
+    expect(failed.attempts).toBe(1)
+    // Nothing is waiting to post it a second time.
+    expect(await runOneJob("worker", db)).toEqual({ did: "nothing" })
+  })
+
+  it("puts a comment taken outside waking hours back to wait, untried and unopened", async () => {
+    const { postComment } = await import("./reddit/post-comment")
+    await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), ...hoursAround(new Date(), false) }, db)
+    const id = await queueJob(userId, "comment", { findId: "f1", text: "Hello.", accountId }, db)
+
+    const result = await runOneJob("worker", db)
+
+    expect(result).toMatchObject({ did: "put back", jobId: id })
+    const waiting = await job(id)
+    expect(waiting.status).toBe("queued")
+    expect(waiting.attempts).toBe(0)
+    expect(waiting.runAfter!.getTime()).toBeGreaterThan(Date.now())
+    expect(vi.mocked(postComment)).not.toHaveBeenCalled()
+    expect(ensureSession).not.toHaveBeenCalled()
+    // Held back, so the next turn finds nothing to do.
+    expect(await runOneJob("worker", db)).toEqual({ did: "nothing" })
+  })
+
+  it("tries an answer to a reply once and never again, in the account's own browser", async () => {
+    const { postReply } = await import("./reddit/post-reply")
+    vi.mocked(postReply).mockRejectedValueOnce(new Error("reply: pressed send but no new reply appeared within 20 seconds"))
+    const id = await queueJob(userId, "reply", { commentId: "c1", replyId: "r1", text: "Hello.", accountId }, db)
+
+    await runOneJob("worker", db)
+
+    expect(vi.mocked(postReply)).toHaveBeenCalledWith(
+      { userId, commentId: "c1", replyId: "r1", text: "Hello.", draftId: null },
+      target,
+      db
+    )
+    const failed = await job(id)
+    expect(failed.status).toBe("failed")
+    expect(failed.attempts).toBe(1)
+    expect(await runOneJob("worker", db)).toEqual({ did: "nothing" })
+  })
+
+  it("puts an answer to a reply taken outside waking hours back to wait", async () => {
+    const { postReply } = await import("./reddit/post-reply")
+    await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), ...hoursAround(new Date(), false) }, db)
+    const id = await queueJob(userId, "reply", { commentId: "c1", replyId: "r1", text: "Hello.", accountId }, db)
+
+    expect(await runOneJob("worker", db)).toMatchObject({ did: "put back", jobId: id })
+    expect(vi.mocked(postReply)).not.toHaveBeenCalled()
+    expect(ensureSession).not.toHaveBeenCalled()
+  })
+
+  it("fails a refusal at once instead of trying it three times", async () => {
+    await db.update(promoAccounts).set({ profileId: null })
+    const id = await queueJob(userId, "health", { accountId }, db)
+
+    await runOneJob("worker", db)
+
+    const failed = await job(id)
+    expect(failed.status).toBe("failed")
+    expect(failed.attempts).toBe(1)
+  })
+})
+
+/**
+ * What the Projects dashboard reads about each account. It must answer from
+ * the rows alone: asking a browser used to move its page every two seconds
+ * while the dashboard was open.
+ */
+describe("reading a project's accounts", () => {
+  let client: PGlite
+  let db: TestDatabase
+  let userId: string
+  let profileId: string
+  let projectId: string
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    const made = await createTestDatabase()
+    client = made.client
+    db = made.db
+    userId = (await insertUser(db, { role: "admin" })).id
+    profileId = await createProfile(userId, { name: "Main" }, db)
+    projectId = await createProject(userId, "A project", db)
+    await db.insert(promoAccounts).values({
+      id: uuid(),
+      userId,
+      profileId,
+      projectId,
+      handle: "a_persona",
+      blocked: true,
+      blockedReason: "a challenge or captcha is on screen",
+    })
+  })
+
+  afterEach(async () => {
+    await client.close()
+  })
+
+  it("answers from the saved rows, names the profile, and never calls a browser", async () => {
+    const view = await readProjectView(userId, projectId, db)
+
+    expect(view.accounts).toHaveLength(1)
+    expect(view.accounts[0]).toMatchObject({
+      handle: "a_persona",
+      blocked: true,
+      reason: "a challenge or captcha is on screen",
+      profile: { id: profileId, name: "Main" },
+    })
+    expect(quickState).not.toHaveBeenCalled()
+    expect(fullState).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Karma, age and how the profile looks to a stranger. The browser is faked;
+ * what matters is what is stored, and that "never read" never becomes a zero.
+ */
+describe("reading the account's health", () => {
+  let client: PGlite
+  let db: TestDatabase
+  let userId: string
+  let profileId: string
+  let readerId: string
+  let accountId: string
+
+  const seen = { status: 200, found: true, suspended: false }
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    const made = await createTestDatabase()
+    client = made.client
+    db = made.db
+    userId = (await insertUser(db, { role: "admin" })).id
+    profileId = await createProfile(userId, { name: "Main" }, db)
+    accountId = uuid()
+    await db.insert(promoAccounts).values({ id: accountId, userId, profileId, handle: "a_persona" })
+    readerId = await pickReader(db, userId)
+    ensureSession.mockImplementation(async (_user, id) => ({
+      id: `session-${id}`,
+      profileId: id,
+      target: id === readerId ? readerTarget : target,
+    }))
+    quickState.mockImplementation(async (at) =>
+      at === readerTarget
+        ? { checked: true, handle: null, karma: null, createdSeconds: null, blocked: false, reason: "", banScreen: null }
+        : { checked: true, handle: "a_persona", karma: 120, createdSeconds: 1_600_000_000, blocked: false, reason: "", banScreen: null }
+    )
+    healthRead.mockResolvedValue(signedInHealth)
+  })
+
+  afterEach(async () => {
+    await client.close()
+  })
+
+  async function account() {
+    const [row] = await db.select().from(promoAccounts).where(eq(promoAccounts.id, accountId))
+    return row
+  }
+
+  it("leaves karma and age unread, not zero, before any reading", async () => {
+    const health = await readAccountHealth(userId, accountId, db)
+    expect(health).toMatchObject({ karma: null, redditCreatedAt: null, karmaReadAt: null, profileCheck: null })
+  })
+
+  it("stores karma and age from the sign-in read every job already takes", async () => {
+    await queueJob(userId, "open", { profileId }, db)
+    await runOneJob("worker", db)
+
+    const saved = await account()
+    expect(saved.karma).toBe(120)
+    expect(saved.redditCreatedAt?.toISOString()).toBe("2020-09-13T12:26:40.000Z")
+    expect(saved.karmaReadAt).toBeInstanceOf(Date)
+  })
+
+  it("keeps the last karma reading when the browser is signed out", async () => {
+    await db.update(promoAccounts).set({ karma: 55 })
+    quickState.mockResolvedValue({
+      checked: true,
+      handle: null,
+      karma: null,
+      createdSeconds: null,
+      blocked: false,
+      reason: "",
+      banScreen: null,
+    })
+    await queueJob(userId, "open", { profileId }, db)
+    await runOneJob("worker", db)
+
+    expect((await account()).karma).toBe(55)
+  })
+
+  it("reads the account's half in its browser and the stranger's half in the reader", async () => {
+    healthRead.mockResolvedValue({
+      handle: "a_persona",
+      karma: 0,
+      createdSeconds: 1_600_000_000,
+      blocked: false,
+      reason: "",
+      profile: { signedIn: seen },
+    })
+    strangerRead.mockResolvedValue({ status: 404, found: false, suspended: false })
+    // The sign-in read after every job reads the same answer.
+    quickState.mockImplementation(async (at) =>
+      at === readerTarget
+        ? { checked: true, handle: null, karma: null, createdSeconds: null, blocked: false, reason: "", banScreen: null }
+        : { checked: true, handle: "a_persona", karma: 0, createdSeconds: 1_600_000_000, blocked: false, reason: "", banScreen: null }
+    )
+    await queueHealthCheck(userId, accountId, db)
+
+    expect(await runOneJob("worker", db)).toMatchObject({ kind: "health", ok: true })
+    // Half done is still checking, and nothing half-read is stored.
+    expect((await readAccountHealth(userId, accountId, db))?.checking).toBe(true)
+    expect((await account()).profileCheck).toBeNull()
+
+    expect(await runOneJob("worker", db)).toMatchObject({ kind: "profile_check", ok: true })
+    expect(strangerRead).toHaveBeenCalledWith(readerTarget, { handle: "a_persona" })
+    const saved = await account()
+    // A real reading of zero is stored as zero, which is not the same as null.
+    expect(saved.karma).toBe(0)
+    expect(saved.profileCheck).toMatchObject({
+      handle: "a_persona",
+      signedInStatus: 200,
+      signedInFound: true,
+      signedOutStatus: 404,
+      signedOutFound: false,
+      suspended: false,
+    })
+    expect((await readAccountHealth(userId, accountId, db))?.checking).toBe(false)
+  })
+
+  it("keeps the karma and says why when there is no reader for the stranger's half", async () => {
+    await saveBehaviour(userId, { ...(await readBehaviour(userId, db)), readerProfileId: null }, db)
+    await queueHealthCheck(userId, accountId, db)
+
+    await runOneJob("worker", db)
+
+    const health = await readAccountHealth(userId, accountId, db)
+    expect(health?.karma).toBe(120)
+    expect(health?.lastError).toBe(NO_READER_MESSAGE)
+    expect(health?.profileCheck).toBeNull()
+  })
+
+  it("refuses a health check while signed out and keeps the last reading", async () => {
+    await db.update(promoAccounts).set({ karma: 9 })
+    healthRead.mockResolvedValue({
+      handle: null,
+      karma: null,
+      createdSeconds: null,
+      blocked: false,
+      reason: "",
+      profile: null,
+    })
+    quickState.mockResolvedValue({
+      checked: true,
+      handle: null,
+      karma: null,
+      createdSeconds: null,
+      blocked: false,
+      reason: "",
+      banScreen: null,
+    })
+    await queueHealthCheck(userId, accountId, db)
+
+    await runOneJob("worker", db)
+
+    const health = await readAccountHealth(userId, accountId, db)
+    expect(health?.lastError).toContain("not signed in to Reddit")
+    expect(health?.karma).toBe(9)
+    expect(health?.profileCheck).toBeNull()
+  })
+
+  it("queues one check at a time from the button", async () => {
+    await queueHealthCheck(userId, accountId, db)
+    await queueHealthCheck(userId, accountId, db)
+
+    const jobs = await db.select().from(promoJobs).where(eq(promoJobs.kind, "health"))
+    expect(jobs).toHaveLength(1)
+    expect((await readAccountHealth(userId, accountId, db))?.checking).toBe(true)
+  })
+
+  it("asks once a day for a signed-in account with a profile, and never for the rest", async () => {
+    const signedOut = uuid()
+    const otherProfile = await createProfile(userId, { name: "Second" }, db)
+    await db
+      .insert(promoAccounts)
+      .values({ id: signedOut, userId, profileId: otherProfile, handle: "", platform: "reddit" })
+
+    const now = new Date(Date.UTC(2099, 0, 2))
+    expect(await queueDueHealthChecks(db, now)).toBe(1)
+    // A failed or finished one an hour ago still counts as asked today.
+    await db.update(promoJobs).set({ status: "failed", createdAt: new Date(now.getTime() - 3_600_000) })
+    expect(await queueDueHealthChecks(db, now)).toBe(0)
+    // A day later it is asked again.
+    expect(await queueDueHealthChecks(db, new Date(now.getTime() + 25 * 3_600_000))).toBe(1)
+  })
+})

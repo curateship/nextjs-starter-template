@@ -1,0 +1,33 @@
+import * as React from "react"
+import { Link } from "@tanstack/react-router"
+import { ArrowLeftIcon } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+
+/**
+ * The project a video is being edited for, which the editor's header goes back
+ * to (`workspace/docs/content-app.md`, "The video editor"; Tyler, 26 Nov 2026:
+ * "Option 1: whole screen"). Null for a video project made outside a project.
+ */
+const EditorBack = React.createContext<{ id: string; name: string } | null>(null)
+
+export const EditorBackProvider = EditorBack.Provider
+
+export function useEditorBack() {
+  return React.useContext(EditorBack)
+}
+
+/**
+ * The button the editor's header starts with: the arrow and the project's
+ * name, going back to the project's page, which opens on its Overview.
+ */
+export function EditorBackButton({ project }: { project: { id: string; name: string } }) {
+  return (
+    <Button asChild variant="ghost" className="max-w-56 shrink-0 gap-1.5 px-2 font-normal">
+      <Link to="/admin/projects/$projectId" params={{ projectId: project.id }} aria-label={`Back to ${project.name}`}>
+        <ArrowLeftIcon />
+        <span className="min-w-0 truncate">{project.name}</span>
+      </Link>
+    </Button>
+  )
+}

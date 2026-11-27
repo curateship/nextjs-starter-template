@@ -1,0 +1,410 @@
+import { createServerFn } from "@tanstack/react-start"
+import { z } from "zod"
+
+import { describeAuthError } from "../error-message"
+import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import {
+  EXPORT_DESCRIPTION_MAX,
+  EXPORT_TITLE_MAX,
+  NO_ACTIVE_EXPORT_MESSAGE,
+  NO_SHAPE_MESSAGE,
+  NOTHING_TO_EXPORT_MESSAGE,
+  ONLY_FAILED_RETRY_MESSAGE,
+  QUEUE_FULL_MESSAGE,
+  RENDER_NOT_FOUND_MESSAGE,
+  shapeBusyMessage,
+  type RenderFrameRate,
+} from "@/lib/video/render"
+import {
+  CLEAR_OUT_AGE_VALUES,
+  clearOutCutoff,
+  type ClearOutAgeChoice,
+} from "@/lib/video/export-clear-out"
+import { EXPORT_KINDS, type ExportKind } from "@/lib/video/export-kinds"
+import { FRAME_FAILED_MESSAGE } from "@/lib/video/saved-frames"
+import {
+  ASPECT_RATIOS,
+  SAVED_TIMELINE_INVALID_MESSAGE,
+  type AspectRatio,
+} from "@/lib/video/timeline-schema"
+import { userGet, userPost } from "@/server/guards"
+import { editorGet, editorPost } from "@/server/video/editor-guards"
+import { actorForExport, actorForVideo, signedInActor } from "@/server/video/project-guests"
+import {
+  clearOutOldExports,
+  previewExportClearOut,
+} from "@/server/video/export-clear-out"
+import {
+  deleteOwnedExports,
+  listOwnedExports,
+  setOwnedExportCover,
+  setOwnedExportHandEdited,
+  updateOwnedExport,
+  type ExportListResponse,
+} from "@/server/video/exports"
+import { listLiveSharedExportIds } from "@/server/video/export-shares"
+import { listPromoSends } from "@/server/video/promo-sends"
+import type { PromoSendView } from "@/lib/video/promo"
+import {
+  STRETCH_INVALID_MESSAGE,
+  STRETCH_ORDER_MESSAGE,
+  STRETCH_PAST_END_MESSAGE,
+  STRETCH_TOO_SHORT_MESSAGE,
+} from "@/lib/video/export-stretch"
+import {
+  cancelRenderJob,
+  cancelRenderJobs,
+  enqueueRenderJobs,
+  getLatestRenderJobs,
+  retryRenderJob,
+  type RenderJobSummary,
+} from "@/server/video/render-queue"
+
+/**
+ * Exports: asking for one, watching it, and everything in the gallery
+ * afterwards. All of it is per-person — an export belongs to whoever made it,
+ * and every one of these carries that from the session rather than the request.
+ */
+
+export type { ExportListResponse, RenderJobSummary }
+
+/**
+ * The gallery page, plus which of its exports a share link opens right now,
+ * and the newest send of each to each Promo project (send-to-promo.md).
+ */
+export type ExportListWithShares = ExportListResponse & {
+  shared_ids: string[]
+  promo_sends: PromoSendView[]
+}
+
+const KNOWN_MESSAGES = new Set([
+  FRAME_FAILED_MESSAGE,
+  PROJECT_NOT_FOUND_MESSAGE,
+  RENDER_NOT_FOUND_MESSAGE,
+  NOTHING_TO_EXPORT_MESSAGE,
+  NO_ACTIVE_EXPORT_MESSAGE,
+  QUEUE_FULL_MESSAGE,
+  SAVED_TIMELINE_INVALID_MESSAGE,
+  NO_SHAPE_MESSAGE,
+  ONLY_FAILED_RETRY_MESSAGE,
+  STRETCH_INVALID_MESSAGE,
+  STRETCH_ORDER_MESSAGE,
+  STRETCH_PAST_END_MESSAGE,
+  STRETCH_TOO_SHORT_MESSAGE,
+  ...ASPECT_RATIOS.map(shapeBusyMessage),
+])
+
+export function getExportErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : ""
+  if (KNOWN_MESSAGES.has(message)) return message
+  return describeAuthError(message) ?? "The export could not be made."
+}
+
+const videoIdSchema = z.object({
+  videoId: z.string().min(1).max(36),
+})
+
+const exportIdSchema = z.object({
+  exportId: z.string().min(1).max(36),
+})
+
+const startSchema = videoIdSchema.extend({
+  // No lower limit here, so an empty list reaches the queue and is refused
+  // with its own plain message rather than a validation error.
+  aspects: z.array(z.enum(ASPECT_RATIOS)).max(ASPECT_RATIOS.length),
+  quality: z.enum(["high", "medium", "low"]),
+  frameRate: z.union([z.literal(30), z.literal(60)]),
+  // Absent means evened out (DEFAULT_NORMALIZE_LOUDNESS). The Export window
+  // always sends its own switch.
+  normalizeLoudness: z.boolean().optional(),
+  // Absent, or nothing but spaces, means the video's own name.
+  title: z.string().max(EXPORT_TITLE_MAX).optional(),
+  // Absent means the whole project. Checked against the project's length
+  // by the queue, which says plainly what is wrong.
+  range: z
+    .object({
+      startMs: z.number().int().nonnegative(),
+      endMs: z.number().int().positive(),
+    })
+    .optional(),
+  // Absent adds the project's intro and outro when it has them.
+  withIntroOutro: z.boolean().optional(),
+})
+
+// A guest sent from Project may export any video in their project, watch it, stop,
+// retry and name it (`workspace/docs/video-project-guests.md`). Deleting and share
+// links stay the signed-in person's.
+const startExportFn = createServerFn({ method: "POST" })
+  .middleware([editorPost])
+  .inputValidator(startSchema)
+  .handler(async ({ data, context }) => {
+    const { userId } = await actorForVideo(context.caller, data.videoId)
+    return enqueueRenderJobs({
+      userId,
+      videoId: data.videoId,
+      aspects: data.aspects,
+      quality: data.quality,
+      frameRate: data.frameRate,
+      normalizeLoudness: data.normalizeLoudness,
+      title: data.title,
+      range: data.range,
+      withIntroOutro: data.withIntroOutro,
+    })
+  })
+
+const videoExportFn = createServerFn({ method: "GET" })
+  .middleware([editorGet])
+  .inputValidator(videoIdSchema)
+  .handler(async ({ data, context }) => {
+    const { userId } = await actorForVideo(context.caller, data.videoId)
+    return getLatestRenderJobs(userId, data.videoId)
+  })
+
+const cancelExportFn = createServerFn({ method: "POST" })
+  .middleware([editorPost])
+  .inputValidator(videoIdSchema)
+  .handler(async ({ data, context }) => {
+    const { userId } = await actorForVideo(context.caller, data.videoId)
+    return cancelRenderJobs(userId, data.videoId)
+  })
+
+const stopExportFn = createServerFn({ method: "POST" })
+  .middleware([editorPost])
+  .inputValidator(exportIdSchema)
+  .handler(async ({ data, context }) => {
+    const { userId } = await actorForExport(context.caller, data.exportId)
+    return cancelRenderJob(userId, data.exportId)
+  })
+
+const retryExportFn = createServerFn({ method: "POST" })
+  .middleware([editorPost])
+  .inputValidator(exportIdSchema)
+  .handler(async ({ data, context }) => {
+    const { userId } = await actorForExport(context.caller, data.exportId)
+    return retryRenderJob(userId, data.exportId)
+  })
+
+const listExportsFn = createServerFn({ method: "GET" })
+  .middleware([editorGet])
+  .inputValidator(
+    z
+      .object({
+        page: z.number().int().optional(),
+        pageSize: z.number().int().optional(),
+        search: z.string().trim().max(120).default(""),
+        videoId: z.string().min(1).max(36).optional(),
+        kind: z.enum(EXPORT_KINDS).default("video"),
+      })
+      .optional()
+  )
+  .handler(async ({ data, context }): Promise<ExportListWithShares> => {
+    // A guest lists only a video in their project's exports, and never its share links.
+    const { userId, guest } = data?.videoId
+      ? await actorForVideo(context.caller, data.videoId)
+      : signedInActor(context.caller)
+    const list = await listOwnedExports({
+      userId,
+      page: data?.page ?? 1,
+      pageSize: data?.pageSize ?? 24,
+      search: data?.search,
+      videoId: data?.videoId,
+      kind: data?.kind ?? "video",
+    })
+    const sharedIds = guest
+      ? []
+      : await listLiveSharedExportIds(
+          userId,
+          list.exports.map((item) => item.id)
+        )
+    // Sending is the admin's, so a guest never sees where things went.
+    const promoSends = guest
+      ? []
+      : await listPromoSends(userId, { exportIds: list.exports.map((item) => item.id) })
+    return { ...list, shared_ids: sharedIds, promo_sends: promoSends }
+  })
+
+const updateExportFn = createServerFn({ method: "POST" })
+  .middleware([editorPost])
+  .inputValidator(
+    exportIdSchema.extend({
+      title: z.string().max(EXPORT_TITLE_MAX),
+      description: z.string().max(EXPORT_DESCRIPTION_MAX),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    const { userId } = await actorForExport(context.caller, data.exportId)
+    return updateOwnedExport({
+      userId,
+      exportId: data.exportId,
+      title: data.title,
+      description: data.description,
+    })
+  })
+
+const setExportHandEditedFn = createServerFn({ method: "POST" })
+  .middleware([editorPost])
+  .inputValidator(exportIdSchema.extend({ handEdited: z.boolean() }))
+  .handler(async ({ data, context }) => {
+    const { userId } = await actorForExport(context.caller, data.exportId)
+    return setOwnedExportHandEdited({
+      userId,
+      exportId: data.exportId,
+      handEdited: data.handEdited,
+    })
+  })
+
+const setExportCoverFn = createServerFn({ method: "POST" })
+  .middleware([editorPost])
+  .inputValidator(
+    exportIdSchema.extend({ atMs: z.number().nonnegative().finite() })
+  )
+  .handler(async ({ data, context }) => {
+    const { userId } = await actorForExport(context.caller, data.exportId)
+    return setOwnedExportCover({
+      userId,
+      exportId: data.exportId,
+      atMs: data.atMs,
+    })
+  })
+
+const deleteExportsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      exportIds: z.array(z.string().min(1).max(36)).min(1).max(100),
+      kind: z.enum(EXPORT_KINDS).default("video"),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    return deleteOwnedExports(
+      context.user.id,
+      data.exportIds,
+      undefined,
+      data.kind
+    )
+  })
+
+const previewClearOutFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(
+    z.object({
+      age: z.enum(CLEAR_OUT_AGE_VALUES),
+      kind: z.enum(EXPORT_KINDS).default("video"),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    return previewExportClearOut(
+      context.user.id,
+      clearOutCutoff(data.age, new Date()),
+      undefined,
+      data.kind
+    )
+  })
+
+const clearOutFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      // The cutoff the preview counted against, so the delete takes what the
+      // window named rather than whatever has aged past the line since.
+      before: z.iso.datetime(),
+      includeShared: z.boolean(),
+      kind: z.enum(EXPORT_KINDS).default("video"),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    return clearOutOldExports({
+      userId: context.user.id,
+      before: new Date(data.before),
+      includeShared: data.includeShared,
+      kind: data.kind,
+    })
+  })
+
+export function startExport(
+  videoId: string,
+  aspects: AspectRatio[],
+  quality: "high" | "medium" | "low",
+  frameRate: RenderFrameRate,
+  normalizeLoudness?: boolean,
+  title?: string,
+  range?: { startMs: number; endMs: number },
+  withIntroOutro?: boolean
+) {
+  return startExportFn({
+    data: { videoId, aspects, quality, frameRate, normalizeLoudness, title, range, withIntroOutro },
+  })
+}
+
+export function loadVideoExports(videoId: string) {
+  return videoExportFn({ data: { videoId } })
+}
+
+export function cancelExports(videoId: string) {
+  return cancelExportFn({ data: { videoId } })
+}
+
+/** Stops one export, leaving the video's other exports going. */
+export function stopExport(exportId: string) {
+  return stopExportFn({ data: { exportId } })
+}
+
+export function retryExport(exportId: string) {
+  return retryExportFn({ data: { exportId } })
+}
+
+export function listExports({
+  page = 1,
+  pageSize = 24,
+  search,
+  videoId,
+  kind = "video",
+}: {
+  page?: number
+  pageSize?: number
+  search?: string
+  /** Only one video's, for the editor's Exports panel. */
+  videoId?: string
+  /** Video exports, or kept carousel ZIPs for the Carousel exports page. */
+  kind?: ExportKind
+} = {}) {
+  return listExportsFn({ data: { page, pageSize, search, videoId, kind } })
+}
+
+export function updateExport(
+  exportId: string,
+  title: string,
+  description: string
+) {
+  return updateExportFn({ data: { exportId, title, description } })
+}
+
+export function setExportHandEdited(exportId: string, handEdited: boolean) {
+  return setExportHandEditedFn({ data: { exportId, handEdited } })
+}
+
+export function setExportCover(exportId: string, atMs: number) {
+  return setExportCoverFn({ data: { exportId, atMs } })
+}
+
+export function deleteExports(
+  exportIds: string[],
+  kind: ExportKind = "video"
+) {
+  return deleteExportsFn({ data: { exportIds, kind } })
+}
+
+export function previewClearOut(
+  age: ClearOutAgeChoice,
+  kind: ExportKind = "video"
+) {
+  return previewClearOutFn({ data: { age, kind } })
+}
+
+export function clearOutExports(
+  before: string,
+  includeShared: boolean,
+  kind: ExportKind = "video"
+) {
+  return clearOutFn({ data: { before, includeShared, kind } })
+}

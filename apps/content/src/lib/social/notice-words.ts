@@ -1,0 +1,94 @@
+/**
+ * The kinds of Promo's own bell notices, and the words each one's heading
+ * starts with. The server writes them (`src/server/social/notices.ts`) and
+ * the bell reads them back to pick the icon (`notices.ts` beside this), so
+ * they live apart from any icon and the server never loads one.
+ */
+
+export type PromoNoticeKind =
+  | "reply"
+  | "removed"
+  | "suspended"
+  | "failed"
+  | "proxy_renewal"
+  | "phone_offline"
+  | "phone_hot"
+  | "phone_signal"
+  | "phone_storage"
+  | "rack_silent"
+  | "ban_screen"
+  | "action_broken"
+  | "app_update"
+  | "phone_address"
+  | "rack_wda"
+  | "shadowbanned"
+  | "new_message"
+  | "new_comment"
+  | "medium_reply"
+  | "medium_gone"
+  | "medium_pulled"
+  | "x_watched"
+  | "x_reply"
+  | "x_gone"
+  | "x_searcher"
+  | "x_hidden"
+  | "linkedin_watched"
+  | "linkedin_reply"
+  | "linkedin_gone"
+  | "linkedin_searcher"
+  | "linkedin_hidden"
+  | "linkedin_code"
+  | "app_brake"
+  | "appeal_waiting"
+  | "ban_unknown"
+  | "looks_back"
+  | "archive_arrived"
+  | "named_you"
+  | "post_comment"
+
+/** Each heading starts with words no other kind's does, because the bell tells them apart by these. */
+export const NOTICE_HEADINGS: Record<PromoNoticeKind, string> = {
+  reply: "New reply to your comment",
+  removed: "Your comment was removed",
+  suspended: "Reddit suspended",
+  failed: "Did not go out:",
+  proxy_renewal: "Renews soon:",
+  phone_offline: "Phone offline:",
+  phone_hot: "Phone running hot:",
+  phone_signal: "Phone has no signal:",
+  phone_storage: "Phone storage nearly full:",
+  rack_silent: "Rack not checking in:",
+  ban_screen: "Ban screen:",
+  action_broken: "Self-test failed:",
+  app_update: "App update out:",
+  phone_address: "Wrong address showing:",
+  rack_wda: "WebDriverAgent on the rack",
+  shadowbanned: "Shadowbanned:",
+  new_message: "New message for",
+  new_comment: "New comment on a post by",
+  medium_reply: "New response to you on Medium",
+  medium_gone: "Gone from Medium:",
+  medium_pulled: "Pulled from a publication:",
+  x_watched: "New post from a watched account:",
+  x_reply: "New reply to you on X",
+  x_gone: "Gone from X:",
+  x_searcher: "X search account stopped:",
+  x_hidden: "X may be hiding",
+  linkedin_watched: "New LinkedIn post from someone you watch:",
+  linkedin_reply: "New reply to you on LinkedIn",
+  linkedin_gone: "Gone from LinkedIn:",
+  linkedin_searcher: "LinkedIn search account stopped:",
+  linkedin_hidden: "LinkedIn may be hiding",
+  linkedin_code: "LinkedIn wants its emailed code:",
+  // The Bans task (workspace/tasks/Bans/01-ban-features.md).
+  // Tyler's words, "Two Instagram bans in a day. Every Instagram account is
+  // paused.", start with the only heading that begins "Two ".
+  app_brake: "Two ",
+  appeal_waiting: "No answer to ",
+  ban_unknown: "Promo doesn't know this screen.",
+  archive_arrived: "Arrived in the archive:",
+  looks_back: "Looks back:",
+  // Part 5 of workspace/tasks/New features/new-features-18-nov.md.
+  named_you: "Someone named you:",
+  post_comment: "New comment on your Reddit post:",
+}

@@ -1,0 +1,479 @@
+import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm"
+
+import { CAROUSEL_NOT_FOUND_MESSAGE, requireCanonicalCarouselSlides } from "@/lib/video/carousel-schema"
+import { PROJECT_NOT_FOUND_MESSAGE } from "@/lib/video/projects"
+import { now } from "@/server/auth/security"
+import { db, type CustomShellDb } from "@/server/db"
+import { forgetVoiceCopy } from "@/server/video/fix-a-word"
+import {
+  deleteMediaAsAdmin,
+  serializeMedia,
+  type MediaItem,
+} from "@/server/media/library"
+import { customShellMedia } from "@/server/schema"
+import type { LinkImportSource } from "@/lib/video/link-imports"
+import { collectionIdsByMedia } from "@/server/video/media-collections"
+import { linkSourcesByMedia } from "@/server/video/link-imports"
+import { requeueFailedPlaybackJobs } from "@/server/video/media-workers"
+import { videoPlaybackUrl } from "@/server/video/media-urls"
+import {
+  videoMediaCollectionItems,
+  videoMediaFilmstrips,
+  videoMediaProxies,
+  videoCarouselProjectMedia,
+  videoCarousels,
+  videoProjectMedia,
+  videoProjects,
+  videoProjectVideos,
+} from "@/server/video/schema"
+
+/**
+ * The studio's own view of the media library: the shell's rows plus what this
+ * app knows about each one — playback proxy, filmstrip, collections. A
+ * separate query rather than a change to the shell's `listOwnedMedia`, because
+ * that function is a shell file and this app may not edit it.
+ */
+
+export type VideoMediaItem = MediaItem & {
+  /** The address to play — the smooth proxy when ready, the original file otherwise. */
+  playback_url: string
+  proxy_status: string | null
+  /**
+   * Why the smooth copy is still waiting, in words, while it waits for room
+   * on the server's disk. Null otherwise.
+   */
+  proxy_note: string | null
+  filmstrip_status: string | null
+  collection_ids: string[]
+  /** Where a file imported from a link came from; absent for any other file. */
+  link_source?: LinkImportSource
+}
+
+export type VideoMediaListResponse = {
+  media: VideoMediaItem[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+  /**
+   * How many files each Collection row in the Media filter would show, with
+   * the same type and search filters: every file, the ones in no collection,
+   * and each collection by id. Only when asked for (`withCounts`).
+   */
+  collection_counts?: MediaCollectionCounts
+}
+
+export type MediaFileType = "image" | "video" | "audio"
+
+export type MediaCollectionCounts = {
+  all: number
+  uncollected: number
+  by_collection: Record<string, number>
+}
+
+/** `undefined` = no filter, `null` = in no collection, a string = members of that one. */
+export type CollectionFilter = string | null | undefined
+
+export type MediaScope =
+  | { type: "project"; id: string }
+  | { type: "carousel"; id: string }
+
+export async function listVideoMedia({
+  userId,
+  page = 1,
+  pageSize = 24,
+  search = "",
+  fileType,
+  fileTypes,
+  collectionId,
+  scope,
+  withCounts = false,
+  database = db,
+}: {
+  userId: string
+  page?: number
+  pageSize?: number
+  search?: string
+  fileType?: MediaFileType
+  /** Any of these types. Empty or absent = every type. */
+  fileTypes?: MediaFileType[]
+  collectionId?: CollectionFilter
+  scope?: MediaScope
+  withCounts?: boolean
+  database?: CustomShellDb
+}): Promise<VideoMediaListResponse> {
+  const safePage = Math.max(1, Math.floor(page))
+  const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)))
+
+  // Collected rather than nested, the way the shell's own list query does it.
+  const filters: SQL[] = [eq(customShellMedia.userId, userId)]
+  if (scope) {
+    const mediaIds = await mediaIdsForScope(userId, scope, database)
+    if (!mediaIds.length) {
+      return {
+        media: [],
+        total: 0,
+        page: safePage,
+        page_size: safePageSize,
+        total_pages: 1,
+        ...(withCounts
+          ? { collection_counts: { all: 0, uncollected: 0, by_collection: {} } }
+          : {}),
+      }
+    }
+    filters.push(inArray(customShellMedia.id, mediaIds))
+  }
+  if (fileType) {
+    filters.push(eq(customShellMedia.fileType, fileType))
+  }
+  if (fileTypes?.length) {
+    filters.push(inArray(customShellMedia.fileType, fileTypes))
+  }
+  const cleanedSearch = search.trim()
+  if (cleanedSearch) {
+    const pattern = `%${cleanedSearch.replace(/([\\%_])/g, "\\$1")}%`
+    const matches = or(
+      ilike(customShellMedia.originalName, pattern),
+      ilike(customShellMedia.filename, pattern),
+      ilike(customShellMedia.altText, pattern)
+    )
+    if (matches) filters.push(matches)
+  }
+  // The counts leave the collection filter out, so each Collection row says
+  // what picking it would show.
+  const countsWhere = and(...filters)
+  if (collectionId !== undefined) {
+    filters.push(
+      collectionId === null
+        ? sql`not exists (select 1 from video_media_collection_items i where i.media_id = ${customShellMedia.id})`
+        : sql`exists (select 1 from video_media_collection_items i where i.media_id = ${customShellMedia.id} and i.collection_id = ${collectionId})`
+    )
+  }
+
+  const where = and(...filters)
+  const [rows, [totals], collectionCounts] = await Promise.all([
+    database
+      .select()
+      .from(customShellMedia)
+      .where(where)
+      .orderBy(desc(customShellMedia.createdAt), desc(customShellMedia.id))
+      .limit(safePageSize)
+      .offset((safePage - 1) * safePageSize),
+    database.select({ total: count() }).from(customShellMedia).where(where),
+    withCounts ? countByCollection(countsWhere, database) : undefined,
+  ])
+
+  const media = await serializeVideoMedia(rows, database)
+
+  const total = totals?.total ?? 0
+  return {
+    media,
+    total,
+    page: safePage,
+    page_size: safePageSize,
+    total_pages: Math.max(1, Math.ceil(total / safePageSize)),
+    ...(collectionCounts ? { collection_counts: collectionCounts } : {}),
+  }
+}
+
+/** Every file, the ones in no collection, and each collection, over one filter. */
+async function countByCollection(
+  where: SQL | undefined,
+  database: CustomShellDb
+): Promise<MediaCollectionCounts> {
+  const [[totals], perCollection] = await Promise.all([
+    database
+      .select({
+        all: count(),
+        uncollected: sql<number>`count(*) filter (where not exists (select 1 from video_media_collection_items i where i.media_id = ${customShellMedia.id}))`.mapWith(Number),
+      })
+      .from(customShellMedia)
+      .where(where),
+    database
+      .select({
+        collectionId: videoMediaCollectionItems.collectionId,
+        total: count(),
+      })
+      .from(videoMediaCollectionItems)
+      .innerJoin(
+        customShellMedia,
+        eq(customShellMedia.id, videoMediaCollectionItems.mediaId)
+      )
+      .where(where)
+      .groupBy(videoMediaCollectionItems.collectionId),
+  ])
+  return {
+    all: totals?.all ?? 0,
+    uncollected: totals?.uncollected ?? 0,
+    by_collection: Object.fromEntries(
+      perCollection.map((row) => [row.collectionId, row.total])
+    ),
+  }
+}
+
+/**
+ * Library rows as the studio hands them to the browser, in the order given:
+ * with the address to play and what the worker has made of each. Anything a
+ * panel lets you drag onto the timeline goes through here, so a dragged file
+ * becomes the same clip wherever it was dragged from.
+ */
+export async function serializeVideoMedia(
+  rows: (typeof customShellMedia.$inferSelect)[],
+  database: CustomShellDb = db
+): Promise<VideoMediaItem[]> {
+  const mediaIds = rows.map((row) => row.id)
+  const [collections, proxies, filmstrips, linkSources] = await Promise.all([
+    collectionIdsByMedia(mediaIds, database),
+    videoStateByMedia(videoMediaProxies, mediaIds, database),
+    videoStateByMedia(videoMediaFilmstrips, mediaIds, database),
+    linkSourcesByMedia(mediaIds, database),
+  ])
+  return Promise.all(
+    rows.map(async (row) => {
+      const base = await serializeMedia(row)
+      const proxy = proxies.get(row.id)
+      return {
+        ...base,
+        playback_url: await videoPlaybackUrl(base.url, proxy ?? null),
+        proxy_status: proxy?.status ?? null,
+        proxy_note: proxy?.status === "queued" ? (proxy.error ?? null) : null,
+        filmstrip_status: filmstrips.get(row.id)?.status ?? null,
+        collection_ids: collections.get(row.id) ?? [],
+        ...(linkSources.has(row.id) ? { link_source: linkSources.get(row.id) } : {}),
+      }
+    })
+  )
+}
+
+/**
+ * A document sees files uploaded on its own shelf plus files already present
+ * in its saved timeline/slides. Reading the saved document keeps older work
+ * visible without a one-off data backfill.
+ */
+export async function mediaIdsForScope(
+  userId: string,
+  scope: MediaScope,
+  database: CustomShellDb
+) {
+  if (scope.type === "project") {
+    const [project] = await database
+      .select({ id: videoProjects.id })
+      .from(videoProjects)
+      .where(and(eq(videoProjects.id, scope.id), eq(videoProjects.userId, userId)))
+      .limit(1)
+    if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
+
+    // The shelf, plus every file on any of the project's video timelines,
+    // read out of the stored JSON by the database so a project of hundreds
+    // of videos never sends their timelines here.
+    const [attached, onTimelines] = await Promise.all([
+      database
+        .select({ mediaId: videoProjectMedia.mediaId })
+        .from(videoProjectMedia)
+        .where(eq(videoProjectMedia.projectId, scope.id)),
+      database
+        .selectDistinct({
+          mediaId: sql<string>`jsonb_path_query(${videoProjectVideos.timeline}, '$.tracks[*].clips[*].mediaId') #>> '{}'`,
+        })
+        .from(videoProjectVideos)
+        .where(eq(videoProjectVideos.projectId, scope.id)),
+    ])
+    return Array.from(
+      new Set([
+        ...attached.map((row) => row.mediaId),
+        ...onTimelines.flatMap((row) => (row.mediaId ? [row.mediaId] : [])),
+      ])
+    )
+  }
+
+  // A carousel's shelf is its carousel project's: what was uploaded in any
+  // of the project's carousels, and every picture on their slides.
+  const [carousel] = await database
+    .select({ projectId: videoCarousels.carouselProjectId })
+    .from(videoCarousels)
+    .where(and(eq(videoCarousels.id, scope.id), eq(videoCarousels.userId, userId)))
+    .limit(1)
+  if (!carousel) throw new Error(CAROUSEL_NOT_FOUND_MESSAGE)
+
+  const [attached, carousels] = await Promise.all([
+    database
+      .select({ mediaId: videoCarouselProjectMedia.mediaId })
+      .from(videoCarouselProjectMedia)
+      .where(eq(videoCarouselProjectMedia.projectId, carousel.projectId)),
+    database
+      .select({ slides: videoCarousels.slides })
+      .from(videoCarousels)
+      .where(eq(videoCarousels.carouselProjectId, carousel.projectId)),
+  ])
+  return Array.from(
+    new Set([
+      ...attached.map((row) => row.mediaId),
+      ...carousels.flatMap((row) =>
+        carouselSlidesOrNone(row.slides).flatMap((slide) =>
+          slide.items.flatMap((item) =>
+            item.type === "image" || item.type === "video" ? [item.mediaId] : []
+          )
+        )
+      ),
+    ])
+  )
+}
+
+/** A carousel's slides, or none when they no longer read, so one bad carousel never empties the shelf. */
+function carouselSlidesOrNone(value: unknown) {
+  try {
+    return requireCanonicalCarouselSlides(value)
+  } catch {
+    return []
+  }
+}
+
+/** Attach a newly uploaded, owned media row to one owned editor document. */
+export async function attachMediaToScope(
+  userId: string,
+  scope: MediaScope,
+  mediaId: string,
+  database: CustomShellDb = db
+) {
+  const [media] = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+  if (!media) throw new Error("Media not found")
+
+  if (scope.type === "project") {
+    const [project] = await database
+      .select({ id: videoProjects.id })
+      .from(videoProjects)
+      .where(and(eq(videoProjects.id, scope.id), eq(videoProjects.userId, userId)))
+      .limit(1)
+    if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
+    await database
+      .insert(videoProjectMedia)
+      .values({ projectId: scope.id, mediaId, createdAt: now() })
+      .onConflictDoNothing()
+    return
+  }
+
+  // Uploaded in a carousel, it goes on its carousel project's shelf.
+  const [carousel] = await database
+    .select({ projectId: videoCarousels.carouselProjectId })
+    .from(videoCarousels)
+    .where(and(eq(videoCarousels.id, scope.id), eq(videoCarousels.userId, userId)))
+    .limit(1)
+  if (!carousel) throw new Error(CAROUSEL_NOT_FOUND_MESSAGE)
+  await database
+    .insert(videoCarouselProjectMedia)
+    .values({ projectId: carousel.projectId, mediaId, createdAt: now() })
+    .onConflictDoNothing()
+}
+
+/**
+ * Put every file that clips pasted into a project use on that project's shelf,
+ * and name the ones that could not be. A file that has been deleted, or that
+ * belongs to somebody else, is reported back rather than thrown: one missing
+ * file must not stop the rest of a paste from landing.
+ */
+export async function attachPastedMediaToProject(
+  userId: string,
+  projectId: string,
+  mediaIds: string[],
+  database: CustomShellDb = db
+): Promise<{ missingMediaIds: string[] }> {
+  const [project] = await database
+    .select({ id: videoProjects.id })
+    .from(videoProjects)
+    .where(and(eq(videoProjects.id, projectId), eq(videoProjects.userId, userId)))
+    .limit(1)
+  if (!project) throw new Error(PROJECT_NOT_FOUND_MESSAGE)
+
+  const wanted = Array.from(new Set(mediaIds))
+  if (!wanted.length) return { missingMediaIds: [] }
+  const owned = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(
+      and(
+        eq(customShellMedia.userId, userId),
+        inArray(customShellMedia.id, wanted)
+      )
+    )
+  if (owned.length) {
+    const createdAt = now()
+    await database
+      .insert(videoProjectMedia)
+      .values(owned.map((row) => ({ projectId, mediaId: row.id, createdAt })))
+      .onConflictDoNothing()
+  }
+  const found = new Set(owned.map((row) => row.id))
+  return { missingMediaIds: wanted.filter((id) => !found.has(id)) }
+}
+
+/** Try a person's own file's failed smooth copy and filmstrip again. */
+export async function retryOwnedMediaPreparation(
+  userId: string,
+  mediaId: string,
+  database: CustomShellDb = db
+) {
+  const [media] = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+  if (!media) throw new Error("Media not found")
+  await requeueFailedPlaybackJobs(mediaId, database)
+}
+
+/** Delete one owned file that is visible on the requested editor shelf. */
+export async function deleteMediaFromScope(
+  userId: string,
+  scope: MediaScope,
+  mediaId: string,
+  database: CustomShellDb = db,
+  deleteMedia: typeof deleteMediaAsAdmin = deleteMediaAsAdmin
+) {
+  const visibleMediaIds = await mediaIdsForScope(userId, scope, database)
+  if (!visibleMediaIds.includes(mediaId)) throw new Error("Media not found")
+
+  const [media] = await database
+    .select({ id: customShellMedia.id })
+    .from(customShellMedia)
+    .where(and(eq(customShellMedia.id, mediaId), eq(customShellMedia.userId, userId)))
+    .limit(1)
+  if (!media) throw new Error("Media not found")
+
+  // A copy of the voice made from this file by Fix a word goes with it.
+  await forgetVoiceCopy(mediaId, database)
+  const result = await deleteMedia([mediaId], database)
+  if (result.deletedCount !== 1) throw new Error("Media not found")
+}
+
+async function videoStateByMedia(
+  table: typeof videoMediaProxies | typeof videoMediaFilmstrips,
+  mediaIds: string[],
+  database: CustomShellDb
+) {
+  const byMedia = new Map<
+    string,
+    { status: string; storagePath: string | null; error: string | null }
+  >()
+  if (!mediaIds.length) return byMedia
+  const rows = await database
+    .select({
+      mediaId: table.mediaId,
+      status: table.status,
+      storagePath: table.storagePath,
+      error: table.error,
+    })
+    .from(table)
+    .where(inArray(table.mediaId, mediaIds))
+  for (const row of rows) {
+    byMedia.set(row.mediaId, {
+      status: row.status,
+      storagePath: row.storagePath,
+      error: row.error,
+    })
+  }
+  return byMedia
+}

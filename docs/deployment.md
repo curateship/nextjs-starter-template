@@ -78,6 +78,7 @@ no website calls these programs.
 | --- | --- | --- |
 | Pomodoro | `ffmpeg yt-dlp` | Uploaded sounds and clips, and every AI background and soundscape, are re-encoded by the `pomodoro-media-uploads` and `pomodoro-generations` workers. Without FFmpeg each card says "Sound and video cannot be prepared yet." The `pomodoro-youtube-imports` worker calls `yt-dlp` to fetch 5 seconds of a YouTube video for a theme; without it the row says "yt-dlp is not installed on this server". Alpine 3.24's `yt-dlp` was 2026.08.19 on 10 Oct 2026 and fetched a clip inside the worker image. |
 | Video | `ffmpeg yt-dlp` | Its workers call `ffmpeg`, `ffprobe` and `yt-dlp` (`apps/video/src/server/video/media-workers.ts`, `viral/download.ts`). Alpine's `ffmpeg` package brings `ffprobe` with it. On 18 Oct 2026 the Video worker image had FFmpeg 8.1.2, ffprobe 8.1.2 and yt-dlp 2026.08.19. |
+| Content | `ffmpeg yt-dlp` | Video's workers and Research's downloads, as in Video and Viral (`apps/content/src/server/video/media-workers.ts`, `src/server/viral/download.ts`). Promo's browser runs in its own `promo-browser` image, built from `apps/content/docker/browser/` by `npm run build:social-browser` (`apps/content/workspace/docs/content-app.md`). Not deployed yet. |
 | Note | `ffmpeg yt-dlp` | The `note-imports` worker downloads a video with `yt-dlp` and takes its cover with `ffmpeg` (`apps/note/src/server/note/download.ts`, `ffmpeg.ts`). It also needs `curl_cffi` from `WORKER_PIP_PACKAGES` below. |
 | Custom Shell, Trade, CMS | not set | Nothing in their workers calls an outside program. |
 
@@ -148,7 +149,11 @@ worse, so what goes wrong is written next to each.
 - `CUSTOM_SHELL_APP_URL` — the public address. Set it. Without it the app falls
   back to its local development address and starts perfectly happily, and then
   every link it emails — verify your email, reset your password, return from
-  checkout — points at `localhost` on the recipient's own machine.
+  checkout — points at `localhost` on the recipient's own machine. In
+  Content the worker needs the same value as the website: Video, Promo and
+  Viral call each other at that address, answered inside the process only
+  when it is the app's own (`apps/content/workspace/docs/content-app.md`),
+  and Research's reads and Promo's copying run in the worker.
 - `CUSTOM_SHELL_SECRET_ENCRYPTION_KEY` — encrypts the keys held in the
   database. Without it, no key can be saved at all: `encryptSecret` in
   `src/server/auth/encryption.ts` refuses with `ENCRYPTION_NOT_CONFIGURED`

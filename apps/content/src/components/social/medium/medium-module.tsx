@@ -1,0 +1,544 @@
+import * as React from "react"
+import { CrmListHeader } from "@/components/crm/crm-row"
+import { HeaderActionsProvider } from "@/components/social/header-actions"
+import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { ViewMenu } from "@/components/shared/view-menu"
+import { NetworkPaneColumns, useNetworkPanes, withPaneTabs } from "@/components/content-app/network-panes"
+import { PanelReopenButton } from "@/components/shared/three-panels"
+import { AlertTriangleIcon, PauseIcon } from "lucide-react"
+
+import { usePromoGuest } from "@/components/social/guest/guest-mode"
+import { ProjectColumns } from "@/components/social/projects/project-columns"
+import { JobsWindow } from "@/components/social/reddit/jobs-window"
+import {
+  changeMediumHidden,
+  getMediumErrorMessage,
+  loadMediumArticles,
+  loadMediumFindDetail,
+  loadMediumFinds,
+  loadMediumModule,
+  loadMediumPublications,
+  loadMediumResponses,
+  loadMediumToday,
+  setMediumStatus,
+  type ListItemView,
+  type MediumArticleView,
+  type MediumFindDetail,
+  type MediumFindView,
+  type MediumModuleView,
+  type MediumPublicationView,
+  type MediumResponseView,
+  type MediumToday,
+} from "@/lib/api/social/medium"
+import { getProjectErrorMessage, putAccountInProject, takeAccountOutOfProject } from "@/lib/api/social/projects"
+import { useWideScreen } from "@/lib/layout/wide-screen"
+import { MEDIUM_COMMENT_VIEWS, MEDIUM_POST_VIEWS, MEDIUM_VIEW_WORDS, type MediumView } from "@/lib/social/medium/options"
+import type { Side } from "@/lib/social/sides"
+import { showErrorToast } from "@/lib/toast/error-toast"
+
+import { MediumAccountPicker } from "./medium-account-picker"
+import { MediumArticlePanel, MediumArticlesList } from "./medium-articles"
+import { MediumKeywords } from "./medium-keywords"
+import { MediumPublicationPanel, MediumPublicationsList } from "./medium-publications"
+import { MediumResponsePanel, MediumResponsesList } from "./medium-responses"
+import { MediumStories } from "./medium-stories"
+import { MediumStoryPanel } from "./medium-story-panel"
+import { MediumTodayList } from "./medium-today"
+import { ProjectBackButton } from "@/components/social/projects/project-back"
+
+/** How often to ask what the queue is doing, while it is doing something. */
+const POLL_MS = 2_000
+
+/** How long the search box waits after the last key before asking. */
+const SEARCH_WAIT_MS = 300
+
+/**
+ * What the Medium module keeps in the address: its tab (`?tab=`, none is the
+ * side's first tab), the record open in the right column (`?open=<id>`), the
+ * Sent tab's Failed list (`?list=failed`), the Jobs window, and on the
+ * Commenting the picked keyword (`?keyword=<id>`).
+ */
+export type MediumSearch = {
+  tab?: MediumView
+  open?: string
+  list?: "failed"
+  window?: "jobs"
+  keyword?: string
+}
+
+type StoryTab = "new" | "replied" | "skipped"
+
+function isStoryTab(tab: MediumView): tab is StoryTab {
+  return tab === "new" || tab === "replied" || tab === "skipped"
+}
+
+/**
+ * Medium as a module (`workspace/tasks/Medium/01-medium-features.md`): what
+ * fills the middle and right columns when Medium is picked in a left column.
+ * It draws one of two sides
+ * (`workspace/tasks/Projects/commenting-dashboard.md`):
+ *
+ * - **posts**, on a project's dashboard: Posts (`articles`), the account's
+ *   own writing and its Medium lists (parts 26 to 34 and 40), and
+ *   Publications, the group blogs that suit the project (parts 32 and 33).
+ * - **commenting**, on a network's Commenting: the keyword row (part 6),
+ *   then To look at, Replied and Skipped, the stories the keywords found;
+ *   Today, what is worth doing now (part 15); and Sent (`responses`), what
+ *   went out and what failed (parts 35 to 38). With no story picked, the
+ *   first one opens.
+ *
+ * The right column is whatever is open: a story and the response to it, a
+ * sent response, an article, or a publication.
+ *
+ * Every response, article, edit and delete is a job a person pressed for,
+ * run once in the account's own browser. A guest sent from Project does not
+ * work Medium (feature 50 was not picked).
+ */
+export function MediumModule({
+  side,
+  projectId,
+  left,
+  dialogs,
+  search,
+  onSearch,
+  onProjectChanged,
+}: {
+  side: Side
+  projectId: string
+  left: React.ReactNode
+  dialogs: React.ReactNode
+  search: MediumSearch
+  onSearch: (patch: MediumSearch) => void
+  /** Reads the project again, so the left column's Medium count follows. */
+  onProjectChanged: () => Promise<void>
+}) {
+  const desktop = useWideScreen()
+  const guest = usePromoGuest()
+  // Content's Voices and Accounts tabs (`network-panes.tsx`).
+  const panes = useNetworkPanes()
+  const views: readonly MediumView[] = side === "commenting" ? MEDIUM_COMMENT_VIEWS : MEDIUM_POST_VIEWS
+  const firstTab = views[0]
+  const tab: MediumView = search.tab && views.includes(search.tab) ? search.tab : firstTab
+  // Commenting leaves To look at out of the address. Your posts always name
+  // their tab, so an old address with an open record and no tab can only be
+  // a post found by search, and the project's page sends it to Commenting.
+  const dropTab = (item: string) => side === "commenting" && item === firstTab
+  const open = search.open ?? null
+  const responsesList = search.list === "failed" ? "failed" : "sent"
+
+  const [view, setView] = React.useState<MediumModuleView | null>(null)
+  const [viewError, setViewError] = React.useState<string | null>(null)
+  const keywordId = search.keyword ?? null
+  const [accountId, setAccountId] = React.useState<string | null>(null)
+  const [typed, setTyped] = React.useState("")
+  const [words, setWords] = React.useState("")
+  const [list, setList] = React.useState<{
+    /** Which tab, keyword, search and list these rows are for. Another key means they are on their way. */
+    key: string
+    error: string | null
+    finds: MediumFindView[]
+    responses: MediumResponseView[]
+    articles: MediumArticleView[]
+    listItems: ListItemView[]
+    publications: MediumPublicationView[]
+    today: MediumToday | null
+  }>({ key: "", error: null, finds: [], responses: [], articles: [], listItems: [], publications: [], today: null })
+  const [detail, setDetail] = React.useState<{ id: string; find: MediumFindDetail | null }>({ id: "", find: null })
+
+  // The search box asks once the typing stops.
+  React.useEffect(() => {
+    const timer = setTimeout(() => setWords(typed.trim()), SEARCH_WAIT_MS)
+    return () => clearTimeout(timer)
+  }, [typed])
+
+  const listKey = `${tab}|${keywordId ?? ""}|${words}|${responsesList}`
+
+  const refreshView = React.useCallback(
+    (): Promise<void> =>
+      guest
+        ? Promise.resolve()
+        : loadMediumModule(projectId).then(
+            (next) => {
+              setView(next)
+              setViewError(null)
+            },
+            (failure: unknown) => setViewError(getMediumErrorMessage(failure))
+          ),
+    [guest, projectId]
+  )
+
+  // The newest list asked for. A slower answer to an older ask is dropped, so
+  // typing "a" then "ab" never ends on the "a" stories.
+  const latestList = React.useRef("")
+  const refreshList = React.useCallback(async () => {
+    if (guest) return
+    const key = listKey
+    latestList.current = key
+    const keep = <T,>(patch: T) => {
+      if (latestList.current === key) setList((current) => ({ ...current, ...patch, key }))
+    }
+    try {
+      if (isStoryTab(tab)) {
+        const finds = await loadMediumFinds({ projectId, keywordId, tab, search: words || undefined })
+        keep({ error: null, finds })
+      } else if (tab === "today") {
+        const today = await loadMediumToday(projectId)
+        keep({ error: null, today })
+      } else if (tab === "responses") {
+        const responses = await loadMediumResponses(projectId, responsesList)
+        keep({ error: null, responses })
+      } else if (tab === "articles") {
+        const { articles, list: listItems } = await loadMediumArticles(projectId)
+        keep({ error: null, articles, listItems })
+      } else {
+        const publications = await loadMediumPublications(projectId)
+        keep({ error: null, publications })
+      }
+    } catch (failure) {
+      keep({ error: getMediumErrorMessage(failure) })
+    }
+  }, [guest, keywordId, listKey, projectId, responsesList, tab, words])
+
+  // With no story picked, the first one in the list opens, so the right
+  // column is never empty (part 14). Worked out here rather than written to
+  // the address, so a narrow screen stays on the list nobody pressed.
+  const firstStory = isStoryTab(tab) && list.key === listKey ? (list.finds[0]?.id ?? null) : null
+  const storyOpen = isStoryTab(tab) ? (open ?? firstStory) : tab === "today" ? open : null
+  // The story whose read last failed, so the poll says so once, not every two seconds.
+  const failedDetail = React.useRef<string | null>(null)
+  const refreshDetail = React.useCallback(
+    (): Promise<void> =>
+      !storyOpen || guest
+        ? Promise.resolve()
+        : loadMediumFindDetail(storyOpen).then(
+            (find) => {
+              failedDetail.current = null
+              setDetail({ id: storyOpen, find })
+            },
+            (failure: unknown) => {
+              setDetail({ id: storyOpen, find: null })
+              if (failedDetail.current !== storyOpen) showErrorToast(getMediumErrorMessage(failure))
+              failedDetail.current = storyOpen
+            }
+          ),
+    [guest, storyOpen]
+  )
+
+  React.useEffect(() => {
+    void refreshView()
+  }, [refreshView])
+  React.useEffect(() => {
+    void refreshList()
+  }, [refreshList])
+  React.useEffect(() => {
+    void refreshDetail()
+  }, [refreshDetail])
+
+  const refreshAll = React.useCallback(async () => {
+    await Promise.all([refreshView(), refreshList(), refreshDetail(), onProjectChanged()])
+  }, [onProjectChanged, refreshDetail, refreshList, refreshView])
+
+  // A browser takes seconds to minutes and finishes without telling anybody,
+  // so the module asks while the queue has something in it.
+  const working = view ? view.jobs.queued + view.jobs.running > 0 : false
+  React.useEffect(() => {
+    if (!working) return
+    const timer = setInterval(() => void Promise.all([refreshView(), refreshList(), refreshDetail()]), POLL_MS)
+    return () => clearInterval(timer)
+  }, [refreshDetail, refreshList, refreshView, working])
+
+  const account = view?.accounts.find((row) => row.id === accountId) ?? null
+  const counts = view?.counts
+
+  function openRecord(id: string | null, nextTab: MediumView = tab) {
+    onSearch({ tab: dropTab(nextTab) ? undefined : nextTab, open: id ?? undefined })
+  }
+
+  async function skip(findIds: string[]) {
+    try {
+      if (findIds.includes(open ?? "")) openRecord(null)
+      const answer = await setMediumStatus(findIds, "skipped")
+      await refreshAll()
+      if (answer.skipped.length) showErrorToast(`${answer.completed.length} skipped. ${answer.skipped.length} were left alone because they have been responded to.`)
+    } catch (failure) {
+      showErrorToast(getMediumErrorMessage(failure))
+    }
+  }
+
+  const accountPicker = view ? (
+    <MediumAccountPicker
+      accounts={view.accounts}
+      freeAccounts={view.freeAccounts}
+      selectedId={account?.id ?? null}
+      label="Comment as"
+      onSelect={setAccountId}
+      onAdd={async (added) => {
+        try {
+          await putAccountInProject(projectId, added)
+          await refreshView()
+        } catch (failure) {
+          showErrorToast(getProjectErrorMessage(failure))
+        }
+      }}
+      onRemove={async (removed) => {
+        try {
+          await takeAccountOutOfProject(removed)
+          if (removed === accountId) setAccountId(null)
+          await refreshView()
+        } catch (failure) {
+          showErrorToast(getProjectErrorMessage(failure))
+        }
+      }}
+      onSignInQueued={() => void refreshView()}
+    />
+  ) : null
+
+  // The tabs, drawn after the arrow back: in the one Commenting header on
+  // Commenting, and in a header of their own on Posts, as Reddit's are.
+  const [actionsSlot, setActionsSlot] = React.useState<HTMLSpanElement | null>(null)
+  const headerActions = React.useMemo(() => ({ element: actionsSlot }), [actionsSlot])
+  // The lists this side has, with their counts, for the tabs and the narrow dropdown alike.
+  const tabChoices = views.map((item) => {
+    const count =
+      item === "new" ? counts?.toLook : item === "replied" ? counts?.replied : item === "skipped" ? counts?.skipped : item === "responses" ? (counts?.failed ? counts.failed : counts?.toAnswer) : null
+    return { value: item, label: MEDIUM_VIEW_WORDS[item], count: count || undefined }
+  })
+  const pickTab = (next: string) => {
+    const item = next as typeof tab
+    onSearch({ tab: dropTab(item) ? undefined : item, open: undefined, list: undefined })
+  }
+  // The tabs from 768px wide, and below that one dropdown naming the list,
+  // as Reddit's (`finds-panel.tsx`).
+  const paneTabs = withPaneTabs(panes, tab, pickTab, tabChoices)
+  const tabList = (
+    <>
+      <span className="hidden @3xl:contents">
+        <DashboardTabs value={paneTabs.value} onValueChange={paneTabs.onValueChange} tabs={paneTabs.choices} />
+      </span>
+      <span className="shrink-0 @3xl:hidden">
+        <ViewMenu value={paneTabs.value} onValueChange={paneTabs.onValueChange} choices={paneTabs.choices} label="Which list" />
+      </span>
+    </>
+  )
+  // Posts' one header, as Reddit's Posts has it: the arrow back and the tabs,
+  // then the list's own buttons (Post ideas, New post) at its right end,
+  // drawn there by the list through `HeaderActions`.
+  const headerStart = (
+    <>
+      <PanelReopenButton side="left" label="Show the project" />
+      <ProjectBackButton />
+      {tabList}
+    </>
+  )
+  const tabs = (
+    <CrmListHeader
+      tabs={headerStart}
+      end={<PanelReopenButton side="right" label="Show the open post" />}
+      search={null}
+      massSelect={null}
+      menuLabel="More"
+      view={<span ref={setActionsSlot} className="contents" />}
+    />
+  )
+
+  // Voices or Accounts, in place of this network's own lists.
+  if (panes?.pane) return <NetworkPaneColumns panes={{ ...panes, pane: panes.pane }} tabs={headerStart} left={left} dialogs={dialogs} />
+
+  const notices = view ? (
+    <>
+      {view.paused ? (
+        <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm">
+          <PauseIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          Medium is paused on this project. Nothing is sent or warmed up until it is resumed in the left column.
+        </p>
+      ) : null}
+      {!view.readerPicked ? (
+        <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm text-destructive">
+          <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          There is no reader browser, so nothing is searched or read. Pick one in Settings → Behaviour.
+        </p>
+      ) : null}
+    </>
+  ) : null
+
+  // Rows for another tab, keyword or search are on their way, not these.
+  const listLoading = list.key !== listKey
+  // A phone's way back from a post picked by a press; one that opened by
+  // itself has nothing to close, so its column name is the way back.
+  const back = desktop || !open ? undefined : () => openRecord(null)
+
+  let middleBody: React.ReactNode
+  let right: React.ReactNode
+  if (isStoryTab(tab)) {
+    middleBody = (
+      <MediumStories
+        tab={tab}
+        finds={list.key.startsWith(`${tab}|`) ? list.finds : []}
+        loading={listLoading}
+        error={list.error}
+        selectedId={storyOpen}
+        everything={keywordId === null}
+        hasKeywords={Boolean(view?.keywords.length)}
+        readerPicked={view?.readerPicked ?? true}
+        searched={Boolean(words)}
+        onSelect={(id) => openRecord(id)}
+        onSkip={skip}
+        onHide={async (findId, kind) => {
+          try {
+            await changeMediumHidden({ change: "hide", findId, kind })
+            if (findId === open) openRecord(null)
+            await refreshAll()
+          } catch (failure) {
+            showErrorToast(getMediumErrorMessage(failure))
+          }
+        }}
+        onRetry={() => void refreshList()}
+      />
+    )
+  } else if (tab === "today") {
+    middleBody = (
+      <MediumTodayList
+        today={list.today}
+        loading={listLoading}
+        error={list.error}
+        onOpenStory={(findId) => openRecord(findId, "new")}
+        onOpenAnswer={(under) =>
+          "responseId" in under ? onSearch({ tab: "responses", open: under.responseId, list: undefined }) : onSearch({ tab: "articles", open: under.articleId })
+        }
+        onRetry={() => void refreshList()}
+      />
+    )
+  } else if (tab === "responses") {
+    middleBody = (
+      <MediumResponsesList
+        list={responsesList}
+        rows={listLoading ? [] : list.responses}
+        loading={listLoading}
+        error={list.error}
+        selectedId={open}
+        onList={(next) => onSearch({ list: next === "failed" ? "failed" : undefined, open: undefined })}
+        onSelect={(id) => openRecord(id)}
+        onRetry={() => void refreshList()}
+        onChanged={refreshAll}
+      />
+    )
+    const row = list.responses.find((item) => item.id === open) ?? null
+    right = <MediumResponsePanel key={row?.id ?? "none"} projectId={projectId} row={row} onBack={back} onClose={() => openRecord(null)} onChanged={refreshAll} />
+  } else if (tab === "articles") {
+    middleBody = (
+      <MediumArticlesList
+        projectId={projectId}
+        accounts={view?.accounts ?? []}
+        articles={list.articles}
+        list={list.listItems}
+        loading={listLoading}
+        error={list.error}
+        selectedId={open}
+        onSelect={(id) => openRecord(id)}
+        onRetry={() => void refreshList()}
+        onChanged={refreshAll}
+      />
+    )
+    const article = list.articles.find((item) => item.id === open) ?? null
+    right = (
+      <MediumArticlePanel
+        projectId={projectId}
+        article={article}
+        accounts={view?.accounts ?? []}
+        publications={view?.publications ?? []}
+        onBack={back}
+        onClose={() => openRecord(null)}
+        onChanged={refreshAll}
+      />
+    )
+  } else {
+    middleBody = (
+      <MediumPublicationsList
+        projectId={projectId}
+        rows={list.publications}
+        loading={listLoading}
+        error={list.error}
+        selectedId={open}
+        onSelect={(id) => openRecord(id)}
+        onRetry={() => void refreshList()}
+        onChanged={refreshAll}
+      />
+    )
+    const publication = list.publications.find((item) => item.id === open) ?? null
+    right = <MediumPublicationPanel key={publication?.id ?? "none"} publication={publication} onBack={back} onClose={() => openRecord(null)} onChanged={refreshAll} />
+  }
+  if (isStoryTab(tab) || tab === "today") {
+    right = (
+      <MediumStoryPanel
+        key={storyOpen ?? "none"}
+        projectId={projectId}
+        find={detail.id === storyOpen ? detail.find : null}
+        loading={storyOpen !== null && detail.id !== storyOpen}
+        account={account}
+        accountPicker={accountPicker}
+        onBack={back}
+        onSkip={async (findId) => {
+          await skip([findId])
+        }}
+        onChanged={refreshAll}
+      />
+    )
+  }
+
+  const middle = guest ? (
+    <p className="p-4 text-sm text-muted-foreground">Medium is worked by the project&apos;s owner. Open Reddit, Instagram or TikTok in the left column.</p>
+  ) : side === "posts" ? (
+    <HeaderActionsProvider value={headerActions}>
+      {tabs}
+      {viewError ? <p className="border-b px-3 py-2 text-sm text-destructive">{viewError}</p> : null}
+      {view?.paused ? (
+        <p className="flex shrink-0 items-start gap-2 border-b px-3 py-2 text-sm">
+          <PauseIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          Medium is paused on this project. Nothing is sent or warmed up until it is resumed in the left column.
+        </p>
+      ) : null}
+      <div className="flex min-h-0 flex-1 flex-col">{middleBody}</div>
+    </HeaderActionsProvider>
+  ) : (
+    <>
+      <MediumKeywords
+        view={view}
+        failed={Boolean(viewError)}
+        projectId={projectId}
+        selectedId={keywordId}
+        search={isStoryTab(tab) ? { value: typed, onChange: setTyped } : null}
+        tabs={tabList}
+        onSelect={(next) => {
+          onSearch({ keyword: next ?? undefined, open: undefined, ...(isStoryTab(tab) ? {} : { tab: undefined, list: undefined }) })
+        }}
+        onChanged={refreshAll}
+        onOpenJobs={() => onSearch({ window: "jobs" })}
+      />
+      {viewError ? <p className="border-b px-3 py-2 text-sm text-destructive">{viewError}</p> : null}
+      {notices}
+      <div className="flex min-h-0 flex-1 flex-col">{middleBody}</div>
+    </>
+  )
+
+  return (
+    <ProjectColumns
+      left={left}
+      middle={middle}
+      right={guest ? <p className="p-4 text-sm text-muted-foreground">Nothing to show here.</p> : right}
+      rightOpen={Boolean(open)}
+      onCloseRight={() => openRecord(null)}
+      rightLabel="Show the right column"
+    >
+      {dialogs}
+      {side === "commenting" ? (
+        <JobsWindow
+          open={search.window === "jobs" && !guest}
+          onClose={() => {
+            onSearch({ window: undefined })
+            void refreshAll()
+          }}
+        />
+      ) : null}
+    </ProjectColumns>
+  )
+}

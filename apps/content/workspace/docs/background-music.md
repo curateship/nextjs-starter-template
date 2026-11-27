@@ -1,0 +1,119 @@
+# Background music
+
+The Music tab of the editor's Sounds panel (other docs call it the Music
+panel) lists the tracks you uploaded as music, and
+tracks AI made to fit a video (ai-music.md). Each
+row has a play button, the name and length, a + and a trash can. The + lays the
+track under the whole video on its own lane, with "Duck
+under voice" already on, so the music drops by itself wherever somebody talks.
+
+## Where the music comes from
+
+Music is sound files you upload yourself and mark as music. There is no
+outside music service.
+
+- **Why uploads:** it is the smaller build and there is no licence question.
+  Whoever uploads a track is the one who knows whether they may use it.
+- **What a mark is:** a row in `video_music_tracks` that points at a file the
+  media library already holds. The file is not copied.
+- **Who sees it:** the shelf belongs to one person and follows them into every
+  project, the same way collections do.
+- **The trash can** takes a track off the Music list. The file stays in the
+  media library, so clips already using it in any project keep playing.
+  Deleting the file from the library removes it from Music too.
+- **One way in:** the + at the top of the panel uploads a track and marks it
+  as music in one go. The panel shows nothing else: voiceovers and sound
+  effects are not music and stay in the Sounds and Voices panels. Tyler asked
+  for this on 1 Nov 2026: "there should just be a + icon and trashcan icon to
+  add and delete music file. Keep it nice and clean". Until then a second list
+  under the music showed every other sound file with a "Use as music" button.
+
+**Uploading sound works since 30 Oct 2026.** Before then the shell's upload
+check (`validateMediaContent` in `src/server/media/library.ts`) knew pictures
+and video but no sound format, so every MP3 or WAV was refused with "File
+content does not match the selected media type." The check now knows MP3, WAV,
+M4A, AAC, Ogg and WebM sound (the repo's `docs/shell/security.md`, under
+Media).
+
+**Marking a file as music also finds its beats.** The background worker reads
+every track on the shelf for its beats, so clip edges snap to them (see
+[beat-snapping.md](beat-snapping.md)).
+
+## Laying a track down
+
+The + on a track is one edit, so one press of Undo takes the whole lane off
+again.
+
+- **Where it goes:** a new lane at the bottom of the timeline. Nothing already
+  on the timeline moves.
+- **Ducking arrives on.** The lane has "Duck under voice" switched on, so the
+  music drops 12 dB wherever any other lane makes a sound.
+- **It starts at a quarter of its own volume.** Finished music is mastered much
+  louder than speech. A sample track measured -12 LUFS against -20 for a
+  voiceover (LUFS is how loud a file sounds overall; closer to zero is louder).
+  At a quarter, the music sits a little under the voice between sentences and
+  about 12 dB under it while somebody talks. The Volume slider on each clip
+  changes it.
+- **Laying a second track** adds a second music lane. The first one stays.
+
+## When the lengths do not match
+
+The music always covers the video from its first moment to its last. How long
+"the video" is comes from the end of the last clip on any lane.
+
+- **A longer track** is cut where the video ends and fades out over the last
+  two seconds.
+- **A shorter track** plays again from the top, back to back, as many times as
+  it fits. A 10 second track under a 25 second video plays twice in full, then
+  once more for 5 seconds with the fade on those 5.
+- **A leftover piece under two seconds is dropped.** Under a 21 second video
+  the same track plays twice and ends on its own last note one second early.
+  Two seconds of the opening bars fading out as they begin sound like a
+  mistake. The music ending one second early does not.
+- **A track exactly as long as the video** plays once, with no fade.
+- **An empty project** has no length to cover, so the track is laid once at its
+  own length.
+- **Refusals:** a track so short it would need more than 500 pieces, or a
+  timeline that already has 50 lanes, gets a message instead of an edit.
+
+## Blend the repeats
+
+A switch at the top of the Music panel, added on 14 Nov 2026 for study videos
+(the Pomodoro flow). Off, a track shorter than the video repeats back to back
+with a cut at each repeat, as above. On, each copy fades into the next
+instead (`layAudioRepeats` in `src/lib/video/background-music.ts`):
+
+- The copies alternate between two lanes, both with duck under voice on,
+  each copy starting 3 seconds before the one before it ends. One fades out
+  while the next fades in over those 3 seconds, using the clips' own Sound
+  fade in and Sound fade out. Sound has no transitions of its own
+  (`clip-transitions.ts`), so a blend is two fades on two lanes, which the
+  preview and the export already play.
+- The blend is never more than a third of the track, so each copy is mostly
+  heard whole.
+- The last copy fades out over 2 seconds where the video ends; a leftover
+  too short to be worth playing is dropped and the copy before it runs on to
+  the end instead.
+- Both lanes go in as one Undo.
+
+## The fade
+
+The last piece of music arrives with a 2 second sound fade out. It is the same
+Sound fade out every clip has in the inspector's Fades card, so it can be made
+longer, shorter or switched off there, and a fade in can be added.
+`clip-fades.md` covers how fades play, how they split and how the preview
+matches the export.
+
+## What was measured
+
+One 30 second test export, a picture under two voiceovers, with a 12 second
+sample track laid under it:
+
+- The track landed as 12s, 12s and a 6s piece with the fade.
+- Speech came out 10 to 13 dB above the ducked music.
+- The last two seconds fall evenly from about -16 dB to -38 dB, with no sudden
+  stop.
+
+The sample track was a generated test tone, not real music. Real music and a
+real recorded voice will measure differently, so the level is worth a listen
+on a real project.

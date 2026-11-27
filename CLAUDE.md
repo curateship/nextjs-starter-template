@@ -18,10 +18,15 @@ Active workspaces in the Personal IDE (Tyler, 30 Oct 2026; Travel and Viral
 added 5 Nov 2026):
 
 - `apps/shell` — the template every app is copied from.
-- `apps/trade`, `apps/directory`, `apps/video`, `apps/project`,
-  `apps/pomodoro`, `apps/promo`, `apps/date`, `apps/course`, `apps/note`,
-  `apps/fitness`, `apps/task`, `apps/travel`, `apps/viral` — the products,
-  each a copy of the shell, and each one a shell merge goes into.
+- `apps/trade`, `apps/directory`, `apps/project`, `apps/pomodoro`,
+  `apps/date`, `apps/course`, `apps/note`, `apps/fitness`, `apps/task`,
+  `apps/travel`, `apps/content` — the products, each a copy of the shell, and
+  each one a shell merge goes into.
+- `apps/video`, `apps/promo`, `apps/viral` — retired on 27 Nov 2026: Content
+  is the three in one app (Tyler, 26 Nov 2026: "Retire them", then on 27 Nov
+  "finish all parts"). They are read, never changed, and no shell merge goes
+  into them. Their live sites run until Tyler switches them off once Content
+  is live; that is his to do.
 - `apps/personal`, `apps/personal-ide` — active, but not copies of the shell,
   so a shell merge leaves them alone.
 

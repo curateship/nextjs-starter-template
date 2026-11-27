@@ -1,0 +1,183 @@
+# Guests sent from Project
+
+A Project task can point at one Promo project. The person on the task presses
+**Open in Promo** in Project and lands on that project's dashboard here,
+signed in, without a Promo account. They never type a password in Promo. The
+whole design, and Project's side of it, is in Project's
+`workspace/docs/connected-apps.md`. This file covers what Promo does.
+
+## Tyler's rules
+
+Tyler designed this on 15 Oct 2026 and answered the open questions on
+19 Oct 2026.
+
+- **One way only.** People sign in to Project and nowhere else: "Employee
+  would need to signin from project." Promo never sends anyone to Project.
+- **"It is important that the link cannot be shared."** A note works once.
+- **The sign-in lasts 12 hours.**
+- **The record is a Promo project.** One per task.
+- **The guest works the project.** They search posts, change the keywords and
+  the description, and write and send comments and posts with the project's
+  own accounts.
+- **The guest never runs the project.** No deleting or pausing it, no adding
+  or taking off networks, no renaming it, no new picture, and no adding,
+  moving or taking out accounts.
+- **Promo's AI is off for guests**, because it spends Tyler's credits.
+
+## How a guest gets in
+
+1. Project sends the browser to `/handoff/project?note=…`. The note names the
+   Project person (id, name, email), the Promo project, a one-time id, and a
+   time 60 seconds away. Project stamped it with the key the two apps share
+   (an HMAC signature).
+2. Promo checks the stamp against `PROJECT_HANDOFF_KEY`, the 60 seconds, and
+   that the note is meant for Promo. One changed character and the stamp no
+   longer matches.
+3. In one database write, Promo saves the one-time id in
+   `promo_handoff_notes` and makes the guest's sign-in in
+   `promo_project_guests`. The saved id refuses the same note a second time,
+   even from two tabs at once.
+4. The browser gets a cookie, `promo_project_guest`, and goes to
+   `/guest/promo/<project id>` with the note gone from the address bar. Only
+   the cookie token's SHA-256 is kept. One browser holds up to five projects
+   at once, the newest kept.
+5. After 12 hours the sign-in ends and the person presses the button in
+   Project again.
+
+The guest is not an account and never appears on Admin → Users. A signed-in
+admin who opens a guest address sees the dashboard as an admin.
+
+## What a refused note says
+
+The handoff address sends a refused note to `/guest/refused`, which says:
+
+- **Used:** "This link has already been used. Open the task in Project again."
+  This is what a copied address gets.
+- **Expired:** "This link has expired. Open the task in Project again."
+- **Changed or not from Project:** "This link was changed or did not come from
+  Project. Open the task in Project again."
+- **Project deleted:** "The Promo project this task points at was deleted. Ask
+  whoever made the task to point it at another one."
+- **No key on this server:** "Promo is not set up to take people from Project
+  yet. Ask the site admin to add the key Promo shares with Project."
+
+A guest page opened after the 12 hours, or for another project, says "You are
+not signed in to this project" and asks them to open the task in Project
+again.
+
+## What a guest can and can't do
+
+The guest page, `/guest/promo/<project id>`, is the admin's project
+dashboard in a frame of its own: the project's name, "Working as Sam via
+Project", and a Saving… sign. Each network's card has its Posts and
+Commenting rows, as for the owner
+([Commenting inside a project](commenting.md), part 23 of its task). Reddit
+is worked on both rows; Medium, X and LinkedIn say they are worked by the
+project's owner. A guest has no Pause and no Jobs.
+
+There is no left menu and no way to another project. Hidden for a guest, and
+refused by the server whatever the screen shows:
+
+| A guest can | A guest can't |
+| --- | --- |
+| Read and search the project's posts, skip them, read their replies and rules | See another project, or the owner's comments from other projects beside the box |
+| Add, switch, run and delete the project's keywords | Use Ideas, Write with AI, Check, the rewrite buttons, or Write again on an inbox answer |
+| Write the description at the top of the left column, unless its owner locked it | Rename the project, change its picture, pin it, lock the description, pause, resume or delete it, or make a new one; a guest sees no pin and no ⋮ |
+| Send comments, replies and posts from the project's own accounts, and undo one in its 10 seconds | Add, move or take out an account, or open Manage accounts |
+| Edit a sent comment's words | Delete a sent comment from Reddit, or switch a comment's Voice example |
+| See Reddit's Sent tab and its Failed list on Commenting, and Posts and Failed on Posts, cut to the project, and Try again | Open the Jobs window, which lists every project's work, or pause commenting |
+| Answer and skip Instagram and TikTok comments | Post from the owner's media library, or call a post off |
+| Open the project's Archive, play its items, edit their captions and Write captions, and post them from the project's Instagram and TikTok accounts ([archive.md](archive.md)) | Download an archive file, open the Bin, upload, copy, move, pin or delete one |
+| Look for self-promotion threads | Block a subreddit, which hides it from every project |
+
+**"Download an archive file" means the button.** A guest has no Download
+button and no PDF link, but an item still plays, so the file's own address
+reaches the guest's browser (`itemFn` in `src/lib/api/archive/items.ts` sends
+`fileUrl`, which the player and posting both read). Only files in the guest's
+own project are sent this way.
+
+**Who sent it.** A comment, reply or post a guest sends carries "Sam via
+Project" in `sent_by` on its row, carried there through the job's payload. The
+owner sees it under the account on Sent and on Reddit's Posts.
+
+**An admin opening a guest address** sees it as an admin, with nothing
+hidden, in the guest frame. Until 5 Nov 2026 that address showed "You are not
+signed in to this project", because the dashboard asked for the shell's layout
+and the guest frame has none; `usePromoShell` now answers with the guest's
+page size and no Saving… sign there.
+
+## How the server keeps a guest inside one project
+
+Every endpoint the guest page calls uses `editorGet` or `editorPost`
+(`src/server/social/editor-guards.ts`), which let in a signed-in person or a
+browser holding a guest sign-in. The handler then asks who the call acts as:
+
+- **A record's project first.** `actorFor` takes a project id. The record
+  helpers look up the project of a keyword, post, sent comment, inbox row or
+  job before anything else, so a guest can't reach another project's records
+  by guessing an id.
+- **The guest acts as the project's owner** only when the browser holds a
+  guest sign-in for that same project. Every owner check underneath then
+  works unchanged.
+- **Anyone else must be a signed-in admin**, exactly as the admin-only guard
+  asked before. A member is refused.
+- **Lists that span every project** (comments, failures, posts) are cut to the
+  guest's project. The owner's accounts in no project, and other projects'
+  keywords being searched, are taken out of the dashboard.
+
+Everything a guest may never do stays on the shell's `adminGet`/`adminPost`,
+which a guest never passes because a guest has no session.
+`src/server/social/project-guests.test.ts` reads the endpoint files and fails
+if one of those is moved to the guest door. Each guest endpoint is listed in
+`src/app/open-endpoints.ts` with the check it relies on, as the guard test
+requires.
+
+The queue's counts on the dashboard stay the owner's whole queue, because the
+dashboard asks again while they are above zero. They are numbers only.
+
+## The card in Project's notes
+
+Project's task notes can hold a card for the task's Promo project, with its name
+and picture beside the Open in Promo button (Project's note blocks task, 5 Nov
+2026; Tyler: "Task's record, with name + picture").
+
+- **Project asks** `/api/connect/project/record-card?record=…&exp=…&sig=…`.
+  The stamp is an HMAC of `record-card.v1.<record>.<exp>` with
+  `PROJECT_HANDOFF_KEY`. A request works for at most two minutes.
+- **The words in front** keep a card request from ever passing as a sign-in
+  note, and a sign-in note from passing as a card request.
+- **The answer** is the project's name and the project's own picture, only when it is an
+  `https://` address. It signs nobody in and changes nothing.
+- **A refused request** gets 401 and nothing about the project. A project
+  that is gone gets 404.
+- **Project asks** only for the person assigned to the task or the site
+  admin, the people who may press the button. It keeps no copy.
+- **Code:** `src/server/social/project-record-card.ts`, and `src/routes/api/connect/project/record-card.ts`.
+
+## Server setting
+
+`PROJECT_HANDOFF_KEY`: the key Promo shares with Project, the same value as
+Project's `CONNECTED_PROMO_KEY`. A long random string, such as the output of
+`openssl rand -hex 32`. With it empty, every note is refused. It lives in the
+server settings only, never in the database or the page.
+
+## Where the code is
+
+- `src/server/social/project-handoff.ts`: checking a note, the guest
+  sign-in, the cookie and the handoff answer.
+- `src/server/social/editor-guards.ts`: `editorGet` and `editorPost`, in a
+  file of their own like the shell's `guards.ts`. A server call's middleware
+  goes to the browser with it, and only its `.server()` part is left out.
+  While they sat in `project-guests.ts` they took that file's database and
+  sign-in code (argon2) into the browser, and no Promo page responded to a
+  click (fixed 21 Oct 2026). Keep anything else out of this file.
+- `src/server/social/project-guests.ts`: who a call acts as, and the guest's
+  limits.
+- `src/routes/handoff/project.ts`: the handoff address.
+- `src/routes/guest/promo.$projectId.tsx` and `src/routes/guest/refused.tsx`:
+  the guest page and the refusal page.
+- `src/components/social/guest/`: guest mode (`usePromoGuest`), the frame
+  (`guest-frame.tsx`), and the rows per page and Saving… sign
+  the dashboard reads outside the shell's layout.
+- `drizzle/0221_promo_project_guests.sql`: the two tables and the `sent_by`
+  columns.

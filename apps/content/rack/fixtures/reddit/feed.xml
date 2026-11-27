@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="" class="android.widget.FrameLayout" package="com.reddit.frontpage" content-desc="" bounds="[0,0][1080,2400]">
+    <node index="0" text="" class="android.view.View" package="com.reddit.frontpage" content-desc="" bounds="[0,600][1080,1000]">
+      <node index="0" text="" class="android.view.View" package="com.reddit.frontpage" content-desc="" bounds="[0,600][1080,1000]">
+        <node index="0" text="r/productivity" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[40,620][500,670]" />
+        <node index="1" text="What small habit made your mornings easier this year?" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[40,700][1040,820]" />
+        <node index="2" text="" class="android.view.View" package="com.reddit.frontpage" content-desc="Upvote" bounds="[40,900][140,980]" />
+      </node>
+    </node>
+    <node index="1" text="" class="android.view.View" package="com.reddit.frontpage" content-desc="" bounds="[0,1100][1080,1500]">
+      <node index="0" text="" class="android.view.View" package="com.reddit.frontpage" content-desc="" bounds="[0,1100][1080,1500]">
+        <node index="0" text="Promoted" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[40,1120][300,1170]" />
+        <node index="1" text="Try the project tool everyone is switching to today" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[40,1200][1040,1320]" />
+      </node>
+    </node>
+    <node index="2" text="A title near the very top that is long enough to open" class="android.widget.TextView" package="com.reddit.frontpage" content-desc="" bounds="[40,100][1040,200]" />
+  </node>
+</hierarchy>

@@ -1,0 +1,356 @@
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  type SQL,
+} from "drizzle-orm"
+import { alias } from "drizzle-orm/pg-core"
+
+import {
+  EXPORT_DESCRIPTION_MAX,
+  EXPORT_TITLE_MAX,
+  RENDER_NOT_FOUND_MESSAGE,
+} from "@/lib/video/render"
+import type { ExportKind } from "@/lib/video/export-kinds"
+import { FRAME_FAILED_MESSAGE } from "@/lib/video/saved-frames"
+import { now } from "@/server/auth/security"
+import { db, type CustomShellDb } from "@/server/db"
+import { deleteFromR2, uploadToR2 } from "@/server/media/storage"
+import { removeExportFiles } from "@/server/video/export-files"
+import {
+  videoCarousels,
+  videoProjects,
+  videoProjectVideos,
+  videoRenderJobs,
+} from "@/server/video/schema"
+import {
+  serializeRenderJob,
+  type RenderJobSummary,
+} from "@/server/video/render-queue"
+import { extractCoverFrameFromStorage } from "@/server/video/render"
+
+/** The video a language copy was made from, joined beside the copy. */
+const originalVideos = alias(videoProjectVideos, "original_videos")
+
+/**
+ * The gallery: every export, whatever project it came from, except the ones
+ * somebody stopped.
+ *
+ * It reads the same rows the queue writes, so there is one story about what was
+ * made and when. A failed export is listed with its reason so it can be tried
+ * again from here, and one that is waiting or rendering is listed so a retry,
+ * or a press of Export in several shapes, can be watched arriving.
+ *
+ * Kept carousel ZIPs are rows of the same table, listed on a dashboard of
+ * their own, so every list asks for one kind. A carousel export has no
+ * project; its row names the carousel instead, until that carousel is deleted.
+ */
+
+export type ExportListResponse = {
+  exports: RenderJobSummary[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export async function listOwnedExports({
+  userId,
+  page = 1,
+  pageSize = 24,
+  search = "",
+  videoId,
+  kind = "video",
+  database = db,
+}: {
+  userId: string
+  page?: number
+  pageSize?: number
+  search?: string
+  /** Video exports unless told otherwise. */
+  kind?: ExportKind
+  /** Only this video's exports, for the editor's Exports panel. */
+  videoId?: string
+  database?: CustomShellDb
+}): Promise<ExportListResponse> {
+  const safePage = Math.max(1, Math.floor(page))
+  const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)))
+
+  const filters: SQL[] = [
+    eq(videoRenderJobs.userId, userId),
+    eq(videoRenderJobs.kind, kind),
+    inArray(videoRenderJobs.status, ["ready", "error", "queued", "running"]),
+  ]
+  if (videoId) filters.push(eq(videoRenderJobs.videoId, videoId))
+  const cleanedSearch = search.trim()
+  if (cleanedSearch) {
+    // Wildcards are escaped, so searching for "%" finds a title with a percent
+    // sign in it rather than everything.
+    const pattern = `%${cleanedSearch.replace(/([\\%_])/g, "\\$1")}%`
+    const matches = or(
+      ilike(videoRenderJobs.title, pattern),
+      ilike(videoRenderJobs.description, pattern),
+      ilike(videoRenderJobs.caption, pattern),
+      ilike(videoProjects.name, pattern),
+      ilike(videoProjectVideos.name, pattern),
+      ilike(videoCarousels.name, pattern)
+    )
+    if (matches) filters.push(matches)
+  }
+  const where = and(...filters)
+
+  const [rows, [totals]] = await Promise.all([
+    database
+      .select({
+        job: videoRenderJobs,
+        projectName: videoProjects.name,
+        videoName: videoProjectVideos.name,
+        carouselName: videoCarousels.name,
+        language: videoProjectVideos.language,
+        originalId: originalVideos.id,
+        originalName: originalVideos.name,
+      })
+      .from(videoRenderJobs)
+      .leftJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+      .leftJoin(videoProjectVideos, eq(videoProjectVideos.id, videoRenderJobs.videoId))
+      // A language copy's original, so the page can group the two.
+      .leftJoin(
+        originalVideos,
+        and(
+          eq(originalVideos.id, videoProjectVideos.languageOf),
+          eq(originalVideos.userId, userId)
+        )
+      )
+      .leftJoin(
+        videoCarousels,
+        eq(videoCarousels.id, videoRenderJobs.carouselId)
+      )
+      .where(where)
+      .orderBy(desc(videoRenderJobs.finishedAt), desc(videoRenderJobs.id))
+      .limit(safePageSize)
+      .offset((safePage - 1) * safePageSize),
+    database
+      .select({ total: count() })
+      .from(videoRenderJobs)
+      .leftJoin(videoProjects, eq(videoProjects.id, videoRenderJobs.projectId))
+      .leftJoin(videoProjectVideos, eq(videoProjectVideos.id, videoRenderJobs.videoId))
+      .leftJoin(
+        videoCarousels,
+        eq(videoCarousels.id, videoRenderJobs.carouselId)
+      )
+      .where(where),
+  ])
+
+  const total = totals?.total ?? 0
+  const places = await queuePlaces(userId, rows.map((row) => row.job), database)
+  return {
+    exports: rows.map((row) => ({
+      ...serializeRenderJob(
+        row.job,
+        { project: row.projectName, video: row.videoName },
+        row.carouselName,
+        row
+      ),
+      queue_position: places.get(row.job.id) ?? null,
+    })),
+    total,
+    page: safePage,
+    page_size: safePageSize,
+    total_pages: Math.max(1, Math.ceil(total / safePageSize)),
+  }
+}
+
+/**
+ * Where each waiting job on this page sits in the person's own queue, 1 being
+ * next, counted the way the Export window counts (render-queue.ts,
+ * queuePosition). One read of the person's waiting jobs, however many rows the
+ * page holds, and none at all when nothing on the page is waiting.
+ */
+async function queuePlaces(
+  userId: string,
+  jobs: { id: string; status: string }[],
+  database: CustomShellDb
+) {
+  const places = new Map<string, number>()
+  if (!jobs.some((job) => job.status === "queued")) return places
+  const waiting = await database
+    .select({ id: videoRenderJobs.id })
+    .from(videoRenderJobs)
+    .where(and(eq(videoRenderJobs.userId, userId), eq(videoRenderJobs.status, "queued")))
+    .orderBy(asc(videoRenderJobs.createdAt), asc(videoRenderJobs.id))
+  waiting.forEach((job, index) => places.set(job.id, index + 1))
+  return places
+}
+
+/** One export of the caller's own, or a refusal. Never anybody else's. */
+export async function getOwnedExport(
+  userId: string,
+  exportId: string,
+  database: CustomShellDb = db
+) {
+  const [row] = await database
+    .select()
+    .from(videoRenderJobs)
+    .where(
+      and(eq(videoRenderJobs.id, exportId), eq(videoRenderJobs.userId, userId))
+    )
+    .limit(1)
+  if (!row) throw new Error(RENDER_NOT_FOUND_MESSAGE)
+  return row
+}
+
+export async function updateOwnedExport({
+  userId,
+  exportId,
+  title,
+  description,
+  database = db,
+}: {
+  userId: string
+  exportId: string
+  title: string
+  description: string
+  database?: CustomShellDb
+}): Promise<RenderJobSummary> {
+  await getOwnedExport(userId, exportId, database)
+  const [row] = await database
+    .update(videoRenderJobs)
+    .set({
+      title: title.trim().slice(0, EXPORT_TITLE_MAX) || null,
+      description: description.trim().slice(0, EXPORT_DESCRIPTION_MAX) || null,
+      updatedAt: now(),
+    })
+    .where(
+      and(eq(videoRenderJobs.id, exportId), eq(videoRenderJobs.userId, userId))
+    )
+    .returning()
+  return serializeRenderJob(row)
+}
+
+/**
+ * Whether the paragraph saying what AI made adds "edited by hand" to the
+ * script and the pictures. Kept per export (say-what-ai-made.md).
+ */
+export async function setOwnedExportHandEdited({
+  userId,
+  exportId,
+  handEdited,
+  database = db,
+}: {
+  userId: string
+  exportId: string
+  handEdited: boolean
+  database?: CustomShellDb
+}): Promise<RenderJobSummary> {
+  // One write: an export deleted a moment ago is refused, not a crash.
+  const [row] = await database
+    .update(videoRenderJobs)
+    .set({ aiHandEdited: handEdited, updatedAt: now() })
+    .where(
+      and(eq(videoRenderJobs.id, exportId), eq(videoRenderJobs.userId, userId))
+    )
+    .returning()
+  if (!row) throw new Error(RENDER_NOT_FOUND_MESSAGE)
+  return serializeRenderJob(row)
+}
+
+/**
+ * Pick a different moment of the video as its cover. The frame is taken from
+ * the finished file itself, so the picture always belongs to the export it is
+ * standing in for.
+ */
+export async function setOwnedExportCover({
+  userId,
+  exportId,
+  atMs,
+  database = db,
+}: {
+  userId: string
+  exportId: string
+  atMs: number
+  database?: CustomShellDb
+}): Promise<RenderJobSummary> {
+  const row = await getOwnedExport(userId, exportId, database)
+  // A carousel's cover is its first slide, and there is no moment to pick.
+  if (row.status !== "ready" || !row.storagePath || row.kind !== "video") {
+    throw new Error(RENDER_NOT_FOUND_MESSAGE)
+  }
+
+  const frame = await extractCoverFrameFromStorage(row.storagePath, atMs)
+  if (!frame) throw new Error(FRAME_FAILED_MESSAGE)
+
+  // A new name each time, so no cache anywhere can keep handing back the old
+  // cover after somebody has changed it.
+  const coverPath = `video/export-covers/${userId}/${exportId}-${Date.now()}.jpg`
+  await uploadToR2(coverPath, frame, "image/jpeg")
+  const previousPath = row.thumbnailStoragePath
+
+  const [updated] = await database
+    .update(videoRenderJobs)
+    // Set by hand, so a main thumbnail starred later leaves it alone
+    // (thumbnails.md).
+    .set({ thumbnailStoragePath: coverPath, coverByHand: true, updatedAt: now() })
+    .where(
+      and(eq(videoRenderJobs.id, exportId), eq(videoRenderJobs.userId, userId))
+    )
+    .returning()
+
+  if (previousPath && previousPath !== coverPath) {
+    await deleteFromR2(previousPath).catch(() => undefined)
+  }
+  return serializeRenderJob(updated)
+}
+
+/**
+ * Throw exports away, file and all. The stored files go first: a row with no
+ * file is a broken card somebody can delete again, while a file with no row is
+ * rubbish nobody can ever find. So an export whose file would not come out of
+ * storage keeps its row, and comes back in `failed_ids`.
+ *
+ * Given a kind, an id of the other kind is skipped, so a page can only delete
+ * the exports it lists.
+ */
+export async function deleteOwnedExports(
+  userId: string,
+  exportIds: string[],
+  database: CustomShellDb = db,
+  kind?: ExportKind
+): Promise<{ deleted_ids: string[]; failed_ids: string[] }> {
+  const uniqueIds = Array.from(new Set(exportIds))
+  if (!uniqueIds.length) return { deleted_ids: [], failed_ids: [] }
+
+  const rows = await database
+    .select()
+    .from(videoRenderJobs)
+    .where(
+      and(
+        eq(videoRenderJobs.userId, userId),
+        inArray(videoRenderJobs.id, uniqueIds),
+        kind ? eq(videoRenderJobs.kind, kind) : undefined
+      )
+    )
+  if (!rows.length) return { deleted_ids: [], failed_ids: [] }
+
+  const removed = await removeExportFiles(rows)
+  const failedIds = rows
+    .filter((row) => !removed.has(row.id))
+    .map((row) => row.id)
+  if (!removed.size) return { deleted_ids: [], failed_ids: failedIds }
+
+  const deleted = await database
+    .delete(videoRenderJobs)
+    .where(
+      and(
+        eq(videoRenderJobs.userId, userId),
+        inArray(videoRenderJobs.id, Array.from(removed))
+      )
+    )
+    .returning({ id: videoRenderJobs.id })
+
+  return { deleted_ids: deleted.map((row) => row.id), failed_ids: failedIds }
+}

@@ -1,0 +1,163 @@
+# Promo's bell notices
+
+The bell rings for the things that need a person: a new reply to answer, a
+comment a moderator removed, a suspended account, a comment or post that did
+not go out, and a proxy about to renew. Until 12 Oct 2026 the only notice
+Promo sent was a dead proxy, and the account health code said "Nothing here
+acts on a bad reading". Tyler picked this the same day.
+
+## What rings it
+
+- **A new reply** directly under a sent comment, which the last reading did not
+  have: "New reply to your comment on "Which tool do you use?"", with who
+  wrote it and what they said. Opens the comment's Replies window.
+- **A comment going from there to gone**, as a stranger sees it: "Your comment
+  was removed on ...". Rings once, when it goes, not on every reading after.
+  Opens that one comment on Reddit's Sent tab on the network's Commenting row, for
+  its account's project.
+- **Reddit marking an account suspended**, from the daily health reading:
+  "Reddit suspended u/name". Rings once, when it stops the account. Opens the
+  Anti Detect dashboard's Bans.
+- **A comment, an answer or a post of your own that did not go out**: "Did not
+  go out: a comment", with Reddit's reason, and "may already be on Reddit" when
+  the browser stopped part-way. A comment's or an answer's opens the Failed
+  list of Reddit's Sent tab on the network's Commenting row; a post's opens the
+  Failed list beside your Reddit posts on the project's dashboard, or the
+  Projects dashboard for an account in no project.
+- **A proxy renewing in the next three days**: "Renews soon: US residential 3",
+  with the day and the cost. Once per renewal date. Opens the proxy.
+- **A phone or the rack in trouble**: "Phone offline:", "Phone running hot:",
+  "Phone has no signal:", "Phone storage nearly full:" and "Rack not checking
+  in:". Each is raised once and taken out of the bell when the problem ends.
+  [A phone's health](phones/phone-health.md) has the rules.
+- **A ban screen on a phone**: "Ban screen: u/name on Pixel 8a in slot 4", with
+  the screen's words. Opens the Anti Detect dashboard's Bans, where the picture is.
+  [Freezes and ban screens](phones/freezes-and-ban-screens.md).
+- **Two bans of one app in a day** (Bans task, part 11): "Two Instagram bans
+  in a day. Every Instagram account is paused." Opens the Anti Detect
+  dashboard's Overview, where Release is in Waiting on you. Taken out of the bell when the app is released.
+- **A screen Promo does not know** (part 9): "Promo doesn't know this screen.
+  Is it a ban? u/name on Pixel 8a", with the screen's words. Opens the Anti
+  Detect dashboard's Overview, where It's a ban and Not a ban are in Waiting on
+  you.
+- **An appeal with no answer after 7 days** (part 25): "No answer to u/name's
+  appeal yet". Rings once. Opens the ban.
+- **A banned account that looks back** (part 26): "Looks back: u/name. Let it
+  run again?", when the weekly look found no ban screen. Opens the ban; the
+  account stays stopped until a person presses the button.
+- **The self-test finding an action broken**, "Self-test failed:", and **an app
+  update in the Play Store**, "App update out:".
+  [The self-test and app updates](phones/self-test-and-app-updates.md).
+- **An Instagram or TikTok account shadowbanned**, from the daily reading of
+  the app's Account status page: "Shadowbanned: @name on Instagram", once,
+  gone when a reading says it is over. Opens the Projects dashboard's Accounts filtered
+  to that network.
+- **A message or a comment a phone read**: "New message for @name on
+  Instagram", which opens the Projects dashboard's Messages, and "New comment on a post
+  by @name on TikTok", which opens the project's Comments tab for that
+  network. A YouTube channel's comments ring the same notice, whether its
+  phone or its daily reading in a browser found them. Nothing is sent until a
+  person presses Send.
+- **A YouTube upload that did not go out**: "Did not go out: a YouTube
+  upload", which opens the project's YouTube with the reason on the row.
+- **An Instagram or TikTok post, a profile change, or an answer that did not go
+  out**: "Did not go out: a post on Instagram", "… a profile change on
+  TikTok", "… an answer to a message on Reddit". Each opens where it was
+  pressed.
+- **Medium** ([Responses on Medium](medium/responses.md)): "New response to you
+  on Medium from @name", once for each response somebody writes under one of
+  yours or under one of your articles; "Gone from Medium:" when one of your
+  responses or articles no longer shows; "Pulled from a publication:" when an
+  article no longer shows in its publication; and "Did not go out: a Medium
+  response", "... a Medium article", "... a change on Medium". Each opens the
+  Sent tab on Commenting, or the Posts tab on the project's dashboard, with it
+  open.
+- **X** ([Replies on X](x/replies.md), [Search accounts](x/search-accounts.md),
+  [X accounts](x/accounts.md)): "New post from a watched account: @name", once
+  per new post from an account a project watches with its bell on; "New reply
+  to you on X from @name", once for each reply under one of yours and each post
+  naming one of your accounts; "Gone from X:" when one of your replies no longer
+  shows or is folded away; "X search account stopped:" when a search account is
+  signed out, locked or held up, once a day; "X may be hiding @name" when the
+  daily look first finds an account hidden from search or its replies folded;
+  "Ban screen: @name in its browser" for a lock screen; and "Did not go out: an
+  X reply", "... an X post", "... a change on X", "... a follow on X". A
+  found post, a sent reply or a failed reply opens its tab on the Commenting
+  dashboard; a mention or a post of your own opens X on the project's
+  dashboard; an account's notice opens the Projects dashboard's Accounts or Settings →
+  Behaviour.
+- **LinkedIn** ([Comments on LinkedIn](linkedin/comments.md),
+  [Search accounts](linkedin/search-accounts.md), [LinkedIn accounts](linkedin/accounts.md)):
+  "New LinkedIn post from someone you watch: Name", once per new post from a
+  person or page a project watches with its bell on; "New reply to you on
+  LinkedIn from Name", once for each reply under one of your comments or posts;
+  "Gone from LinkedIn:" when one of your comments or posts no longer shows;
+  "LinkedIn search account stopped:" when a search account is signed out,
+  restricted, asked for a code or shown the limit, once a day; "LinkedIn may be
+  hiding in/name's comments" when the weekly look first finds none of its
+  latest comments showing; "LinkedIn wants its emailed code: in/name" when
+  LinkedIn asks for the code at sign-in; "Ban screen: in/name in its browser"
+  for a restriction screen; and "Did not go out: a LinkedIn comment", "... a
+  LinkedIn post", "... a change on LinkedIn", "... a LinkedIn connection
+  request", "... accepting a LinkedIn request". A found post, a sent or failed
+  comment, or a connection opens its tab on the network's Commenting row; a post
+  of your own opens LinkedIn on the project's dashboard; an account's notice
+  opens the Projects dashboard's Accounts or Settings → Behaviour.
+- **A Wi-Fi phone showing the wrong address**: "Wrong address showing: Pixel
+  8a in slot 4", with the address apps saw. Every job on it is refused until
+  a check finds its proxy's address, and the notice goes then. Opens the phone.
+  [Making each phone look like one person's](phones/looking-like-a-real-person.md).
+- **Someone naming your product**: "Someone named you: 3 new posts on Reddit
+  say "Taskly"", when a search finds new posts under a keyword marked Names
+  you, on Reddit, Medium, X or LinkedIn. One notice per keyword: a later
+  search with new posts brings it back unread with the newest count. A
+  keyword's first search rings nothing, so adding one never rings for posts
+  already there. Names a rival never rings, since Tyler declined a competitor
+  watch on 12 Oct 2026. Opens that keyword's posts on the network's Commenting
+  (`src/server/social/named-you.ts`). Tyler picked it on 18 Nov 2026, part 5 of
+  `workspace/tasks/New features/new-features-18-nov.md`.
+
+## The limit to know
+
+Replies and removals are only found by a check of the comment, and checks run
+only when Check is pressed on the Sent tab, because the automatic
+re-check was not picked. So those two notices come after a Check. Failures,
+suspensions and renewals ring by themselves.
+
+## One notice per thing
+
+A notice's id is worked out from what it is about (`noticeId` in
+`src/server/social/notices.ts`), so the same thing happening again brings the
+same notice back to the top, unread, instead of adding a second one. A second
+new reply on one comment is the same notice with the newest words.
+
+Because the id cannot carry an address, `promo_notices` remembers where each
+one opens, and the bell asks for those once per page of notices (`detailsFor`
+in `src/app/options.ts`). The icon and colour are worked out from the
+notice's own heading, so a row is right on its first paint: each kind's
+heading starts with words only it uses (`NOTICE_HEADINGS` in
+`src/lib/social/notice-words.ts`).
+
+A notice is never allowed to fail the work that rang it: a reading that worked
+is never reported as failed because the bell could not be written
+(`ringBell`).
+
+A phone's problems are the one kind that does not come back to the top: each
+is raised once while it lasts and deleted when it ends (`raiseProblem` and
+`clearProblem` in `src/server/phones/notices.ts`), so a sweep every 15
+seconds leaves one quiet notice, not a fresh one each time.
+
+The dead-proxy notice is older and keeps its own shape, in
+`src/server/browser/notices.ts`: its id is the proxy's own. Until 14 Oct 2026
+a phone that needed a hand had a notice of that shape, "Phone needs a hand:";
+the phone's health notices above replaced it.
+
+## Where it is
+
+- Writing: `src/server/social/notices.ts`.
+- Ringing: `src/server/social/reddit/comment-check.ts` (replies, removals),
+  `src/server/social/health.ts` (suspended), `src/server/social/failures.ts`
+  through the runner and the job queue (failures), and `ringProxyRenewals` in
+  `src/server/social/upkeep.ts`.
+- Drawing: `src/lib/social/notices.ts` and `src/lib/browser/notices.ts`.
+- Table: `promo_notices`, added by `drizzle/0208_promo_new_features.sql`.

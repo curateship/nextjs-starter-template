@@ -1,0 +1,292 @@
+# Where the code lives
+
+Promo posts to social networks: Reddit, since phone farm file 06 Instagram
+and TikTok, since `workspace/tasks/Medium/01-medium-features.md` Medium,
+since `workspace/tasks/X/01-x-features.md` X, and since
+`workspace/tasks/LinkedIn/01-linkedin-features.md` LinkedIn, and since
+`workspace/tasks/YouTube/01-youtube-features.md` YouTube. The folders are
+split by one question: **will the next network share this, or is it one
+network's own?**
+
+Shared sits in `social/`. Reddit's own sits in `social/reddit/`. Instagram and
+TikTok share `social/phone-apps/`, because on Promo's side the two are the
+same steps in two apps; what differs between them is a table of limits and
+each app's buttons on the rack.
+
+The isolated browser sits one level further out, in `browser/`, because it is
+not a social feature at all. Tyler, 5 Oct 2026: "proxy and browser isolation is
+an app wide feature, not just a reddit feature."
+
+## What every network shares
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/browser/` | The isolated browser and everything it needs: the proxy, profile and session tables, proxy testing and the guard against inside addresses, making a profile, Docker, the typed command client, opening, closing and watching a browser, the limit on how many are open (`settings.ts`), and backups (`backups.ts`). It knows nothing about any network. |
+| `src/server/social/` | The accounts, saved keywords, the job queue with one lane per profile, the runner that takes a job to its account, its profile and its browser, AI drafting, and the regular upkeep. |
+| `src/lib/social/` | What both halves of the app need at runtime: statuses, job kinds, proxy kinds, the comment length cap, and the wordings. |
+| `src/lib/browser/` | The browser profiles' and proxies' wordings, the bounds of the browser settings, and how the bell draws a dead-proxy notice. |
+| `src/lib/api/browser/` | The two dashboards' endpoints and the Browsers tab's. Open, close, restart, check, backup and restore never touch a browser; each writes a job. |
+| `src/components/browser/` | The profile and proxy forms, the New profile and New proxy windows, the browser window inside the app, and the Browsers tab in Settings. |
+| `src/components/anti-detect/` | The Anti Detect dashboard: its frame, left page, Overview, the Profiles, Proxies, Racks and Bans sections, and the profile and proxy records on the right ([the Anti Detect dashboard](anti-detect-dashboard.md)). |
+| `src/components/dashboard-page/` | What the Projects and Anti Detect dashboards share: the Dashboards and Projects blocks, the left page panel, Filter's rows and a summary's fact rows. |
+| `src/lib/anti-detect/` | The Anti Detect dashboard's address, page blocks and widgets, what a project reaches, and its rows' wordings. |
+| `src/server/social/voices.ts` | Voices: the words the AI is told, shared by any number of accounts on any network. |
+| `src/lib/api/social/account.ts` | Settings → Reddit account's endpoints, for the oldest account in use. |
+| `src/server/social/account-list.ts`, `src/lib/api/social/reddit-accounts.ts` | Every account on every platform as a list, with its status and platform, and the actions on ticked rows: the Projects dashboard's Accounts section. |
+| `src/lib/social/account-status.ts` | Warming up, Ready, Working and Banned, and the order the Projects dashboard lists accounts in. |
+| `src/server/social/projects.ts`, `src/lib/api/social/projects.ts` | Projects: a description, the networks it uses, accounts and keywords, the check that an account comments only on its own project's posts, and which project an old screen's address now opens. |
+| `src/lib/social/networks.ts` | The networks Promo has built, which a project can add ([Networks as modules](network-modules.md)). |
+| `src/components/social/projects-dashboard/` | The Projects dashboard: its frame, left page, blocks, Overview and one file per section. |
+| `src/components/social/projects/` | A project's own dashboard: the page that picks the network (`workspace.tsx`), the three columns any network fills (`project-columns.tsx`) and its project column. |
+| `src/components/social/accounts/` | An account on the Projects dashboard's right panel (`account-record.tsx`) with its cards, the Add account window and the status badge. |
+| `src/lib/api/social/voices.ts` | Voices' endpoints, for the Voices tab on each network of a project's page. |
+| `src/components/social/account-settings.tsx` | The Reddit account tab in Settings: which profile and which voice the account uses. |
+| `src/components/social/voices/` | A voice on the Projects dashboard's right panel, with Try it (`voice-record.tsx`). |
+| `src/server/social/pause.ts` | Pausing an account, a whole project, one network of it, or only its commenting on one network. |
+| `src/lib/social/sides.ts`, `src/lib/social/project-address.ts` | The two rows of each network's card, Posts and Commenting: which networks comment, the project's address, which row it opens, and where an old address goes. |
+| `src/components/social/keyword-picker.tsx` | Every network's keywords, a dropdown in Commenting's middle header. |
+| `src/server/social/post-counts.ts` | The posts of yours that need you on each network's row, and each project's Posts and Last post on the Projects dashboard. |
+| `src/server/social/notices.ts`, `src/lib/social/notice-words.ts`, `src/lib/social/notices.ts`, `src/lib/api/social/notices.ts` | Promo's bell notices: writing them, their headings, their icons, and where each opens. |
+| `src/server/social/failures.ts` | What did not reach Reddit, read off its job: the Failed lists beside Sent and beside your Reddit posts, and the notice each failure rings, with the address it opens. |
+| `src/server/social/ai-tasks.ts` | The smaller things asked of the AI: the rules check, rewrites, keyword ideas, a post of your own, and trying a voice. All through `askModel` in `drafts.ts`. |
+| `src/server/social/today.ts`, `src/lib/api/social/today.ts`, `src/components/social/today/` | Reddit's Today tab on Commenting, and the count on Reddit's Commenting row. |
+
+## What belongs to Reddit alone
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/social/reddit/` | Searching Reddit, reading a thread, posting a comment, and the ranking that decides which posts are worth answering. Also searching again by itself (`timed-searches.ts`), posts of your own (`own-posts.ts`), help-only posts (`help-posts.ts`), self-promotion threads (`promo-threads.ts`), what you said before (`past-answers.ts`), and deleting and editing a sent comment (`change-comment.ts`). |
+| `src/lib/social/reddit/options.ts` | Reddit's own sort orders and time windows, the tabs across its Commenting column, and the key a project's dashboard remembers its columns under. |
+| `src/lib/api/social/reddit/` | The keyword, post, draft and Post endpoints the Projects dashboard calls. |
+| `src/components/social/reddit/` | Reddit on Commenting (`reddit-module.tsx`): the keywords header, the tabs and the posts list, the post-and-comment panel with the accounts dropdown (`account-picker.tsx`), and the Jobs window (`jobs-window.tsx`). Reddit on a project's dashboard (`reddit-posts-module.tsx`): your posts, the Failed list and New post (`reddit-new-post.tsx`). |
+| `docker/browser/routines/reddit.py` | The only file that knows how a Reddit page is put together. Its Reddit app twin is `rack/promo_rack.py`. |
+
+## What belongs to the networks that run on phones
+
+Instagram and TikTok run on a phone only, in the real app, never in the
+browser. Their code is shared between the two, because nothing on Promo's
+side differs except limits.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/lib/social/networks.ts` | `PHONE_ONLY_NETWORKS`: the networks whose accounts may only run on a phone. |
+| `src/lib/social/phone-apps.ts` | Their limits (caption, hashtags, bio, an answer's length), the inbox's kinds and statuses, and the words both halves draw. |
+| `src/server/social/phone-apps/` | The shapes the rack's answers are checked against (`calls.ts`), the daily reading with the shadowban line and post numbers (`health.ts`), posting (`posts.ts`), the AI caption (`captions.ts`), the profile (`profile.ts`), messages and comments for every phone account, Reddit's included (`inbox.ts`), and what the module reads (`module.ts`). |
+| `src/lib/api/social/phone-apps.ts` | The module's, the Messages section's and the profile card's endpoints. |
+| `src/components/social/phone-apps/` | The module (`app-module.tsx`), its Posts and Comments tables, the new post, the answer box, the accounts dropdown, and the Projects dashboard's Messages. |
+| `rack/promo_rack.py` | Each app's steps, read off `APP_SCREENS`, and the notifications the rack reads once a minute. |
+
+[Instagram and TikTok accounts, and the daily reading](instagram/accounts-and-the-daily-reading.md)
+has the rest.
+
+## What belongs to Medium alone
+
+Medium runs in the browser like Reddit, and on a phone only for responses
+([Medium accounts and signing in](medium/signing-in-and-accounts.md#on-a-phone)).
+It keeps its own tables beside Reddit's rather than widening them: a Reddit
+keyword carries subreddits and a sent comment is tied to a Reddit find, and
+widening those would change Reddit's code for no gain to Reddit.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/social/medium/` | The tables (`schema.ts`), the calls to the browser (`calls.ts`), keywords, search, the ranking (`rank.ts`), the stories (`finds.ts`), the checks on Post and the queue (`posting.ts`), the too-similar check (`similar.ts`), the prompts (`drafts.ts`), responses, articles, the cover, publications, lists, the spend, the warm-up, the upkeep, the module's one read (`module.ts`), the job handlers (`run.ts`) and a failed job's row (`settle.ts`). |
+| `src/lib/social/medium/` | The limits, kinds and words both halves read (`options.ts`) and the posting words (`wording.ts`). |
+| `src/lib/api/social/medium.ts` | Every Medium endpoint, admin only. |
+| `src/components/social/medium/` | The module (`medium-module.tsx`) and its keyword row, story list, story panel, Responses (Sent), Articles (Posts), Publications and Today, the Comment as dropdown and the sign-in link button. |
+| `docker/browser/routines/medium.py` | The only file that knows how a Medium page is put together. Its phone twin is the Medium part of `rack/promo_rack.py`. |
+
+The runner hands Medium's jobs to `medium/run.ts` and learns nothing else about
+Medium; the signed-in loop has a Medium branch beside Reddit's.
+
+## What belongs to X alone
+
+X runs in the browser or on a phone, either from the start
+([X accounts](x/accounts.md)). Its reads never run in the signed-out reader:
+X shows nothing to a visitor who is not signed in, so a search account, a
+profile signed in to a throwaway X account, reads for every project
+([Search accounts](x/search-accounts.md)). It keeps its own tables beside
+Reddit's and Medium's, for the reason Medium does.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/social/x/` | The tables (`schema.ts`), the calls to the browser and the phone (`calls.ts`), the search accounts and their views (`searchers.ts`), keywords, search, the ranking (`rank.ts`), the posts (`finds.ts`), the checks on Post and the queue (`posting.ts`), the too-similar warning (`similar.ts`), the prompts (`drafts.ts`), replies, posts of your own, communities, lists, follows, the daily look (`reach.ts`), the spend, the warm-up, the upkeep, the module's one read (`module.ts`), the job handlers and who is signed in (`run.ts`) and a failed job's row (`settle.ts`). |
+| `src/lib/social/x/` | The limits, kinds and words both halves read (`options.ts`) and the posting words (`wording.ts`). |
+| `src/lib/api/social/x.ts` | Every X endpoint, admin only, X's part of Settings → Behaviour included. |
+| `src/components/social/x/` | The module (`x-module.tsx`) and its keyword row, post list, post panel, Today, Sent, Posts, Replies (mentions) and Communities, and the Comment as dropdown. The module takes a `side`: your posts or Commenting. |
+| `docker/browser/routines/x.py` | The only file that knows how an X page is put together. Its phone twin is the X part of `rack/promo_rack.py`. |
+
+The runner hands X's reads to `runXRead` (a search account's browser, looked
+at before and after) and its account jobs to `x/run.ts`, and learns nothing
+else about X. X's direct messages use the Messages section's own
+`inbox_read` and `inbox_reply` jobs, in a browser as on a phone
+(`src/server/social/phone-apps/inbox.ts`).
+
+## What belongs to LinkedIn alone
+
+LinkedIn runs in the browser or on a phone, either from the start
+([LinkedIn accounts](linkedin/accounts.md)). Its reads run in a search
+account's browser, as X's do, because LinkedIn shows almost nothing to a
+visitor who is not signed in ([LinkedIn search accounts](linkedin/search-accounts.md));
+the account's own pages (its feed, requests, viewers, numbers and messages)
+are read in its own browser. Every job of its own waits for its workday,
+weekdays 8:00 to 18:00 on its own clock. It keeps its own tables beside the
+other networks', for the reason Medium does.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/social/linkedin/` | The tables (`schema.ts`), the calls to the browser and the phone (`calls.ts`), the search accounts and LinkedIn's numbers in Settings → Behaviour (`searchers.ts`), keywords and the project's buyer titles (`keywords.ts`), search, read and an account's own feed (`search.ts`), the ranking (`rank.ts`), the posts (`finds.ts`), the checks on Post and the queue (`posting.ts`), the too-similar warning (`similar.ts`), the prompts (`drafts.ts`), comments and what happened to them (`comments.ts`), posts, reposts and newsletter issues (`posts.ts`), groups and their rules (`groups.ts`), connection requests, requests waiting and viewers (`people.ts`), the weekly numbers and comments look (`reach.ts`), the spend, the warm-up, the upkeep, the module's one read (`module.ts`), the job handlers, the emailed code and who is signed in (`run.ts`) and a failed job's row (`settle.ts`). |
+| `src/lib/social/linkedin/` | The limits, kinds and words both halves read (`options.ts`), the posting words (`wording.ts`) and the workday hours (`workday.ts`). |
+| `src/lib/api/social/linkedin.ts` | Every LinkedIn endpoint, admin only, LinkedIn's part of Settings → Behaviour included. |
+| `src/components/social/linkedin/` | The module (`linkedin-module.tsx`) and its keyword row, post list, post panel, Today, Sent, Posts and People, the Comment as dropdown, a `side` for your posts or Commenting, and LinkedIn's card in Settings → Behaviour. The account's card is `src/components/social/accounts/linkedin-account-card.tsx`. The right column frame and a few words are X's, imported from `src/components/social/x/`. |
+| `docker/browser/routines/linkedin.py` | The only file that knows how a LinkedIn page is put together, its page details in one `SELECTORS` block. Its phone twin is the LinkedIn part of `rack/promo_rack.py` (`linkedin_screens`). |
+
+The runner hands LinkedIn's reads to `runLinkedinRead` (a search account's
+browser, looked at before and after) and its account jobs to
+`linkedin/run.ts`, and learns nothing else about LinkedIn. LinkedIn's messages
+use the Messages section's own `inbox_read` and `inbox_reply` jobs, in a
+browser as on a phone (`src/server/social/phone-apps/inbox.ts`).
+
+## What belongs to YouTube alone
+
+YouTube runs in the browser or on a phone, either from the start
+([YouTube](youtube/youtube-module.md)). It posts and reads its own channel
+only: no keywords, no search accounts, and no Commenting row. Every job of
+its own runs as the channel, in its own browser or on its own Android phone.
+It keeps its own tables beside the other networks', for the reason Medium
+does.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/social/youtube/` | The tables (`schema.ts`), the calls to the browser and the phone (`calls.ts`), Post's checks, the upload and the list (`uploads.ts`), the titles, descriptions and filled templates (`drafts.ts`), the templates (`templates.ts`), the uploads a day (`settings.ts`), the daily reading, who is signed in and the job handlers (`run.ts`), the once-a-day upkeep (`upkeep.ts`) and the module's one read (`module.ts`). |
+| `src/lib/social/youtube/options.ts` | The limits, the Short, the tags, the link checks and the words both halves read. |
+| `src/lib/api/social/youtube.ts` | Every YouTube endpoint, admin only apart from the module's read. |
+| `src/components/social/youtube/` | The module (`youtube-module.tsx`), the Posts table, New post, the channel dropdown, the Templates window, and YouTube's card in Settings → Behaviour. The Comments tab and the answer box are Instagram's (`src/components/social/phone-apps/`). |
+| `docker/browser/routines/youtube.py` | The only file that knows how a YouTube page is put together, its page details in one `SELECTORS` block. Its phone twin is the YouTube part of `rack/promo_rack.py`. |
+
+The runner hands YouTube's jobs to `youtube/run.ts` and learns nothing else
+about YouTube. The comments under its videos use the Messages section's own
+`inbox_read` and `inbox_reply` jobs, in a browser as on a phone
+(`src/server/social/phone-apps/inbox.ts`), and are never messages: YouTube
+has none.
+
+## Phones
+
+Real Android phones are app-wide, like the browser: a device an account runs
+on, belonging to no network.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/phones/` | The phones as records, the rack's side (pairing, signed messages, check-ins, the action queue), sending a job's step to a phone (`dispatch.ts`), health and the bell, the self-test, step pictures, the setup check and the Wi-Fi address guard (`setup.ts`), and wiping (`wipe.ts`). |
+| `src/lib/phones/` | The phone farm's fixed lists and words, and the setup check's lines (`setup-check.ts`). |
+| `src/lib/api/phones/` | The phones' and racks' endpoints, `loadPhonesPage` reading every one at once. None of them talks to a phone; each writes an action the rack picks up. |
+| `src/components/phones/` | A rack's three-panel page with its panels, cards and "/" notes, a phone's tabs and screen, and the Self-test window. |
+| `rack/` | The program on the computer at home that drives the phones over adb: `promo_rack.py`, with every action, the Reddit app's steps, and the hands that tap, swipe and type like a person. The second file, beside `docker/browser/routines/reddit.py`, that knows how Reddit is put together: this one for the Reddit app. |
+
+What ties an account to a phone, and the rules for important and throwaway
+accounts, are about accounts, so they sit in `src/server/social/`:
+`apart.ts` (the two groups kept apart) and `move-to-phone.ts` (a throwaway
+moved from its browser profile to a phone). A comment a phone posted gets its
+link from `src/server/social/reddit/comment-link.ts`.
+
+## The browser container
+
+`docker/browser/` builds one image, `promo-browser`, that serves every network.
+It knows nothing about Reddit: what it can be asked to do comes from
+`routines/`, one module per network, and a request names both the network and
+the routine — `/reddit/search` runs the `search` that `routines/reddit.py`
+registered.
+
+Two networks can each have a routine called `search` without colliding, because
+`routines/__init__.py` gathers them under a prefixed name.
+
+Two pieces belong to no network. `routines/browser.py` reads what the browser
+itself gives away, its identity and what a website sees, and is asked for as
+`/browser/identity` and `/browser/site_check`. `human.py`, beside `routines/`,
+is the person-pace helper every network's routines type and read with.
+
+## Adding the next network
+
+A network runs either in the browser, like Reddit, or on a phone only, like
+Instagram and TikTok. Every network gets a module on a project's dashboard and
+never a route or a left menu entry of its own: add it to `NETWORKS` in
+`src/lib/social/networks.ts`, and a branch for it in
+`src/components/social/projects/workspace.tsx` where the modules are picked
+([Networks as modules](network-modules.md)).
+
+### One that runs in the browser
+
+1. `docker/browser/routines/<network>.py`, exposing the same routines: what it
+   can see (both the full look and the quick one that does not move the page),
+   search, read a thread, post. Add it to `NETWORKS` in
+   `routines/__init__.py`.
+2. `src/server/social/<network>/` for searching, reading and posting.
+3. `src/lib/social/<network>/options.ts` for anything only it has.
+4. `src/components/social/<network>/` with its module, the middle and right
+   columns it fills on a project's dashboard, beside
+   `src/components/social/reddit/reddit-module.tsx`.
+5. Add the calls to `src/server/browser/command.ts`, which already carries the
+   network in every address.
+6. The browser program writes down who is signed in after each job, for each
+   account inside the profile it used. That loop in `src/server/social/runner.ts`
+   reads Reddit's quick check; the new network adds its own beside it.
+
+### One that runs on a phone only
+
+How Instagram and TikTok were added (phone farm file 06), and Threads on 18 Nov
+2026 ([Threads on the rack's phones](threads/threads-on-phones.md)).
+
+1. Add it to `PHONE_ONLY_NETWORKS` in `src/lib/social/networks.ts`. Adding an
+   account to it then offers phones only, and a browser profile is refused
+   (`checkPicks` in `src/server/social/accounts.ts`).
+2. Its app's package in `APP_PACKAGES` and its buttons in `APP_SCREENS` in
+   `rack/promo_rack.py`, and its steps registered in `ACTIONS` and
+   `REHEARSALS` there, the same seven as Instagram's: state, quick_state,
+   health, profile, post, inbox, reply.
+3. The same names in `PHONE_APP_ROUTINES` and their words in
+   `src/lib/phones/options.ts`, or the phone refuses them before anything is
+   sent. The post and the profile join `NEEDS_A_PASS` in
+   `src/server/phones/action-checks.ts`.
+4. Its limits in `src/lib/social/phone-apps.ts`. If its steps answer in the
+   same shapes, `src/server/social/phone-apps/` and the module in
+   `src/components/social/phone-apps/` serve it with nothing else to change.
+5. Its package's notifications are then read by the rack for messages and
+   comments (`alert_kind` in `rack/promo_rack.py`).
+
+Nothing else in `social/`, `browser/` or `phones/` should need changing. If it
+does, that is the sign the thing being added was shared after all and belongs
+one level up.
+
+## Who opens a browser
+
+Only the browser program, `worker/src/social-browser.ts`. It starts, drives and
+closes every browser, and it is the only program holding the key to one. A
+dashboard writes an `open`, `close` or `check` job and reads the rows the
+browser program writes. The shell's ticker asks Docker about containers, which
+needs no key, and never opens or drives one.
+
+## Three secrets and where each lives
+
+- **The proxy password** is encrypted with the shell's own `encryptSecret` and
+  stored. It never comes back out to a browser: the read that builds the
+  settings screen has a `hasPassword` flag and no password field. The only code
+  that decrypts it is the code building the container's environment, and the
+  proxy test.
+- **The command token** drives a signed-in browser, so it is held in the browser
+  program's memory and never written down. A restart loses it, and the browser
+  it belonged to is closed and replaced on the next job rather than left
+  running unreachable. That is the right trade: a stale container is cheap, a
+  leaked token that drives a signed-in account is not.
+- **The window password** is what the stream window asks for. A dashboard has to
+  show it and is not the program that opened the browser, so it is stored on
+  the session row, encrypted with `encryptSecret` the same way a proxy password
+  is. It only works on this computer and is new every time a browser opens.
+
+## What stays where it is
+
+- **The tables keep their `promo_` names**, including the ones that moved to
+  `browser/`. A table is renamed for a very good reason and this is not one.
+  `promo_accounts` already carries a `platform` column, which is how a second
+  network shares them.
+- **Old addresses that only sent on are gone** since 13 Nov 2026, apart from
+  `/admin/comments`, which Reddit's notices still write
+  ([Old addresses](old-addresses.md)).

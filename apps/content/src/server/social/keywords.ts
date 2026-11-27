@@ -1,0 +1,477 @@
+import { and, desc, eq, inArray, notExists, or, sql } from "drizzle-orm"
+
+import { uuid } from "@/server/auth/security"
+import { db as defaultDb, type CustomShellDb } from "@/server/db"
+
+import { ownedProject } from "./projects"
+import { pastAnswers, subredditRemovals } from "./reddit/past-answers"
+import { fitBand, placeText, type FitBand } from "./reddit/rank"
+import { rulesForSubreddit } from "./reddit/rules"
+import { threadsOnTheirWay } from "./reddit/search"
+import {
+  type FindStatus,
+} from "@/lib/social/options"
+import {
+  REDDIT_SORTS,
+  REDDIT_WINDOWS,
+  type RedditSort,
+  type RedditWindow,
+} from "@/lib/social/reddit/options"
+
+import {
+  promoBlockedSubreddits,
+  promoDrafts,
+  promoFinds,
+  promoKeywords,
+  promoSearches,
+} from "./schema"
+
+/**
+ * Saved keywords and the posts they found, as the screen needs them.
+ *
+ * Everything here is a read or a small write a person made directly. The slow
+ * browser work is not here: it goes on the queue in `jobs.ts`.
+ */
+
+/**
+ * The rule a stored post must pass to be listed: not from a subreddit on the
+ * blocked list (`reddit/blocked.ts`), or already commented on, which is a
+ * record of something that happened and is never hidden. Every read of the
+ * list and of its counts uses it, so the posts and the numbers beside them
+ * always agree.
+ */
+export function shownFind(userId: string) {
+  return or(
+    eq(promoFinds.status, "commented"),
+    notExists(
+      sql`(SELECT 1 FROM ${promoBlockedSubreddits} WHERE ${promoBlockedSubreddits.userId} = ${userId} AND lower(${promoBlockedSubreddits.subreddit}) = lower(${promoFinds.subreddit}))`
+    )
+  )
+}
+
+/** A keyword can name this many subreddits before the list is unmanageable. */
+const MAX_SUBREDDITS = 10
+
+export type KeywordRow = {
+  id: string
+  /** The words, or "" for a watch, which lists one subreddit's new posts. */
+  term: string
+  subreddits: string[]
+  sort: RedditSort
+  timeWindow: RedditWindow
+  enabled: boolean
+  /** "you" when the words are the product's own name, which rings the bell on new posts. */
+  mark: "" | "you"
+  lastRunAt: Date | null
+  /**
+   * Every post this keyword lists, however it has been dealt with. Posts from a
+   * blocked subreddit are not counted, because they are not listed.
+   */
+  postCount: number
+  /** How many posts are waiting to be looked at. */
+  newCount: number
+  /** What the last run did, so a failure is visible beside the keyword. */
+  lastRun:
+    | { status: "running" | "done" | "failed"; seen: number; new: number; error: string }
+    | null
+}
+
+export type FindRow = {
+  id: string
+  keywordId: string
+  permalink: string
+  url: string
+  subreddit: string
+  title: string
+  author: string
+  score: number
+  commentCount: number
+  postedAt: Date | null
+  /**
+   * Which of the three bands the list groups under this falls in. The score
+   * behind it is deliberately not sent. It only ever drove the ORDER BY below,
+   * and a bare 2.0 on no scale told a reader nothing, which is what Tyler said
+   * when he asked what the column meant on 5 Oct 2026.
+   */
+  fit: FitBand
+  /** The short form of where Reddit put it, "match 9" or "newest 3", for the row's line. */
+  place: string
+  status: FindStatus
+  /** Whether the thread has been read, which is not the same as having no replies. */
+  threadRead: boolean
+}
+
+/** A project's keywords, newest first. */
+export async function listKeywords(
+  userId: string,
+  projectId: string,
+  db: CustomShellDb = defaultDb
+): Promise<KeywordRow[]> {
+  const keywords = await db
+    .select()
+    .from(promoKeywords)
+    .where(and(eq(promoKeywords.userId, userId), eq(promoKeywords.projectId, projectId)))
+    .orderBy(desc(promoKeywords.createdAt))
+
+  if (!keywords.length) return []
+
+  const ids = keywords.map((keyword) => keyword.id)
+
+  // How many posts are still waiting on each keyword, in one read rather than
+  // one per row.
+  const waiting = await db
+    .select({ keywordId: promoFinds.keywordId, status: promoFinds.status })
+    .from(promoFinds)
+    .where(
+      and(eq(promoFinds.userId, userId), inArray(promoFinds.keywordId, ids), shownFind(userId))
+    )
+
+  const newCounts = new Map<string, number>()
+  const totals = new Map<string, number>()
+  for (const row of waiting) {
+    // Every row here came through `inArray` on the keywords above.
+    if (!row.keywordId) continue
+    totals.set(row.keywordId, (totals.get(row.keywordId) ?? 0) + 1)
+    if (row.status !== "new") continue
+    newCounts.set(row.keywordId, (newCounts.get(row.keywordId) ?? 0) + 1)
+  }
+
+  const runs = await db
+    .select()
+    .from(promoSearches)
+    .where(and(eq(promoSearches.userId, userId), inArray(promoSearches.keywordId, ids)))
+    .orderBy(desc(promoSearches.startedAt))
+
+  // The newest run per keyword. The list is already newest first, so the first
+  // one seen for a keyword is its latest.
+  const latest = new Map<string, (typeof runs)[number]>()
+  for (const run of runs) {
+    if (!latest.has(run.keywordId)) latest.set(run.keywordId, run)
+  }
+
+  return keywords.map((keyword) => {
+    const run = latest.get(keyword.id)
+    return {
+      id: keyword.id,
+      term: keyword.term,
+      subreddits: keyword.subreddits,
+      sort: keyword.sort,
+      timeWindow: keyword.timeWindow,
+      enabled: keyword.enabled,
+      mark: keyword.mark,
+      lastRunAt: keyword.lastRunAt,
+      postCount: totals.get(keyword.id) ?? 0,
+      newCount: newCounts.get(keyword.id) ?? 0,
+      lastRun: run
+        ? {
+            status: run.status,
+            seen: run.seenCount,
+            new: run.newCount,
+            error: run.lastError,
+          }
+        : null,
+    }
+  })
+}
+
+export type SaveKeywordInput = {
+  term: string
+  subreddits: string[]
+  sort: RedditSort
+  timeWindow: RedditWindow
+}
+
+/** Cleans a pasted subreddit name: people paste "r/x", "/r/x" and full URLs. */
+export function cleanSubreddit(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^https?:\/\/(www\.)?reddit\.com/i, "")
+    .replace(/^\/+/, "")
+    .replace(/^r\//i, "")
+    .replace(/\/.*$/, "")
+    .replace(/[^A-Za-z0-9_]/g, "")
+    .slice(0, 60)
+}
+
+export function cleanSubreddits(raw: string[]): string[] {
+  const seen = new Set<string>()
+  for (const value of raw) {
+    const name = cleanSubreddit(value)
+    if (name) seen.add(name)
+  }
+  return [...seen].slice(0, MAX_SUBREDDITS)
+}
+
+/**
+ * Saves a search in a project: words, or a watch.
+ *
+ * A watch has no words and exactly one subreddit, and lists that subreddit's
+ * new posts in Reddit's own order, which is newest first. Words or a
+ * subreddit are required, never neither, because a search for nothing
+ * anywhere is all of Reddit's new posts.
+ */
+export async function addKeyword(
+  userId: string,
+  projectId: string,
+  input: SaveKeywordInput,
+  db: CustomShellDb = defaultDb
+): Promise<string> {
+  await ownedProject(userId, projectId, db)
+  const term = input.term.trim()
+  const subreddits = cleanSubreddits(input.subreddits)
+  if (!term && !subreddits.length) {
+    throw new Error("Type a keyword first, or name one subreddit to watch.")
+  }
+  if (!term && subreddits.length > 1) {
+    throw new Error("A watch takes one subreddit. Type a keyword to search several.")
+  }
+  if (term.length > 200) throw new Error("That keyword is too long.")
+  if (!REDDIT_SORTS.includes(input.sort)) throw new Error("Unknown sort.")
+  if (!REDDIT_WINDOWS.includes(input.timeWindow)) {
+    throw new Error("Unknown time window.")
+  }
+
+  const id = uuid()
+  try {
+    await db.insert(promoKeywords).values({
+      id,
+      userId,
+      projectId,
+      term,
+      subreddits,
+      // A watch is read newest first whatever is picked, so it is stored that
+      // way rather than claiming an order it does not use.
+      sort: term ? input.sort : "new",
+      timeWindow: input.timeWindow,
+    })
+  } catch {
+    // The only unique rules on this table are one search per set of words and
+    // one watch per subreddit in a project, so there is one thing this can
+    // mean and it is worth saying rather than "failed".
+    throw new Error(
+      term ? `"${term}" is already saved.` : `r/${subreddits[0]} is already watched.`
+    )
+  }
+  return id
+}
+
+/**
+ * Switches a keyword's timed searches on or off. An off keyword is never
+ * searched by the timer and can still be pressed by hand.
+ */
+export async function setKeywordEnabled(
+  userId: string,
+  keywordId: string,
+  enabled: boolean,
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const updated = await db
+    .update(promoKeywords)
+    .set({ enabled, updatedAt: new Date() })
+    .where(and(eq(promoKeywords.id, keywordId), eq(promoKeywords.userId, userId)))
+    .returning({ id: promoKeywords.id })
+  if (!updated.length) throw new Error("That keyword is no longer saved.")
+}
+
+/**
+ * Marks a keyword's words as the product's own name ("you"), or as ordinary
+ * words (""). A marked keyword rings the bell when a search finds new posts
+ * under it (`named-you.ts`). A watch names a subreddit, not words, so it
+ * can't be marked.
+ */
+export async function setKeywordMark(
+  userId: string,
+  keywordId: string,
+  mark: "" | "you",
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  const [keyword] = await db
+    .select({ term: promoKeywords.term })
+    .from(promoKeywords)
+    .where(and(eq(promoKeywords.id, keywordId), eq(promoKeywords.userId, userId)))
+    .limit(1)
+  if (!keyword) throw new Error("That keyword is no longer saved.")
+  if (mark && !keyword.term) throw new Error("A watch names a subreddit, so it can't be marked as your name.")
+  await db.update(promoKeywords).set({ mark, updatedAt: new Date() }).where(eq(promoKeywords.id, keywordId))
+}
+
+/** Removes a keyword and every post found under it. */
+export async function deleteKeyword(
+  userId: string,
+  keywordId: string,
+  db: CustomShellDb = defaultDb
+): Promise<void> {
+  await db
+    .delete(promoKeywords)
+    .where(and(eq(promoKeywords.id, keywordId), eq(promoKeywords.userId, userId)))
+}
+
+export type FindsQuery = {
+  /** The project whose keywords' posts are listed. */
+  projectId: string
+  /** One of its keywords, or none for every keyword's posts in one order. */
+  keywordId?: string
+  /** "all" shows everything, including posts already dealt with. */
+  status?: FindStatus | "all"
+  /** "open" is everything not skipped and not commented: the work left. */
+  limit?: number
+}
+
+/** The posts for the results panel, best to comment on first. */
+export async function listFinds(
+  userId: string,
+  query: FindsQuery,
+  db: CustomShellDb = defaultDb
+): Promise<FindRow[]> {
+  const filters = [
+    eq(promoFinds.userId, userId),
+    shownFind(userId),
+    inArray(
+      promoFinds.keywordId,
+      db
+        .select({ id: promoKeywords.id })
+        .from(promoKeywords)
+        .where(and(eq(promoKeywords.userId, userId), eq(promoKeywords.projectId, query.projectId)))
+    ),
+  ]
+  if (query.keywordId) filters.push(eq(promoFinds.keywordId, query.keywordId))
+  if (query.status && query.status !== "all") {
+    filters.push(eq(promoFinds.status, query.status))
+  }
+
+  const rows = await db
+    .select()
+    .from(promoFinds)
+    .where(and(...filters))
+    .orderBy(desc(promoFinds.rank), desc(promoFinds.postedAt))
+    .limit(Math.min(Math.max(query.limit ?? 100, 1), 500))
+
+  // A watch's posts are in the subreddit's newest-first order rather than a
+  // search's best-match order, and each row's reason says which.
+  // Every row here belongs to one of the project's keywords: posts with no
+  // keyword are listed elsewhere (help-only posts, self-promotion threads).
+  const keywordIds = [...new Set(rows.flatMap((row) => (row.keywordId ? [row.keywordId] : [])))]
+  const watches = new Set(
+    keywordIds.length
+      ? (
+          await db
+            .select({ id: promoKeywords.id })
+            .from(promoKeywords)
+            .where(and(inArray(promoKeywords.id, keywordIds), eq(promoKeywords.term, "")))
+        ).map((row) => row.id)
+      : []
+  )
+
+  return rows.map((row) => ({
+    id: row.id,
+    keywordId: row.keywordId ?? "",
+    permalink: row.permalink,
+    url: `https://www.reddit.com${row.permalink}`,
+    subreddit: row.subreddit,
+    title: row.title,
+    author: row.author,
+    score: row.score,
+    commentCount: row.commentCount,
+    postedAt: row.postedAt,
+    fit: fitBand(row.rank),
+    place: placeText(row.redditPosition, watches.has(row.keywordId ?? "")),
+    status: row.status,
+    threadRead: Boolean(row.thread),
+  }))
+}
+
+/**
+ * The newest posts found under any keyword, for trying a voice out on: one a
+ * person would really answer, so the draft says something about the voice.
+ */
+export async function recentFinds(
+  userId: string,
+  limit = 20,
+  db: CustomShellDb = defaultDb
+): Promise<Array<{ id: string; title: string; subreddit: string }>> {
+  return db
+    .select({ id: promoFinds.id, title: promoFinds.title, subreddit: promoFinds.subreddit })
+    .from(promoFinds)
+    .where(and(eq(promoFinds.userId, userId), sql`${promoFinds.keywordId} IS NOT NULL`, shownFind(userId)))
+    .orderBy(desc(promoFinds.firstSeenAt), desc(promoFinds.rank))
+    .limit(limit)
+}
+
+/** One post with everything the reading and writing panels need. */
+export async function loadFindDetail(
+  userId: string,
+  findId: string,
+  db: CustomShellDb = defaultDb
+) {
+  const [find] = await db
+    .select()
+    .from(promoFinds)
+    .where(and(eq(promoFinds.id, findId), eq(promoFinds.userId, userId)))
+    .limit(1)
+  if (!find) return null
+
+  const [drafts, rules, reading, past, removals] = await Promise.all([
+    db
+      .select()
+      .from(promoDrafts)
+      // A draft answering a reply under a sent comment is that reply's, not
+      // the post's, and a rewrite of the words in the box is never a tile.
+      .where(
+        and(
+          eq(promoDrafts.userId, userId),
+          eq(promoDrafts.findId, findId),
+          eq(promoDrafts.replyToId, ""),
+          eq(promoDrafts.rewrite, "")
+        )
+      )
+      .orderBy(desc(promoDrafts.createdAt)),
+    rulesForSubreddit(userId, find.subreddit, db),
+    threadsOnTheirWay(userId, [findId], db),
+    pastAnswers(userId, find, db),
+    subredditRemovals(userId, find.subreddit, db),
+  ])
+
+  return {
+    id: find.id,
+    permalink: find.permalink,
+    url: `https://www.reddit.com${find.permalink}`,
+    subreddit: find.subreddit,
+    title: find.title,
+    author: find.author,
+    score: find.score,
+    commentCount: find.commentCount,
+    postedAt: find.postedAt,
+    status: find.status,
+    /** Null means the thread has not been read, not that there are no replies. */
+    thread: find.thread,
+    threadReadAt: find.threadReadAt,
+    /** A read of the replies is waiting or running, from a press or a search. */
+    threadReading: reading.has(findId),
+    body: find.thread?.body || find.body,
+    /**
+     * What a link post points to, and what the page said. `linkPage` is the
+     * linked page's words, never the post's own; null with `linkReadAt` set
+     * means it could not be read, and `linkError` says why.
+     */
+    linkUrl: find.linkUrl,
+    linkPage: find.linkPage,
+    linkReadAt: find.linkReadAt,
+    linkError: find.linkError,
+    /** The subreddit's own posted rules, to read before writing. */
+    rules,
+    /** Comments already sent on posts like this one, beside the box. */
+    pastAnswers: past,
+    /** How many of your checked comments in this subreddit are gone. */
+    removals,
+    /** Set on a post found for one account's everyday subreddits, which only that account answers, with help alone. */
+    helpAccountId: find.helpAccountId,
+    drafts: drafts.map((draft) => ({
+      id: draft.id,
+      text: draft.text,
+      provider: draft.provider,
+      model: draft.model,
+      status: draft.status,
+      createdAt: draft.createdAt,
+    })),
+  }
+}

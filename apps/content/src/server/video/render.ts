@@ -1,0 +1,1676 @@
+import { spawn } from "node:child_process"
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
+import { and, eq, inArray } from "drizzle-orm"
+
+import {
+  computeDuckEnvelope,
+  dbToGain,
+  DEFAULT_DUCK_DB,
+  duckEnvelopeToVolumeExpr,
+  type Interval,
+} from "@/lib/video/audio-ducking"
+import {
+  loudnormApplyFilter,
+  loudnormMeasureFilter,
+  parseLoudnormMeasurement,
+} from "@/lib/video/audio-loudness"
+import {
+  atempoFilters,
+  clipSpeed,
+  clipVolume,
+  DEFAULT_CLIP_VOLUME,
+  clipLoops,
+  playbackSourceMsAt,
+  sourceMsAt,
+  sourceSpanMs,
+} from "@/lib/video/clip-playback"
+import {
+  clipFillFocus,
+  clipFit,
+  frameFitFilter,
+} from "@/lib/video/clip-frame-fit"
+import {
+  pictureBoxSize,
+  pictureOverlayPosition,
+  pictureScaleFilter,
+} from "@/lib/video/clip-size"
+import { clipMotion, motionFilter } from "@/lib/video/clip-motion"
+import { punchInFilter } from "@/lib/video/punch-ins"
+import { levelFilter } from "@/lib/video/clip-level"
+import { followOffsetExpressions, isFollowing } from "@/lib/video/follow-track"
+import {
+  STEADY_FAILED_MESSAGE,
+  STEADY_NOT_READY_MESSAGE,
+  steadyCopiesForRender,
+} from "@/server/video/steady-copies"
+
+import { clipColour, colourEqFilter } from "@/lib/video/clip-colour"
+import {
+  NO_FADES,
+  pictureFadeFilters,
+  pictureFades,
+  soundFadeFilters,
+  type FadePair,
+} from "@/lib/video/clip-fades"
+import {
+  captionExportWindows,
+  captionWordAnimation,
+  isAnimatedCaption,
+  resolveCaptionAnimation,
+  type CaptionWordAnimation,
+} from "@/lib/video/caption-animations"
+import {
+  captionWordHighlight,
+  litWordRuns,
+  splitWindowsByLitWord,
+} from "@/lib/video/caption-words"
+import { captionLayerSegments } from "@/server/video/caption-layer"
+import {
+  resolveIncomingTransition,
+  type ClipTransition,
+} from "@/lib/video/clip-transitions"
+import {
+  MEDIA_MISSING_MESSAGE,
+  NOTHING_TO_EXPORT_MESSAGE,
+  type RenderFrameRate,
+  type RenderQuality,
+} from "@/lib/video/render"
+import {
+  progressBarFilters,
+  progressMarkFilters,
+  type ProgressBar,
+} from "@/lib/video/progress-bar"
+import { adBreakStarts } from "@/lib/video/ads"
+import { shapeExportWindows, shapeSvg } from "@/lib/video/shapes"
+import { isTimerClip, timerBox, timerExportWindows, timerSvg } from "@/lib/video/timer"
+import {
+  isSocialClip,
+  socialExportWindows,
+  socialStickerSvg,
+} from "@/lib/video/social-stickers"
+import { loadSocialPictures } from "@/server/video/social-pictures"
+import { clipLook, lookCube, type FilmLookId } from "@/lib/video/film-looks"
+import {
+  frameMaskSvg,
+  frameRingSvg,
+  hasFrameShaping,
+  shapedPictureSize,
+} from "@/lib/video/clip-frame-shape"
+import {
+  blurExpressions,
+  blurMaskSvg,
+  blurShape,
+  blurSigma,
+  isBlurClip,
+} from "@/lib/video/blur"
+import { voiceCleanFilter } from "@/lib/video/voice-clean"
+import { requireTextFont } from "@/lib/video/text-fonts"
+import {
+  TEXT_LINE_HEIGHT,
+  TEXT_WRAP_WIDTH,
+  wrapTextLines,
+} from "@/lib/video/text-lines"
+import {
+  requireCanonicalTimeline,
+  SAVED_TIMELINE_INVALID_MESSAGE,
+  type AspectRatio,
+} from "@/lib/video/timeline-schema"
+import type {
+  EditorClip,
+  EditorTrack,
+} from "@/components/video-editor/editor-store"
+import { db } from "@/server/db"
+import { customShellMedia } from "@/server/schema"
+import {
+  FFMPEG_MISSING_MESSAGE,
+  FFMPEG_TIMEOUT_MS,
+  runFfmpeg as runFfmpegCommand,
+} from "@/server/video/ffmpeg"
+import { getPublicMediaUrl } from "@/server/media/storage"
+import { requireFreeDisk } from "@/server/video/disk-space"
+import {
+  inputArgs,
+  isRemoteInput,
+  openRenderSource,
+  REMOTE_INPUT_ARGS,
+  type RenderSource,
+} from "@/server/video/render-sources"
+import {
+  requireStockSoundFile,
+  STOCK_SOUND_MISSING_MESSAGE,
+} from "@/server/video/stock-sound-files"
+import {
+  FONT_MISSING_MESSAGE,
+  requireTextFontFiles,
+} from "@/server/video/text-font-files"
+import {
+  escapeXml,
+  loadResvg,
+  measureAdvance,
+} from "@/server/video/text-measure"
+
+/** Where a video's steadied copy is kept among the opened files. */
+function steadySourceKey(mediaId: string) {
+  return `steady:${mediaId}`
+}
+
+/**
+ * Turning a timeline into a finished MP4.
+ *
+ * Every clip becomes one ffmpeg input, trimmed as it goes in, shifted to its
+ * place on the timeline, and laid over a black frame in the same order the
+ * preview stacks them. That is the whole trick: what you watched in the editor
+ * and what comes out here are built from the same description, so they match.
+ *
+ * Words are drawn as pictures rather than by ffmpeg, because the builds people
+ * actually have installed usually ship without the text support it would need.
+ */
+
+/** The full-size frame for each shape; lower qualities scale this down. */
+const RENDER_SIZES: Record<AspectRatio, { width: number; height: number }> = {
+  "16:9": { width: 1920, height: 1080 },
+  "9:16": { width: 1080, height: 1920 },
+  "1:1": { width: 1080, height: 1080 },
+  "4:3": { width: 1440, height: 1080 },
+}
+
+// How much to shrink the frame, and how hard to squeeze it. A bigger squeeze
+// is a smaller file and a softer picture.
+const QUALITY_PRESETS: Record<RenderQuality, { scale: number; crf: number }> = {
+  high: { scale: 1, crf: 18 },
+  medium: { scale: 2 / 3, crf: 22 },
+  low: { scale: 4 / 9, crf: 28 },
+}
+
+const AUDIO_BITRATE = "192k"
+// Text sizes are authored against a 1080-tall frame in the editor.
+const DESIGN_HEIGHT = 1080
+
+export const RENDER_FAILED_MESSAGE = "The export could not be made"
+
+/**
+ * Only these reach the screen as they are. Anything else — storage internals,
+ * ffmpeg's own noise — is written to the server log and shown as the plain
+ * failure message, because the rest is no use to whoever clicked Export.
+ */
+export const SAFE_RENDER_ERRORS = new Set([
+  NOTHING_TO_EXPORT_MESSAGE,
+  MEDIA_MISSING_MESSAGE,
+  FFMPEG_MISSING_MESSAGE,
+  FONT_MISSING_MESSAGE,
+  SAVED_TIMELINE_INVALID_MESSAGE,
+  STOCK_SOUND_MISSING_MESSAGE,
+  STEADY_NOT_READY_MESSAGE,
+  STEADY_FAILED_MESSAGE,
+])
+
+function toEven(value: number) {
+  return Math.max(2, Math.round(value / 2) * 2)
+}
+
+export function renderSize(aspect: AspectRatio, quality: RenderQuality) {
+  const base = RENDER_SIZES[aspect] ?? RENDER_SIZES["16:9"]
+  const { scale } = QUALITY_PRESETS[quality]
+  return {
+    width: toEven(base.width * scale),
+    height: toEven(base.height * scale),
+  }
+}
+
+/**
+ * How long the finished file runs, in whole milliseconds.
+ *
+ * Clip lengths come from frame maths, so a timeline routinely ends on
+ * something like 10418.75ms. That is fine for ffmpeg and wrong for everywhere
+ * the length is written down or read back: the column it is stored in counts
+ * whole milliseconds, and refuses anything else.
+ */
+export function exportDurationMs(timelineMs: number) {
+  return Math.round(timelineMs)
+}
+
+/**
+ * How long each ffmpeg run of one export may take: as long as the finished
+ * file plays, and never less than ten minutes. That is the allowance a
+ * ten-minute export always had. The heaviest export timed on a Mac used about
+ * a third of it (see `workspace/docs/long-exports.md`). The Hetzner server
+ * that renders has not been timed yet. A stuck run is still stopped.
+ */
+export function exportTimeoutMs(exportMs: number) {
+  return Math.max(FFMPEG_TIMEOUT_MS, exportMs)
+}
+
+/**
+ * About the most disk the finished file takes while it is made, so a render
+ * can wait for room rather than fill the disk. Megabytes a minute, set above
+ * the biggest measured in `workspace/docs/long-exports.md` (40MB a minute for
+ * wide at Best). Evening out the sound writes a second copy beside the first.
+ */
+const EXPORT_MB_PER_MINUTE: Record<RenderQuality, number> = {
+  high: 60,
+  medium: 30,
+  low: 15,
+}
+
+export function exportDiskBytes(
+  durationMs: number,
+  quality: RenderQuality,
+  normalizeLoudness: boolean
+) {
+  const copies = normalizeLoudness ? 2 : 1
+  return (durationMs / 60_000) * EXPORT_MB_PER_MINUTE[quality] * 1024 * 1024 * copies
+}
+
+/** Where the last clip ends — how long the export runs for. */
+export function timelineEndMs(tracks: EditorTrack[]) {
+  let max = 0
+  for (const track of tracks) {
+    for (const clip of track.clips ?? []) {
+      max = Math.max(max, (clip.startMs ?? 0) + (clip.durationMs ?? 0))
+    }
+  }
+  return max
+}
+
+/**
+ * Why a project cannot be exported, in words, or null when it can. Checked when
+ * somebody asks so the answer is immediate, and again when the render starts,
+ * because the timeline may have changed in between.
+ */
+export function renderRefusalReason(timeline: unknown): string | null {
+  let durationMs: number
+  try {
+    durationMs = timelineEndMs(requireCanonicalTimeline(timeline).tracks)
+  } catch {
+    return SAVED_TIMELINE_INVALID_MESSAGE
+  }
+  if (durationMs <= 0) return NOTHING_TO_EXPORT_MESSAGE
+  return null
+}
+
+/**
+ * One clip with its lane's mute and duck settings folded in. Visual order is
+ * bottom lane first, so the last thing laid down is the top lane — the way the
+ * preview stacks them.
+ */
+type RenderClip = {
+  clip: EditorClip
+  muted: boolean
+  duck: boolean
+  transition?: ClipTransition | null
+  /** The picture fades as they play, after the lane's transitions. */
+  fades?: FadePair
+}
+
+function flattenForRender(tracks: EditorTrack[]) {
+  const visuals: RenderClip[] = []
+  const audio: RenderClip[] = []
+  for (let index = tracks.length - 1; index >= 0; index--) {
+    const track = tracks[index]
+    const duck = !!track.duck
+    const clips = track.clips ?? []
+    clips.forEach((clip, clipIndex) => {
+      if (!clip.durationMs || clip.durationMs <= 0) return
+      if (clip.kind === "audio") {
+        audio.push({ clip, muted: track.muted || !!clip.muted, duck })
+        return
+      }
+      // The clips either side on the same lane decide whether a seam blends,
+      // and a blend at a seam overrules a picture fade there. They are
+      // stored in order.
+      const previous = clipIndex > 0 ? clips[clipIndex - 1] : null
+      const next = clips[clipIndex + 1] ?? null
+      const fades = pictureFades(clip, previous, next)
+      if (clip.kind === "text") {
+        if (clip.text?.trim()) {
+          visuals.push({ clip, muted: true, duck: false, fades })
+        }
+      } else if (clip.kind === "shape") {
+        visuals.push({ clip, muted: true, duck: false, fades })
+      } else if (clip.mediaId) {
+        visuals.push({
+          clip,
+          muted: track.muted || !!clip.muted,
+          duck,
+          transition: resolveIncomingTransition(clip, previous),
+          fades,
+        })
+      }
+    })
+  }
+  return { visuals, audio }
+}
+
+export type RenderResult = {
+  /**
+   * The finished file on disk, left in place for the caller to send to
+   * storage from there. An hour-long export is several gigabytes, more than
+   * Node will hold in memory at once.
+   */
+  filePath: string
+  fileSize: number
+  thumbnail: Uint8Array | null
+  durationMs: number
+  width: number
+  height: number
+  /** Deletes the scratch folder the file is in. The caller must call it. */
+  dispose: () => Promise<void>
+}
+
+/**
+ * Render one timeline and hand back the file. Everything happens in a scratch
+ * folder: a failure deletes it here, and a success hands the file back with
+ * `dispose` to delete it once it is stored. Nothing here writes to the
+ * database — the queue owns what happens to the result.
+ */
+export async function renderTimeline({
+  userId,
+  timeline: rawTimeline,
+  aspect,
+  quality,
+  frameRate,
+  normalizeLoudness,
+  signal,
+}: {
+  userId: string
+  timeline: unknown
+  /** The export's own shape, which need not be the project's. */
+  aspect: AspectRatio
+  quality: RenderQuality
+  /** Frames a second in the file, and the clock everything timed in frames counts on. */
+  frameRate: RenderFrameRate
+  normalizeLoudness: boolean
+  /** Stops the render partway; the scratch folder still goes. */
+  signal?: AbortSignal
+}): Promise<RenderResult> {
+  const dir = await mkdtemp(path.join(tmpdir(), "video-render-"))
+  const dispose = () => rm(dir, { recursive: true, force: true })
+  let releaseSources: () => Promise<void> = async () => undefined
+  try {
+    const timeline = requireCanonicalTimeline(rawTimeline)
+    const size = renderSize(aspect, quality)
+    const durationMs = timelineEndMs(timeline.tracks)
+    if (durationMs <= 0) throw new Error(NOTHING_TO_EXPORT_MESSAGE)
+
+    // Waits for room rather than fill the disk with a long export.
+    await requireFreeDisk(dir, exportDiskBytes(durationMs, quality, normalizeLoudness))
+
+    const { visuals, audio } = flattenForRender(timeline.tracks)
+    // A Small export is a quick look, so it reads the smooth copies.
+    const { mediaRows, sourceFiles, pictures, release } = await openOwnedSources(
+      userId,
+      [...visuals, ...audio],
+      { draft: quality === "low" }
+    )
+    releaseSources = release
+
+    // Only a video that really carries sound may join the mix; naming a stream
+    // that is not there fails the whole command.
+    const audioPresence = new Map<string, boolean>()
+    for (const media of mediaRows) {
+      if (media.fileType === "video") {
+        audioPresence.set(media.id, await hasAudioStream(sourceFiles.get(media.id)!))
+      }
+    }
+
+    const command = await buildFfmpegCommand({
+      dir,
+      size,
+      durationMs,
+      visuals,
+      audio,
+      sourceFiles,
+      pictures,
+      audioPresence,
+      fps: frameRate,
+      duckingGain: dbToGain(DEFAULT_DUCK_DB),
+      progressBar: timeline.progressBar,
+      progressMarksMs: adBreakStarts(timeline.tracks),
+    })
+
+    const exportMs = exportDurationMs(durationMs)
+    const timeoutMs = exportTimeoutMs(exportMs)
+
+    const outFile = path.join(dir, "out.mp4")
+    await runFfmpeg([
+      ...command.picture,
+      ...command.sound,
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      String(QUALITY_PRESETS[quality].crf),
+      "-pix_fmt",
+      "yuv420p",
+      "-r",
+      String(frameRate),
+      "-t",
+      String(durationMs / 1000),
+      "-movflags",
+      "+faststart",
+      outFile,
+    ], signal, timeoutMs)
+    const finalFile = normalizeLoudness
+      ? await normalizeExportLoudness(dir, outFile, signal, timeoutMs)
+      : outFile
+
+    return {
+      filePath: finalFile,
+      fileSize: (await stat(finalFile)).size,
+      thumbnail: await extractCoverFrame(dir, finalFile, 0, { signal }),
+      durationMs: exportMs,
+      width: size.width,
+      height: size.height,
+      dispose,
+    }
+  } catch (error) {
+    await dispose()
+    throw error
+  } finally {
+    await releaseSources()
+  }
+}
+
+/** The frame rate the editor's preview steps through. */
+const PREVIEW_FRAME_RATE: RenderFrameRate = 30
+
+/**
+ * The frame on screen at one moment of a timeline, as a full-size JPEG.
+ *
+ * It is drawn by the export's own graph, so it is the picture an export would
+ * show at that moment. Only the clips on screen then are fetched and drawn, and the film starts
+ * at that moment, so a frame late in a long project costs no more than one
+ * early on.
+ */
+export async function renderTimelineFrame({
+  userId,
+  timeline: rawTimeline,
+  atMs,
+}: {
+  userId: string
+  timeline: unknown
+  atMs: number
+}): Promise<Uint8Array> {
+  const timeline = requireCanonicalTimeline(rawTimeline)
+  const durationMs = timelineEndMs(timeline.tracks)
+  if (durationMs <= 0) throw new Error(NOTHING_TO_EXPORT_MESSAGE)
+
+  // On a frame, and never past the last one: the playhead parked at the very
+  // end is over nothing at all.
+  const frameMs = 1000 / PREVIEW_FRAME_RATE
+  const lastFrame = Math.max(0, Math.ceil(durationMs / frameMs) - 1)
+  const frame = Math.min(Math.max(0, Math.round(atMs / frameMs)), lastFrame)
+  const fromMs = frame * frameMs
+
+  const dir = await mkdtemp(path.join(tmpdir(), "video-frame-"))
+  let releaseSources: () => Promise<void> = async () => undefined
+  try {
+    const size = renderSize(timeline.aspect, "high")
+    // A clip blending in is drawn from before its own start.
+    const visuals = flattenForRender(timeline.tracks).visuals.filter(
+      ({ clip, transition }) =>
+        fromMs >= clip.startMs - (transition?.durationMs ?? 0) &&
+        fromMs < clip.startMs + clip.durationMs
+    )
+    // Read straight from storage: a frame of a 20GB recording fetches a few
+    // megabytes around that moment, not the recording.
+    const sources = await openOwnedSources(userId, visuals, { draft: false })
+    releaseSources = sources.release
+    const { sourceFiles } = sources
+    const command = await buildFfmpegCommand({
+      dir,
+      size,
+      durationMs,
+      visuals,
+      audio: [],
+      sourceFiles,
+      pictures: sources.pictures,
+      audioPresence: new Map(),
+      fps: PREVIEW_FRAME_RATE,
+      duckingGain: 1,
+      progressBar: timeline.progressBar,
+      progressMarksMs: adBreakStarts(timeline.tracks),
+      fromMs,
+    })
+    const out = path.join(dir, "frame.jpg")
+    await runFfmpeg([...command.picture, "-frames:v", "1", "-q:v", "2", out])
+    return await readFile(out)
+  } finally {
+    await releaseSources()
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Small stills of a stretch of a timeline, one every `everyMs` from `fromMs`,
+ * at most `maxSide` pixels on their longer side, as JPEGs in order. Drawn by
+ * the export's own graph from the smooth copies, so a still is what a quick
+ * export would show then. Blur that follows (blur-follow.ts) sends these to
+ * Gemini, which counts a small picture as fewer tokens than a big one.
+ */
+export async function renderTimelineStills({
+  userId,
+  timeline: rawTimeline,
+  fromMs,
+  toMs,
+  everyMs,
+  maxSide,
+}: {
+  userId: string
+  timeline: unknown
+  fromMs: number
+  toMs: number
+  everyMs: number
+  maxSide: number
+}): Promise<Uint8Array[]> {
+  const timeline = requireCanonicalTimeline(rawTimeline)
+  const frameMs = 1000 / PREVIEW_FRAME_RATE
+  const startMs = Math.max(0, Math.round(fromMs / frameMs) * frameMs)
+  const endMs = Math.min(timelineEndMs(timeline.tracks), toMs)
+  if (endMs <= startMs) throw new Error(NOTHING_TO_EXPORT_MESSAGE)
+
+  const dir = await mkdtemp(path.join(tmpdir(), "video-stills-"))
+  let releaseSources: () => Promise<void> = async () => undefined
+  try {
+    const size = renderSize(timeline.aspect, "low")
+    const visuals = flattenForRender(timeline.tracks).visuals.filter(
+      ({ clip, transition }) =>
+        clip.startMs - (transition?.durationMs ?? 0) < endMs &&
+        clip.startMs + clip.durationMs > startMs
+    )
+    const sources = await openOwnedSources(userId, visuals, { draft: true })
+    releaseSources = sources.release
+    const command = await buildFfmpegCommand({
+      dir,
+      size,
+      durationMs: endMs,
+      visuals,
+      audio: [],
+      sourceFiles: sources.sourceFiles,
+      pictures: sources.pictures,
+      audioPresence: new Map(),
+      fps: PREVIEW_FRAME_RATE,
+      duckingGain: 1,
+      fromMs: startMs,
+      finish: `fps=${(1000 / everyMs).toFixed(4)}:round=down,scale=w=${maxSide}:h=${maxSide}:force_original_aspect_ratio=decrease`,
+    })
+    // Counted out: left to itself, the picture reader keeps writing the
+    // last still long after the film ends (2,048 of them for 2 seconds, seen
+    // with ffmpeg 8.1).
+    const count = Math.floor((endMs - startMs - 1) / everyMs) + 1
+    await runFfmpeg([
+      ...command.picture,
+      "-frames:v",
+      String(count),
+      "-q:v",
+      "4",
+      path.join(dir, "still-%04d.jpg"),
+    ])
+    const names = (await readdir(dir))
+      .filter((name) => name.startsWith("still-"))
+      .sort()
+    return Promise.all(names.map((name) => readFile(path.join(dir, name))))
+  } finally {
+    await releaseSources()
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Every file the clips name, looked up as the owner's own and opened once
+ * however many clips use it. A timeline must never be able to pull somebody
+ * else's footage into a render. Each file is read where it is, mostly
+ * straight from storage (`render-sources.ts`), so `release` must be called
+ * once the render is done with them.
+ */
+async function openOwnedSources(
+  userId: string,
+  clips: RenderClip[],
+  { draft }: { draft: boolean }
+) {
+  const mediaIds = Array.from(
+    new Set(
+      clips
+        .map(({ clip }) => clip.mediaId)
+        .filter((id): id is string => !!id)
+    )
+  )
+  const mediaRows = mediaIds.length
+    ? await db
+        .select()
+        .from(customShellMedia)
+        .where(
+          and(
+            eq(customShellMedia.userId, userId),
+            inArray(customShellMedia.id, mediaIds)
+          )
+        )
+    : []
+  if (mediaRows.length !== mediaIds.length) {
+    throw new Error(MEDIA_MISSING_MESSAGE)
+  }
+
+  const pictures = await loadSocialPictures(
+    userId,
+    clips
+      .map(({ clip }) => (isSocialClip(clip) ? clip.pictureUrl : undefined))
+      .filter((url): url is string => !!url)
+  )
+
+  // Videos a clip plays steadied read their steadied copy for the picture
+  // (steady-shaky-footage.md), kept under `steadySourceKey`. A copy that is
+  // not ready stops the export with a sentence saying so.
+  const steadyIds = Array.from(
+    new Set(
+      clips
+        .filter(({ clip }) => clip.kind === "video" && clip.steady && clip.mediaId)
+        .map(({ clip }) => clip.mediaId!)
+    )
+  )
+  const steadyCopies = await steadyCopiesForRender(steadyIds)
+
+  // A looped clip's file is read from its start again on every pass, so it
+  // is fetched whole rather than read over the network (clip-loop.md).
+  const loopedIds = new Set(
+    clips
+      .filter(({ clip }) => clipLoops(clip) && clip.mediaId)
+      .map(({ clip }) => clip.mediaId!)
+  )
+  const sourceFiles = new Map<string, string>()
+  const opened: RenderSource[] = []
+  const release = async () => {
+    await Promise.all(opened.map((source) => source.release().catch(() => undefined)))
+  }
+  try {
+    for (const media of mediaRows) {
+      const whole = loopedIds.has(media.id)
+      const source = await openRenderSource(media, { draft, whole })
+      opened.push(source)
+      sourceFiles.set(media.id, source.input)
+      const steady = steadyCopies.get(media.id)
+      if (steady) {
+        const steadySource = await openRenderSource(
+          { ...media, ...steady },
+          { draft: false, whole }
+        )
+        opened.push(steadySource)
+        sourceFiles.set(steadySourceKey(media.id), steadySource.input)
+      }
+    }
+  } catch (error) {
+    await release()
+    throw error
+  }
+  return { mediaRows, sourceFiles, pictures, release }
+}
+
+/**
+ * Levels the finished mix and returns the file to keep. The first pass listens,
+ * the second applies one fixed correction, so the ducking keeps its shape. The
+ * picture is copied through untouched. A silent export is left alone.
+ */
+async function normalizeExportLoudness(
+  dir: string,
+  file: string,
+  signal: AbortSignal | undefined,
+  timeoutMs: number
+) {
+  if (!(await hasAudioStream(file))) return file
+
+  const stderr = await runFfmpeg([
+    "-i",
+    file,
+    "-vn",
+    "-af",
+    loudnormMeasureFilter(),
+    "-f",
+    "null",
+    "-",
+  ], signal, timeoutMs)
+  const measurement = parseLoudnormMeasurement(stderr)
+  if (!measurement) {
+    console.warn("Loudness could not be measured; keeping the mix as it is")
+    return file
+  }
+
+  const normalized = path.join(dir, "out-normalized.mp4")
+  await runFfmpeg([
+    "-i",
+    file,
+    "-c:v",
+    "copy",
+    "-af",
+    loudnormApplyFilter(measurement),
+    "-c:a",
+    "aac",
+    "-b:a",
+    AUDIO_BITRATE,
+    "-movflags",
+    "+faststart",
+    normalized,
+  ], signal, timeoutMs)
+  return normalized
+}
+
+/**
+ * One frame out of a finished export, as a JPEG. Used for the cover picture in
+ * the gallery, and again when somebody picks a different moment for it. A
+ * cover is shrunk to 640 wide; `fullSize` keeps every pixel of the export and
+ * squeezes it less, for a frame somebody saves to keep.
+ */
+export async function extractCoverFrame(
+  dir: string,
+  file: string,
+  atMs: number,
+  { signal, fullSize = false }: { signal?: AbortSignal; fullSize?: boolean } = {}
+): Promise<Uint8Array | null> {
+  const out = path.join(dir, `cover-${Math.round(atMs)}.jpg`)
+  try {
+    await runFfmpeg([
+      "-ss",
+      String(Math.max(0, atMs) / 1000),
+      ...inputArgs(file),
+      "-frames:v",
+      "1",
+      ...(fullSize ? [] : ["-vf", "scale=640:-2"]),
+      "-q:v",
+      fullSize ? "2" : "4",
+      out,
+    ], signal)
+    return await readFile(out)
+  } catch {
+    // A cover is a nicety; an export with none is still an export.
+    return null
+  }
+}
+
+/**
+ * The same, for an export already in storage. It is read straight from the
+ * export's address, so ffmpeg fetches the few megabytes around the moment
+ * rather than the whole file: an hour-long export is gigabytes to download
+ * for one picture.
+ */
+export async function extractCoverFrameFromStorage(
+  storagePath: string,
+  atMs: number,
+  { fullSize = false }: { fullSize?: boolean } = {}
+): Promise<Uint8Array | null> {
+  const dir = await mkdtemp(path.join(tmpdir(), "video-cover-"))
+  try {
+    const address = await getPublicMediaUrl(storagePath)
+    return await extractCoverFrame(dir, address, atMs, { fullSize })
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+function hasFades({ fades = NO_FADES }: RenderClip) {
+  return fades.inMs > 0 || fades.outMs > 0
+}
+
+function pictureFadeStages({ clip, fades = NO_FADES }: RenderClip) {
+  return pictureFadeFilters(fades, clip.startMs, clip.durationMs)
+}
+
+/**
+ * Builds the input list and the filter graph. Nothing is padded: a clip that
+ * does not fill the frame lets whatever is under it show through, exactly as
+ * the preview does with its stacked, contained layers.
+ */
+async function buildFfmpegCommand(options: {
+  dir: string
+  size: { width: number; height: number }
+  durationMs: number
+  visuals: RenderClip[]
+  audio: RenderClip[]
+  sourceFiles: Map<string, string>
+  /** Social stickers' round pictures, by their address (social-pictures.ts). */
+  pictures: Map<string, string>
+  audioPresence: Map<string, boolean>
+  fps: RenderFrameRate
+  duckingGain: number
+  /** The bar along one edge that fills as the film plays, if the project has one. */
+  progressBar?: ProgressBar
+  /** Where the ad breaks start, marked on the progress bar (ads.ts). */
+  progressMarksMs?: number[]
+  /**
+   * Where the film starts, on a frame. Zero for an export. A single saved
+   * frame starts at its own moment, so nothing before it is drawn.
+   */
+  fromMs?: number
+  /**
+   * One more stretch of filters on the finished picture, such as taking a
+   * frame every half second for stills. Left out for an export.
+   */
+  finish?: string
+}) {
+  const {
+    dir,
+    size,
+    durationMs,
+    visuals,
+    audio,
+    sourceFiles,
+    pictures,
+    audioPresence,
+    fps,
+    duckingGain,
+    progressBar,
+    progressMarksMs = [],
+    fromMs = 0,
+    finish,
+  } = options
+  const durationS = durationMs / 1000
+  const fromS = fromMs / 1000
+  const inputs: string[] = []
+  // Each film look's LUT, written once however many clips use it.
+  const lookFiles = new Map<FilmLookId, string>()
+  // Each looped sound's WAV, made once however many clips loop it.
+  const loopedSounds = new Map<string, string>()
+  // Each distinct second of every timer, drawn once (timer.ts).
+  const timerPictures = new Map<string, string>()
+  // Moved on in whole frames: ffmpeg drops the fraction of a time it is
+  // given, and a start a hair under a frame lands on the one before it.
+  const filters: string[] = [
+    fromS > 0
+      ? `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${durationS - fromS},setpts=PTS+${Math.round(fromS * fps)}[v0]`
+      : `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${durationS}[v0]`,
+  ]
+  const audioLabels: string[] = []
+  let inputIndex = 0
+  let visualStep = 0
+
+  // Ducking: anything making a sound on a lane that is not ducked counts as
+  // the thing to duck under. Ducked lanes get one volume curve across the
+  // whole timeline, the same curve the preview plays.
+  const sourceInterval = (clip: EditorClip): Interval => ({
+    startMs: clip.startMs,
+    endMs: clip.startMs + clip.durationMs,
+  })
+  // A clip turned all the way down is silence, so it neither ducks anything
+  // nor counts as the thing to duck under.
+  const carriesSound = ({ clip }: RenderClip) => {
+    if (clipVolume(clip) === 0) return false
+    if (clip.kind === "audio") return !!clip.mediaId || !!clip.stockSound
+    return clip.kind === "video" && !!clip.mediaId && !!audioPresence.get(clip.mediaId)
+  }
+
+  const voiceIntervals: Interval[] = []
+  for (const entry of [...audio, ...visuals]) {
+    if (entry.muted || entry.duck || !carriesSound(entry)) continue
+    voiceIntervals.push(sourceInterval(entry.clip))
+  }
+  const hasDuckSource = [...audio, ...visuals].some(
+    (entry) => entry.duck && !entry.muted && carriesSound(entry)
+  )
+  const duckExpr =
+    hasDuckSource && voiceIntervals.length && duckingGain < 1
+      ? duckEnvelopeToVolumeExpr(
+          computeDuckEnvelope({
+            voiceIntervals,
+            durationMs,
+            duckGain: duckingGain,
+          })
+        )
+      : null
+
+  // Order matters: any cleaning first, then the speed change so the sound is
+  // the right length, then the clip's own level, then the delay that puts it
+  // in place, and only then the ducking curve, which is written against
+  // timeline time.
+  const pushAudio = (inputIdx: number, clip: EditorClip, duck: boolean) => {
+    const label = `[a${audioLabels.length}]`
+    const speed = clipSpeed(clip)
+    const volume = clipVolume(clip)
+    // Cleaning comes before anything else, on the sound as recorded, the
+    // same as the copy the preview plays (voice-clean.ts).
+    const stages = [
+      ...(clip.voiceClean ? [voiceCleanFilter(clip.voiceClean)] : []),
+      ...atempoFilters(speed),
+    ]
+    // The even loudness the clip arrived with, then its own slider on top
+    // (clip-level.ts).
+    stages.push(...levelFilter(clip))
+    if (volume !== DEFAULT_CLIP_VOLUME) {
+      stages.push(`volume=${volume.toFixed(3)}`)
+    }
+    // Clip time, before the delay moves it into place. The input was cut to
+    // the clip with -ss and -t, so it starts at zero and ends at durationMs.
+    stages.push(...soundFadeFilters(clip))
+    stages.push(`adelay=${Math.round(clip.startMs)}:all=1`)
+    if (duck && duckExpr) stages.push(`volume=eval=frame:volume='${duckExpr}'`)
+    filters.push(`[${inputIdx}:a]${stages.join(",")}${label}`)
+    audioLabels.push(label)
+  }
+
+  // Dips to black go on last, over everything, so the frame really does pass
+  // through black rather than showing whatever is on a lane underneath.
+  const dipSeams: { seamS: number; halfS: number }[] = []
+
+  // Captions with nothing else between them in the stack are drawn as one
+  // layer, keyed by the first of them (see caption-layer.ts). A layer per
+  // caption ran a long captioned export past its time limit. A text clip
+  // that fades is a layer of its own, because the fade is applied to the
+  // whole layer and must not reach the captions around it.
+  const captionRuns = new Map<RenderClip, RenderClip[]>()
+  let run: RenderClip[] | null = null
+  for (const entry of visuals) {
+    if (entry.clip.kind !== "text") {
+      run = null
+      continue
+    }
+    // So is one that follows something: its layer moves on its own
+    // (follow-track.ts).
+    if (hasFades(entry) || isFollowing(entry.clip)) {
+      captionRuns.set(entry, [entry])
+      run = null
+      continue
+    }
+    if (!run) {
+      run = []
+      captionRuns.set(entry, run)
+    }
+    run.push(entry)
+  }
+
+  for (const entry of visuals) {
+    const { clip, muted, duck, transition } = entry
+    const startS = clip.startMs / 1000
+    const endS = (clip.startMs + clip.durationMs) / 1000
+    const durS = clip.durationMs / 1000
+
+    if (clip.kind === "text") {
+      // A run of captions is one layer, laid down where its first caption
+      // sits in the stack; the rest of the run is already in it.
+      const run = captionRuns.get(entry)
+      if (!run) continue
+      const parts = new Map<string, string>()
+      const segments = captionLayerSegments(
+        run.map(({ clip: caption }, captionIndex) => {
+          const animation = resolveCaptionAnimation(caption.animation)
+          // A still line is one picture for its whole turn. An animated one
+          // is a few pictures across its entrance and then one still — the
+          // same windows the preview moves through, drawn instead of tweened.
+          const entrance = isAnimatedCaption(animation)
+            ? captionExportWindows(0, caption.durationMs, 0)
+            : [{ fromMs: 0, toMs: caption.durationMs, progress: 1 }]
+          // A caption lit word by word is cut again wherever the lit word
+          // changes: the preview's colour change, drawn.
+          const highlight = captionWordHighlight(caption)
+          const windows = highlight
+            ? splitWindowsByLitWord(
+                entrance,
+                litWordRuns(caption, highlight.times)
+              )
+            : entrance.map((window) => ({ ...window, lit: -1 }))
+          return {
+            startMs: caption.startMs,
+            durationMs: caption.durationMs,
+            pieces: windows.map((window, windowIndex) => {
+              const id = `${captionIndex}-${windowIndex}`
+              parts.set(
+                id,
+                textSvgPart(
+                  caption,
+                  size,
+                  captionWordAnimation(animation, window.progress),
+                  window.lit
+                )
+              )
+              return { fromMs: window.fromMs, toMs: window.toMs, picture: id }
+            }),
+          }
+        }),
+        fps
+      )
+      if (!segments.length) continue
+
+      // One picture per stretch, drawn once however often it comes back, and
+      // listed for ffmpeg's `concat` reader counting in the film's frames.
+      const pictures = new Map<string, string>()
+      const option = `option framerate ${fps}`
+      const lines = ["ffconcat version 1.0"]
+      for (const segment of segments) {
+        const key = segment.pictures.join("+")
+        let file = pictures.get(key)
+        if (!file) {
+          file = path.join(dir, `captions-${visualStep}-${pictures.size}.png`)
+          await writeFile(
+            file,
+            renderTextLayerPng(
+              segment.pictures.map((id) => parts.get(id)!),
+              size
+            )
+          )
+          pictures.set(key, file)
+        }
+        lines.push(
+          `file '${path.basename(file)}'`,
+          option,
+          `duration ${((segment.toFrame - segment.fromFrame) / fps).toFixed(6)}`
+        )
+      }
+      // The reader ignores the last picture's time unless it is named again.
+      lines.push(lines.at(-3)!, option)
+      const listFile = path.join(dir, `captions-${visualStep}.txt`)
+      await writeFile(listFile, `${lines.join("\n")}\n`)
+      // One decoding thread: by default an input takes one per core. The
+      // reader's safe mode refuses the `option` lines, so it is off; the list
+      // is written here and names only the pictures drawn beside it.
+      inputs.push("-threads", "1", "-f", "concat", "-safe", "0", "-i", listFile)
+
+      const firstFrame = segments[0].fromFrame
+      const endFrame = segments.at(-1)!.toFrame
+      // On from its first frame, off before the frame after its last: the
+      // half frames keep either edge from landing on a rounding error.
+      // A layer of words holds one frame per picture, which the overlay
+      // repeats until the next. A fade has to change every frame, so a
+      // fading layer is first given one frame per frame of the film.
+      const textFades =
+        run.length === 1 && hasFades(run[0])
+          ? [`fps=${fps}`, ...pictureFadeStages(run[0])]
+          : []
+      // A run of one following caption moves its whole layer with the
+      // thing it follows (follow-track.ts); anything else stays at 0, 0.
+      const moved = followOffsetExpressions(run[0].clip, size, run[0].clip.startMs / 1000)
+      filters.push(
+        `[${inputIndex}:v]${["format=rgba", `setpts=PTS-STARTPTS+${firstFrame / fps}/TB`, ...textFades].join(",")}[l${visualStep}]`,
+        `[v${visualStep}][l${visualStep}]overlay=x='${moved.x}':y='${moved.y}':enable='between(t,${(firstFrame - 0.5) / fps},${(endFrame - 0.5) / fps})'[v${visualStep + 1}]`
+      )
+    } else if (isBlurClip(clip)) {
+      // A blur crops its box out of everything drawn so far, blurs that
+      // copy, and lays it back where it came from, so only the lanes under
+      // it are softened (see blur.ts). Its one input is the box's shape as a
+      // picture, read as the copy's see-through layer: all of it for a box,
+      // the oval for an oval. A blur that follows something moves its crop
+      // and its overlay by the same expressions of the film's time.
+      const box = blurExpressions(clip, size, startS)
+      const maskFile = path.join(dir, `blur-${visualStep}.png`)
+      await writeFile(
+        maskFile,
+        renderSvgPng(blurMaskSvg(blurShape(clip), box.width, box.height))
+      )
+      inputs.push("-loop", "1", "-framerate", String(fps), "-t", String(endS), "-i", maskFile)
+      const sigma = blurSigma(clip, size).toFixed(2)
+      const window = `between(t,${startS},${endS})`
+      filters.push(
+        `[v${visualStep}]split[b${visualStep}][s${visualStep}]`,
+        `[s${visualStep}]crop=w=${box.width}:h=${box.height}:x='${box.x}':y='${box.y}',gblur=sigma=${sigma}:steps=3:enable='${window}'[c${visualStep}]`,
+        `[${inputIndex}:v]format=gray[m${visualStep}]`,
+        `[c${visualStep}][m${visualStep}]alphamerge${pictureFadeStages(entry).length ? `,${pictureFadeStages(entry).join(",")}` : ""}[l${visualStep}]`,
+        `[b${visualStep}][l${visualStep}]overlay=x='${box.x}':y='${box.y}':enable='${window}'[v${visualStep + 1}]`
+      )
+    } else if (clip.kind === "shape") {
+      // A shape is a picture of its lines: one per frame while it draws
+      // itself on, then one still for the rest, read by ffmpeg's `concat`
+      // reader the way a run of captions is (see shapes.ts).
+      // A social sticker is drawn the same way, one picture per frame while
+      // it arrives or its cursor moves (social-stickers.ts).
+      const option = `option framerate ${fps}`
+      const lines = ["ffconcat version 1.0"]
+      const social = isSocialClip(clip)
+      // A timer is one picture per whole second at its box's own size, each
+      // distinct picture drawn once however many seconds and clips show it
+      // (timer.ts), and laid at its box rather than over the whole frame.
+      const timer = isTimerClip(clip)
+      const timerAt = timer ? timerBox(clip, size) : null
+      const picture = social && clip.pictureUrl ? (pictures.get(clip.pictureUrl) ?? null) : null
+      const windows: { fromMs: number; toMs: number; atMs: number; progress: number }[] = timer
+        ? timerExportWindows(clip).map((window) => ({ ...window, atMs: window.second, progress: 1 }))
+        : social
+          ? socialExportWindows(clip, fps).map((window) => ({ ...window, progress: 1 }))
+          : shapeExportWindows(clip, fps).map((window) => ({ ...window, atMs: 0 }))
+      for (const [index, window] of windows.entries()) {
+        let file = path.join(dir, `shape-${visualStep}-${index}.png`)
+        if (timer) {
+          const svg = timerSvg(clip, size, window.atMs)
+          const drawn = timerPictures.get(svg)
+          if (drawn) file = drawn
+          else {
+            file = path.join(dir, `timer-${timerPictures.size}.png`)
+            await writeFile(file, renderWordsPng(svg))
+            timerPictures.set(svg, file)
+          }
+        } else {
+          await writeFile(
+            file,
+            social
+              ? renderWordsPng(socialStickerSvg(clip, size, window.atMs, picture))
+              : renderSvgPng(shapeSvg(clip, size, window.progress))
+          )
+        }
+        lines.push(
+          `file '${path.basename(file)}'`,
+          option,
+          `duration ${((window.toMs - window.fromMs) / 1000).toFixed(6)}`
+        )
+      }
+      lines.push(lines.at(-3)!, option)
+      const listFile = path.join(dir, `shape-${visualStep}.txt`)
+      await writeFile(listFile, `${lines.join("\n")}\n`)
+      inputs.push("-threads", "1", "-f", "concat", "-safe", "0", "-i", listFile)
+      const shapeFades = hasFades(entry)
+        ? [`fps=${fps}`, ...pictureFadeStages(entry)]
+        : []
+      const moved = followOffsetExpressions(clip, size, startS)
+      filters.push(
+        `[${inputIndex}:v]${["format=rgba", `setpts=PTS-STARTPTS+${startS}/TB`, ...shapeFades].join(",")}[l${visualStep}]`,
+        `[v${visualStep}][l${visualStep}]overlay=x='${timerAt ? `${Math.round(timerAt.left)}+(${moved.x})` : moved.x}':y='${timerAt ? `${Math.round(timerAt.top)}+(${moved.y})` : moved.y}':enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+      )
+    } else {
+      const file =
+        clip.kind === "video" && clip.steady
+          ? sourceFiles.get(steadySourceKey(clip.mediaId!))!
+          : sourceFiles.get(clip.mediaId!)!
+      // A still has no speed: there is nothing moving to play faster. A video
+      // reads however much recording its speed eats, and `setpts` below
+      // squeezes or stretches that back into the room the clip has.
+      const speed = clip.kind === "image" ? 1 : clipSpeed(clip)
+      // Fit leaves black where the shapes disagree; fill grows the picture
+      // past the frame and crops the overflow back off. Colour goes on after
+      // the fit, so `eq` works on a frame-sized picture rather than on a 4K
+      // original, and a clip left alone gets no colour stage at all.
+      // A still that moves is drawn one frame per output frame, so the move
+      // advances on every frame of the film rather than stepping at the
+      // input's own 25 a second. A still that holds is left as it always was.
+      // A picture or video smaller than the frame is shrunk last, after it
+      // has been fitted into its box, coloured and moved, so it is the same
+      // picture at a smaller size (see clip-size.ts). A split's half is a box
+      // of its own: the clip is fitted or filled into those pixels instead of
+      // the frame's.
+      const colourFilter = colourEqFilter(clipColour(clip))
+      // A film look goes on before the sliders, from a LUT written once per
+      // look into the scratch folder (film-looks.ts).
+      const look = clipLook(clip)
+      let lookFilter: string | null = null
+      if (look) {
+        let cube = lookFiles.get(look)
+        if (!cube) {
+          cube = path.join(dir, `look-${look}.cube`)
+          await writeFile(cube, lookCube(look))
+          lookFiles.set(look, cube)
+        }
+        lookFilter = `lut3d=file='${cube.replace(/\\/g, "/").replace(/'/g, "")}'`
+      }
+      const motion = clipMotion(clip)
+      const scaleFilter = pictureScaleFilter(clip)
+      const box = pictureBoxSize(clip, size)
+      const pictureFilter = [
+        frameFitFilter(clipFit(clip), box.width, box.height, clipFillFocus(clip)),
+        ...(lookFilter ? [lookFilter] : []),
+        ...(colourFilter ? [colourFilter] : []),
+        ...(motion
+          ? [motionFilter(motion, box.width, box.height, durS * fps)]
+          : []),
+        // Zooms in on moments of a video (punch-ins.ts), counted in the
+        // file's time from where this input opens.
+        ...punchInFilter(clip, {
+          width: box.width,
+          height: box.height,
+          sourceStartS: sourceMsAt(clip, Math.max(0, fromS - startS) * 1000) / 1000,
+          rate: fps * speed,
+        }),
+        ...(scaleFilter ? [scaleFilter] : []),
+      ].join(",")
+      // A small picture or video that follows something is moved from its
+      // place by the same expressions (follow-track.ts).
+      const placed = pictureOverlayPosition(clip)
+      const moved = followOffsetExpressions(clip, size, startS)
+      const place =
+        moved.x === "0" && moved.y === "0"
+          ? placed
+          : { x: `${placed.x}+(${moved.x})`, y: `${placed.y}+(${moved.y})` }
+      // How much of a clip already under way when the film starts is skipped
+      // rather than drawn. A moving still keeps all of it, because its move
+      // is counted in its own frames from the first.
+      const skipS = motion ? 0 : Math.max(0, fromS - startS)
+      if (clip.kind === "image") {
+        inputs.push(
+          ...(motion ? ["-framerate", String(fps)] : []),
+          "-loop",
+          "1",
+          "-t",
+          String(durS - skipS),
+          ...inputArgs(file)
+        )
+      } else {
+        // Before the input, so ffmpeg jumps to the moment rather than
+        // reading up to it: from a storage address that is the difference
+        // between fetching the clip and fetching the recording.
+        // A looped clip reads its file round and round (-stream_loop), its
+        // first pass from where the loop has got to (clip-loop.md).
+        inputs.push(
+          ...(clipLoops(clip) ? ["-stream_loop", "-1"] : []),
+          "-ss",
+          String(playbackSourceMsAt(clip, skipS * 1000) / 1000),
+          "-t",
+          String((sourceSpanMs(clip) - skipS * 1000 * speed) / 1000),
+          ...inputArgs(file)
+        )
+      }
+      // A rounded or round picture, or one with a border, is cut out by a
+      // mask drawn at the picture's own size and ringed by a picture of its
+      // border (clip-frame-shape.ts). Both are stills read for as long as the
+      // clip's own input runs, and both go on before the clip is timed, so
+      // they line up with its first frame.
+      let head = `[${inputIndex}:v]${pictureFilter}`
+      let extraInputs = 0
+      if (hasFrameShaping(clip)) {
+        const shaped = shapedPictureSize(clip, size)
+        const holdS = clip.kind === "image" ? durS - skipS : sourceSpanMs(clip) / 1000 + 1
+        const still = (file: string) => [
+          "-loop",
+          "1",
+          "-framerate",
+          String(fps),
+          "-t",
+          String(holdS),
+          "-i",
+          file,
+        ]
+        const maskFile = path.join(dir, `frame-mask-${visualStep}.png`)
+        await writeFile(maskFile, renderSvgPng(frameMaskSvg(clip, shaped.width, shaped.height)))
+        inputs.push(...still(maskFile))
+        extraInputs = 1
+        filters.push(
+          `[${inputIndex}:v]${pictureFilter},format=rgba[fp${visualStep}]`,
+          `[${inputIndex + 1}:v]format=gray[fm${visualStep}]`,
+          `[fp${visualStep}][fm${visualStep}]alphamerge[fa${visualStep}]`
+        )
+        let shapedLabel = `fa${visualStep}`
+        const ring = frameRingSvg(clip, shaped.width, shaped.height, size)
+        if (ring) {
+          const ringFile = path.join(dir, `frame-ring-${visualStep}.png`)
+          await writeFile(ringFile, renderSvgPng(ring))
+          inputs.push(...still(ringFile))
+          extraInputs = 2
+          filters.push(
+            `[${shapedLabel}][${inputIndex + 2}:v]overlay=0:0:shortest=1[fr${visualStep}]`
+          )
+          shapedLabel = `fr${visualStep}`
+        }
+        head = `[${shapedLabel}]null`
+      }
+      const speedStage = speed === 1 ? null : `setpts=(PTS-STARTPTS)/${speed}`
+      // Once part of the clip is skipped, its blend in is over.
+      const reach =
+        transition && transition.kind !== "dip" && skipS === 0
+          ? transition
+          : null
+      if (transition?.kind === "dip") {
+        dipSeams.push({ seamS: startS, halfS: transition.durationMs / 2000 })
+      }
+      if (reach) {
+        // Drawn early over the outgoing clip's tail, holding its own first
+        // frame so the picture is continuous at the seam: a crossfade brings
+        // its opacity up, a slide brings it in from the right.
+        const blend = reach.durationMs / 1000
+        const drawStartS = startS - blend
+        const chain = [
+          head,
+          // Speed first, so the pad and the fade below are measured in the
+          // seconds the finished film runs rather than the recording's own.
+          ...(speedStage ? [speedStage] : []),
+          `tpad=start_duration=${blend.toFixed(3)}:start_mode=clone`,
+        ]
+        if (reach.kind === "crossfade") {
+          chain.push(
+            "format=rgba",
+            `fade=t=in:st=0:d=${blend.toFixed(3)}:alpha=1`
+          )
+        }
+        chain.push(
+          `setpts=PTS-STARTPTS+${drawStartS.toFixed(3)}/TB`,
+          // Only the fade out can be left: the blend took the fade in.
+          ...pictureFadeStages(entry)
+        )
+        const xExpr =
+          reach.kind === "slide"
+            ? `'if(gte(t,${startS.toFixed(3)}),${place.x},${place.x}+(W-(${place.x}))*((${startS.toFixed(3)}-t)/${blend.toFixed(3)}))'`
+            : `'${place.x}'`
+        filters.push(
+          `${chain.join(",")}[l${visualStep}]`,
+          `[v${visualStep}][l${visualStep}]overlay=x=${xExpr}:y='${place.y}':enable='between(t,${drawStartS.toFixed(3)},${endS.toFixed(3)})'[v${visualStep + 1}]`
+        )
+      } else {
+        // The fades go on once the frames carry timeline time, so they start
+        // where the clip does on the timeline.
+        filters.push(
+          `${head},${[`setpts=(PTS-STARTPTS)/${speed}+${startS + skipS}/TB`, ...pictureFadeStages(entry)].join(",")}[l${visualStep}]`,
+          `[v${visualStep}][l${visualStep}]overlay=x='${place.x}':y='${place.y}':enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+        )
+      }
+      if (clip.kind === "video" && !muted && audioPresence.get(clip.mediaId!)) {
+        pushAudio(inputIndex, clip, duck)
+      }
+      inputIndex += extraInputs
+    }
+    inputIndex += 1
+    visualStep += 1
+  }
+
+  for (const { seamS, halfS } of dipSeams) {
+    const fromS = seamS - halfS
+    const toS = seamS + halfS
+    filters.push(
+      `color=c=black:s=${size.width}x${size.height}:r=${fps}:d=${(2 * halfS).toFixed(3)}[dipsrc${visualStep}]`,
+      `[dipsrc${visualStep}]format=yuva420p,fade=t=in:st=0:d=${halfS.toFixed(3)}:alpha=1,fade=t=out:st=${halfS.toFixed(3)}:d=${halfS.toFixed(3)}:alpha=1,setpts=PTS-STARTPTS+${fromS.toFixed(3)}/TB[dip${visualStep}]`,
+      `[v${visualStep}][dip${visualStep}]overlay=x=0:y=0:enable='between(t,${fromS.toFixed(3)},${toS.toFixed(3)})'[v${visualStep + 1}]`
+    )
+    visualStep += 1
+  }
+
+  for (const { clip, muted, duck } of audio) {
+    if (muted) continue
+    // A starter sound effect is a file of the app's own, not anybody's upload.
+    const file = clip.stockSound
+      ? requireStockSoundFile(clip.stockSound)
+      : clip.mediaId
+        ? sourceFiles.get(clip.mediaId)
+        : undefined
+    if (!file) continue
+    // A looped sound plays round and round from a WAV made once, because an
+    // mp3's padding would click at every wrap (clip-loop.md).
+    const looped = clipLoops(clip)
+    const read = looped ? await loopableSound(file, dir, loopedSounds) : file
+    inputs.push(
+      ...(looped ? ["-stream_loop", "-1"] : []),
+      "-ss",
+      String(playbackSourceMsAt(clip, 0) / 1000),
+      "-t",
+      String(sourceSpanMs(clip) / 1000),
+      ...inputArgs(read)
+    )
+    pushAudio(inputIndex, clip, duck)
+    inputIndex += 1
+  }
+
+  // The progress bar goes on last of all, over the dips too, so it never
+  // blinks out while the frame passes through black.
+  if (progressBar) {
+    filters.push(
+      ...progressBarFilters({
+        bar: progressBar,
+        frame: size,
+        durationS,
+        fromS,
+        fps,
+        inputLabel: `v${visualStep}`,
+        outputLabel: `v${visualStep + 1}`,
+      })
+    )
+    visualStep += 1
+    const marks = progressMarkFilters({
+      bar: progressBar,
+      frame: size,
+      marksMs: progressMarksMs,
+      durationMs,
+      inputLabel: `v${visualStep}`,
+      outputLabel: `v${visualStep + 1}`,
+    })
+    if (marks) {
+      filters.push(marks)
+      visualStep += 1
+    }
+  }
+
+  if (finish) {
+    filters.push(`[v${visualStep}]${finish}[v${visualStep + 1}]`)
+    visualStep += 1
+  }
+
+  const finalVideo = `v${visualStep}`
+  const hasAudio = audioLabels.length > 0
+  if (hasAudio) {
+    filters.push(
+      `${audioLabels.join("")}amix=inputs=${audioLabels.length}:duration=longest:normalize=0[aout]`
+    )
+  }
+
+  // The graph grows with the clip count, so it goes in a file rather than on
+  // the command line, which has a length limit.
+  const scriptFile = path.join(dir, "filters.txt")
+  await writeFile(scriptFile, filters.join(";\n"))
+
+  return {
+    /** The inputs, the graph, and the picture it ends in. */
+    picture: [
+      ...inputs,
+      "-filter_complex_script",
+      scriptFile,
+      "-map",
+      `[${finalVideo}]`,
+    ],
+    sound: hasAudio
+      ? ["-map", "[aout]", "-c:a", "aac", "-b:a", AUDIO_BITRATE]
+      : [],
+  }
+}
+
+// --- Drawing words ----------------------------------------------------------
+
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+
+/**
+ * One text clip's part of a picture, matching the preview: centred on its own
+ * position, 1.15 line height, a soft shadow unless it sits on a block of
+ * colour, an outline when it has one, and the size scaled from the 1080-tall
+ * design space.
+ */
+function textSvgPart(
+  clip: EditorClip,
+  size: { width: number; height: number },
+  /** Where the words are in their entrance; left out means fully arrived. */
+  entrance: CaptionWordAnimation = { scale: 1, opacity: 1, dyEm: 0 },
+  /** Which word of the text is being said, or -1 for none. */
+  litWord = -1
+) {
+  const font = requireTextFont(clip.fontId)
+
+  const scale = size.height / DESIGN_HEIGHT
+  const fontSize = (clip.fontSize ?? 80) * scale
+  const color = HEX_COLOR.test(clip.color ?? "") ? clip.color! : "#ffffff"
+  const lineHeight = fontSize * TEXT_LINE_HEIGHT
+  // A block of colour behind the words takes 0.45 of the size each side out
+  // of the width, the way the preview's padding does.
+  const boxed = !!clip.highlightColor && HEX_COLOR.test(clip.highlightColor)
+  const maxWidth =
+    size.width * (clip.wrapWidth ?? TEXT_WRAP_WIDTH) -
+    (boxed ? fontSize * 0.9 : 0)
+
+  const centerX = (clip.x ?? 0.5) * size.width
+  const centerY = (clip.y ?? 0.5) * size.height
+
+  // Lines break where the browser breaks them, by each run's real width in
+  // this face.
+  const measure = (words: string) => measureAdvance(words, font, fontSize, 0)
+  const lines = wrapTextLines(clip.text ?? "", maxWidth, measure)
+  const blockHeight = lines.length * lineHeight
+  // A browser centres each face's own reach above and below the line on the
+  // line, so the baseline sits half the difference below the middle. That is
+  // 0.36 of the size for Inter and more for a tall face such as Anton.
+  const firstBaseline =
+    centerY -
+    blockHeight / 2 +
+    lineHeight / 2 +
+    (fontSize * (font.ascent - font.descent)) / 2
+
+  // The lit word gets a fill of its own inside its line. Words are counted
+  // across the lines in the order they were wrapped, which is the order the
+  // word times are matched to them.
+  const litColor = captionWordHighlight(clip)?.color ?? ""
+  const litFill = litWord >= 0 && HEX_COLOR.test(litColor) ? litColor : null
+  let wordIndex = 0
+  const drawLine = (line: string) => {
+    if (!litFill) return escapeXml(line) || " "
+    return (
+      line
+        .split(/(\s+)/)
+        .map((part) => {
+          if (!part || /^\s+$/.test(part)) return escapeXml(part)
+          const lit = wordIndex === litWord
+          wordIndex += 1
+          return lit
+            ? `<tspan fill="${litFill}">${escapeXml(part)}</tspan>`
+            : escapeXml(part)
+        })
+        .join("") || " "
+    )
+  }
+
+  let maxLineWidth = 0
+  const spans = lines.map((line, index) => {
+    maxLineWidth = Math.max(maxLineWidth, measure(line))
+    return `<tspan x="${centerX.toFixed(1)}" y="${(firstBaseline + index * lineHeight).toFixed(1)}">${drawLine(line)}</tspan>`
+  })
+
+  const highlight = boxed ? clip.highlightColor! : null
+  const highlightRect = highlight
+    ? (() => {
+        const boxWidth = maxLineWidth + fontSize * 0.9
+        const boxHeight = blockHeight + fontSize * 0.4
+        return `<rect x="${(centerX - boxWidth / 2).toFixed(1)}" y="${(centerY - boxHeight / 2).toFixed(1)}" width="${boxWidth.toFixed(1)}" height="${boxHeight.toFixed(1)}" rx="${(fontSize * 0.14).toFixed(1)}" fill="${highlight}"/>`
+      })()
+    : ""
+
+  // Boxed words drop the shadow, the way the preview does, so they read
+  // cleanly against their block of colour.
+  const textFilter = highlight ? "" : ` filter="url(#shadow)"`
+  // The outline is drawn twice as wide as asked and under the fill, so the
+  // asked width shows outside each letter. The preview does the same with
+  // `paint-order`, so neither eats into the letters.
+  const strokeWidth = (clip.strokeWidth ?? 0) * scale
+  const outline =
+    strokeWidth > 0 && HEX_COLOR.test(clip.strokeColor ?? "")
+      ? ` stroke="${clip.strokeColor}" stroke-width="${(strokeWidth * 2).toFixed(2)}" paint-order="stroke"`
+      : ""
+  // The entrance is drawn as one move of the whole line: bigger or smaller
+  // about its own middle, shifted up or down, and faded. The preview does
+  // exactly this with a stylesheet, from the same numbers.
+  const shiftY = entrance.dyEm * fontSize
+  const entering =
+    entrance.scale !== 1 || entrance.opacity !== 1 || entrance.dyEm !== 0
+  const openGroup = entering
+    ? `<g opacity="${entrance.opacity.toFixed(4)}" transform="translate(${centerX.toFixed(1)} ${(centerY + shiftY).toFixed(1)}) scale(${entrance.scale.toFixed(4)}) translate(${(-centerX).toFixed(1)} ${(-centerY).toFixed(1)})">`
+    : ""
+  const closeGroup = entering ? "</g>" : ""
+
+  return `${openGroup}${highlightRect}
+  <text${textFilter} text-anchor="middle" font-family="${font.svgFamily}" font-weight="${font.weight}" font-size="${fontSize}" fill="${color}"${outline}>${spans.join("")}</text>${closeGroup}`
+}
+
+/**
+ * Text clips' parts drawn together as one full-frame see-through picture, the
+ * first one lowest. No parts at all is a clear picture.
+ */
+function renderTextLayerPng(
+  parts: string[],
+  size: { width: number; height: number }
+) {
+  const fontFiles = requireTextFontFiles()
+  const scale = size.height / DESIGN_HEIGHT
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">
+  <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+    <feDropShadow dx="0" dy="${2 * scale}" stdDeviation="${6 * scale}" flood-color="#000000" flood-opacity="0.45"/>
+  </filter>
+  ${parts.join("\n  ")}
+</svg>`
+
+  const { Resvg } = loadResvg()
+  return new Resvg(svg, {
+    font: {
+      fontFiles,
+      loadSystemFonts: false,
+      defaultFontFamily: "Inter",
+    },
+  })
+    .render()
+    .asPng()
+}
+
+/** A whole drawing with words in it, such as a social sticker, as a PNG. */
+function renderWordsPng(svg: string) {
+  const { Resvg } = loadResvg()
+  return new Resvg(svg, {
+    font: {
+      fontFiles: requireTextFontFiles(),
+      loadSystemFonts: false,
+      defaultFontFamily: "Inter",
+    },
+  })
+    .render()
+    .asPng()
+}
+
+/** A drawing with no words in it, as a PNG. */
+function renderSvgPng(svg: string) {
+  const { Resvg } = loadResvg()
+  return new Resvg(svg).render().asPng()
+}
+
+// --- Running the tools ------------------------------------------------------
+
+/** True when the file really has a sound track in it. */
+/**
+ * Whether a file carries sound. A file on this server's disk that ffprobe
+ * cannot read is treated as silent, as it always was. A file read from its
+ * storage address is different: a dropped connection there must not quietly
+ * drop the clip's sound from the export, so it fails the render instead, and
+ * the export is tried again.
+ */
+function hasAudioStream(file: string) {
+  return new Promise<boolean>((resolve, reject) => {
+    const child = spawn(
+      "ffprobe",
+      [
+        ...(isRemoteInput(file) ? REMOTE_INPUT_ARGS : []),
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "stream=index",
+        "-of",
+        "csv=p=0",
+        file,
+      ],
+      { timeout: 30_000 }
+    )
+    let stdout = ""
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk
+    })
+    child.on("error", () => resolve(false))
+    child.on("close", (code) => {
+      if (code !== 0 && isRemoteInput(file)) {
+        reject(new Error("A clip's file could not be read from storage"))
+        return
+      }
+      resolve(code === 0 && stdout.trim().length > 0)
+    })
+  })
+}
+
+/** Every ffmpeg run in the exporter says the same thing when it fails. */
+/**
+ * A sound file ffmpeg can loop without a gap: decoded once to WAV in the
+ * render's own folder. An mp3 carries a few milliseconds of padding at each
+ * end, which -stream_loop would play at every wrap, a click every half
+ * minute under a long rain (clip-loop.md). Decoding reads the encoder's
+ * gapless note and drops the padding.
+ */
+async function loopableSound(file: string, dir: string, made: Map<string, string>) {
+  const kept = made.get(file)
+  if (kept) return kept
+  const out = path.join(dir, `loop-${made.size}.wav`)
+  await runFfmpeg(["-y", ...inputArgs(file), "-vn", "-c:a", "pcm_s16le", out])
+  made.set(file, out)
+  return out
+}
+
+function runFfmpeg(args: string[], signal?: AbortSignal, timeoutMs?: number) {
+  return runFfmpegCommand(args, RENDER_FAILED_MESSAGE, signal, timeoutMs)
+}

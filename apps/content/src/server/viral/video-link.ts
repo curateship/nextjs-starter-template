@@ -1,0 +1,170 @@
+import { createHash, timingSafeEqual } from "node:crypto"
+
+import { ensureContentLinks, linkFetch } from "@/server/content-app/links"
+import { appUrl } from "@/server/app-url"
+import { getVideoApiKey, getVideoKeyOwnerId, getVideoUrl } from "@/server/viral/settings"
+
+/**
+ * The link from Viral to the Video app (`workspace/docs/send-to-video.md`).
+ * Video makes the key on its Settings → Viral; it is pasted into Viral's
+ * Settings → Video connection with Video's address. Every call either way
+ * carries the key as `Authorization: Bearer <key>`, copied from Video's own
+ * link to Promo (`apps/video/src/server/video/promo-link.ts`).
+ */
+
+export const VIDEO_NOT_SET_MESSAGE = "Content links its parts for its first admin. Sign in with an admin account and try again."
+
+/** How long Viral waits for Video to answer. */
+const CALL_TIMEOUT_MS = 15_000
+
+/** Video's address as Viral keeps it: http or https, no query, no trailing slash. Null when it is not one. */
+export function cleanVideoUrl(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return ""
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    return null
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null
+  if (url.username || url.password) return null
+  return `${url.origin}${url.pathname.replace(/\/+$/, "")}`
+}
+
+export type VideoConnection = { url: string; key: string }
+
+/** Video's address and key, or a plain refusal naming what to fill in. */
+export async function readVideoConnection(): Promise<VideoConnection> {
+  // Content sets the link up itself (`workspace/docs/content-app.md`).
+  await ensureContentLinks()
+  const [url, key] = await Promise.all([getVideoUrl(), getVideoApiKey()])
+  if (!url || !key) throw new VideoRefusal(0, VIDEO_NOT_SET_MESSAGE)
+  return { url, key }
+}
+
+export class VideoRefusal extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+/**
+ * One call to Video. Answers its JSON, or throws a `VideoRefusal` with
+ * Video's own words, or a plain message when Video can't be reached.
+ */
+export async function callVideo<Answer>(
+  connection: VideoConnection,
+  path: string,
+  body?: unknown,
+  fetchImpl: typeof fetch = linkFetch
+): Promise<Answer> {
+  const response = await fetchImpl(`${connection.url}${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    headers: {
+      authorization: `Bearer ${connection.key}`,
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    redirect: "error",
+    signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+  }).catch(() => {
+    throw new VideoRefusal(0, "Video couldn't be reached. Check its address and that it's running.")
+  })
+  const reply = (await response.json().catch(() => ({}))) as { error?: unknown }
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new VideoRefusal(401, "The editor turned down the key Content made for it. Try again: Content makes a new one.")
+    }
+    throw new VideoRefusal(response.status, typeof reply.error === "string" ? reply.error : `Video answered ${response.status}.`)
+  }
+  return reply as Answer
+}
+
+/** This Viral's own address, which Video fetches files from and calls back. */
+export function viralAddress(): string {
+  return appUrl().replace(/\/+$/, "")
+}
+
+export type VideoProjectOption = { id: string; name: string }
+
+/**
+ * Test on Settings → Video connection: tells Video where this Viral is, the
+ * only address it will fetch files from, and answers whose Video it is.
+ */
+export async function helloVideo(
+  connection: VideoConnection,
+  fetchImpl: typeof fetch = linkFetch
+): Promise<{ name: string; projects: VideoProjectOption[] }> {
+  return callVideo(connection, "/api/connect/viral/hello", { viralUrl: viralAddress() }, fetchImpl)
+}
+
+/** The Video projects the Send to Video picker lists: the key's admin's own. */
+export async function listVideoProjects(fetchImpl: typeof fetch = linkFetch): Promise<VideoProjectOption[]> {
+  const answer = await callVideo<{ projects: VideoProjectOption[] }>(
+    await readVideoConnection(),
+    "/api/connect/viral/projects",
+    undefined,
+    fetchImpl
+  )
+  return answer.projects
+}
+
+const hashed = (value: string) => createHash("sha256").update(value, "utf8").digest()
+
+/**
+ * Who a call to Viral acts for: the person who saved the key on Settings →
+ * Video connection, when the call carries that key. Null refuses the call,
+ * including for a key saved before its owner was kept.
+ */
+export function videoCallerOwnerId(request: Request): Promise<string | null> {
+  return keyCallerOwnerId(request, getVideoApiKey, getVideoKeyOwnerId)
+}
+
+/**
+ * The rule every call into Viral from another app follows, Video's and
+ * Promo's alike: `Authorization: Bearer <key>` must match the saved key,
+ * compared in constant time, and the call acts for the person who saved it.
+ */
+export async function keyCallerOwnerId(
+  request: Request,
+  readKey: () => Promise<string | null>,
+  readOwnerId: () => Promise<string | null>
+): Promise<string | null> {
+  const header = request.headers.get("authorization") ?? ""
+  const given = header.startsWith("Bearer ") ? header.slice(7).trim() : ""
+  if (!given) return null
+  let saved: string | null
+  let ownerId: string | null
+  try {
+    ;[saved, ownerId] = await Promise.all([readKey(), readOwnerId()])
+  } catch {
+    return null
+  }
+  if (!saved || !ownerId) return null
+  return timingSafeEqual(hashed(given), hashed(saved)) ? ownerId : null
+}
+
+/**
+ * The body of a call from another app, as JSON, or `tooLarge`. The
+ * `content-length` header is only the sender's claim, so a missing or wrong
+ * one is caught by the length of what really arrived. A body that isn't JSON
+ * reads as null, which every shape refuses.
+ */
+export async function readCallBody(
+  request: Request,
+  maxChars: number
+): Promise<{ tooLarge: true } | { tooLarge: false; body: unknown }> {
+  const claimed = Number(request.headers.get("content-length") ?? 0)
+  if (!(claimed <= maxChars)) return { tooLarge: true }
+  const text = await request.text().catch(() => "")
+  if (text.length > maxChars) return { tooLarge: true }
+  try {
+    return { tooLarge: false, body: JSON.parse(text) as unknown }
+  } catch {
+    return { tooLarge: false, body: null }
+  }
+}
