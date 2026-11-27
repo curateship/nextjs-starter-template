@@ -1,7 +1,7 @@
 import * as React from "react"
 import { LayoutTemplateIcon } from "lucide-react"
 
-import { CrmListHeader } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord } from "@/components/crm/record-frame"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
@@ -20,10 +20,11 @@ type FormatColumn = "format" | "length" | "saved"
 /**
  * The Formats row (task features/03), which was Library → Formats
  * (`workspace/docs/library.md`): every format saved from an analysis's
- * script. Formats belong to the person, not to a project, so the Projects
- * block on the left picks the project Write a script writes for rather than
- * narrowing the list. The open format is on the right in the shell's record
- * frame.
+ * script. Formats belong to the person, not to a project. The open format
+ * is on the right in the shell's record frame, with its own project picker
+ * for Write a script; a saved view holding a project picks it first, and
+ * otherwise the person's first project does. The Projects block that picked
+ * it went on 27 Nov 2026.
  */
 export function FormatsSection({ data, search, frame }: SectionProps<Data>) {
   const setSearch = useListSearchNavigate()
@@ -63,7 +64,7 @@ export function FormatsSection({ data, search, frame }: SectionProps<Data>) {
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <CrmListHeader
+      <ListHeader
         tabs={<MiddleHeading icon={LayoutTemplateIcon} label="Formats" />}
         end={<PanelReopenButton side="right" label="Show the format" />}
         menuLabel="More for formats"

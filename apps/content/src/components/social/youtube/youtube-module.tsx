@@ -1,21 +1,22 @@
 import * as React from "react"
-import { ArrowLeftIcon, LayoutTemplateIcon, ListChecksIcon, PlusIcon } from "lucide-react"
+import { ListHeader } from "@/components/content-app/list-header"
+import { ProjectMenuButton } from "@/components/content-app/project-top"
+import { ArrowLeftIcon, LayoutTemplateIcon, PlusIcon } from "lucide-react"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { AppCommentsTable } from "@/components/social/phone-apps/app-tables"
 import { InboxAnswer } from "@/components/social/phone-apps/inbox-answer"
-import { ProjectBackButton } from "@/components/social/projects/project-back"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
 import { JobsWindow } from "@/components/social/reddit/jobs-window"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { PanelReopenButton } from "@/components/shared/three-panels"
-import { NetworkPaneColumns, useNetworkPanes, withPaneTabs } from "@/components/content-app/network-panes"
+import { NetworkPaneColumns, useNetworkPanes, withPaneTabs, NetworkTabs } from "@/components/content-app/network-panes"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
 import { getProjectErrorMessage, putAccountInProject, takeAccountOutOfProject } from "@/lib/api/social/projects"
 import { getYoutubeErrorMessage, loadYoutubeModule, type YoutubeModuleView } from "@/lib/api/social/youtube"
 import { useWideScreen } from "@/lib/layout/wide-screen"
@@ -122,70 +123,81 @@ export function YoutubeModule({
       { value: "comments", label: "Comments", count: view ? view.comments.filter((row) => row.status === "open").length : undefined },
     ]
   )
+  // The left of the one header (`ListHeader`, which every list here draws, the tables too): the
+  // project's controls, and the network's own list dropdown, which lands after the search icon.
   const tabs = (
-    <>
-      <ProjectBackButton />
-      <DashboardTabs value={paneTabs.value} onValueChange={paneTabs.onValueChange} tabs={paneTabs.choices} />
-    </>
+    <span className="flex min-w-0 items-center gap-1">
+      <PanelReopenButton side="left" label="Show the Projects page" />
+      <ProjectHeaderLead />
+      <NetworkTabs tabs={paneTabs} />
+    </span>
   )
   // Voices or Accounts, in place of this network's own lists.
   if (panes?.pane) {
     return (
       <NetworkPaneColumns
         panes={{ ...panes, pane: panes.pane }}
-        tabs={
-          <>
-            <PanelReopenButton side="left" label="Show the project" />
-            {tabs}
-          </>
-        }
+        tabs={tabs}
         left={left}
         dialogs={dialogs}
       />
     )
   }
 
-  const controls = guest ? null : (
+  // Description templates are a tab of the project's ⋮ (Tyler, 27 Nov 2026: "This should be in here"),
+  // each opening the Templates window, as does New template.
+  const templateActions = guest
+    ? undefined
+    : {
+        title: "Templates",
+        items: [
+          ...(view?.templates ?? []).map((template) => ({
+            label: `${template.name} · ${template.sections.length} ${template.sections.length === 1 ? "section" : "sections"}`,
+            icon: <LayoutTemplateIcon className="size-4" />,
+            onClick: () => onSearch({ window: "templates" }),
+          })),
+          { label: "New template", icon: <PlusIcon className="size-4" />, onClick: () => onSearch({ window: "templates" }) },
+        ],
+      }
+  const controls = (
     <>
-      <DashboardToolbarButton type="button" variant="outline" onClick={() => onSearch({ window: "templates" })} aria-label="Description templates">
-        <LayoutTemplateIcon className="size-4" />
-        <span className="hidden sm:inline">Templates</span>
-        {view?.templates.length ? <span className="text-muted-foreground tabular-nums">{view.templates.length}</span> : null}
-      </DashboardToolbarButton>
-      <DashboardToolbarButton
-        type="button"
-        variant="outline"
-        onClick={() => onSearch({ window: "jobs" })}
-        aria-label={jobsWaiting ? `Jobs, ${jobsWaiting} running or waiting` : "Jobs"}
-      >
-        <ListChecksIcon className="size-4" />
-        <span className="hidden sm:inline">Jobs</span>
-        {jobsWaiting ? <span className="text-muted-foreground tabular-nums">{jobsWaiting}</span> : null}
-      </DashboardToolbarButton>
-      <DashboardToolbarButton
-        type="button"
-        onClick={() => {
-          onSearch({ comment: undefined })
-          setComposing(true)
-        }}
-      >
-        <PlusIcon className="size-4" />
-        New post
-      </DashboardToolbarButton>
+      {guest ? null : (
+        <>
+          <DashboardToolbarButton
+            type="button"
+            onClick={() => {
+              onSearch({ comment: undefined })
+              setComposing(true)
+            }}
+          >
+            <PlusIcon className="size-4" />
+            New post
+          </DashboardToolbarButton>
+        </>
+      )}
     </>
   )
 
-  const middle = !view ? (
-    error ? (
-      <ErrorRow message={error} onRetry={() => void refresh()} />
-    ) : (
-      <LoadingRow label="Reading this project's YouTube videos" />
-    )
+  // The project's ⋮, last in the one header (`content-app/project-top.tsx`).
+  const menu = <ProjectMenuButton actions={templateActions} jobs={guest ? null : { waiting: jobsWaiting, onOpen: () => onSearch({ window: "jobs" }) }} />
+
+  const reading = error ? <ErrorRow message={error} onRetry={() => void refresh()} /> : <LoadingRow label="Reading this project's YouTube videos" />
+  const middle = !view && tab !== "comments" ? (
+    // Posts draw their own header while read too, so it is drawn once (`reading`).
+    <YoutubePostsTable tabs={tabs} controls={controls} menu={menu} rows={[]} reading={reading} canManage={!guest} onRefresh={refresh} />
+  ) : !view ? (
+    // The one header stays while the list is read, so moving here from another tab never blanks it
+    // (Tyler, 27 Nov 2026: "why does cliucking on promote flashes the page").
+    <>
+      <ListHeader tabs={tabs} primary={controls} end={menu} menuLabel="More for this list" search={null} massSelect={null} />
+      {reading}
+    </>
   ) : tab === "comments" ? (
     <AppCommentsTable
       network="youtube"
       tabs={tabs}
       controls={controls}
+      menu={menu}
       rows={view.comments}
       selectedId={openComment}
       onOpen={(id) => onSearch({ comment: id })}
@@ -193,7 +205,7 @@ export function YoutubeModule({
       emptyText="No comments yet. A channel on a phone reads them when YouTube's notification says one arrived; a channel in a browser reads them once a day with its numbers."
     />
   ) : (
-    <YoutubePostsTable tabs={tabs} controls={controls} rows={view.posts} canManage={!guest} onRefresh={refresh} />
+    <YoutubePostsTable tabs={tabs} controls={controls} menu={menu} rows={view.posts} canManage={!guest} onRefresh={refresh} />
   )
 
   const channelPicker = view ? (

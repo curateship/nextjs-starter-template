@@ -1,11 +1,12 @@
 import * as React from "react"
+import { ProjectMenuButton } from "@/components/content-app/project-top"
 import { useNavigate } from "@tanstack/react-router"
 import { AlertTriangleIcon, ExternalLinkIcon, Loader2Icon, MessageSquareIcon, PauseIcon, PlusIcon, RefreshCwIcon, RotateCcwIcon, XIcon } from "lucide-react"
 
-import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
-import { NetworkPaneColumns, useNetworkPanes, withPaneTabs, type NetworkPanes } from "@/components/content-app/network-panes"
+import { NetworkPaneColumns, NetworkTabs, useNetworkPanes, withPaneTabs, type NetworkPanes } from "@/components/content-app/network-panes"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { PanelReopenButton } from "@/components/shared/three-panels"
@@ -27,7 +28,7 @@ import { RedditPostCommentsDialog } from "./reddit-post-comments"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { Hint } from "@/components/social/hint"
-import { ProjectBackButton } from "@/components/social/projects/project-back"
+import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
 
 /** How often the lists are read again while a post's check is on its way. */
 const CHECK_POLL_MS = 2_000
@@ -151,8 +152,8 @@ export function RedditPostsModule({
         panes={{ ...panes, pane: panes.pane }}
         tabs={
           <>
-            <PanelReopenButton side="left" label="Show the project" />
-            <ProjectBackButton />
+            <PanelReopenButton side="left" label="Show the Projects page" />
+            <ProjectHeaderLead />
             <RedditPostsTabs panes={panes} list={list} lists={lists} onPick={(next) => onSearch({ list: next === "failed" ? "failed" : undefined })} />
           </>
         }
@@ -233,7 +234,7 @@ function RedditPostsTabs({
     { value: "posts", label: "Posts", count: lists.posts.length },
     { value: "failed", label: "Failed", count: lists.failures.length },
   ])
-  return <DashboardTabs value={tabs.value} onValueChange={tabs.onValueChange} tabs={tabs.choices} />
+  return <NetworkTabs tabs={tabs} />
 }
 
 /** Only an address on Reddit is ever opened from a stored value. */
@@ -379,11 +380,11 @@ function RedditPostsMiddle({
 
   return (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden">
-      <CrmListHeader
+      <ListHeader
         tabs={
           <>
-            <PanelReopenButton side="left" label="Show the project" />
-            <ProjectBackButton />
+            <PanelReopenButton side="left" label="Show the Projects page" />
+            <ProjectHeaderLead />
             <RedditPostsTabs
               panes={panes}
               list={list}
@@ -396,7 +397,7 @@ function RedditPostsMiddle({
             />
           </>
         }
-        end={<PanelReopenButton side="right" label="Show New post" />}
+        end={<><ProjectMenuButton /><PanelReopenButton side="right" label="Show New post" /></>}
         selected={
           massSelect && selection.selected.size ? (
             <SelectedMenu

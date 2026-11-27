@@ -13,15 +13,15 @@ the keywords that find other people's posts for them. There are two screens:
   project's own now ([content-app.md](content-app.md), "The Projects
   dashboard"). It is described under [The dashboard](#the-dashboard) below.
 - **A project's own page** at `/admin/projects/<project id>`, opened from a
-  project's Open project, puts its description and networks on the left, each
-  network a card with a Posts row and a Commenting row, and the picked row's
-  panels beside them. It replaced the Reddit dashboard on 12 Oct 2026. How a
+  project's row on the Projects list. Since 27 Nov 2026 it keeps the
+  dashboard's left panel as it is and fills the middle and right (Tyler: "When
+  clicking on a project. I dont want the left panel to change"). The middle
+  starts with the project's tabs, Content, Research and Promote, and opens on
+  Content. Promote has a tab per network, and each network a Posts /
+  Commenting switch. It replaced the Reddit dashboard on 12 Oct 2026. How a
   network fills it is in [Networks as modules](network-modules.md), and its
-  Commenting row in [Commenting inside a project](commenting.md). In
-  Content the left panel also holds the Dashboards, Viral, Content, Research
-  and Videos blocks above the networks, which are titled Promote, each
-  network has Voices and Accounts tabs, and the page opens on Overview
-  ([content-app.md](content-app.md), "A project's own page").
+  Commenting in [Commenting inside a project](commenting.md). Content's own
+  parts are in [content-app.md](content-app.md), "A project's own page".
 
 Tyler, 12 Oct 2026: "Build a new dashobard (3 col) for "Projects" this is where
 we combine everything together to manage a project. Left panel holds project
@@ -81,9 +81,10 @@ edited. Tyler's answers of 12 Nov 2026 are in
   Bans in the last 30 days and Archive room. Content adds Found today and
   Videos in progress, and starts Overview with them
   ([content-app.md](content-app.md), "The Projects dashboard").
-- **One project:** a Projects block on the left page narrows whichever
-  section is open to one project. With none picked, every project's rows
-  show.
+- **One project:** a Projects block on the left page narrowed whichever
+  section was open to one project. Content took it out on 27 Nov 2026 (Tyler:
+  "Remove projects block. List row only"): a row of the Projects list opens
+  the project, and the sections show every project's rows.
 - **A project's row:** the project's summary opens on the right, with Open
   project at its foot leading to the project's own page. Since the same day
   a press on the row goes straight to the project's page, and the summary
@@ -105,12 +106,12 @@ edited. Tyler's answers of 12 Nov 2026 are in
   count, since they are read when they show. It is fixed in the same way, a
   page saved before it existed gets it under Dashboards, and its ⋮ shows,
   hides and orders its three rows.
-- **The Projects block** lists every project, pinned ones first, with how many
-  of the open section's rows are that project's (its accounts on Projects).
-  Pressing one narrows Overview, Accounts, Archive and Messages to it, and
-  Projects to its own row; pressing it again lets it go. It is `?project=` in
-  the address. Voices belong to no project, so on Voices its rows have no
-  count and nothing narrows.
+- **There is no Projects block** since 27 Nov 2026. A page saved with it is
+  read and saved without it, as any block the page does not know.
+- **The same left panel shows on a project's page** and its Research, with
+  Projects picked in the Dashboards block (`useProjectsLeft` in
+  `src/components/content-app/projects-left.tsx`). Its counts are read there
+  too, starting from the dashboard's last ones, so they never flash empty.
 - **The first block follows Panel cards → Opacity** in Settings → Styling,
   as every side panel's does: at 0 it is clear and the cover shows through
   (Tyler, 12 Nov 2026: "the opacity is not connected to the setting"). The
@@ -161,7 +162,7 @@ dashboard goes back to the section and row it was on.
 - **Accounts and Messages** are described in their own docs:
   [Accounts](reddit/accounts-dashboard.md) and [Messages](messages-dashboard.md).
   [Voices](voices-dashboard.md) are a tab on each network of a project's
-  page, and [the Archive](archive.md) is each project's Content block.
+  page, and [the Archive](archive.md) is each project's Content tab.
 
 ### Deleting a project
 
@@ -171,9 +172,11 @@ accounts or keywords, saying what each one holds.
 
 ### Addresses
 
-- **The address holds the place:** `?section=` (none is Projects), `?project=`,
-  `?open=` and each section's filters, read by
-  `src/lib/social/projects-dashboard-search.ts`.
+- **The address holds the place:** `?section=` (none is Projects), `?open=`
+  and each section's filters, read by
+  `src/lib/social/projects-dashboard-search.ts`. `?project=` is read only on
+  Vault, Hooks and Formats, where a saved view can hold one; elsewhere an old
+  address holding it opens the section for every project.
 - **The old addresses are gone** since 13 Nov 2026: `/admin/voices`,
   `/admin/accounts`, `/admin/reddit-accounts`, `/admin/messages` and
   `/admin/archive`. Bell notices that held them now hold the section's
@@ -190,70 +193,180 @@ section beside them. The records on the right are `account-record.tsx`,
 `voice-record.tsx`, the Archive's `archive-item-panel.tsx`, and the project
 summary (grey cards: What it makes, Networks, Archive, as the shell's
 records are) and conversation inside their sections. The page's server is
-`src/server/social/projects-dashboard.ts`. The Dashboards and Projects blocks and the left
+`src/server/social/projects-dashboard.ts`. The Dashboards and Viral blocks and the left
 page panel are drawn by `src/components/dashboard-page/`, which [the Anti
-Detect dashboard](anti-detect-dashboard.md) shares; `projects-blocks.tsx` and
-`projects-page-panel.tsx` only name the Projects dashboard's sections, blocks
-and endpoints.
+Detect dashboard](anti-detect-dashboard.md) shares, with its Projects block;
+`projects-blocks.tsx` and `projects-page-panel.tsx` only name the Projects
+dashboard's sections, blocks and endpoints. The left panel itself, with its
+page read, its ⋮ and Overview's layout, is `useProjectsLeft`
+(`src/components/content-app/projects-left.tsx`), so the dashboard and a
+project's page draw one and the same.
 
 ## A project's own page
 
 Since 12 Nov 2026 the project's own page is in the same three-panel design as
 the dashboard (Tyler: "the project page itsel is not updated to the new
-design"; `workspace/tasks/Projects/project-page-design.md`). His answers:
-"Description page + Networks block", "Collapse, back, name, bans, ⋮",
-"Everything, in one task, in parts" (frame, left panel and Reddit first, then
-Medium, X, LinkedIn, Instagram and TikTok, the Archive), and New post "Stays
-in the right panel".
+design"; `workspace/tasks/Projects/project-page-design.md`). Since 27 Nov 2026
+its left panel is the dashboard's own (Tyler: "When clicking on a project. I
+dont want the left panel to change so that means we can remove the project's
+overview and its widgets"; `workspace/tasks/Content/03-project-in-the-middle-panel.md`).
 
 ### The frame
 
+- **The left panel** is the Projects dashboard's, unchanged, with Projects
+  picked in its Dashboards block. A row there goes to that section of the
+  dashboard.
 - **The sides** open at the widths in Settings → Styling → Side panels and
   drag no narrower, slide shut from the collapse button at their header's
   edge or a double-click on blank space, and come back from the reopen
-  buttons in the middle's header (a knob on the middle's edge for a network
-  whose header has none yet). Widths are remembered in this browser
-  (`promo-projects-workspace-2`, with the two widths added).
+  buttons in the middle's header. Widths are remembered in this browser
+  (`promo-projects-workspace-2`, with the two widths added; a shape with a
+  column left out keeps its own).
 - **It is Project's own frame**, not the shell's `ThreePanels`
   (`src/components/social/projects/project-columns.tsx`): a guest from
   Project opens this page outside the signed-in area, where the shell's frame
   cannot read where it was.
-- **Under 1280px** one panel shows at a time behind the pill row: the picked
-  network or Archive, Project, and Open. A post pressed, or New post, shows
-  Open; one that opened by itself waits behind it.
+- **The right panel carries the left page's cover** behind its header,
+  whichever record is open, as on the dashboard.
+- **Under 1280px** one panel shows at a time behind the pill row: what the
+  middle shows, Projects, and Open. A post pressed, or New post, shows Open;
+  one that opened by itself waits behind it.
 
-### The left panel
+### The one header
 
-- **The header:** the collapse button, the name (cut short with "…",
-  all of it on hover), Paused while there is room, and the ⋮. The pin and
-  the + for adding a network moved into the ⋮. The red bans mark is gone from
-  it (Tyler, 12 Nov 2026: "remove this"); the dashboard's Projects row and
-  Overview's Bans widget still say how many accounts were banned.
-- **The arrow back** to the Projects dashboard, with this project's row open,
-  starts the middle's header, before its tabs (Tyler, 12 Nov 2026: "put the
-  arrow back again", pointing there). A guest has none.
-- **The cover** lies faintly behind the header and the top of the panel,
-  fading into it: a picture, or the drawn sky that follows the time of day.
-  None, no cover. It is the shell's `PageCover`. The right panel carries it
-  on behind its header, the sky without its sun and moon, whichever network
-  or record is open (Tyler, 12 Nov 2026: "the right panel is missing the bg
-  thats connect to the left panel"). The first block, Networks, follows Panel
-  cards → Opacity, as on the dashboard.
-- **The ⋮** is the tabbed menu. **General:** Name, a row that opens its
-  field and saves itself, and **Cover photo**, the shell's row every page has
+Tyler, 27 Nov 2026, after a first build with two rows above each list: "remove
+the name", "I dont like the 2 extra subheader. Lets put them all in the top
+header so we have just one header. The tabs can now be either dropdowns or
+filter". So every list on a project's page has one header, in this order.
+Since the same day's `workspace/tasks/Misc/misc.md` it is Content's
+`ListHeader`, the same on every dashboard ([list-header.md](list-header.md)):
+search is an icon, the dropdowns come right after it, and Select is in the ⋮.
+
+- **The arrow back** to the Projects list, with this project's row open. A
+  guest has none.
+- **Content, Research and Promote** (`src/components/content-app/project-top.tsx`).
+  They are tabs in a window 1500px wide or more, and a dropdown below it,
+  where the list's own buttons need the room. The project's name is not shown.
+  The tabs are Content's own (`project-tabs.tsx`), in the style Settings →
+  Styling picks, for two reasons (Tyler, 27 Nov 2026: "fix the gap here and
+  the tabs are miissing the transition animation"). Their line sits on the
+  header's divider, which the shell's tabs missed by 3px inside the back
+  arrow's row. And each tab draws a header of its own, so the new header's
+  line starts where the last one's was and slides to the tab pressed.
+  How the line stays one line (Tyler, 27 Nov 2026: "CLicking on promote tab
+  has a bug that flashes the tab", then "fix the tabs. it kept flashging"):
+  - **It moves at the press**, before the page it opens has loaded.
+    Research takes about half a second to arrive.
+  - **A header drawn again mid-slide carries the line on** from where it
+    had got to: a list's header once the list is read, or Research's page
+    arriving late. It never starts over from the tab left.
+  - **It is placed from the first draw.** An unplaced row has the chosen tab
+    draw a line of its own, which showed as a second line.
+  - **It does not move until its first frame**, so its first placing never
+    shows as a slide back from the press.
+  - Tests: `src/components/content-app/project-tabs.test.tsx`.
+- **On the right, the search icon**, then **the tab's own dropdown**, the shell's `ViewMenu`: Content's All items or
+  Videos; Research's Found videos, Hooks, Sounds or Creators, one dropdown for what were the Research block's rows and the videos'
+  own tabs; Promote's network and side together, "Reddit · Posts", "Reddit ·
+  Commenting", "X · Posts" and so on.
+- **The list's own dropdown** of which list shows: a network's own lists
+  (To look at, Replied, Sent and the rest) with Voices and Accounts after
+  them (`NetworkTabs` in `src/components/content-app/network-panes.tsx`), and
+  the Archive's kind (Every kind, Videos, Carousels, Pictures).
+- **The list's buttons**: Filter, Views, its keyword picker and its New
+  button. YouTube's and Instagram's tables draw this same header above
+  themselves, with the shell table's own toolbar hidden (Tyler, 27 Nov 2026:
+  "fix ui for promote dashboard").
+- **The project's ⋮, last** (`ProjectMenuButton`; Tyler: "the 3 dot ...
+  should be here", pointing past Add). A header has one ⋮: a list's own
+  actions are a tab of it (below).
+
+When a header runs out of room, the dropdowns cut their words short with
+"…" before anything is pushed off the edge. Below 1280px, where the page shows
+one column at a time, the project's controls scroll sideways inside the header
+instead. Checked on the sample at 1600 and 1280 wide and on a phone: every
+list's header is one 57px line with nothing past its edge.
+
+### Addresses
+
+- **Content is the plain address** (Tyler: "middle panel first load will be
+  it's content archive"). `?content=videos` is its Videos, and `?archive=1`
+  carries the Archive's filters (a guest's Content too).
+- **Research** is `/admin/projects/<id>/research`, its list in `?view=`.
+- **Promote** is `?network=` with `?side=commenting` for Commenting, the first
+  network it shows when none is named, or `?promote=1` on a project with no
+  network yet. Every older address that names a network, a side or a post
+  still opens Promote on it (`projectTabOf` in
+  `src/lib/social/project-address.ts`).
+
+### Promote's networks
+
+- **The dropdown** lists each network the project uses, in the order the ⋮'s
+  Networks tab sets. A network with Posts and Commenting (Reddit, Medium, X,
+  LinkedIn) has two choices; one with Posts alone (YouTube, Instagram, TikTok,
+  Threads) has one. They were the Posts and Commenting rows of each network's
+  card (Tyler, 27 Nov 2026: "A Posts / Commenting switch", then "The tabs can
+  now be either dropdowns or filter"). A paused network says "(paused)".
+- **Posts carries** how many need you (failed posts and drafts,
+  `readPostCounts`); Commenting has no count (Tyler, 14 Nov 2026: "remove
+  it"). Pause commenting is in a network's keywords dropdown
+  ([Pause commenting](commenting.md#pause-commenting)).
+- **Hidden networks** are left out of the dropdown but stay on the project and
+  keep running: their posts, comments and readings go on. One named in the
+  address still shows. The order is the project's `networks` list and the
+  hidden ones `hidden_networks` (`drizzle/0237_promo_hidden_networks.sql`),
+  both saved by `arrangeProjectNetworks` in `src/server/social/projects.ts`.
+- **No network yet:** Promote says so, with Add a network, which opens the
+  ⋮ at Networks.
+
+### The ⋮
+
+The project's ⋮ is the tabbed menu
+(`src/components/social/projects/project-menu.tsx`):
+
+- **General:** Name, **Description**, **AI spend cap** (below) and **Cover
+  photo**, each a row that opens its field and saves itself. Description
+  opens the "/" editor (Tyler, 27 Nov 2026: "move discritption to general. it
+  dfoesnt need its own tab"). Cover photo is the shell's row every page has
   (Tyler, 12 Nov 2026: "the picture is missing the 3 selection standard"):
-  None, Sky, each picture the project has had (up to 8, each with an ×), and +
-  to add one from the media library, saving the moment one is picked; Pin; Pause this project (or Resume);
-  Lock description (or Unlock); New project; Duplicate; and Delete project
-  in red under a line. Under Name sits **AI spend cap** (below). **Networks:** each network the project uses with Pause (or Resume)
-  for that network alone and Take off, which the server refuses while the
-  project still holds that network's accounts or keywords; then the networks
+  None, Sky, each picture the project has had (up to 8, each with an ×), and
+  + to add one from the media library. Then the list's **Select** (Hide
+  select while rows are ticked; "Move all the mass select button to here")
+  and the network's **Jobs** with how many run or wait ("Move jobs button
+  here"); then Pin; Pause this project (or Resume); Lock description (or
+  Unlock); New project; Duplicate; and Delete project in red under a line.
+- **Networks:** each network the project uses, in Promote's order, with Move
+  up, Hide or Show (Tyler, 14 Nov 2026, of the block the dropdown replaced: "i
+  should be able to hide and drag and drop networks here"), Pause (or Resume)
+  for that network alone, and Take off, which the server refuses while the
+  project still holds that network's accounts or keywords. Then the networks
   it does not use yet, each a row to add it.
-- **The page** is the description, written in place in the "/" editor, with
-  the fixed **Networks** block at its top. "/" blocks can go under it. It
-  saves 700ms after the last letter and when it is left, with Saving… and
-  Saved in the page header. Empty, it reads "Describe what you make. The AI is
-  told this."
+- **On Research**, Research's own settings follow as **Research** (Search
+  and AI) and **Socials** (Tyler, 27 Nov 2026, of the two ⋮ there: "should
+  be merged"). Research settings has no ⋮ of its own.
+- **On Content, the Bin** is a tab ("Bin · 2" while it holds two): the
+  deleted items with Put back and Delete for good ([archive.md](archive.md)).
+- **On YouTube, Templates** is a tab: the description templates with their
+  section counts, and New template, each opening the Templates window
+  (Tyler: "This should be in here").
+- **A list's own actions** are a last tab, named for them: Reddit
+  Commenting's **Commenting** tab (Ideas and the self-promotion threads), and
+  Research's **Hidden** tab (each hidden channel's Show again) while any
+  channel is hidden.
+- **Its width:** 22.7rem, and 26rem with four tabs (Research), so the tab
+  row never scrolls sideways (Tyler: "reduce the padding a bit so we dont
+  get this areascroll"). The 32px between tabs is the shell's own rule, so
+  the menu widens instead.
+- **A guest** gets General with the Description row alone, and a list's
+  actions.
+
+### The description
+
+- **It is written from the Description row** of the ⋮'s General tab, in the
+  "/" editor. Its row shows its first words, or None. It saves
+  700ms after the last letter and when it is left, with Saving… and Saved in
+  the page header. Empty, it reads "Describe what you make. The AI is told
+  this." It is Research's topic too ([content-app.md](content-app.md)).
 - **A stale copy can't write over it.** Each save says which page it
   started from, and the server refuses one whose start is no longer what is
   stored, saying to reload: a tab left open while the description changed
@@ -273,116 +386,32 @@ in the right panel".
   short. The saved page is capped at 64,000 characters too.
 - **Saved descriptions:** `promo_projects.description` holds the page as the
   "/" editor's document since 12 Nov 2026. A description saved before then,
-  words and formatting only, reads the same, with the Networks block added
-  above it (`projectDescriptionPage` in
-  `src/lib/social/project-description.ts`).
-- **The Networks block** is one list in the block's white tile. Each
-  network with both a Posts and a Commenting row (Reddit, Medium, X,
-  LinkedIn) is a toggle (Tyler, 12 Nov 2026: "each network its a toggle", then
-  his drawing, "style it like this"): its mark and its name in dark, with an
-  arrow at the end pointing down while open and right while shut, its rows
-  hanging from a thin line under the mark, grey and regular until picked,
-  then dark and bold with the bar;
-  pressing it folds its rows away and back, each project remembering its own
-  folds in this browser, and folded, its name carries its Posts count in a pill.
-  The picked network opens by itself. Under it, indented to line up with the
-  name, its **Posts** row with how many need you (failed posts and drafts,
-  `readPostCounts`) and its **Commenting** row, with no count since
-  14 Nov 2026, and Paused after its name while its commenting is paused. Pause
-  commenting is in that network's keywords dropdown
-  ([Pause commenting](commenting.md#pause-commenting)).
-- **A network with Posts alone** (Instagram, TikTok) is one line with no
-  arrow and no rows under it, and pressing it opens its posts (Tyler,
-  14 Nov 2026: "Only the network that have both post and commenting link
-  should have the toggle, if not then just link the network straight to its
-  posts"). Its pill is the posts that need you.
-- **The picked row or line has the sliding bar.** Each network draws the
-  project's columns afresh, so a press on another network brings a new
-  Networks block. A row drawn within 1.5 seconds of its own press starts its
-  bar empty and grows it over 220ms, as the shell's slide does (Tyler,
-  14 Nov 2026: "the pill is missing the sliding animation";
-  `useSlideIn` in `project-networks-block.tsx`).
-- **The block's ⋮ lists every network**, each with a grip and an eye, above
-  Move up and Move down (Tyler, 14 Nov 2026: "i should be able to hide and
-  drag and drop networks here"). Dragging a network by its row reorders the
-  block. Pressing a row hides that network from the block, or shows it
-  again, and the menu stays open for the next press. A hidden network stays
-  on the project and keeps running: its posts, comments and readings go on,
-  and only its line is left out. While picked, a hidden network still shows
-  its line. With no network named in the address, the project opens on the
-  first network the block shows. A guest has no ⋮ rows. The order is the
-  project's `networks` list and the hidden ones are `hidden_networks`, added
-  by `drizzle/0237_promo_hidden_networks.sql`, both saved by
-  `arrangeProjectNetworks` in `src/server/social/projects.ts`. The block's
-  count is the networks it shows.
-- **Like the Dashboards block**, the Networks block is never in the "/"
-  list, can't be deleted, is put back at the top of a page saved without it,
-  and moves with Move up and Move down in its ⋮.
-- **Overview is the page's home** (Tyler, 27 Nov 2026: "the project own
-  dashboard is not needed. Just make the home the overview"). The project
-  opens on it whenever the address names no row, every time, and the
-  Dashboards block's Overview row leads back to it
-  ([below](#overview-on-a-projects-page)). A guest
-  has no Overview: a guest's page opens on the first network.
-- **The Dashboards and Viral blocks** sit at the top of the page, the
-  Projects dashboard's two blocks (Tyler, 27 Nov 2026: "lets bring back the
-  dashboard block for project. The only link we have there is overview,
-  projects, vault, hook and format"). Overview opens on this page; Projects,
-  Vault, Hooks and Formats open the Projects dashboard. A guest sees a line
-  in their place.
-- **The Content block** sits under them (Tyler, 27 Nov 2026:
-  "put content into its own block"). Its one row, All items, with the
-  project's item count on the heading, shows the project's videos, carousels
-  and pictures in the middle and right panels, inside this page (Tyler, of a
-  back arrow from Content: "There is no place for the back arrow to go back
-  to if its being clicked from the left panel"). One row of the page is
-  picked at a time, with the sliding bar. It is fixed as the Networks block
-  is and moves with Move up and Move down in its ⋮. It replaced the
-  Dashboard block, which held Overview and Content, and before that
-  Promo's Archive block.
-- **Content keeps its tab and filters** while you visit other rows; a
-  reload starts it afresh.
-
-  The rules for Content and Overview were first written for Promo on 26 Nov
-  2026. Promo's code for them was put back to its last commit that evening,
-  before Content was made, so Content builds them itself (`content-app.md`,
-  "A project's own page").
-- **Lock description** makes the page read only for everyone, a guest
-  included, at full strength; the Networks block still works. The server refuses any change while it is locked.
+  words and formatting only, reads the same. The fixed blocks the project's
+  own left panel drew in it until 27 Nov 2026 (Networks, and Content's
+  Dashboards, Viral, Content, Research and Videos) are dropped when it is
+  read and saved, as any block it does not know
+  (`src/lib/social/project-description.ts`).
+- **Lock description** makes it read only for everyone, a guest included.
+  The server refuses any change while it is locked.
 - **A guest** sent from Project writes the words but gets no "/" list and no
-  right-click list of blocks, since blocks upload pictures and read web pages,
-  which a guest can't. "/" is not typed at all on a guest's page. A guest
-  has no ⋮.
+  right-click list of blocks, since blocks upload pictures and read web
+  pages, which a guest can't. "/" is not typed at all on a guest's page.
 
-### Overview on a project's page
+### What went on 27 Nov 2026
 
-- **The widgets** are the Projects dashboard's Overview, in the person's one
-  layout, for this project alone. The middle takes the right column's room,
-  as Overview has no right panel, with widths of its own so the three-column
-  widths stay as they were.
-- **The header** says Overview alone, with no arrow back (Tyler, 27 Nov 2026:
-  "We also dont need the back button") and no ⋮.
-- **The rows and spots** are set in the left panel's ⋮, at Widgets, after
-  General and Networks (Tyler, 27 Nov 2026: "THe widgets is also in the wrong
-  location as it should go into the 3 dot dropdown on the left panel"). A
-  widget's own Manage widgets opens the ⋮ at that tab. A change shows at once,
-  and on the Projects dashboard as well, since both are one layout.
-- **Bans** lists each of the project's accounts a counted ban hit in the last
-  30 days, newest first, with its network and the day, each opening the
-  account in Accounts.
-- **An empty widget points onward:** Accounts by status says "No accounts in
-  this project yet." with Put one in from Accounts, and Archive room says "No
-  content in this project yet." with Open Content.
-- **Rows open on this page:** Posts that need you and Results open their
-  network, and Archive room opens Content.
-- **Coming back** to Overview shows the widgets as they were and where they
-  were scrolled to, and reads them again behind. Below the widest middle the
-  widgets stack in one column (the shell's widget grid).
+- **The project's own left panel**, with its Dashboards, Viral, Content,
+  Research, Videos and Promote blocks, its Networks block's folding rows and
+  sliding bar, and its own ⋮.
+- **The rows above each list** that the first build of the same day had (the
+  project's name and tabs, then a row of sub-tabs). They are one header now.
+- **The project's Overview** and its widgets, with the ⋮'s Widgets tab. The
+  Projects dashboard's own Overview stays, and its widgets open a project's
+  Content or Promote.
 
 ### Reddit
 
-- **Posts:** one header, with Posts and Failed as tabs and their counts,
-  search, and New post. Posts lists each post of yours that landed, with the
+- **Posts:** the one header, with Posts and Failed (and Voices and Accounts)
+  in the list dropdown with their counts, search, and New post. Posts lists each post of yours that landed, with the
   account, the subreddit and when it went; a press, or Open on Reddit in its
   right-click menu, opens it on Reddit. Failed lists each post that did not
   go out with why, and "May be on Reddit already" when the browser stopped
@@ -391,22 +420,18 @@ in the right panel".
 - **New post** stays on the right as a record: its header says which
   account it posts as, and Post to Reddit is at its foot. Nothing is sent
   until it is pressed.
-- **Commenting:** the shell's one list header, with To look at, Replied,
-  Skipped, Today and Sent as tabs (a dropdown when the middle is narrow),
-  search, Select, and a ⋮ holding Jobs (with how many run or wait), Ideas and
-  the self-promotion threads; then the posts as the dashboard's table
+- **Commenting:** the one header, with To look at, Replied, Skipped, Today
+  and Sent in the list dropdown, search, Select and the keyword picker; Jobs
+  (with how many run or wait), Ideas and the self-promotion threads are the
+  project ⋮'s Commenting tab. Then the posts as the dashboard's table
   ([the posts](commenting.md#the-posts)).
 - **The post on the right** ends its header with the collapse button.
-- **The tabs draw once.** Posts' and Commenting's tabs appear when their
-  counts are read, so the line under the picked tab lands once in its place
-  instead of sliding wider when the counts arrive (Tyler, 12 Nov 2026: "this
-  border and tab here loads twice").
-- **Still in the older shape until their part:** Medium, X, LinkedIn,
-  Instagram and TikTok, and the Archive.
+- **The list dropdown draws once** its counts are read (Tyler, 12 Nov 2026,
+  of the tabs it replaced: "this border and tab here loads twice").
 
 ## Pausing a project
 
-**Pause this project**, in the ⋮ at the top of the left column, pauses every account
+**Pause this project**, in the project's ⋮ at the end of its tab row, pauses every account
 in it: none of them posts, warms up or takes a health reading until the
 project is resumed. A paused project says "Paused" after its name in the
 header, and **Resume this project** is in the same ⋮. Searches still run,
@@ -414,7 +439,7 @@ because searching is the reader's work, not an account's.
 
 - **Post is off** for its accounts and says "This account's project is paused.
   Resume the project on its dashboard to post from it again."
-- **Pause in a network card's ⋮** pauses that network alone, its posts and its
+- **Pause on the ⋮'s Networks tab** pauses that network alone, its posts and its
   comments. **Pause commenting**, at the foot of the network's keywords dropdown, holds back only
   the comments ([Commenting inside a project](commenting.md#pause-commenting)).
 - **A comment pressed before the pause waits** and can still be cancelled. The
@@ -522,12 +547,13 @@ spend cap in the project's ⋮, under Name. Tyler picked it on 18 Nov 2026
   account's project, so an account reads as one person with one interest.
 - **Code.** The dashboard is under
   `src/components/social/projects-dashboard/` ([The dashboard](#the-dashboard)).
-  A project's page is `src/components/social/projects/workspace.tsx`, its left column with the
-  network cards `project-panel.tsx`, and its three columns
-  `project-columns.tsx`. Reddit's posts are
+  A project's page is `src/components/social/projects/workspace.tsx`, its ⋮
+  `project-menu.tsx`, the controls first in each header
+  `project-header-lead.tsx` and `content-app/project-top.tsx`, and its three
+  columns `project-columns.tsx`. Reddit's posts are
   `src/components/social/reddit/reddit-posts-module.tsx`, with New post in
   `reddit-new-post.tsx`, and its Commenting `reddit-module.tsx`. Medium, X and
-  LinkedIn draw both rows from their modules with `side="posts"` or
+  LinkedIn draw Posts and Commenting from their modules with `side="posts"` or
   `side="commenting"`. The address is read by
   `src/lib/social/project-address.ts`. Endpoints are
   `src/lib/api/social/projects.ts`, and the server is

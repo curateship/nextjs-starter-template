@@ -18,7 +18,8 @@ import { ProfileDialog } from "@/components/browser/profile-dialog"
 import { ProfileGroupsDialog } from "@/components/browser/profile-groups-dialog"
 import { ProxyTestBadge } from "@/components/browser/proxy-test-badge"
 import type { CrmFrame } from "@/components/crm/crm-frame"
-import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord } from "@/components/crm/record-frame"
 import { FilterPick } from "@/components/dashboard-page/filter-pick"
@@ -312,7 +313,7 @@ export function ProfilesSection({
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <CrmListHeader
+      <ListHeader
         tabs={<MiddleHeading icon={MonitorIcon} label="Profiles" />}
         end={<PanelReopenButton side="right" label="Show the profile" />}
         selected={

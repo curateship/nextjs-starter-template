@@ -26,17 +26,15 @@ import { cn } from "@/lib/utils"
  * widgets in the shell's grid, straight on the dashboard beside the left
  * page, each in the shell's widget card with its ⋮. Tyler's picks: Posts
  * that need you, Messages waiting, Accounts by status, Bans in the last 30
- * days and Archive room. Each row opens where the work is. A project picked
- * in the Projects block narrows every widget to it.
+ * days and Archive room. Each row opens where the work is, across every
+ * project.
  */
 export function ProjectsOverview({
   data,
-  projectId,
   layout,
   onChange,
 }: {
   data: ProjectsDashboardData
-  projectId: string
   layout: WidgetLayout
   onChange: (layout: WidgetLayout) => void
 }) {
@@ -48,7 +46,6 @@ export function ProjectsOverview({
     getProjectsDashboardErrorMessage,
     { keys: [needsPosts], remember: "promo-projects-posts-need-you" }
   )
-  const inProject = (id: string | null | undefined) => !projectId || id === projectId
   // Read only while Found today or Videos in progress is on Overview.
   const needsContent = shown.has("found-today") || shown.has("videos-in-progress")
   const content = useLoad(
@@ -60,21 +57,21 @@ export function ProjectsOverview({
   const draw = (id: ProjectsWidgetId) => {
     switch (id) {
       case "found-today":
-        return <FoundTodayWidget read={content} inProject={inProject} />
+        return <FoundTodayWidget read={content} />
       case "videos-in-progress":
-        return <DraftVideosWidget read={content} inProject={inProject} />
+        return <DraftVideosWidget read={content} />
       case "posts-need-you":
-        return <PostsWidget read={posts} inProject={inProject} />
+        return <PostsWidget read={posts} />
       case "messages-waiting":
-        return <MessagesWidget data={data} inProject={inProject} />
+        return <MessagesWidget data={data} />
       case "accounts-by-status":
-        return <AccountsWidget data={data} inProject={inProject} projectId={projectId} />
+        return <AccountsWidget data={data} />
       case "bans":
-        return <BansWidget data={data} inProject={inProject} />
+        return <BansWidget data={data} />
       case "archive-room":
-        return <ArchiveWidget data={data} inProject={inProject} />
+        return <ArchiveWidget data={data} />
       case "results":
-        return <ResultsWidget inProject={inProject} />
+        return <ResultsWidget />
     }
   }
 
@@ -97,7 +94,6 @@ export function ProjectsOverview({
   )
 }
 
-type InProject = (id: string | null | undefined) => boolean
 
 /** A widget's list that scrolls inside its card. */
 function Scroll({ children }: { children: React.ReactNode }) {
@@ -135,11 +131,11 @@ function Row({ title, line, value, onPress }: { title: string; line?: string | n
 type ContentRead = { data: Awaited<ReturnType<typeof loadContentWidgets>> | null; error: string | null; retry: () => void }
 
 /** Found today: each project's videos Research found in the last day, opening its Found videos. */
-function FoundTodayWidget({ read, inProject }: { read: ContentRead; inProject: InProject }) {
+function FoundTodayWidget({ read }: { read: ContentRead }) {
   const navigate = useNavigate()
   if (read.error) return <ErrorRow message={read.error} onRetry={read.retry} className="p-3" />
   if (!read.data) return <Quiet>Reading…</Quiet>
-  const rows = read.data.found.filter((row) => inProject(row.projectId))
+  const rows = read.data.found
   if (!rows.length) return <Quiet>Research found nothing new today.</Quiet>
   return (
     <Scroll>
@@ -157,11 +153,11 @@ function FoundTodayWidget({ read, inProject }: { read: ContentRead; inProject: I
 }
 
 /** Videos in progress: the drafts, last edited first, each opening in the editor. */
-function DraftVideosWidget({ read, inProject }: { read: ContentRead; inProject: InProject }) {
+function DraftVideosWidget({ read }: { read: ContentRead }) {
   const navigate = useNavigate()
   if (read.error) return <ErrorRow message={read.error} onRetry={read.retry} className="p-3" />
   if (!read.data) return <Quiet>Reading…</Quiet>
-  const rows = read.data.drafts.filter((row) => inProject(row.projectId))
+  const rows = read.data.drafts
   if (!rows.length) return <Quiet>No video is being made.</Quiet>
   return (
     <Scroll>
@@ -183,15 +179,13 @@ function DraftVideosWidget({ read, inProject }: { read: ContentRead; inProject: 
 /** Posts that need you: failed posts and unsent drafts, one row per project and network, opening that network on the project's page. */
 function PostsWidget({
   read,
-  inProject,
 }: {
   read: { data: Awaited<ReturnType<typeof loadPostsNeedingYou>> | null; error: string | null; retry: () => void }
-  inProject: InProject
 }) {
   const navigate = useNavigate()
   if (read.error) return <ErrorRow message={read.error} onRetry={read.retry} className="p-3" />
   if (!read.data) return <Quiet>Reading…</Quiet>
-  const rows = read.data.filter((row) => inProject(row.projectId))
+  const rows = read.data
   if (!rows.length) return <Quiet>No failed posts or drafts waiting.</Quiet>
   return (
     <Scroll>
@@ -211,10 +205,10 @@ function PostsWidget({
 }
 
 /** Messages waiting: conversations no answer has gone to, newest first, each opening in Messages. */
-function MessagesWidget({ data, inProject }: { data: ProjectsDashboardData; inProject: InProject }) {
+function MessagesWidget({ data }: { data: ProjectsDashboardData }) {
   const navigate = useNavigate()
   const rows = data.messages
-    .filter((row) => row.status === "open" && inProject(row.account.projectId))
+    .filter((row) => row.status === "open")
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
   if (!rows.length) return <Quiet>No messages waiting for you.</Quiet>
   return (
@@ -225,7 +219,7 @@ function MessagesWidget({ data, inProject }: { data: ProjectsDashboardData; inPr
           title={row.thread}
           line={`${isNetwork(row.platform) ? NETWORK_NAMES[row.platform] : row.platform} · ${row.lines[row.lines.length - 1]?.text ?? ""}`}
           value={postedDateText(new Date(row.updatedAt))}
-          onPress={() => void navigate({ to: "/admin/projects", search: (previous) => ({ project: previous.project, section: "messages", open: row.id }) })}
+          onPress={() => void navigate({ to: "/admin/projects", search: { section: "messages", open: row.id } })}
         />
       ))}
     </Scroll>
@@ -241,9 +235,9 @@ const STATUS_BARS: Record<(typeof ACCOUNT_STATUSES)[number], string> = {
 }
 
 /** Accounts by status: how many accounts in use are in each, each row opening Accounts filtered to it. */
-function AccountsWidget({ data, inProject, projectId }: { data: ProjectsDashboardData; inProject: InProject; projectId: string }) {
+function AccountsWidget({ data }: { data: ProjectsDashboardData }) {
   const navigate = useNavigate()
-  const accounts = data.accounts.accounts.filter((row) => !row.retiredAt && inProject(row.project?.id))
+  const accounts = data.accounts.accounts.filter((row) => !row.retiredAt)
   const counts = ACCOUNT_STATUSES.map((status) => ({ status, count: accounts.filter((row) => row.status.status === status).length }))
   const most = Math.max(1, ...counts.map((row) => row.count))
   if (!accounts.length) return <Quiet>No accounts in use.</Quiet>
@@ -255,7 +249,7 @@ function AccountsWidget({ data, inProject, projectId }: { data: ProjectsDashboar
           type="button"
           className="grid w-full grid-cols-[6.5rem_minmax(0,1fr)_2rem] items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           onClick={() =>
-            void navigate({ to: "/admin/projects", search: { section: "accounts", status, ...(projectId ? { project: projectId } : {}) } })
+            void navigate({ to: "/admin/projects", search: { section: "accounts", status } })
           }
         >
           <span className="truncate">{ACCOUNT_STATUS_LABELS[status]}</span>
@@ -270,9 +264,9 @@ function AccountsWidget({ data, inProject, projectId }: { data: ProjectsDashboar
 }
 
 /** Bans in the last 30 days: each project's counted bans, opening the Bans dashboard filtered as its red mark does. */
-function BansWidget({ data, inProject }: { data: ProjectsDashboardData; inProject: InProject }) {
+function BansWidget({ data }: { data: ProjectsDashboardData }) {
   const navigate = useNavigate()
-  const rows = data.projects.filter((project) => inProject(project.id)).sort((a, b) => b.bannedRecently - a.bannedRecently)
+  const rows = [...data.projects].sort((a, b) => b.bannedRecently - a.bannedRecently)
   if (!rows.length) return <Quiet>No projects yet.</Quiet>
   return (
     <Scroll>
@@ -290,9 +284,9 @@ function BansWidget({ data, inProject }: { data: ProjectsDashboardData; inProjec
 }
 
 /** Archive room: each project's items and the room their files take, with what that costs a month, opening the project's Content. */
-function ArchiveWidget({ data, inProject }: { data: ProjectsDashboardData; inProject: InProject }) {
+function ArchiveWidget({ data }: { data: ProjectsDashboardData }) {
   const navigate = useNavigate()
-  const rows = data.archive.filter((project) => inProject(project.id))
+  const rows = data.archive
   if (!rows.length) return <Quiet>No projects yet.</Quiet>
   return (
     <Scroll>
@@ -303,7 +297,7 @@ function ArchiveWidget({ data, inProject }: { data: ProjectsDashboardData; inPro
           // Tyler's rule of 4 Nov 2026, "Size and dollars a month": "12.4 GB, about $0.19 a month".
           line={storageLine(project.bytes)}
           value={`${project.items} ${plural(project.items, "item", "items")}`}
-          onPress={() => void navigate({ to: "/admin/projects/$projectId", params: { projectId: project.id }, search: { archive: "1" } })}
+          onPress={() => void navigate({ to: "/admin/projects/$projectId", params: { projectId: project.id }, search: {} })}
         />
       ))}
     </Scroll>
@@ -330,7 +324,7 @@ const LIKE_WORDS: Record<Network, [string, string]> = {
  * daily read counted them, opening that network on the project's page. Per
  * project and network, never per keyword or account.
  */
-function ResultsWidget({ inProject }: { inProject: InProject }) {
+function ResultsWidget() {
   const navigate = useNavigate()
   const [days, setDays] = React.useState<ResultsDays>(7)
   const read = useLoad(() => loadResults(days), getProjectsDashboardErrorMessage, {
@@ -358,7 +352,7 @@ function ResultsWidget({ inProject }: { inProject: InProject }) {
   )
   if (read.error) return <>{menu}<ErrorRow message={read.error} onRetry={read.retry} className="p-3" /></>
   if (!read.data) return <>{menu}<Quiet>Reading…</Quiet></>
-  const rows = read.data.filter((row) => inProject(row.projectId))
+  const rows = read.data
   if (!rows.length) return <>{menu}<Quiet>Nothing went out in the {PERIOD_LABELS[days].toLowerCase()}.</Quiet></>
   return (
     <>

@@ -1,10 +1,10 @@
 import * as React from "react"
+import { ProjectMenuButton } from "@/components/content-app/project-top"
 import {
   BellIcon,
   BellOffIcon,
   EllipsisVerticalIcon,
   EyeIcon,
-  ListChecksIcon,
   Loader2Icon,
   PlusIcon,
   RotateCwIcon,
@@ -56,9 +56,9 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 import { KeywordPicker } from "../keyword-picker"
-import { ProjectBackButton } from "@/components/social/projects/project-back"
-import { CrmListHeader } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { PanelReopenButton } from "@/components/shared/three-panels"
+import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
 import { StalledJobs } from "../stalled-jobs"
 
 type Keyword = XModuleView["keywords"][number]
@@ -159,21 +159,21 @@ export function XKeywords({
     }
   }
 
-  // The one middle header Reddit's Commenting has (`CrmListHeader`; Tyler,
+  // The one middle header Reddit's Commenting has (`ListHeader`; Tyler,
   // 14 Nov 2026: "fix all the tabs. the only thing that looks right is the
   // reddit tabs"): the arrow back and the tabs on the left, then the search
   // box, the keywords dropdown, the amber jobs warning and the ⋮ with Jobs.
   return (
     <>
-    <CrmListHeader
+    <ListHeader
       tabs={
         <>
-          <PanelReopenButton side="left" label="Show the project" />
-          <ProjectBackButton />
+          <PanelReopenButton side="left" label="Show the Projects page" />
+          <ProjectHeaderLead />
           {tabs}
         </>
       }
-      end={<PanelReopenButton side="right" label="Show the post and your reply" />}
+      end={<><ProjectMenuButton jobs={{ waiting: jobsWaiting, onOpen: onOpenJobs }} /><PanelReopenButton side="right" label="Show the post and your reply" /></>}
       selected={null}
       massSelect={null}
       menuLabel="More"
@@ -286,7 +286,7 @@ export function XKeywords({
         />
         {view && !view.jobs.programRunning && view.jobs.queued > 0 ? <StalledJobs queued={view.jobs.queued} onOpen={onOpenJobs} /> : null}
         <DropdownMenu>
-          <Hint label="Jobs, search all, ideas, AI spend and hidden accounts">
+          <Hint label="Search all, ideas, AI spend and hidden accounts">
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="ghost" size="icon" aria-label="More">
                 {asking ? <Loader2Icon className="animate-spin" /> : <EllipsisVerticalIcon />}
@@ -294,10 +294,6 @@ export function XKeywords({
             </DropdownMenuTrigger>
           </Hint>
           <DropdownMenuContent align="end" className="w-72">
-            <DropdownMenuItem onSelect={onOpenJobs}>
-              <ListChecksIcon />
-              {jobsWaiting ? `Jobs · ${jobsWaiting}` : "Jobs"}
-            </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() =>
                 void act(async () => {

@@ -1,7 +1,7 @@
 # The Jobs window
 
-**Jobs**, a button in the middle column's header on the network's Commenting row,
-opens a window that shows whether the browser program is running, and lists
+**Jobs**, an action on the project ⋮'s General tab (a button in the network's
+header until 27 Nov 2026: "Move jobs button here"), opens a window that shows whether the browser program is running, and lists
 every job it is doing, waiting to do, or did lately, for every project. The
 button shows how many are running or waiting. While the program is stopped,
 Reddit's header has a small amber warning with how many wait, and Medium's,

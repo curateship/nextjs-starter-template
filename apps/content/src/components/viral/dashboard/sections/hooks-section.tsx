@@ -2,7 +2,7 @@ import * as React from "react"
 import { FilmIcon, QuoteIcon } from "lucide-react"
 
 import { FilterRow } from "@/components/admin-dashboard/list-parts"
-import { CrmListHeader } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord } from "@/components/crm/record-frame"
 import { FilterPopover } from "@/components/shared/filter-popover"
@@ -159,7 +159,7 @@ export function HooksSection({ data, search, frame }: SectionProps<Data>) {
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <CrmListHeader
+      <ListHeader
         tabs={<MiddleHeading icon={QuoteIcon} label={project ? `Hooks in ${project.name}` : "Hooks"} />}
         end={<PanelReopenButton side="right" label="Show the hook" />}
         menuLabel="More for hooks"

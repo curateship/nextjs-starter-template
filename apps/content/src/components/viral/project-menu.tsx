@@ -5,7 +5,7 @@ import { ArchiveIcon, ArchiveRestoreIcon, CopyIcon, PauseIcon, PinIcon, PinOffIc
 import { ActionRow } from "@/components/crm/crm-record-menu"
 import { CoverRow, LockRow } from "@/components/shared/notes/page-rows"
 import { PickGroup, PickMenuRow, PickRow } from "@/components/shared/notes/pick-rows"
-import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
+import { TabbedMenu, type MySettingsTab } from "@/components/shared/notes/tabbed-menu"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Label } from "@/components/ui/label"
@@ -121,6 +121,7 @@ export function ProjectSettingsMenu({
   page = false,
   research = false,
   align = "start",
+  inMenu,
 }: {
   project: ViralProjectItem
   /** Reads the project again after a change. */
@@ -137,6 +138,12 @@ export function ProjectSettingsMenu({
    */
   research?: boolean
   align?: "start" | "end"
+  /**
+   * Draws the tabs inside another ⋮ instead of one of their own: a Content
+   * project's ⋮, which holds them after its own as Research and Socials
+   * (Tyler, 27 Nov 2026, of the two ⋮ on Research: "should be merged").
+   */
+  inMenu?: (tabs: MySettingsTab[]) => React.ReactNode
 }) {
   const save = useProjectSave(project, refresh)
   const navigate = useNavigate()
@@ -197,237 +204,243 @@ export function ProjectSettingsMenu({
       await work()
     })
 
+  const tabs: MySettingsTab[] = [
+    {
+      value: inMenu ? "research" : "general",
+      label: inMenu ? "Research" : "General",
+      content: (
+        <div className="grid gap-3 p-3">
+          {page && !research ? (
+            <PickGroup title="Page">
+              {/* The banner behind the top of the left panel (Tyler, 4 Nov 2026: "there is no image for left panel top bg"). With none, it is the best video's thumbnail from the last search. */}
+              <CoverRow
+                cover={{
+                  url: project.cover_chosen ? project.cover_url : null,
+                  images: project.cover_images,
+                  busy,
+                  set: ({ url, images }) =>
+                    void run(async () => {
+                      await saveViralProjectCoverFn(project.id, url, images)
+                      await refresh()
+                    }),
+                }}
+              />
+            </PickGroup>
+          ) : null}
+          {research ? null : (
+          <PickGroup title="Project">
+            <PickRow label="Name" value={project.name}>
+              <Label htmlFor={`project-menu-name-${project.id}`}>Name</Label>
+              <SavingInput
+                id={`project-menu-name-${project.id}`}
+                value={project.name}
+                maxLength={VIRAL_PROJECT_NAME_MAX}
+                onSave={(name) => {
+                  if (!name.trim()) {
+                    showErrorToast("Give the project a name.")
+                    return Promise.resolve(false)
+                  }
+                  return save({ name })
+                }}
+              />
+            </PickRow>
+            <PickRow label="Your topic" value={project.topic || "Not set"} empty={!project.topic}>
+              <Label htmlFor={`project-menu-topic-${project.id}`}>Your topic</Label>
+              <SavingInput
+                id={`project-menu-topic-${project.id}`}
+                value={project.topic}
+                maxLength={ANALYSIS_TOPIC_MAX}
+                placeholder="A meal-prep course for busy dads"
+                onSave={saveTopic}
+              />
+              <p className="text-xs text-muted-foreground">
+                What you make or sell. Analyse with AI turns each winning video from the niche into a script
+                about this.
+              </p>
+            </PickRow>
+          </PickGroup>
+          )}
+          <PickGroup title="Search">
+            {/* The description, first under Search on every ⋮ and named for what it does (Tyler, 21 Nov 2026:
+                "The discription should be in the 3 dots dropdown here and it needs better clarification",
+                then "because it belongs to search isnt it?"). */}
+            <PickRow label="Niche" value={project.description || "Not set"} empty={!project.description}>
+              <Label htmlFor={`project-menu-description-${project.id}`}>Niche</Label>
+              <SavingTextarea
+                id={`project-menu-description-${project.id}`}
+                rows={4}
+                value={project.description}
+                maxLength={VIRAL_DESCRIPTION_MAX}
+                placeholder="Cheap, high-protein lunches made on Sunday for the week"
+                onSave={(description) => save({ description })}
+              />
+              <p className="text-xs text-muted-foreground">
+                The kind of videos to find. The AI suggests keywords from it and scores how well each video
+                fits it, in the Fits column.
+              </p>
+            </PickRow>
+            <PickMenuRow
+              label="Posted within"
+              value={viralDayLabels[project.days]}
+              selected={String(project.days)}
+              options={VIRAL_DAY_CHOICES.map((days) => ({
+                value: String(days),
+                label: days === 365 ? "The last year" : `The last ${viralDayLabels[days]}`,
+              }))}
+              onPick={(value) => void save({ days: Number(value) as ViralDays })}
+            />
+            <PickPlaceRow
+              label="Country"
+              value={project.region_code}
+              options={countries}
+              searchLabel="Search countries"
+              noMatch="No country matches."
+              onPick={(code) => void save({ regionCode: code as ViralCountryCode | null })}
+            />
+            <PickPlaceRow
+              label="Language"
+              value={project.relevance_language}
+              options={languages}
+              searchLabel="Search languages"
+              noMatch="No language matches."
+              onPick={(code) => void save({ relevanceLanguage: code as ViralLanguageCode | null })}
+            />
+            <PickMenuRow
+              label="Videos"
+              value={viralVideoLengthLabels[project.video_length]}
+              selected={project.video_length}
+              options={VIRAL_VIDEO_LENGTHS.map((length) => ({ value: length, label: viralVideoLengthLabels[length] }))}
+              onPick={(value) => void save({ videoLength: value as ViralVideoLength })}
+            />
+            <PickRow
+              label="Minimum views"
+              value={project.min_views ? project.min_views.toLocaleString() : "None"}
+              empty={!project.min_views}
+            >
+              <Label htmlFor={`project-menu-min-views-${project.id}`}>Minimum views</Label>
+              <SavingInput
+                id={`project-menu-min-views-${project.id}`}
+                inputMode="numeric"
+                placeholder="0"
+                value={project.min_views ? String(project.min_views) : ""}
+                onSave={(text) => saveWhole("Minimum views", text, 1_000_000_000, "minViews")}
+              />
+            </PickRow>
+            <PickRow
+              label="Minimum score"
+              value={project.min_score ? String(project.min_score) : "None"}
+              empty={!project.min_score}
+            >
+              <Label htmlFor={`project-menu-min-score-${project.id}`}>Minimum score</Label>
+              <SavingInput
+                id={`project-menu-min-score-${project.id}`}
+                inputMode="numeric"
+                placeholder="0"
+                value={project.min_score ? String(project.min_score) : ""}
+                onSave={(text) => saveWhole("Minimum score", text, 100, "minScore")}
+              />
+              <p className="text-xs text-muted-foreground">The daily check rings the bell for new videos at or above it.</p>
+            </PickRow>
+          </PickGroup>
+          <PickGroup title="AI">
+            <PickRow
+              label="Spend limit"
+              value={project.spend_limit_cents === null ? "No limit" : formatCents(project.spend_limit_cents)}
+              empty={project.spend_limit_cents === null}
+            >
+              <Label htmlFor={`project-menu-spend-${project.id}`}>AI spend limit in dollars</Label>
+              <SavingInput
+                id={`project-menu-spend-${project.id}`}
+                inputMode="decimal"
+                placeholder="No limit"
+                value={project.spend_limit_cents === null ? "" : String(project.spend_limit_cents / 100)}
+                onSave={saveSpend}
+              />
+              <p className="text-xs text-muted-foreground">
+                Analyse with AI, keyword ideas and the topic match stop before they would pass it. YouTube searches are free.
+              </p>
+            </PickRow>
+          </PickGroup>
+          {research ? null : (
+          <div className="grid">
+            <ActionRow
+              icon={project.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />}
+              disabled={busy}
+              onClick={action(async () => {
+                await pinViralProjectFn(project.id, !project.pinned)
+                await refresh()
+              })}
+            >
+              {project.pinned ? "Unpin" : "Pin to the top"}
+            </ActionRow>
+            <ActionRow
+              icon={<CopyIcon className="size-4" />}
+              disabled={busy}
+              onClick={action(async () => {
+                const copy = await duplicateViralProjectFn(project.id)
+                await navigate({ to: "/admin/projects/$projectId/research", params: { projectId: copy.id } })
+              })}
+            >
+              Duplicate
+            </ActionRow>
+            <ActionRow
+              icon={project.archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
+              disabled={busy}
+              onClick={action(async () => {
+                await archiveViralProjectsFn([project.id], !project.archived)
+                await refresh()
+              })}
+            >
+              {project.archived ? "Bring back" : "Archive"}
+            </ActionRow>
+            <div aria-hidden className="-mx-3 my-1.5 border-t" />
+            <ActionRow destructive icon={<Trash2Icon className="size-4" />} disabled={busy} onClick={() => void openDelete()}>
+              Delete project
+            </ActionRow>
+          </div>
+          )}
+        </div>
+      ),
+      footer: page && !research ? (
+        <LockRow
+          locked={project.notes_locked}
+          busy={busy}
+          onLock={(locked) =>
+            void run(async () => {
+              await lockViralProjectNotesFn(project.id, locked)
+              await refresh()
+            })
+          }
+        />
+      ) : undefined,
+    },
+    ...(page || research
+      ? [
+          {
+            // Promo's Networks tab, for socials: each one the project uses with Pause and Take off,
+            // then the ones it doesn't, each a row to add it.
+            value: "socials",
+            label: "Socials",
+            content: <SocialsTab project={project} refresh={refresh} />,
+          },
+        ]
+      : []),
+  ]
+
   return (
     <>
-      <TabbedMenu
-        label={research ? "Research settings" : "Project settings"}
-        align={align}
-        width="22.7rem"
-        open={open}
-        onOpenChange={setOpen}
-        tabs={[
-          {
-            value: "general",
-            label: "General",
-            content: (
-              <div className="grid gap-3 p-3">
-                {page && !research ? (
-                  <PickGroup title="Page">
-                    {/* The banner behind the top of the left panel (Tyler, 4 Nov 2026: "there is no image for left panel top bg"). With none, it is the best video's thumbnail from the last search. */}
-                    <CoverRow
-                      cover={{
-                        url: project.cover_chosen ? project.cover_url : null,
-                        images: project.cover_images,
-                        busy,
-                        set: ({ url, images }) =>
-                          void run(async () => {
-                            await saveViralProjectCoverFn(project.id, url, images)
-                            await refresh()
-                          }),
-                      }}
-                    />
-                  </PickGroup>
-                ) : null}
-                {research ? null : (
-                <PickGroup title="Project">
-                  <PickRow label="Name" value={project.name}>
-                    <Label htmlFor={`project-menu-name-${project.id}`}>Name</Label>
-                    <SavingInput
-                      id={`project-menu-name-${project.id}`}
-                      value={project.name}
-                      maxLength={VIRAL_PROJECT_NAME_MAX}
-                      onSave={(name) => {
-                        if (!name.trim()) {
-                          showErrorToast("Give the project a name.")
-                          return Promise.resolve(false)
-                        }
-                        return save({ name })
-                      }}
-                    />
-                  </PickRow>
-                  <PickRow label="Your topic" value={project.topic || "Not set"} empty={!project.topic}>
-                    <Label htmlFor={`project-menu-topic-${project.id}`}>Your topic</Label>
-                    <SavingInput
-                      id={`project-menu-topic-${project.id}`}
-                      value={project.topic}
-                      maxLength={ANALYSIS_TOPIC_MAX}
-                      placeholder="A meal-prep course for busy dads"
-                      onSave={saveTopic}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      What you make or sell. Analyse with AI turns each winning video from the niche into a script
-                      about this.
-                    </p>
-                  </PickRow>
-                </PickGroup>
-                )}
-                <PickGroup title="Search">
-                  {/* The description, first under Search on every ⋮ and named for what it does (Tyler, 21 Nov 2026:
-                      "The discription should be in the 3 dots dropdown here and it needs better clarification",
-                      then "because it belongs to search isnt it?"). */}
-                  <PickRow label="Niche" value={project.description || "Not set"} empty={!project.description}>
-                    <Label htmlFor={`project-menu-description-${project.id}`}>Niche</Label>
-                    <SavingTextarea
-                      id={`project-menu-description-${project.id}`}
-                      rows={4}
-                      value={project.description}
-                      maxLength={VIRAL_DESCRIPTION_MAX}
-                      placeholder="Cheap, high-protein lunches made on Sunday for the week"
-                      onSave={(description) => save({ description })}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      The kind of videos to find. The AI suggests keywords from it and scores how well each video
-                      fits it, in the Fits column.
-                    </p>
-                  </PickRow>
-                  <PickMenuRow
-                    label="Posted within"
-                    value={viralDayLabels[project.days]}
-                    selected={String(project.days)}
-                    options={VIRAL_DAY_CHOICES.map((days) => ({
-                      value: String(days),
-                      label: days === 365 ? "The last year" : `The last ${viralDayLabels[days]}`,
-                    }))}
-                    onPick={(value) => void save({ days: Number(value) as ViralDays })}
-                  />
-                  <PickPlaceRow
-                    label="Country"
-                    value={project.region_code}
-                    options={countries}
-                    searchLabel="Search countries"
-                    noMatch="No country matches."
-                    onPick={(code) => void save({ regionCode: code as ViralCountryCode | null })}
-                  />
-                  <PickPlaceRow
-                    label="Language"
-                    value={project.relevance_language}
-                    options={languages}
-                    searchLabel="Search languages"
-                    noMatch="No language matches."
-                    onPick={(code) => void save({ relevanceLanguage: code as ViralLanguageCode | null })}
-                  />
-                  <PickMenuRow
-                    label="Videos"
-                    value={viralVideoLengthLabels[project.video_length]}
-                    selected={project.video_length}
-                    options={VIRAL_VIDEO_LENGTHS.map((length) => ({ value: length, label: viralVideoLengthLabels[length] }))}
-                    onPick={(value) => void save({ videoLength: value as ViralVideoLength })}
-                  />
-                  <PickRow
-                    label="Minimum views"
-                    value={project.min_views ? project.min_views.toLocaleString() : "None"}
-                    empty={!project.min_views}
-                  >
-                    <Label htmlFor={`project-menu-min-views-${project.id}`}>Minimum views</Label>
-                    <SavingInput
-                      id={`project-menu-min-views-${project.id}`}
-                      inputMode="numeric"
-                      placeholder="0"
-                      value={project.min_views ? String(project.min_views) : ""}
-                      onSave={(text) => saveWhole("Minimum views", text, 1_000_000_000, "minViews")}
-                    />
-                  </PickRow>
-                  <PickRow
-                    label="Minimum score"
-                    value={project.min_score ? String(project.min_score) : "None"}
-                    empty={!project.min_score}
-                  >
-                    <Label htmlFor={`project-menu-min-score-${project.id}`}>Minimum score</Label>
-                    <SavingInput
-                      id={`project-menu-min-score-${project.id}`}
-                      inputMode="numeric"
-                      placeholder="0"
-                      value={project.min_score ? String(project.min_score) : ""}
-                      onSave={(text) => saveWhole("Minimum score", text, 100, "minScore")}
-                    />
-                    <p className="text-xs text-muted-foreground">The daily check rings the bell for new videos at or above it.</p>
-                  </PickRow>
-                </PickGroup>
-                <PickGroup title="AI">
-                  <PickRow
-                    label="Spend limit"
-                    value={project.spend_limit_cents === null ? "No limit" : formatCents(project.spend_limit_cents)}
-                    empty={project.spend_limit_cents === null}
-                  >
-                    <Label htmlFor={`project-menu-spend-${project.id}`}>AI spend limit in dollars</Label>
-                    <SavingInput
-                      id={`project-menu-spend-${project.id}`}
-                      inputMode="decimal"
-                      placeholder="No limit"
-                      value={project.spend_limit_cents === null ? "" : String(project.spend_limit_cents / 100)}
-                      onSave={saveSpend}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Analyse with AI, keyword ideas and the topic match stop before they would pass it. YouTube searches are free.
-                    </p>
-                  </PickRow>
-                </PickGroup>
-                {research ? null : (
-                <div className="grid">
-                  <ActionRow
-                    icon={project.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />}
-                    disabled={busy}
-                    onClick={action(async () => {
-                      await pinViralProjectFn(project.id, !project.pinned)
-                      await refresh()
-                    })}
-                  >
-                    {project.pinned ? "Unpin" : "Pin to the top"}
-                  </ActionRow>
-                  <ActionRow
-                    icon={<CopyIcon className="size-4" />}
-                    disabled={busy}
-                    onClick={action(async () => {
-                      const copy = await duplicateViralProjectFn(project.id)
-                      await navigate({ to: "/admin/projects/$projectId/research", params: { projectId: copy.id } })
-                    })}
-                  >
-                    Duplicate
-                  </ActionRow>
-                  <ActionRow
-                    icon={project.archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}
-                    disabled={busy}
-                    onClick={action(async () => {
-                      await archiveViralProjectsFn([project.id], !project.archived)
-                      await refresh()
-                    })}
-                  >
-                    {project.archived ? "Bring back" : "Archive"}
-                  </ActionRow>
-                  <div aria-hidden className="-mx-3 my-1.5 border-t" />
-                  <ActionRow destructive icon={<Trash2Icon className="size-4" />} disabled={busy} onClick={() => void openDelete()}>
-                    Delete project
-                  </ActionRow>
-                </div>
-                )}
-              </div>
-            ),
-            footer: page && !research ? (
-              <LockRow
-                locked={project.notes_locked}
-                busy={busy}
-                onLock={(locked) =>
-                  void run(async () => {
-                    await lockViralProjectNotesFn(project.id, locked)
-                    await refresh()
-                  })
-                }
-              />
-            ) : undefined,
-          },
-          ...(page || research
-            ? [
-                {
-                  // Promo's Networks tab, for socials: each one the project uses with Pause and Take off,
-                  // then the ones it doesn't, each a row to add it.
-                  value: "socials",
-                  label: "Socials",
-                  content: <SocialsTab project={project} refresh={refresh} />,
-                },
-              ]
-            : []),
-        ]}
-      />
+      {inMenu ? (
+        inMenu(tabs)
+      ) : (
+        <TabbedMenu
+          label={research ? "Research settings" : "Project settings"}
+          align={align}
+          width="22.7rem"
+          open={open}
+          onOpenChange={setOpen}
+          tabs={tabs}
+        />
+      )}
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}

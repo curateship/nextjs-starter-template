@@ -1,4 +1,5 @@
 import * as React from "react"
+import { SearchToggle } from "@/components/shared/search-toggle"
 import { useRouter } from "@tanstack/react-router"
 import {
   CalendarClockIcon,
@@ -15,7 +16,6 @@ import {
 } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
-import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import {
   SortableTableHeader,
   type SortableColumn,
@@ -337,12 +337,12 @@ export function ExportsPage({
                 Delete ({selectedCount})
               </DashboardToolbarButton>
             ) : null}
-            <DashboardToolbarSearch
+            <SearchToggle
               name="export-search"
-              aria-label="Search exports"
+              label="Search exports"
               placeholder="Search exports…"
               value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
+              onChange={setSearchText}
             />
             <DashboardToolbarButton
               type="button"

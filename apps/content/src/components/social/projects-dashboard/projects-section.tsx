@@ -20,7 +20,8 @@ import {
 
 import type { CrmFrame } from "@/components/crm/crm-frame"
 import { ActionRow } from "@/components/crm/crm-record-menu"
-import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { DetailNote, DetailRow, DetailRows } from "@/components/dashboard-page/detail-rows"
@@ -191,7 +192,7 @@ export function ProjectsSectionList({
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <CrmListHeader
+      <ListHeader
         tabs={
 <MiddleHeading icon={FolderOpenIcon} label="Projects" />
         }

@@ -1,8 +1,9 @@
 # The Medium module
 
 Medium (medium.com, the blogging site) is a network a project can add, beside
-Reddit, Instagram and TikTok. Picking its row in the project's left column fills
-the middle and right columns with Medium's panels. It came from
+Reddit, Instagram and TikTok. Picking "Medium · Posts" or "Medium · Commenting"
+in the dropdown of the project's Promote tab fills the middle and right columns
+with Medium's panels. It came from
 `workspace/tasks/Medium/01-medium-features.md`, whose 42 parts Tyler picked on
 21 Oct 2026.
 
@@ -52,9 +53,9 @@ the middle and right columns with Medium's panels. It came from
   column as `?open=<id>`.
 - **The right column** shows what is open: a story and the response to it, a
   sent response, an article, or a publication.
-- **The Medium row in the left column** carries a count: the strong stories
-  waiting plus the responses people wrote to you that nobody has answered. It
-  also has its own pause button.
+- **"Medium · Posts" in Promote's dropdown** carries how many of your posts
+  need you, failed ones and drafts not sent yet. Medium is paused on its own
+  from the project's ⋮, under Networks.
 
 ## Keywords
 

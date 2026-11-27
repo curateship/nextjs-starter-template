@@ -3,7 +3,8 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 import { PlayIcon, Trash2Icon } from "lucide-react"
 
 import type { CrmFrame } from "@/components/crm/crm-frame"
-import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { Chip, CrmTable, CrmTableRow, OpenBar } from "@/components/crm/crm-table"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import type { TableHeaderColumn } from "@/components/shared/sortable-table-header"
@@ -136,7 +137,7 @@ export function RunsTab({
     showRightFor: search.open,
     middle: (
       <div className="@container flex min-h-0 flex-1 flex-col">
-        <CrmListHeader
+        <ListHeader
           tabs={heading}
           end={headingEnd}
           menuLabel="More for runs"

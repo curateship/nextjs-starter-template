@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ListHeader } from "@/components/content-app/list-header"
 import { ExternalLinkIcon, Loader2Icon, PlayIcon, SmartphoneIcon, XIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -23,7 +24,9 @@ import { channelName } from "@/lib/social/youtube/options"
 /** The middle header every network draws, as Instagram's table does (`app-tables.tsx`). */
 const YOUTUBE_TABLE = cn(
   IN_COLUMN_TABLE,
-  "[&>:first-child]:min-h-[57px] [&>:first-child]:border-b [&>:first-child]:p-3 [&>:first-child]:px-5 sm:[&>:first-child]:items-stretch sm:[&>:first-child]:gap-2 sm:[&>:first-child>:first-child]:gap-2"
+  // The shell table's own toolbar is hidden: the list's header is Content's one `ListHeader`, drawn above
+  // it, so this list's header looks like every other (Tyler, 27 Nov 2026: "fix ui for promote dashboard").
+  "h-auto min-h-0 flex-1 [&>:first-child]:hidden"
 )
 
 type PostColumn = "post" | "channel" | "status" | "views" | "likes" | "comments" | "posted"
@@ -70,13 +73,25 @@ function comparePosts(a: YoutubePostRow, b: YoutubePostRow, column: PostColumn):
 export function YoutubePostsTable({
   tabs,
   controls,
+  menu,
   rows,
+  reading,
   canManage,
   onRefresh,
 }: {
   tabs: React.ReactNode
   controls: React.ReactNode
+  /** The project's ⋮, last in the header. */
+  menu?: React.ReactNode
   rows: YoutubePostRow[]
+  /**
+   * While the list is read, what shows under the header in place of the
+   * table (reading, or why it failed). The header is this table's either
+   * way, so it is drawn once and not again when the posts arrive, which
+   * restarted the project tabs' slide (Tyler, 27 Nov 2026: "CLicking on
+   * promote tab has a bug that flashes the tab").
+   */
+  reading?: React.ReactNode
   /** False for a guest sent from Project, who only looks. */
   canManage: boolean
   onRefresh: () => Promise<void>
@@ -106,117 +121,132 @@ export function YoutubePostsTable({
   }
 
   return (
-    <DashboardTable
-      title="Posts"
-      fillHeight
-      className={YOUTUBE_TABLE}
-      tabs={tabs}
-      count={rows.length}
-      selectedCount={selection.selected.size}
-      onClearSelection={selection.clear}
-      controls={
-        <>
-          {selection.selected.size && canManage ? (
-            <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void callOff([...selection.selected])}>
-              {busy ? <Loader2Icon className="size-4 animate-spin" /> : <XIcon className="size-4" />}
-              Call off ({selection.selected.size})
-            </DashboardToolbarButton>
-          ) : null}
-          {controls}
-        </>
-      }
-      header={
-        <SortableTableHeader
-          columns={POST_COLUMNS}
-          sort={sort}
-          direction={direction}
-          onSort={toggleSort}
-          leading={<SelectAllTableHead noun="videos" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />}
-          trailing={<TableHead column="meta">Actions</TableHead>}
-        />
-      }
-      isEmpty={rows.length === 0}
-      emptyText="Nothing uploaded to YouTube from this project yet. Pick a video on the right and press Post."
-      emptyColSpan={POST_COLUMNS.length + 2}
-      footer={{ type: "summary", count: rows.length, label: "videos" }}
-    >
-      {sorted.map((row) => {
-        const name = channelName(row.account.handle)
-        const when = postedDateText(new Date(row.postedAt ?? row.createdAt))
-        const numbersWhen = row.numbersReadAt ? `Numbers read ${postedDateText(new Date(row.numbersReadAt)).toLowerCase()}` : "Numbers not read yet"
-        return (
-          <TableRow key={row.id} className="group">
-            <TableCell column="select">
-              <Checkbox checked={selection.selected.has(row.id)} onCheckedChange={() => selection.toggle(row.id)} aria-label={`Select ${row.title}`} />
-            </TableCell>
-            <TableCell column="main" className="max-w-0">
-              <span className="flex min-w-0 items-center gap-2">
-                {row.isShort ? (
-                  <SmartphoneIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Short" />
-                ) : (
-                  <PlayIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Video" />
-                )}
-                <Hint label={row.title}>
-                  <span className="block truncate text-sm font-medium">{row.title}</span>
-                </Hint>
-              </span>
-              <span className="block truncate text-xs text-muted-foreground @4xl:hidden">
-                {name} · {when}
-              </span>
-              {row.status === "failed" && row.lastError ? (
-                <Hint label={row.lastError}>
-                  <span className="block truncate text-xs text-destructive">{row.lastError}</span>
-                </Hint>
+    <>
+      <ListHeader
+        tabs={tabs}
+        selected={
+          selection.selected.size ? (
+            <>
+              <DashboardToolbarButton type="button" variant="ghost" onClick={selection.clear}>
+                Clear {selection.selected.size} selected
+              </DashboardToolbarButton>
+              {selection.selected.size && canManage ? (
+                <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void callOff([...selection.selected])}>
+                  {busy ? <Loader2Icon className="size-4 animate-spin" /> : <XIcon className="size-4" />}
+                  Call off ({selection.selected.size})
+                </DashboardToolbarButton>
               ) : null}
-              {row.thumbnailNote ? (
-                <Hint label={row.thumbnailNote}>
-                  <span className="block truncate text-xs text-amber-600 dark:text-amber-400">Thumbnail not set: {row.thumbnailNote}</span>
+            </>
+          ) : null
+        }
+        primary={controls}
+        menuLabel="More for these posts"
+        search={null}
+        massSelect={null}
+        end={menu}
+      />
+      {reading ?? (
+      <DashboardTable
+        title="Posts"
+        fillHeight
+        className={YOUTUBE_TABLE}
+        count={rows.length}
+        selectedCount={selection.selected.size}
+        onClearSelection={selection.clear}
+        header={
+          <SortableTableHeader
+            columns={POST_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={<SelectAllTableHead noun="videos" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />}
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
+        }
+        isEmpty={rows.length === 0}
+        emptyText="Nothing uploaded to YouTube from this project yet. Pick a video on the right and press Post."
+        emptyColSpan={POST_COLUMNS.length + 2}
+        footer={{ type: "summary", count: rows.length, label: "videos" }}
+      >
+        {sorted.map((row) => {
+          const name = channelName(row.account.handle)
+          const when = postedDateText(new Date(row.postedAt ?? row.createdAt))
+          const numbersWhen = row.numbersReadAt ? `Numbers read ${postedDateText(new Date(row.numbersReadAt)).toLowerCase()}` : "Numbers not read yet"
+          return (
+            <TableRow key={row.id} className="group">
+              <TableCell column="select">
+                <Checkbox checked={selection.selected.has(row.id)} onCheckedChange={() => selection.toggle(row.id)} aria-label={`Select ${row.title}`} />
+              </TableCell>
+              <TableCell column="main" className="max-w-0">
+                <span className="flex min-w-0 items-center gap-2">
+                  {row.isShort ? (
+                    <SmartphoneIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Short" />
+                  ) : (
+                    <PlayIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Video" />
+                  )}
+                  <Hint label={row.title}>
+                    <span className="block truncate text-sm font-medium">{row.title}</span>
+                  </Hint>
+                </span>
+                <span className="block truncate text-xs text-muted-foreground @4xl:hidden">
+                  {name} · {when}
+                </span>
+                {row.status === "failed" && row.lastError ? (
+                  <Hint label={row.lastError}>
+                    <span className="block truncate text-xs text-destructive">{row.lastError}</span>
+                  </Hint>
+                ) : null}
+                {row.thumbnailNote ? (
+                  <Hint label={row.thumbnailNote}>
+                    <span className="block truncate text-xs text-amber-600 dark:text-amber-400">Thumbnail not set: {row.thumbnailNote}</span>
+                  </Hint>
+                ) : null}
+              </TableCell>
+              <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
+                <span className="block truncate">{name}</span>
+              </TableCell>
+              <TableCell column="meta">
+                <span className={cn(row.status === "failed" ? "text-destructive" : row.status === "waiting" ? "text-muted-foreground" : "")}>
+                  {YOUTUBE_POST_STATUS_WORDS[row.status]}
+                </span>
+              </TableCell>
+              <TableCell column="meta" className="text-right tabular-nums">
+                <Hint label={numbersWhen}>
+                  <span>{countWords(row.views)}</span>
                 </Hint>
-              ) : null}
-            </TableCell>
-            <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
-              <span className="block truncate">{name}</span>
-            </TableCell>
-            <TableCell column="meta">
-              <span className={cn(row.status === "failed" ? "text-destructive" : row.status === "waiting" ? "text-muted-foreground" : "")}>
-                {YOUTUBE_POST_STATUS_WORDS[row.status]}
-              </span>
-            </TableCell>
-            <TableCell column="meta" className="text-right tabular-nums">
-              <Hint label={numbersWhen}>
-                <span>{countWords(row.views)}</span>
-              </Hint>
-            </TableCell>
-            <TableCell column="meta" className="hidden text-right tabular-nums @2xl:table-cell">
-              {countWords(row.likes)}
-            </TableCell>
-            <TableCell column="meta" className="hidden text-right tabular-nums @2xl:table-cell">
-              {countWords(row.comments)}
-            </TableCell>
-            <TableCell column="meta" className="hidden text-muted-foreground @4xl:table-cell">
-              {when}
-            </TableCell>
-            <TableCell column="actions">
-              {row.postUrl ? (
-                <Hint label="Open it on YouTube">
-                  <Button type="button" size="icon" variant="ghost" asChild>
-                    <a href={row.postUrl} target="_blank" rel="noreferrer" aria-label={`Open ${row.title} on YouTube`}>
-                      <ExternalLinkIcon className="size-4" />
-                    </a>
-                  </Button>
-                </Hint>
-              ) : null}
-              {row.cancellable && canManage ? (
-                <Hint label="Call off: the upload has not started">
-                  <Button type="button" size="icon" variant="ghost" disabled={busy} onClick={() => void callOff([row.id])} aria-label={`Call off ${row.title}`}>
-                    <XIcon className="size-4" />
-                  </Button>
-                </Hint>
-              ) : null}
-            </TableCell>
-          </TableRow>
-        )
-      })}
-    </DashboardTable>
+              </TableCell>
+              <TableCell column="meta" className="hidden text-right tabular-nums @2xl:table-cell">
+                {countWords(row.likes)}
+              </TableCell>
+              <TableCell column="meta" className="hidden text-right tabular-nums @2xl:table-cell">
+                {countWords(row.comments)}
+              </TableCell>
+              <TableCell column="meta" className="hidden text-muted-foreground @4xl:table-cell">
+                {when}
+              </TableCell>
+              <TableCell column="actions">
+                {row.postUrl ? (
+                  <Hint label="Open it on YouTube">
+                    <Button type="button" size="icon" variant="ghost" asChild>
+                      <a href={row.postUrl} target="_blank" rel="noreferrer" aria-label={`Open ${row.title} on YouTube`}>
+                        <ExternalLinkIcon className="size-4" />
+                      </a>
+                    </Button>
+                  </Hint>
+                ) : null}
+                {row.cancellable && canManage ? (
+                  <Hint label="Call off: the upload has not started">
+                    <Button type="button" size="icon" variant="ghost" disabled={busy} onClick={() => void callOff([row.id])} aria-label={`Call off ${row.title}`}>
+                      <XIcon className="size-4" />
+                    </Button>
+                  </Hint>
+                ) : null}
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </DashboardTable>
+      )}
+    </>
   )
 }

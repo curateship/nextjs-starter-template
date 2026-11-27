@@ -160,9 +160,10 @@ export const promoProjects = pgTable(
      */
     pausedCommenting: jsonb("paused_commenting").$type<Network[]>().notNull().default([]),
     /**
-     * The networks left out of the project's Networks block, from the
-     * block's ⋮ (Tyler, 14 Nov 2026: "i should be able to hide and drag and
-     * drop networks here"). They stay on the project and keep running.
+     * The networks left out of Promote's tabs on the project's page, from
+     * the project's ⋮, Networks (Tyler, 14 Nov 2026, of the Networks block
+     * those tabs replaced: "i should be able to hide and drag and drop
+     * networks here"). They stay on the project and keep running.
      * Added by `drizzle/0237_promo_hidden_networks.sql`.
      */
     hiddenNetworks: jsonb("hidden_networks").$type<Network[]>().notNull().default([]),

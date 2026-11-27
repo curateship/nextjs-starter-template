@@ -149,10 +149,9 @@ describe("projects", () => {
     expect(projectDescriptionText((await db.select().from(promoProjects).where(eq(promoProjects.id, id)))[0].description)).toBe("Changed.")
   })
 
-  it("keeps the page's blocks and its fixed blocks once each, and tells the AI the words alone", async () => {
+  it("keeps the page's basic blocks, drops the old fixed blocks, and tells the AI the words alone", async () => {
     const id = await createProject(userId, "Paged", db)
-    // A description saved before 12 Nov 2026, words and formatting only, reads the same with the fixed blocks on top:
-    // Content's Dashboards, Viral, Content, Research and Videos, then Networks (`workspace/docs/content-app.md`).
+    // A description saved before 12 Nov 2026, words and formatting only, reads the same.
     const old: WrittenPageNode = {
       type: "doc",
       content: [
@@ -163,29 +162,18 @@ describe("projects", () => {
     }
     await db.update(promoProjects).set({ description: JSON.stringify(old) }).where(eq(promoProjects.id, id))
     const view = await readProjectView(userId, id, db)
-    expect(JSON.parse(view.project.descriptionPage)).toEqual({
-      type: "doc",
-      content: [
-        { type: "contentProjectDashboards" },
-        { type: "contentProjectViral" },
-        { type: "contentProjectContent" },
-        { type: "contentProjectResearch" },
-        { type: "contentProjectVideos" },
-        { type: "notePromoNetworks" },
-        ...(old.content ?? []),
-      ],
-    })
+    expect(JSON.parse(view.project.descriptionPage)).toEqual(old)
     const { projectDescription: told } = await import("./projects")
     expect(await told(userId, id, db)).toBe("What we make\nInvoices\nFast.")
 
-    // Blocks are kept; a second Networks block goes, and the one moved under the words stays there. The
-    // missing fixed blocks go on top, and the Dashboard block Content once had goes.
+    // The fixed blocks the project's left panel drew in it until 27 Nov 2026 go, as any block
+    // the page does not know (`workspace/docs/content-app.md`); the basic blocks stay.
     const page = {
       type: "doc",
       content: [
-        { type: "contentProjectDashboard" },
+        { type: "contentProjectDashboards" },
+        { type: "contentProjectContent" },
         { type: "paragraph", content: [{ type: "text", text: "We make invoices." }] },
-        { type: "notePromoNetworks" },
         { type: "notePromoNetworks" },
         { type: "noteCallout", attrs: { kind: "note" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Secret plan." }] }] },
         { type: "taskList", content: [{ type: "taskItem", attrs: { checked: false }, content: [{ type: "paragraph", content: [{ type: "text", text: "Hidden task." }] }] }] },
@@ -194,33 +182,18 @@ describe("projects", () => {
     }
     await updateProject(userId, id, { page: JSON.stringify(page) }, db)
     const saved = JSON.parse((await readProjectView(userId, id, db)).project.descriptionPage) as { content: { type: string }[] }
-    expect(saved.content.map((node) => node.type)).toEqual([
-      "contentProjectDashboards",
-      "contentProjectViral",
-      "contentProjectContent",
-      "contentProjectResearch",
-      "contentProjectVideos",
-      "paragraph",
-      "notePromoNetworks",
-      "noteCallout",
-      "taskList",
-    ])
+    expect(saved.content.map((node) => node.type)).toEqual(["paragraph", "noteCallout", "taskList"])
     // The AI is told the words, never what sits in a block.
     const { projectDescription } = await import("./projects")
     expect(await projectDescription(userId, id, db)).toBe("We make invoices.")
 
-    // A page saved without them gets them back on top.
-    await updateProject(userId, id, { page: JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hi." }] }] }) }, db)
+    // A description stored with the old fixed blocks reads without them.
+    await db
+      .update(promoProjects)
+      .set({ description: JSON.stringify({ type: "doc", content: [{ type: "notePromoNetworks" }, { type: "paragraph", content: [{ type: "text", text: "Hi." }] }] }) })
+      .where(eq(promoProjects.id, id))
     const back = JSON.parse((await readProjectView(userId, id, db)).project.descriptionPage) as { content: { type: string }[] }
-    expect(back.content.map((node) => node.type)).toEqual([
-      "contentProjectDashboards",
-      "contentProjectViral",
-      "contentProjectContent",
-      "contentProjectResearch",
-      "contentProjectVideos",
-      "notePromoNetworks",
-      "paragraph",
-    ])
+    expect(back.content.map((node) => node.type)).toEqual(["paragraph"])
   })
 
   it("refuses a save from a copy that is no longer what is stored, keeping the words", async () => {
@@ -239,7 +212,7 @@ describe("projects", () => {
     expect(await projectDescription(userId, id, db)).toBe("Still tab one.")
   })
 
-  it("saves the Networks block's order and hidden networks, refusing an order that is not the project's networks", async () => {
+  it("saves Promote's network order and hidden networks, refusing an order that is not the project's networks", async () => {
     const id = await createProject(userId, "Arranged", db, ["reddit", "instagram", "medium"])
     await arrangeProjectNetworks(userId, id, { order: ["medium", "reddit", "instagram"], hidden: ["instagram", "x"] }, db)
     const view = await readProjectView(userId, id, db)

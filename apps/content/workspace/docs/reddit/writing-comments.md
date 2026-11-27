@@ -307,8 +307,7 @@ one under a post the other group commented on
 ## The pace line
 
 Beside Post, inside the box, it says who it posts as: "as u/name",
-with "3 comments in the last hour, 11 today." in its tooltip. The account's
-comments today are also on its card in the left column. Past the number in
+with "3 comments in the last hour, 11 today." in its tooltip. Past the number in
 Settings → Behaviour (4 an hour) an amber line shows above the box and says "That would be the
 5th comment this hour. New accounts get banned for less." That warning never
 turns Post off. Failed attempts are not counted. Answers to replies count, because

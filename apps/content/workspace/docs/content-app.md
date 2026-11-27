@@ -149,8 +149,14 @@ project itself"):
 - **Formats:** saved formats that write scripts for any project.
 
 They are Research's own section screens, read when they show
-(`src/lib/content-app/research-search.ts`), and the Projects block narrows
-them to one project as it does the rest. Their rows carry no count. Research's
+(`src/lib/content-app/research-search.ts`), showing every project's. The
+Projects block narrowed them to one project; since it went, only a saved view
+that holds a project does.
+
+The left panel has no Projects block (Tyler, 27 Nov 2026: "Remove projects
+block. List row only"): a row of the Projects list opens the project, and the
+same left panel stays while it shows (`useProjectsLeft` in
+`src/components/content-app/projects-left.tsx`). Their rows carry no count. Research's
 separate dashboard, at `/admin/viral`, is gone: its Overview and Projects rows
 repeated this dashboard's.
 
@@ -169,58 +175,69 @@ away.
 
 ## A project's own page
 
-`/admin/projects/<id>`, Promo's project page with five more fixed blocks on
-its left panel, above the networks (`src/components/content-app/project-blocks.tsx`):
+`/admin/projects/<id>`, opened from its row on the Projects list. Tyler,
+27 Nov 2026: "When clicking on a project. I dont want the left panel to change
+so that means we can remove the project's overview and its widgets. The
+networks tab can go in the middle panel content sub header tabs. The flow
+would look like this: click project > middle and right panel change > middle
+panel first load will be it's content archive. The middle panel header would
+have these tabs [Content] [Research] [Promote] The idea is we move all the
+blocks per project to the middle panel". His answers the same day: "Remove
+projects block. List row only", the project's videos "Inside Content", "A
+Posts / Commenting switch", and "A ⋮ on the project's tabs". After the first
+build: "remove the name", "I dont like the 2 extra subheader. Lets put them
+all in the top header so we have just one header. The tabs can now be either
+dropdowns or filter", the ⋮ after the list's New button, the Archive's Bin and
+zip "should be buttons on the right", Research's two ⋮ "should be merged",
+and "move discritption to general. it dfoesnt need its own tab". The task is
+`workspace/tasks/Content/03-project-in-the-middle-panel.md`.
 
-- **Dashboards and Viral:** the Projects dashboard's two blocks, drawn the
-  same way (Tyler, 27 Nov 2026: "lets bring back the dashboard block for
-  project. The only link we have there is overview, projects, vault, hook and
-  format"). Dashboards holds Overview, this project's widgets and the page's
-  home, with the count of widgets showing, and Projects, with how many there
-  are. Viral holds Vault, Hooks and Formats. Projects, Vault, Hooks and
-  Formats are every project's, so they open the Projects dashboard.
-
-- **Content:** the project's videos, carousels and pictures in the Archive,
-  with one row, All items, and the count on its heading (Tyler, 27 Nov 2026:
-  "put content into its own block"). It replaced the Dashboard block, which
-  held Overview and Content (Tyler, 27 Nov 2026: "the project own dashboard
-  is not needed").
-- **Research:** Found videos with how many are new, the Vault, Winning ads,
-  then a row for each social Research reads.
-- **Videos:** the project's videos with their status, and New video, which
-  opens Video's own New video window (a name and a shape, or a template, never
-  a made-up name).
-- **Promote:** Promo's Networks block, renamed: a card per network with its
-  Posts and Commenting rows.
-
-How the page behaves:
-
-- **One row is picked at a time**, across the blocks, with the sliding bar.
-- **Overview is the page's home** (Tyler, 27 Nov 2026: "Just make the home
-  the overview"). The project opens on it whenever the address names no row,
-  and Dashboards' Overview row leads back to it. It takes the middle and the right, with no arrow
-  back; its rows and spots are the left panel's ⋮, at Widgets. The rules are
-  in `projects-dashboard.md`, "Overview on a project's page".
-- **Voices and Accounts on each network:** see below.
-- **Research** is `/admin/projects/<id>/research`. It is Viral's project page
-  with the project's own left panel in place of Viral's, the same column
-  widths as the project's page, and its arrow back to the Projects dashboard.
-  Its address holds Viral's own keys (`view`, `social`, `open` and the rest).
-- **Research's settings** are the ⋮ at the end of its middle header, "Research
-  settings": its General tab holds Search (Niche, Posted within, Country,
-  Language, Videos, Minimum views and Minimum score) and AI (Spend limit), and
-  its Socials tab adds, pauses and takes off the socials it reads. The name,
-  cover, topic, duplicate and delete are the whole project's, on its own ⋮;
-  Research's topic is the project's description.
-- **A guest sent from Project** has no Overview and opens on the first
-  network. A guest sees the Content block, and a line in place of Research
-  and Videos, which only the owner sees. Viral's and Video's screens have no
-  way in for a Promo guest.
+- **The left panel** is the Projects dashboard's, unchanged, with Projects
+  picked in its Dashboards block.
+- **The middle has one header** per list: the arrow back, Content, Research
+  and Promote, the tab's own dropdown, the list's own dropdown and buttons,
+  then the project's ⋮. `projects-dashboard.md`, "The one header", has the
+  order and how it gives way on a narrow window.
+- **Content** is the page's home and its plain address. Its dropdown picks
+  **All items**, the project's Archive with its first item on the right
+  (`archive.md`), or **Videos**, the project's videos with their status,
+  length and last edit and New video, Video's own window
+  (`src/components/content-app/project-videos.tsx`). A video opens the editor
+  on the whole screen; Videos has no right panel, so the list takes its room.
+- **Research** is `/admin/projects/<id>/research`: Viral's project screen
+  with this left panel. Its dropdown picks Found videos, Hooks, Sounds or
+  Creators. The vault is the Projects dashboard's own Vault, which can show
+  one project's ideas, and Winning ads is gone (Tyler, 27 Nov 2026: "Remove
+  winning ads feature ... and vault dont belong here"). An old address
+  naming either opens Found videos. The socials it reads are the **Social** row
+  first in its Filter; picking X, Reddit or LinkedIn there shows that social's
+  posts. Its address holds Viral's own keys (`view`, `social`, `open` and the
+  rest).
+- **Promote**'s dropdown picks a network and its side, "Reddit · Posts" or
+  "Reddit · Commenting", the Posts and Commenting rows of the Promote block
+  before (`projects-dashboard.md`, "Promote's networks").
+- **The project's ⋮**, last in every header, holds General (Name,
+  Description, AI spend cap, Cover photo, Pin, Pause, Lock description, New
+  project, Duplicate, Delete), Networks, and on Research, Research and
+  Socials, Research's own settings (Search, AI spend limit, the socials it
+  reads). The description is what the AI is told and Research's topic. The
+  name, cover, topic, duplicate and delete are the whole project's.
+- **What went:** the project's own left panel with its Dashboards, Viral,
+  Content, Research, Videos and Promote blocks, and the project's Overview
+  with its widgets. The Projects dashboard's Overview stays; its Found today
+  opens a project's Research, Videos in progress the editor, and Archive room
+  the project's Content.
+- **A guest sent from Project** has no left panel, since it lists every
+  project, no arrow back and no Research. A guest's plain address opens
+  Promote's first network, as it always did, and Content is `?archive=1`,
+  All items alone. The ⋮ holds General with the Description row alone. Viral's
+  and Video's screens have no way in for a Promo guest. This was a reading,
+  not one of Tyler's answers.
 
 ## Voices and Accounts on each network
 
-Every network on a project's page has two more tabs at the end of its middle
-panel's tab row, on each of its rows (`src/components/content-app/network-panes.tsx`):
+Every network on a project's page has two more choices at the end of its
+list dropdown, on Posts and on Commenting (`src/components/content-app/network-panes.tsx`):
 
 - **Voices** (Tyler, 27 Nov 2026: "The voices goes into the middle tab for its
   own network"): the Voices section in the network's middle and right, the
@@ -237,24 +254,24 @@ panel's tab row, on each of its rows (`src/components/content-app/network-panes.
 
 How they behave:
 
-- **One header.** The tab's list keeps the network's own header: the reopen
-  button, the arrow back and the network's tabs with their counts, then the
-  list's search, Select and New.
+- **One header.** The pane keeps the network's one header: the project's
+  controls, the list dropdown, then the list's search, Select and New, and
+  the project's ⋮.
 - **In place of the network's lists.** The network draws the tab instead of
   its own lists, so nothing of them runs behind it.
 - **The address** holds `pane=voices` or `pane=accounts`, with the open voice
-  or account in `open` and the Filter's keys. A network's own tab, another
-  row, another network or Content leaves it, with its open row and filters.
+  or account in `open` and the Filter's keys. A network's own list, the other
+  side, another network or Content leaves it, with its open row and filters.
 - **A guest** sent from Project has neither tab: voices and accounts are the
   owner's.
 
 ## The video editor
 
-Clicking a video in a project's Videos block opens the editor on the whole
-screen beside the left menu, as Video's editor always was (Tyler, 26 Nov 2026:
+Clicking a video on Content's Videos opens the editor on the whole screen
+beside the left menu, as Video's editor always was (Tyler, 26 Nov 2026:
 "Option 1: whole screen"). Its header starts with a button carrying the
-project's name, which goes back to the project's page, on its Overview
-(`src/components/content-app/editor-back.tsx`). A video project made outside a
+project's name, which goes back to Content's Videos, the list the video was
+opened from (`src/components/content-app/editor-back.tsx`). A video project made outside a
 project, if one were left, goes back to the video projects list as before.
 
 ## Carousels
@@ -290,7 +307,7 @@ read, and never again once it has a project (`src/server/content-app/sample.ts`)
 Its name starts "Sample:".
 
 - **Research:** Viral's sample, as it was: made-up found videos, one analysed
-  video, ideas in the vault, Winning ads, and X and Reddit posts. Its screen
+  video, ideas in the vault, and X and Reddit posts. Its screen
   says it is a sample and refuses to search.
 - **Videos:** two videos with empty timelines, a draft and one ready.
 - **Promote:** YouTube, Reddit and X, and on Reddit's Commenting three made-up

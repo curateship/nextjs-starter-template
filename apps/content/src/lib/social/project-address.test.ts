@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { commentingHref, readProjectSearch, sideOf } from "./project-address"
+import { commentingHref, projectTabOf, readProjectSearch, sideOf } from "./project-address"
 
 /** The row an address opens, read the way the project page reads it. */
 const side = (network: Parameters<typeof sideOf>[0], raw: Record<string, unknown>) => sideOf(network, readProjectSearch(raw))
@@ -68,5 +68,35 @@ describe("a network's Voices or Accounts tab in the address", () => {
     })
     const unknown = readProjectSearch({ pane: "messages", show: "board", status: "ok" })
     expect([unknown.pane, unknown.show, unknown.status]).toEqual([undefined, undefined, undefined])
+  })
+})
+
+describe("which of the project's tabs an address opens", () => {
+  // Tyler, 27 Nov 2026: "middle panel first load will be it's content archive".
+  it("opens Content on the plain address, and on Content's own keys", () => {
+    expect(projectTabOf(readProjectSearch({}), false)).toBe("content")
+    expect(projectTabOf(readProjectSearch({ open: "item-1" }), false)).toBe("content")
+    expect(projectTabOf(readProjectSearch({ archive: "1", kind: "video" }), false)).toBe("content")
+    expect(projectTabOf(readProjectSearch({ content: "videos" }), false)).toBe("content")
+  })
+
+  it("opens Promote on anything a network has, so every notice and old link still lands there", () => {
+    expect(projectTabOf(readProjectSearch({ network: "reddit" }), false)).toBe("promote")
+    expect(projectTabOf(readProjectSearch({ side: "commenting" }), false)).toBe("promote")
+    expect(projectTabOf(readProjectSearch({ view: "comments" }), false)).toBe("promote")
+    expect(projectTabOf(readProjectSearch({ pane: "voices" }), false)).toBe("promote")
+    expect(projectTabOf(readProjectSearch({ post: "p1" }), false)).toBe("promote")
+    expect(projectTabOf(readProjectSearch({ promote: "1" }), false)).toBe("promote")
+    // The router hands `?promote=1` over as a number.
+    expect(projectTabOf(readProjectSearch({ promote: 1 }), false)).toBe("promote")
+  })
+
+  it("opens a guest's plain address on Promote, and a guest's Content beside ?archive=1", () => {
+    expect(projectTabOf(readProjectSearch({}), true)).toBe("promote")
+    expect(projectTabOf(readProjectSearch({ archive: "1" }), true)).toBe("content")
+  })
+
+  it("reads only the values it knows for Content's and Promote's own keys", () => {
+    expect(readProjectSearch({ content: "carousels", promote: "yes" })).toMatchObject({ content: undefined, promote: undefined })
   })
 })

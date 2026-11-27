@@ -20,7 +20,7 @@ import type { VaultStatus } from "@/lib/viral/vault"
  * block, and Research's three lists that belong to no one project, every
  * project's Vault, Hooks and Formats, in the Viral block. Research itself
  * lives inside each project. Voices and the Archive are each project's: a
- * network's Voices tab and the project's Content block (Tyler, 27 Nov 2026:
+ * network's Voices tab and the project's Content tab (Tyler, 27 Nov 2026:
  * "The voice should not be its own sidebar link", "Archive should also not
  * have its own link either").
  */
@@ -61,7 +61,11 @@ const REASONS = [...RETIRED_REASONS, REASON_NOT_RECORDED] as const
 
 export type ProjectsSearch = {
   section?: Exclude<ProjectsSection, "projects">
-  /** One project, picked in the Projects block: Overview, Accounts and Messages show only its rows. */
+  /**
+   * Vault, Hooks and Formats: one project, from a saved view that holds one. The other sections show every project's rows: the Projects block
+   * that narrowed them is gone (Tyler, 27 Nov 2026: "Remove projects block.
+   * List row only").
+   */
   project?: string
   /** The row open on the right. */
   open?: string
@@ -122,7 +126,6 @@ export function readProjectsSearch(search: Record<string, unknown>): ProjectsSea
     if (research.show) out.show = research.show
     return out
   }
-  if (typeof search.project === "string" && ID.test(search.project)) out.project = search.project
   const { open } = readOpenSearch(search)
   if (open && ID.test(open)) out.open = open
   const q = readSearchText(search.q)
@@ -137,10 +140,7 @@ export function sectionOf(search: ProjectsSearch): ProjectsSection {
   return search.section ?? "projects"
 }
 
-/**
- * The address for a section picked in the Dashboards block: a fresh start in
- * that section, keeping only the project picked in the Projects block.
- */
-export function sectionSearch(section: ProjectsSection, keep: Partial<ProjectsSearch> = {}): ProjectsSearch {
-  return { ...(section === "projects" ? {} : { section }), ...keep }
+/** The address for a section picked in the Dashboards or Viral block: a fresh start in that section. */
+export function sectionSearch(section: ProjectsSection): ProjectsSearch {
+  return section === "projects" ? {} : { section }
 }

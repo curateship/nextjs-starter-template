@@ -1,15 +1,17 @@
 import * as React from "react"
-import { ListChecksIcon, Loader2Icon, MegaphoneIcon, SparklesIcon, TagIcon, XIcon } from "lucide-react"
+import { ProjectMenuButton } from "@/components/content-app/project-top"
+import { Loader2Icon, MegaphoneIcon, SparklesIcon, TagIcon, XIcon } from "lucide-react"
 
 import { MenuAction, MenuLine } from "@/components/shared/folding-menu"
 import { Hint } from "@/components/social/hint"
-import { CrmListHeader } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
 import {
   Select,
   SelectContent,
@@ -30,7 +32,6 @@ import type { KeywordRow } from "@/server/social/keywords"
 
 import { KeywordPicker, type KeywordPickerItem } from "../keyword-picker"
 import { KeywordIdeasDialog } from "./keyword-ideas-dialog"
-import { ProjectBackButton } from "@/components/social/projects/project-back"
 import { StalledJobs } from "../stalled-jobs"
 
 /**
@@ -170,21 +171,37 @@ export function KeywordsBar({
     }
   })
 
-  // The one middle header every list in the design has (`CrmListHeader`):
+  // The one middle header every list in the design has (`ListHeader`):
   // the tabs, the "N selected" menu, the search box, Select, the keywords
-  // dropdown (`KeywordPicker`), the jobs warning, and a ⋮ with Jobs, Ideas
-  // and the self-promotion threads.
+  // dropdown (`KeywordPicker`), the jobs warning, and the project's ⋮, with
+  // Jobs among General's actions and Ideas and the self-promotion threads on
+  // its Commenting tab.
   return (
     <>
-      <CrmListHeader
+      <ListHeader
         tabs={
           <>
-            <PanelReopenButton side="left" label="Show the project" />
-            <ProjectBackButton />
+            <PanelReopenButton side="left" label="Show the Projects page" />
+            <ProjectHeaderLead />
             {tabs}
           </>
         }
-        end={<PanelReopenButton side="right" label="Show the post and your comment" />}
+        // Jobs, Ideas and the self-promotion threads are a tab of the project's ⋮, so the header has one ⋮.
+        end={
+          <>
+            <ProjectMenuButton
+              jobs={jobs}
+              actions={{
+                title: "Commenting",
+                items: [
+                  ...(guest ? [] : [{ label: "Ideas", icon: <SparklesIcon className="size-4" />, onClick: () => setIdeasOpen(true) }]),
+                  { label: "Self-promotion threads", icon: <MegaphoneIcon className="size-4" />, onClick: onThreads },
+                ],
+              }}
+            />
+            <PanelReopenButton side="right" label="Show the post and your comment" />
+          </>
+        }
         selected={tools.selected}
         massSelect={tools.massSelect}
         search={{
@@ -253,12 +270,7 @@ export function KeywordsBar({
           {stalledJobs ? <StalledJobs queued={stalledJobs.queued} onOpen={stalledJobs.onOpen} /> : null}
           </>
         }
-        menuLabel={guest ? "Self-promotion threads" : "Jobs, ideas and self-promotion threads"}
-        menuItems={[
-          ...(jobs ? [{ label: jobs.waiting ? `Jobs · ${jobs.waiting}` : "Jobs", icon: <ListChecksIcon className="size-4" />, onClick: jobs.onOpen }] : []),
-          ...(guest ? [] : [{ label: "Ideas", icon: <SparklesIcon className="size-4" />, onClick: () => setIdeasOpen(true) }]),
-          { label: "Self-promotion threads", icon: <MegaphoneIcon className="size-4" />, onClick: onThreads },
-        ]}
+        menuLabel="More for these posts"
       />
       <KeywordIdeasDialog
         projectId={projectId}

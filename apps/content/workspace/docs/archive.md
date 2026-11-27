@@ -31,9 +31,10 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
 
 ## Where it is
 
-- **Each project's Content block**, on its page (`/admin/projects/<id>?archive=1`),
-  since 27 Nov 2026 (Tyler: "Archive should also not have its own link
-  either"). Links to an item, as Video's Open in Promo, open it there
+- **Each project's Content**, All items, on its page (`/admin/projects/<id>`,
+  the plain address, or `?archive=1` with filters), since 27 Nov 2026 (Tyler:
+  "Archive should also not have its own link either", then "middle panel first
+  load will be it's content archive"). Links to an item, as Video's Open in Promo, open it there
   (`?archive=1&open=<item id>`). Until then it was the Archive section of the
   Projects dashboard, `/admin/projects?section=archive`, as described next;
   that address now lands on Projects.
@@ -50,27 +51,36 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
   - **Storage:** Overview's Archive room widget shows each project's items and
     the room they take with what that costs, "12.4 GB, about $0.19 a month",
     as Tyler's rule says.
-- **Inside a project.** A project's own page has an Archive row under Networks,
-  in a section called Content. Picking it shows its own middle and right panels
-  for that project alone (`?archive=1`). Guests from Project reach the archive
-  this way.
+- **Inside a project.** Content is the first of a project's three tabs, and
+  All items its first choice: the project's items in the middle and the open
+  one on the right. A guest from Project reaches it from Content too
+  (`?archive=1`).
 
 ## The middle panel
 
-- **Tabs:** All, Videos, Carousels, Pictures and Bin with its count (a dropdown
-  when the middle is narrow).
-- **The header, left to right:** the search, Select, Filter, Views, Add, and a
-  ⋮ with Download everything as a zip while a project is picked. A name in
-    the zip loses any dots at its start, so a title such as ".." can never
-    become a folder outside the zip's own (`zipName` in
-    `src/server/archive/zip.ts`).
+- **The one header, left to right** ([list-header.md](list-header.md)): the
+  arrow back, Content, Research and Promote; then on the right the search
+  icon, the All items dropdown, the kind dropdown (Every kind, Videos,
+  Carousels, Pictures), Filter, Add, and the project's ⋮. Select is the first
+  action on the ⋮'s General tab.
+- **The Bin is a tab of the project's ⋮** (Tyler, 27 Nov 2026: "The bin
+  should open up a modal instead", then "move bin into the tab here
+  instead"), named "Bin · 2" while it holds two. It lists the project's
+  deleted items, newest first, each with Put back and Delete for good (which
+  asks first: its files leave storage and it can't be put back), and says
+  they go for good 30 days after deleting anyway. It is read each time the tab opens. Old addresses
+  with `?bin=1` open the archive.
+- **No zip.** "Download everything as a zip" went on 27 Nov 2026 (Tyler:
+  "Remove the download zip feature"), with its address
+  (`/api/archive/zip/<project id>`) and `src/server/archive/zip.ts`.
   - **Search** looks in titles, captions and descriptions.
   - **Filter** has three choices: Posted (Not posted yet), Sort (Most viewed) and
     Group (By Video project).
   - **Views** are saved per project, so they show while a project is picked. A
     project's own page leaves them out.
-  - **Add** is a menu. Upload or pick files opens the media library. **Ask
-    Video for a video** sends a brief to a Video project you pick (part 42).
+  - **Add** is a menu. Upload or pick files opens the media library. **Create
+    video** (named "Ask Video for a video" until Tyler renamed it on 27 Nov
+    2026) sends a brief to a Video project you pick (part 42).
     Video makes a draft video there, with the brief as its notes and its first
     line as the name, and rings its bell. Nothing is written by AI. With no
     project picked, each action is listed once per project, so nothing lands

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { SearchToggle } from "@/components/shared/search-toggle"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
 import {
   ArchiveIcon,
@@ -17,8 +18,7 @@ import { CarouselProjectFormDialog } from "@/components/carousel-studio/carousel
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
-  DashboardToolbarSearch,
-} from "@/components/shared/dashboard-toolbar"
+  } from "@/components/shared/dashboard-toolbar"
 import {
   SortableTableHeader,
   type SortableColumn,
@@ -268,12 +268,12 @@ export function CarouselProjectsPage({
                 Delete ({selectedCount})
               </DashboardToolbarButton>
             ) : null}
-            <DashboardToolbarSearch
+            <SearchToggle
               name="carousel-project-search"
-              aria-label="Search carousel projects"
+              label="Search carousel projects"
               placeholder="Search projects…"
               value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
+              onChange={setSearchText}
             />
             <FolderMenu
               api={carouselFolderApi}

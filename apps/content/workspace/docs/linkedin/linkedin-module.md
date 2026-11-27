@@ -1,8 +1,9 @@
 # The LinkedIn module
 
 LinkedIn is a network a project can add, beside Reddit, Instagram, TikTok,
-Medium and X. Picking its row in the project's left column fills the middle
-and right columns with LinkedIn's panels. It came from
+Medium and X. Picking "LinkedIn · Posts" or "LinkedIn · Commenting" in the
+dropdown of the project's Promote tab fills the middle and right columns with
+LinkedIn's panels. It came from
 `workspace/tasks/LinkedIn/01-linkedin-features.md`, whose 48 parts Tyler
 picked on 22 Oct 2026.
 
@@ -50,9 +51,9 @@ picked on 22 Oct 2026.
 - **The right column** shows what is open: a post and the comment being
   written on it, a sent comment, or a post of your own being written. On the
   People tab it says that everything there happens in the middle column.
-- **The LinkedIn row in the project's left column, under Commenting** carries a count: the strong posts
-  waiting, the replies nobody has answered, and the connection requests
-  waiting. It has its own pause button, as every network's row does.
+- **"LinkedIn · Posts" in Promote's dropdown** carries how many of your posts
+  need you, failed ones and drafts not sent yet. LinkedIn is paused on its own
+  from the project's ⋮, under Networks, as every network is.
 - **The notices** say when LinkedIn is paused on the project, when there is
   no search account, when a search account rests for the day, how many views
   each has spent today, when the browser program is not running, and when

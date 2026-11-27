@@ -56,8 +56,6 @@ suspicious?" So the phones do not check the inbox on a clock.
   when the newest line arrived. Newest first.
 - **Platform**, in Filter, narrows to one network (`?platform=`), and the
   search box looks through names and words.
-- **The Projects block** on the dashboard's left page narrows the list to the
-  conversations written to one project's accounts.
 - **Select** ticks conversations for Skip, and a row's right-click menu has
   Skip too.
 - **The bell** rings "New message for @name on Instagram" when a conversation

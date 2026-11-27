@@ -10,13 +10,17 @@ apps' docs, listed below under the app each came from. Where one of them says
 ## Content
 
 - [content-app.md](content-app.md) — how the three fit together: one project
-  under one id, a project's page with Overview as its home, its Dashboards,
-  Viral, Content, Research, Videos and Promote blocks and each network's
-  Voices and Accounts tabs, Research's address and settings, the editor's back button,
+  under one id, a project's page under the Projects dashboard's left panel
+  with Content, Research and Promote in one header, Content's All items and
+  Videos, each network's Voices and Accounts, Research's address and its
+  settings in the project's ⋮, the editor's back button,
   the Projects dashboard's Found today, Videos in progress, Vault, Hooks and
   Formats, the one left menu, the sample project, the Project app's two
   links, the links between the three inside the app, and the three apps
   retired.
+- [list-header.md](list-header.md) — every list's one header: search as an
+  icon, the dropdowns right after it, Select and Jobs in the ⋮, the outlined
+  buttons, and the shell dashboards it does not reach.
 
 ## From Video
 
@@ -417,27 +421,29 @@ turn as the code. Write it the way `.agents/skills/unslop/SKILL.md` says.
 ### Projects
 
 - [The Projects dashboard](projects-dashboard.md): Tyler's answers of
-  12 Nov 2026, one three-panel dashboard of Overview, Projects, Voices,
-  Accounts, Archive and Messages, the left page with its Dashboards and
-  Projects blocks, Overview's five widgets, a project's summary with Open
-  project, the old addresses that still land; and a project's own page with
-  its description, networks and posts, what the AI is told about what you
-  make, and pausing a project.
+  12 Nov 2026, one three-panel dashboard of Overview, Projects, Accounts and
+  Messages, the left page with its Dashboards and Viral blocks, Overview's
+  widgets, a project's summary with Open project, the old addresses that
+  still land; and a project's own page with the same left panel, its one
+  header (the project's tabs, dropdowns and ⋮), Promote's networks, the
+  description, what the AI is told about what you make, and pausing a
+  project.
 - [Commenting inside a project](commenting.md): Tyler's answers of 5 Nov 2026,
-  each network a folding card with a Posts row and a Commenting row, the
+  each network's Posts and Commenting (choices of Promote's dropdown since
+  27 Nov 2026), the
   keywords dropdown in Commenting's header, what sits on each row, the counts, Pause
   commenting, the first post opening by itself, the address and old
   addresses, guests, and Reddit's keywords, posts, comment box, Today and
   accounts dropdown.
 - [Networks as modules](network-modules.md): a project picks the networks it
-  uses, each a row in its left column that fills the middle and right columns
-  with your own posts on it, the two sides of each network,
+  uses, each a choice of Promote's dropdown that fills the middle and right
+  columns with your own posts on it, the two sides of each network,
   Reddit's screens folded into its module as tabs and windows, the tables that
   fold by the column's width, and where the old addresses lead.
-- [The Archive](archive.md): each project's Content block, the project's
+- [The Archive](archive.md): each project's Content, All items, the project's
   videos, carousels and pictures, sent from Video
   or uploaded, the key on Settings → Video, how a send is copied,
-  the Bin, the zip, and posting from it with drafts, warnings and several
+  the Bin as a tab of the project's ⋮, and posting from it with drafts, warnings and several
   accounts at once.
 - [The link with Viral](viral-link.md): the key on Settings → Viral, the X,
   LinkedIn and Reddit reads Promo runs for Viral, the posts Viral leaves as
@@ -727,7 +733,6 @@ turn as the code. Write it the way `.agents/skills/unslop/SKILL.md` says.
 - [library.md](library.md): the Hooks and Formats rows: Hooks across every project and your own, hook types and Settings → Hook types, Write hooks like this, and saved Formats that write scripts.
 - [storage.md](storage.md): Settings → Storage and the button that deletes downloaded copies nobody opened for 30 days.
 - [phone-save.md](phone-save.md): sharing a video to Viral from an Android or iPhone.
-- [winning-ads.md](winning-ads.md): the Winning ads row, Write an ad like this, and Settings → Meta.
 - [send-to-video.md](send-to-video.md): Send to Video and the messages between Viral and Video.
 - [promo-connection.md](promo-connection.md): reading X, LinkedIn and Reddit through Promo, Write a post for Promo, and Promo reporting your posts back.
 - [Shell merges](shell-integration.md): each shell merge into Viral, what arrived and what stays Viral's own.

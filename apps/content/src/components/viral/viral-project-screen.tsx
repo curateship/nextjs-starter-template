@@ -14,27 +14,29 @@ import {
   SparklesIcon,
   Trash2Icon,
   UserPlusIcon,
-  VaultIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { ProjectBackButton } from "@/components/social/projects/project-back"
+import { ProjectMenuButton, SHRINKING_MENU } from "@/components/content-app/project-top"
+import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
+import { HeaderChoice } from "@/components/content-app/list-header"
+import { ViewMenu } from "@/components/shared/view-menu"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
-import { MassSelectChip, SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
+import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import {
   SaveViewDialog,
   SavedViewsControls,
   type EditFields,
   type SavedViewsScreen,
 } from "@/components/shared/saved-views"
-import { MiddleHeading, middleGutterClassName, PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
+import { middleGutterClassName, PanelReopenButton, ThreePanels } from "@/components/shared/three-panels"
 import { PROJECTS_PANEL_LAYOUT_KEY } from "@/lib/social/reddit/options"
 import { cn } from "@/lib/utils"
 import { RightCoverProvider } from "@/components/shared/notes/page-cover"
-import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
+import { CrmRowMenu } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -59,14 +61,8 @@ import { ProjectProvider, type ProjectContextValue } from "@/components/viral/pr
 import { SocialIcon } from "@/components/viral/social-icon"
 import { useKeyedAction } from "@/components/viral/use-keyed-action"
 import { useSavedProgress } from "@/components/viral/use-saved-progress"
-import { AdPanel, AdsMiddle } from "@/components/viral/project-ads"
-import { useProjectAds } from "@/components/viral/use-project-ads"
 import { PostThreadPanel, SocialSourcesDropdown, TextPostsMiddle } from "@/components/viral/text-socials"
 import { useTextSocials } from "@/components/viral/use-text-socials"
-import { VaultItemPanel } from "@/components/viral/vault-item-panel"
-import { VaultList } from "@/components/viral/vault-list"
-import { VaultSelectedMenu } from "@/components/viral/vault-selected-menu"
-import { NewIdeaDialog } from "@/components/viral/new-idea-dialog"
 import { CreatorTable, VideoGrid, VideoList } from "@/components/viral/video-grid"
 import type { SavedView } from "@/lib/api/saved-views"
 import { getViralErrorMessage } from "@/lib/api/viral/viral"
@@ -83,7 +79,6 @@ import {
   unfollowViralCreator,
   unhideViralChannelFn,
 } from "@/lib/api/viral/viral-projects"
-import { loadVault, type VaultItem } from "@/lib/api/viral/viral-vault"
 import { saveVideos } from "@/lib/api/viral/viral-videos"
 import {
   findSameIdeaFn,
@@ -183,15 +178,13 @@ type SameIdeaState =
   | { state: "ready"; view: SameIdeaView | null }
   | { state: "failed"; error: string }
 
-type ProjectVault = { state: "loading" } | { state: "ready"; items: VaultItem[]; tags: string[] } | { state: "failed"; error: string }
 
 /**
  * One project's own dashboard (`workspace/docs/project-page.md`), drawn on
  * the shell's three-panel design (task features/03): the project's page of
- * blocks on the left (Dashboards with Videos, Vault and Winning ads; Socials;
- * the creators; what Promo reads), what was found in the middle under one
- * header with the Keywords dropdown, and the open video, idea, post, creator
- * or ad on the right. Everything the address can hold lives there (the tab,
+ * blocks on the left (Dashboards with Videos; Socials; the creators; what
+ * Promo reads), what was found in the middle under one header with the
+ * Keywords dropdown, and the open video, post or creator on the right. Everything the address can hold lives there (the tab,
  * Filter's Show, the open video, the picked social and creator, the sort,
  * the filters), so a reload or a shared link opens the same thing. Nothing
  * here calls YouTube except the buttons that say what they cost.
@@ -201,16 +194,19 @@ export function ViralProjectScreenView({
   views,
   postViews,
   left: projectLeft,
+  rightCover,
 }: {
   screen: ViralProjectScreen
   views: SavedView[]
   /** Saved views on the X, Reddit and LinkedIn list, a kind of their own. */
   postViews: SavedView[]
   /**
-   * The project's own left panel: in Content, Research is a part of the
-   * project's page (`workspace/docs/content-app.md`).
+   * The Projects dashboard's left panel: in Content, Research is a tab of
+   * the project's page (`workspace/docs/content-app.md`).
    */
   left: React.ReactNode
+  /** The left page's cover, which the right panel carries on. */
+  rightCover: string | null
 }) {
   const router = useRouter()
   const search = projectRoute.useSearch()
@@ -219,13 +215,10 @@ export function ViralProjectScreenView({
   const view = search.view ?? "videos"
   // Filter's Show on Videos: every video, or only the downloaded or analysed ones (Tyler, 19 Nov 2026).
   const show = view === "videos" ? (search.show ?? null) : null
-  const vaultView = view === "vault"
-  // The Winning ads row on the left (features task part 23, `project-ads.tsx`).
-  const adsView = view === "ads"
   const social: Social | null = search.social && project.socials.includes(search.social) ? search.social : null
   // X, Reddit and LinkedIn find posts, read by Promo, rather than videos
   // (`text-socials.tsx`); with one picked, the middle and right show those.
-  const textSocial = social && isTextSocial(social) && !vaultView && !adsView ? social : null
+  const textSocial = social && isTextSocial(social) ? social : null
   const postSort = textSocial ? readTextPostSort(textSocial, search.psort) : "newest"
   const sort: ViralSort = search.sort ?? "score"
   const direction = search.direction ?? "desc"
@@ -234,7 +227,7 @@ export function ViralProjectScreenView({
   const fit = search.fit ?? 0
   const text = search.q ?? ""
   const followers = React.useMemo(() => ({ min: search.fmin ?? null, max: search.fmax ?? null }), [search.fmax, search.fmin])
-  const sameKey = vaultView || adsView || textSocial ? null : (search.same ?? null)
+  const sameKey = textSocial ? null : (search.same ?? null)
 
   // The list for a browser that never chose (Tyler, 20 Oct 2026).
   const [layout, setLayout] = useRememberedChoice(LAYOUT_STORAGE_KEY, "list", VIRAL_LAYOUTS)
@@ -250,8 +243,6 @@ export function ViralProjectScreenView({
   const [removing, setRemoving] = React.useState<ViralKeyword | null>(null)
   const [deletingVideos, setDeletingVideos] = React.useState<ViralVideo[]>([])
   const [pasting, setPasting] = React.useState(false)
-  const [vault, setVault] = React.useState<ProjectVault>({ state: "loading" })
-  const [newIdea, setNewIdea] = React.useState(false)
   // A switch flipped here shows at once, before the screen reads itself again.
   const [watchOverride, setWatchOverride] = React.useState<Record<string, boolean>>({})
   // Videos opened since the screen was read, so their New mark clears at once.
@@ -262,39 +253,62 @@ export function ViralProjectScreenView({
 
   const refresh = React.useCallback(() => router.invalidate(), [router])
 
-  // The arrow back to the Projects dashboard, starting every middle header before its tabs, as the project's other rows' do.
-  const projectLead = <ProjectBackButton />
+  // What the project's page puts first in every middle header (nothing on Research), as on its other tabs.
+  const projectLead = <ProjectHeaderLead />
+
+  /**
+   * Filter's Social row, first in every Filter on Found videos: every social
+   * the project reads, or one. They were rows of the Research block on the
+   * project's left panel; a slice of one list is a Filter row (Tyler, 19 Nov
+   * 2026: "We dont need analyzed and downloaded its own tab when it can be
+   * sectioned or filtered"). X, Reddit and LinkedIn find posts, so picking
+   * one shows its posts in place of the videos.
+   */
+  const socialRow = project.socials.length ? (
+    <FilterRow id="viral-filter-social" label="Social">
+      <Select
+        value={social ?? "all"}
+        onValueChange={(next) => {
+          setTicked(new Set())
+          // A video's, post's or creator's key means nothing on another social's list.
+          setSearch({ social: next === "all" ? undefined : (next as Social), open: undefined, creator: undefined, same: undefined })
+        }}
+      >
+        <SelectTrigger id="viral-filter-social" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Every social</SelectItem>
+          {project.socials.map((one) => (
+            <SelectItem key={one} value={one}>
+              {SOCIAL_NAMES[one]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterRow>
+  ) : null
+
   // Research's own settings, its search, AI limit and socials, at the end of every middle header (`content-app.md`).
-  const researchMenu = <ProjectSettingsMenu project={project} refresh={refresh} onGone={() => undefined} research align="end" />
+  // The channels hidden from this project, each with Show again, a tab of the project's ⋮, which is last in every header.
+  const hiddenItems = screen.hidden.map((channel) => ({
+    label: `Show ${channel.channelName || channel.channelId} again`,
+    icon: <EyeIcon className="size-4" />,
+    onClick: () => void showChannel(channel),
+  }))
+  // One ⋮ with the project's own tabs, then Research's as Research and Socials (Tyler, 27 Nov 2026: "should be merged").
+  const researchMenu = (
+    <ProjectSettingsMenu
+      project={project}
+      refresh={refresh}
+      onGone={() => undefined}
+      research
+      inMenu={(tabs) => (
+        <ProjectMenuButton extraTabs={tabs} actions={hiddenItems.length ? { title: "Hidden", items: hiddenItems } : undefined} />
+      )}
+    />
+  )
 
-  // The project's vault is read when it is opened, and again when it changes.
-  const readVault = React.useCallback(async () => {
-    try {
-      const answer = await loadVault(project.id)
-      setVault({ state: "ready", items: answer.items, tags: answer.tags })
-    } catch (error) {
-      setVault({ state: "failed", error: getViralErrorMessage(error) })
-    }
-  }, [project.id])
-  React.useEffect(() => {
-    if (!vaultView) return
-    let live = true
-    loadVault(project.id)
-      .then((answer) => {
-        if (live) setVault({ state: "ready", items: answer.items, tags: answer.tags })
-      })
-      .catch((error) => {
-        if (live) setVault({ state: "failed", error: getViralErrorMessage(error) })
-      })
-    return () => {
-      live = false
-    }
-  }, [project.id, vaultView])
-
-  const afterVaultChange = React.useCallback(async () => {
-    await refresh()
-    if (vaultView) await readVault()
-  }, [readVault, refresh, vaultView])
 
   // Every video this screen knows of, so a card keeps saying it is being
   // saved and broken down while somebody looks at other videos.
@@ -436,12 +450,10 @@ export function ViralProjectScreenView({
                 : shown
   ).map((video) => markSeen(progress.apply(video)))
 
-  const vaultItems = vault.state === "ready" ? vault.items : []
-  const openItem = vaultView ? (vaultItems.find((item) => item.id === search.open) ?? null) : null
 
   // The open video is looked for everywhere this screen has videos, so a
   // filter that hides it does not stop it playing.
-  const found = !vaultView && !adsView && !textSocial && !creatorsList && search.open ? allVideos.find((video) => video.key === search.open) : undefined
+  const found = !textSocial && !creatorsList && search.open ? allVideos.find((video) => video.key === search.open) : undefined
   const pickedVideo = found ? markSeen(progress.apply(found)) : null
 
   // Opening a video clears its New mark for this person (Tyler, 4 Nov 2026:
@@ -480,12 +492,52 @@ export function ViralProjectScreenView({
   // An address naming a video that is no longer in the results (a re-run
   // replaced it, or its channel was hidden) drops it rather than failing.
   const missingVideo =
-    !vaultView && !adsView && !textSocial && !creatorsList && Boolean(search.open) && !pickedVideo && creatorUploads?.state !== "loading" && !(sameKey && sameIdea?.state !== "ready")
-  const missingItem = vaultView && vault.state === "ready" && Boolean(search.open) && !openItem
-  const projectAds = useProjectAds(project.id, adsView)
-  const adList = adsView && projectAds.ads.state === "ready" ? projectAds.ads.ads : []
-  const openAd = adsView ? (adList.find((ad) => ad.id === search.open) ?? null) : null
-  const missingAd = adsView && projectAds.ads.state === "ready" && Boolean(search.open) && !openAd
+    !textSocial && !creatorsList && Boolean(search.open) && !pickedVideo && creatorUploads?.state !== "loading" && !(sameKey && sameIdea?.state !== "ready")
+
+  /**
+   * Which of Research's lists shows, one dropdown first in each of its
+   * headers after the project's controls: the found videos, their hooks and
+   * sounds, and the creators (Tyler, 27 Nov 2026: "Lets
+   * put them all in the top header so we have just one header. The tabs can
+   * now be either dropdowns or filter"). They were the Research block's rows
+   * and the tabs of the videos' own header. The vault is the Projects
+   * dashboard's own, and Winning ads is gone (Tyler, 27 Nov 2026: "Remove
+   * winning ads feature ... and vault dont belong here").
+   */
+  // Drawn after the search icon of the header it sits in (`HeaderChoice`), with the search's spinner after it.
+  const researchViews = (
+    <HeaderChoice>
+    <span className="flex min-w-0 shrink items-center gap-1">
+    <span className={SHRINKING_MENU}>
+      <ViewMenu
+        label="Which part of Research"
+        value={view}
+        onValueChange={(next) => {
+          if (next === view) return
+          setTicked(new Set())
+          // A video's key means nothing on Creators, nor a creator's on the videos.
+          const keyed = (one: string) => one === "creators"
+          setSearch({
+            view: next === "videos" ? undefined : (next as typeof view),
+            sound: undefined,
+            show: undefined,
+            ...(keyed(next) || keyed(view) ? { open: undefined } : {}),
+          })
+        }}
+        choices={[
+          { value: "videos", label: "Found videos", count: projectVideos.length },
+          { value: "hooks", label: "Hooks", count: hookCount },
+          { value: "sounds", label: "Sounds", count: soundCount },
+          ...(project.socials.includes("youtube") || project.socials.includes("tiktok")
+            ? [{ value: "creators", label: "Creators", count: creatorCount }]
+            : []),
+        ]}
+      />
+    </span>
+    {searching ? <Loader2Icon className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Still searching" /> : null}
+    </span>
+    </HeaderChoice>
+  )
   const textSocials = useTextSocials(project.id, project.socials.some(isTextSocial))
   const textPosts = React.useMemo(
     () =>
@@ -505,8 +557,8 @@ export function ViralProjectScreenView({
       : null
   const missingPost = Boolean(textSocial) && textSocials.data.state === "ready" && Boolean(search.open) && !openPost
   React.useEffect(() => {
-    if (missingVideo || missingItem || missingAd || missingPost) setSearch({ open: undefined })
-  }, [missingAd, missingItem, missingPost, missingVideo, setSearch])
+    if (missingVideo || missingPost) setSearch({ open: undefined })
+  }, [missingPost, missingVideo, setSearch])
 
   // Picking X, Reddit or LinkedIn opens its first post, so the right panel is never empty.
   const firstPostId = textSocial && !search.open ? (textPosts[0]?.id ?? null) : null
@@ -524,13 +576,6 @@ export function ViralProjectScreenView({
   React.useEffect(() => {
     if (firstSoundVideoKey) setSearch({ open: firstSoundVideoKey })
   }, [firstSoundVideoKey, setSearch])
-
-  // Opening the vault opens its first idea, so the right panel is never empty
-  // (UI standard: "the right panel ... is never emptied by hand").
-  const firstItemId = vaultView && vault.state === "ready" && !search.open ? (vault.items[0]?.id ?? null) : null
-  React.useEffect(() => {
-    if (firstItemId) setSearch({ open: firstItemId })
-  }, [firstItemId, setSearch])
 
   // The Creators tab opens its first creator, so the right panel is never empty.
   const firstCreatorKey = creatorsList && !openCreator ? (creatorsHere[0]?.key ?? null) : null
@@ -638,7 +683,6 @@ export function ViralProjectScreenView({
     setTicked(new Set())
   }
   const tickedVideos = middleVideos.filter((video) => ticked.has(video.key))
-  const tickedVaultIds = vaultView ? vaultItems.filter((item) => ticked.has(item.id)).map((item) => item.id) : []
 
   async function searchAll() {
     await run("search-all", async () => {
@@ -910,11 +954,12 @@ export function ViralProjectScreenView({
   }
 
   const postsHeader = textSocial ? (
-    <CrmListHeader
+    <ListHeader
       tabs={
         <span className="flex min-w-0 items-center gap-2">
-          <PanelReopenButton side="left" label="Show the project" />
+          <PanelReopenButton side="left" label="Show the Projects page" />
           {projectLead}
+          {researchViews}
           <span aria-hidden className="ml-1 flex shrink-0 text-muted-foreground [&_svg]:size-4">
             <SocialIcon social={textSocial} />
           </span>
@@ -934,16 +979,17 @@ export function ViralProjectScreenView({
       massSelect={null}
       filter={
         <FilterPopover
-          count={search.pmin ? 1 : 0}
+          count={1 + (search.pmin ? 1 : 0)}
           open={filterOpen}
           onOpenChange={setFilterOpen}
-          onClear={() => setSearch({ pmin: undefined })}
+          onClear={() => setSearch({ social: undefined, pmin: undefined, open: undefined })}
           save={
             <Button type="button" onClick={savePostsView}>
               Save as view
             </Button>
           }
         >
+          {socialRow}
           <TextPostFilterRows idPrefix="posts-filter" social={textSocial} values={currentPostsView} onChange={(patch) => setSearch(patch)} />
         </FilterPopover>
       }
@@ -975,7 +1021,7 @@ export function ViralProjectScreenView({
   // ------------------------------------------------------------- Panels --
 
 
-  // The project's own page on the left, as Promo's project page (Tyler, 21 Nov 2026: "Copy the pattern of the promo app instead").
+  // The Projects dashboard's left panel, the same as on the project's other tabs (`content-app.md`).
   const left = projectLeft
 
   // A pair like the tabs, list first, as Tyler drew it on 20 Oct 2026.
@@ -1066,16 +1112,15 @@ export function ViralProjectScreenView({
       />
     ) : null
 
-  const filterCount = [search.from, search.fit, search.keyword, search.fmin || search.fmax, show].filter(Boolean).length
+  const filterCount = [social, search.from, search.fit, search.keyword, search.fmin || search.fmax, show].filter(Boolean).length
   const clearFilters = () =>
-    setSearch({ q: undefined, from: undefined, fit: undefined, keyword: undefined, fmin: undefined, fmax: undefined, show: undefined })
+    setSearch({ q: undefined, social: undefined, from: undefined, fit: undefined, keyword: undefined, fmin: undefined, fmax: undefined, show: undefined })
+
 
   // Select comes right after the search box (Tyler, 9 Nov 2026: "mass select should be after saerch field").
   // Hooks is a list of words nobody ticks.
   const massSelect =
     view === "hooks" || (view === "sounds" && !pickedSound) ? null : { on: selecting, onToggle: toggleSelecting }
-  // Kept for the vault's header, which has no search of its own here.
-  const selectChip = <MassSelectChip on={selecting} onToggle={toggleSelecting} />
 
   const filter = (
     // Wide enough for every picked value to show whole, Followers' two
@@ -1086,13 +1131,14 @@ export function ViralProjectScreenView({
       count={filterCount}
       open={filterOpen}
       onOpenChange={setFilterOpen}
-      onClear={() => setSearch({ from: undefined, fit: undefined, keyword: undefined, fmin: undefined, fmax: undefined, show: undefined })}
+      onClear={() => setSearch({ social: undefined, from: undefined, fit: undefined, keyword: undefined, fmin: undefined, fmax: undefined, show: undefined })}
       save={
         <Button type="button" onClick={saveAsView}>
           Save as view
         </Button>
       }
     >
+      {socialRow}
       {/* Downloaded and Analysed were tabs (Tyler, 19 Nov 2026: "We dont need analyzed and downloaded its own tab when it can be sectioned or filtered"). */}
       {view === "videos" ? (
         <FilterRow id="viral-filter-show" label="Show">
@@ -1157,16 +1203,20 @@ export function ViralProjectScreenView({
   // The Creators tab's Filter: their subscribers, the block's range before it moved.
   const creatorsFilter = (
     <FilterPopover
-      count={range.min !== null || range.max !== null ? 1 : 0}
+      count={(range.min !== null || range.max !== null ? 1 : 0) + (social ? 1 : 0)}
       open={filterOpen}
       onOpenChange={setFilterOpen}
-      onClear={() => setRange({ min: null, max: null })}
+      onClear={() => {
+        setRange({ min: null, max: null })
+        if (social) setSearch({ social: undefined, open: undefined })
+      }}
       save={
         <Button type="button" onClick={() => setFilterOpen(false)}>
           Done
         </Button>
       }
     >
+      {socialRow}
       <FilterRow id="viral-creators-min" label="Subscribers">
         <div className="grid grid-cols-2 gap-2">
           <FollowerSelect
@@ -1227,20 +1277,14 @@ export function ViralProjectScreenView({
     />
   )
 
-  // The channels hidden from this project, each with Show again, in the ⋮ last in the header.
-  const hiddenItems = screen.hidden.map((channel) => ({
-    label: `Show ${channel.channelName || channel.channelId} again`,
-    icon: <EyeIcon className="size-4" />,
-    onClick: () => void showChannel(channel),
-  }))
 
   /** The one middle header (the Admin 3 panel design, "Middle panel"), with `tabs` at its start. */
   const listHeader = (tabs: React.ReactNode) => (
-    <CrmListHeader
+    <ListHeader
       tabs={
-        // The tabs give way first on a narrow middle and scroll sideways, so the buttons never run past the edge.
-        <span className="flex min-w-0 shrink-[20] items-center gap-1 self-stretch overflow-x-auto [scrollbar-width:none]">
-          <PanelReopenButton side="left" label="Show the project" />
+        // Gives way first on a narrow middle; its dropdowns cut their words short, so the buttons never run past the edge.
+        <span className="flex min-w-0 shrink-[20] items-center gap-1 self-stretch">
+          <PanelReopenButton side="left" label="Show the Projects page" />
           {projectLead}
           <span className="flex shrink-0 self-stretch">{tabs}</span>
         </span>
@@ -1278,7 +1322,6 @@ export function ViralProjectScreenView({
         )
       }
       primary={addMenu}
-      menuItems={hiddenItems}
     />
   )
 
@@ -1432,88 +1475,6 @@ export function ViralProjectScreenView({
         onRetry={textSocials.reload}
       />
     )
-  } else if (adsView) {
-    middle = (
-      <AdsMiddle
-        ads={projectAds.ads}
-        searching={projectAds.searching}
-        sample={project.sample}
-        openId={openAd?.id ?? null}
-        onSearch={() => void projectAds.search()}
-        onRetry={projectAds.retry}
-        onPick={(ad) => setSearch({ open: ad.id })}
-        lead={projectLead}
-      />
-    )
-  } else if (vaultView) {
-    middle = (
-      <>
-        <CrmListHeader
-          tabs={
-            <span className="flex min-w-0 items-center gap-1">
-              <PanelReopenButton side="left" label="Show the project" />
-              {projectLead}
-              <MiddleHeading icon={VaultIcon} label="Vault" />
-            </span>
-          }
-          end={<>{researchMenu}<PanelReopenButton side="right" label="Show the idea" /></>}
-          menuLabel="More for the vault"
-          selected={
-            tickedVaultIds.length ? (
-              <VaultSelectedMenu
-                ids={tickedVaultIds}
-                tags={vault.state === "ready" ? vault.tags : []}
-                onClear={() => setTicked(new Set())}
-                onDone={async (change) => {
-                  if (change.kind === "delete") {
-                    setTicked(new Set())
-                    if (search.open && tickedVaultIds.includes(search.open)) setSearch({ open: undefined })
-                  }
-                  await afterVaultChange()
-                }}
-              />
-            ) : null
-          }
-          search={null}
-          massSelect={vault.state === "ready" && vault.items.length ? { on: selecting, onToggle: toggleSelecting } : null}
-          primary={
-            // Your own idea (more-features task part 3). A sample keeps nothing new.
-            project.sample ? null : (
-              <DashboardToolbarButton type="button" aria-label="New idea" onClick={() => setNewIdea(true)}>
-                <PlusIcon className="size-4" />
-                <span className="@max-3xl:sr-only">New idea</span>
-              </DashboardToolbarButton>
-            )
-          }
-        />
-        {vault.state === "loading" ? (
-          <LoadingRow label="Opening the vault" />
-        ) : vault.state === "failed" ? (
-          <div className="p-3">
-            <ErrorRow message={vault.error} onRetry={() => void readVault()} />
-          </div>
-        ) : (
-          <VaultList
-            items={vault.items}
-            openId={openItem?.id ?? null}
-            onOpen={(item) => setSearch({ open: item.id })}
-            ticks={
-              selecting
-                ? {
-                    ticked,
-                    onTick: toggleTick,
-                    onTickAll: () => {
-                      const ids = vault.items.map((item) => item.id)
-                      setTicked((was) => (ids.every((id) => was.has(id)) ? new Set() : new Set(ids)))
-                    },
-                  }
-                : null
-            }
-            empty="Nothing in this project's vault yet. Open a video or a post and press Save to vault, or press New idea."
-          />
-        )}
-      </>
-    )
   } else if (sameKey) {
     const channels = new Set(middleVideos.map((video) => video.channelId))
     const doubled = new Set(
@@ -1578,8 +1539,9 @@ export function ViralProjectScreenView({
           action={
             <div className="flex items-center gap-1">
               {selectedMenu}
-              {selectChip}
               {layoutToggle}
+              {/* Select is in the project's ⋮, as on every list (Tyler, 27 Nov 2026: "Move all the mass select button to here"). */}
+              <ProjectMenuButton select={{ on: selecting, onToggle: toggleSelecting }} />
             </div>
           }
         />
@@ -1617,41 +1579,8 @@ export function ViralProjectScreenView({
               </span>
             </span>
           ) : (
-            <DashboardTabs
-              value={view}
-              onValueChange={(next) => {
-                setTicked(new Set())
-                setSearch({
-                  view: next === "videos" ? undefined : (next as typeof view),
-                  sound: undefined,
-                  show: undefined,
-                  // A video's key means nothing on Creators, nor a creator's on the videos.
-                  ...(next === "creators" || view === "creators" ? { open: undefined } : {}),
-                })
-              }}
-              tabs={[
-                // The search's spinner rides on the tab its videos land in, so
-                // the header never grows and shrinks around + Add.
-                {
-                  value: "videos",
-                  label: searching ? (
-                    <>
-                      Videos
-                      <Loader2Icon className="size-3.5 animate-spin text-muted-foreground" aria-hidden />
-                    </>
-                  ) : (
-                    "Videos"
-                  ),
-                  count: projectVideos.length,
-                  ariaLabel: searching ? `Videos, ${projectVideos.length}, still searching` : undefined,
-                },
-                { value: "hooks", label: "Hooks", count: hookCount },
-                { value: "sounds", label: "Sounds", count: soundCount },
-                ...(project.socials.includes("youtube") || project.socials.includes("tiktok")
-                  ? [{ value: "creators", label: "Creators", count: creatorCount }]
-                  : []),
-              ]}
-            />
+            // Which of Research's lists shows (`researchViews`), drawn after the search icon.
+            researchViews
           )
         )}
         {creatorsList ? (
@@ -1738,33 +1667,9 @@ export function ViralProjectScreenView({
         vaultItemId={openPost && textSocials.data.state === "ready" ? (textSocials.data.inVault[openPost.id] ?? null) : null}
         onSavedToVault={async () => {
           textSocials.reload()
-          await afterVaultChange()
+          await refresh()
         }}
       />
-    )
-  } else if (adsView) {
-    right = <AdPanel key={openAd?.id ?? "none"} ad={openAd} projectId={project.id} sample={project.sample} />
-  } else if (vaultView) {
-    right = openItem ? (
-      <VaultItemPanel
-        key={openItem.id}
-        item={openItem}
-        tags={vault.state === "ready" ? vault.tags : []}
-        onChanged={(item) =>
-          setVault((was) =>
-            was.state === "ready" ? { ...was, items: was.items.map((one) => (one.id === item.id ? item : one)) } : was
-          )
-        }
-        onDeleted={async () => {
-          setSearch({ open: undefined })
-          await afterVaultChange()
-        }}
-      />
-    ) : (
-      <>
-        <DashboardCardTitleHeader icon={<EyeIcon />} title="Idea" />
-        <p className="px-3 py-8 text-center text-sm text-muted-foreground">Click an idea to play it and read its script here.</p>
-      </>
     )
   } else if (creatorsList) {
     right = openCreator ? (
@@ -1782,7 +1687,7 @@ export function ViralProjectScreenView({
         emptyText="Click a video to play it and analyse it here."
         projectId={project.id}
         projectTopic={project.topic}
-        onVaultChanged={afterVaultChange}
+        onVaultChanged={refresh}
         onHideChannel={(video) => void hideChannels([video])}
         onBack={pickedCreator ? () => setSearch({ open: undefined }) : undefined}
         onSavedChange={progress.report}
@@ -1797,12 +1702,12 @@ export function ViralProjectScreenView({
   }
 
   const context = React.useMemo<ProjectContextValue>(() => ({ screen, refresh }), [refresh, screen])
-  const rightIsVideo = !vaultView && !adsView && !textSocial && !creatorsList && (pickedVideo || !pickedCreator)
+  const rightIsVideo = !textSocial && !creatorsList && (pickedVideo || !pickedCreator)
 
   return (
     <ProjectProvider value={context}>
-      {/* The project's cover carries on behind the right panel, as an extension of the left (Tyler, 12 Nov 2026: "always connect right panel to the left panel bg"). */}
-      <RightCoverProvider value={project.cover_url}>
+      {/* The left page's cover carries on behind the right panel, as an extension of the left (Tyler, 12 Nov 2026: "always connect right panel to the left panel bg"). */}
+      <RightCoverProvider value={rightCover}>
       <ThreePanels
         layoutKey={LAYOUT_KEY}
         reopenInHeader
@@ -1813,26 +1718,16 @@ export function ViralProjectScreenView({
             ? textPosts.map((post) => post.id)
             : creatorsList
             ? creatorsHere.map((creator) => creator.key)
-            : adsView
-            ? adList.map((ad) => ad.id)
-            : vaultView
-              ? vaultItems.map((item) => item.id)
-              : middleVideos.map((video) => video.key),
-          ready: textSocial
-            ? textSocials.data.state !== "loading"
-            : adsView
-              ? projectAds.ads.state !== "loading"
-              : vaultView
-                ? vault.state !== "loading"
-                : undefined,
+            : middleVideos.map((video) => video.key),
+          ready: textSocial ? textSocials.data.state !== "loading" : undefined,
           // A list picked in the Dashboards block (or a social picked in Socials) opens its first row, as every dashboard of sections does.
-          section: textSocial ?? (vaultView ? "vault" : adsView ? "ads" : creatorsList ? `creators-${social ?? "all"}` : `videos-${view}-${social ?? "all"}`),
+          section: textSocial ?? (creatorsList ? `creators-${social ?? "all"}` : `videos-${view}-${social ?? "all"}`),
         }}
-        showMiddleFor={`${search.creator ?? ""}${creatorsList ? "creators" : ""}${vaultView ? "vault" : ""}${adsView ? "ads" : ""}${social ?? ""}${sameKey ?? ""}${search.sound ?? ""}`}
+        showMiddleFor={`${search.creator ?? ""}${creatorsList ? "creators" : ""}${social ?? ""}${sameKey ?? ""}${search.sound ?? ""}`}
         showRightFor={search.open}
-        left={{ label: "Project", showLabel: "Show the project", content: left }}
+        left={{ label: "Projects", showLabel: "Show the Projects page", content: left }}
         middle={{
-          label: textSocial ? "Posts" : adsView ? "Ads" : vaultView ? "Vault" : "Videos",
+          label: textSocial ? "Posts" : "Videos",
           // @container: the table's columns drop out by the middle's own width. 24px at its sides (`middleGutterClassName`).
           content: (
             <div className={cn("@container flex h-full min-h-0 flex-col overflow-hidden [&_td[colspan]]:whitespace-normal", middleGutterClassName)}>
@@ -1841,16 +1736,8 @@ export function ViralProjectScreenView({
           ),
         }}
         right={{
-          label: textSocial ? "Post" : adsView ? "Ad" : vaultView ? "Idea" : rightIsVideo ? "Video" : "Creator",
-          showLabel: textSocial
-            ? "Show the post"
-            : adsView
-              ? "Show the ad"
-              : vaultView
-                ? "Show the idea"
-                : rightIsVideo
-                  ? "Show the video"
-                  : "Show the creator",
+          label: textSocial ? "Post" : rightIsVideo ? "Video" : "Creator",
+          showLabel: textSocial ? "Show the post" : rightIsVideo ? "Show the video" : "Show the creator",
           content: right,
         }}
       >
@@ -1877,17 +1764,6 @@ export function ViralProjectScreenView({
           here={postsViewsHere}
           filters={currentPostsView as SavedViewValues}
           onClose={() => setSavingPostsView(false)}
-        />
-
-        <NewIdeaDialog
-          open={newIdea}
-          projectId={project.id}
-          onClose={() => setNewIdea(false)}
-          onCreated={async (item) => {
-            await afterVaultChange()
-            // An idea made for another project stays in that project's vault; one made for this project opens here.
-            if (item.projectId === project.id) setSearch({ open: item.id })
-          }}
         />
 
         <DeleteSavedVideosDialog

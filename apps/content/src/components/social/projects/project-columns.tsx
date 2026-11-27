@@ -38,10 +38,17 @@ const MIDDLE_TABLES = "[&_td[data-column=main]]:w-full [&_td[data-column=main]]:
 export const IN_COLUMN_TABLE = "rounded-none bg-transparent ring-0"
 
 /**
- * A project's dashboard as three columns: the project and its networks on the
- * left, and the picked network's two panels in the middle and on the right.
- * Every network fills the same frame, so a second network is a second pair of
- * panels and nothing else.
+ * A project's dashboard as three columns: the Projects dashboard's left panel
+ * on the left, and what the project's tab shows in the middle and on the
+ * right (Tyler, 27 Nov 2026: "click project > middle and right panel
+ * change"). The middle's one header starts with the project's controls
+ * (`ProjectHeaderLead`), then the list's own. Every network fills
+ * the same frame, so a second network is a second pair of panels and nothing
+ * else.
+ *
+ * `left` is null on a guest's page, which must not list every project, and
+ * `right` is null on Content's Videos, whose videos open the editor on the
+ * whole screen; the middle then takes that column's room.
  *
  * Drawn as Project's own three-panel frame is (Tyler, 12 Nov 2026: "the
  * project page itsel is not updated to the new design"). The sides open at
@@ -70,9 +77,9 @@ export function ProjectColumns({
   reopenInHeader = false,
   children,
 }: {
-  left: React.ReactNode
+  left: React.ReactNode | null
   middle: React.ReactNode
-  right: React.ReactNode
+  right: React.ReactNode | null
   /**
    * Whether something was opened in the right column by a press, which shows
    * it below 1280px. Leave out anything that opened by itself.
@@ -96,7 +103,9 @@ export function ProjectColumns({
 }) {
   const desktop = useWideScreen()
   const pick = React.useContext(ProjectColumnsPick)
-  const [narrowView, setNarrowView] = React.useState<"left" | "middle" | "right">(rightOpen ? "right" : "middle")
+  const hasLeft = left !== null
+  const hasRight = right !== null
+  const [narrowView, setNarrowView] = React.useState<"left" | "middle" | "right">(rightOpen && hasRight ? "right" : "middle")
   const [pickShown, setPickShown] = React.useState(pick.key)
   if (pick.key !== pickShown) {
     setPickShown(pick.key)
@@ -105,7 +114,7 @@ export function ProjectColumns({
   const [wasOpen, setWasOpen] = React.useState(rightOpen)
   if (rightOpen !== wasOpen) {
     setWasOpen(rightOpen)
-    if (rightOpen) setNarrowView("right")
+    if (rightOpen && hasRight) setNarrowView("right")
     else if (narrowView === "right") setNarrowView("middle")
   }
   const leftRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -117,12 +126,14 @@ export function ProjectColumns({
   const styling = useOptionalShellRuntime()?.config.styling
   const leftWidth = clampSidePanelWidth(styling?.leftPanelWidth, DEFAULT_LEFT_PANEL_WIDTH)
   const rightWidth = clampSidePanelWidth(styling?.rightPanelWidth, DEFAULT_RIGHT_PANEL_WIDTH)
-  const middleWidth = 100 - leftWidth - rightWidth
+  // A column left out gives its room to the middle, with widths of its own kept under their own key.
+  const middleWidth = 100 - (hasLeft ? leftWidth : 0) - (hasRight ? rightWidth : 0)
   const defaultLayout = React.useMemo(
-    () => ({ left: leftWidth, middle: middleWidth, right: rightWidth }),
-    [leftWidth, middleWidth, rightWidth]
+    () => ({ ...(hasLeft ? { left: leftWidth } : {}), middle: middleWidth, ...(hasRight ? { right: rightWidth } : {}) }),
+    [hasLeft, hasRight, leftWidth, middleWidth, rightWidth]
   )
-  const layout = useRememberedPanelLayout(sidePanelWidthsKey(PROJECTS_PANEL_LAYOUT_KEY, leftWidth, rightWidth), defaultLayout)
+  const shapeKey = `${PROJECTS_PANEL_LAYOUT_KEY}${hasLeft ? "" : "-no-left"}${hasRight ? "" : "-no-right"}`
+  const layout = useRememberedPanelLayout(sidePanelWidthsKey(shapeKey, leftWidth, rightWidth), defaultLayout)
   const leftState = usePanelCollapsed(leftRef)
   const rightState = usePanelCollapsed(rightRef)
   // Every fold and open slides rather than snapping (`usePanelFold`).
@@ -152,11 +163,11 @@ export function ProjectColumns({
         >
           <TabsList>
             <TabsTrigger value="middle">{pick.label}</TabsTrigger>
-            <TabsTrigger value="left">Project</TabsTrigger>
-            <TabsTrigger value="right">Open</TabsTrigger>
+            {hasLeft ? <TabsTrigger value="left">Projects</TabsTrigger> : null}
+            {hasRight ? <TabsTrigger value="right">Open</TabsTrigger> : null}
           </TabsList>
         </Tabs>
-        {(["middle", "left", "right"] as const).map((column) => (
+        {(["middle", ...(hasLeft ? ["left" as const] : []), ...(hasRight ? ["right" as const] : [])] as const).map((column) => (
           <WorkspacePanel
             key={column}
             className={cn(narrowView === column ? "flex min-w-0 flex-1 flex-col" : "hidden", column === "middle" && [middleGutterClassName, "[&_td[colspan]]:whitespace-normal", MIDDLE_TABLES])}
@@ -179,6 +190,7 @@ export function ProjectColumns({
           className={cn("min-h-0 flex-1", foldingClassName)}
           onLayoutChanged={layout.onLayoutChanged}
         >
+          {hasLeft ? (
           <ResizablePanel
             id="left"
             panelRef={leftRef}
@@ -193,22 +205,24 @@ export function ProjectColumns({
               {left}
             </WorkspacePanel>
           </ResizablePanel>
+          ) : null}
 
-          <ResizableHandle gap collapsed={leftState.collapsed} />
+          {hasLeft ? <ResizableHandle gap collapsed={leftState.collapsed} /> : null}
 
           <ResizablePanel id="middle" defaultSize={`${middleWidth}%`} minSize="28%">
             {/* 24px at the middle's sides, its header and a table's first and last columns lining up. */}
             <WorkspacePanel className={cn("relative flex min-h-0 flex-col [&_td[colspan]]:whitespace-normal", MIDDLE_TABLES, middleGutterClassName)}>
               {middle}
-              {leftState.collapsed && !reopenInHeader ? (
-                <PanelReopenTab side="left" label="Show the project and its networks" onClick={toggleLeft} />
+              {hasLeft && leftState.collapsed && !reopenInHeader ? (
+                <PanelReopenTab side="left" label="Show the Projects page" onClick={toggleLeft} />
               ) : null}
-              {rightState.collapsed && !reopenInHeader ? <PanelReopenTab side="right" label={rightLabel} onClick={toggleRight} /> : null}
+              {hasRight && rightState.collapsed && !reopenInHeader ? <PanelReopenTab side="right" label={rightLabel} onClick={toggleRight} /> : null}
             </WorkspacePanel>
           </ResizablePanel>
 
-          <ResizableHandle gap collapsed={rightState.collapsed} />
+          {hasRight ? <ResizableHandle gap collapsed={rightState.collapsed} /> : null}
 
+          {hasRight ? (
           <ResizablePanel
             id="right"
             panelRef={rightRef}
@@ -223,6 +237,7 @@ export function ProjectColumns({
               {right}
             </WorkspacePanel>
           </ResizablePanel>
+          ) : null}
         </ResizablePanelGroup>
         {children}
       </div>

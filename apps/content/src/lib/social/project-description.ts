@@ -3,13 +3,12 @@ import {
   emptyWrittenPageBody,
   type WrittenPageNode,
 } from "@/lib/pages/written-page-body"
-import { withFixedBlock } from "@/lib/notes/fixed-block"
 import { noteIsEmpty, type NoteNode } from "@/lib/notes/note-blocks"
 import { readPageBody, storedPageBody } from "@/lib/notes/page-body"
 
 /**
- * A project's description, written in place at the top of its left column in
- * the shared editor (left-column-standards task, part 4; Tyler, 5 Nov 2026:
+ * A project's description, written from the Description row of its ⋮'s General tab in the shared
+ * editor (left-column-standards task, part 4; Tyler, 5 Nov 2026:
  * "we aleady have the tip tap rich text editor"). `promo_projects.description`
  * holds the editor's document as JSON, or "" for none; `drizzle/0138` turned
  * each older plain description into one paragraph per line.
@@ -32,79 +31,35 @@ export const PROJECT_DESCRIPTION_MAX = 4_000
  */
 export const PROJECT_DESCRIPTION_STORED_MAX = 64_000
 
-/**
- * The Networks block at the top of a project's page (Tyler, 12 Nov 2026:
- * "Description page + Networks block"), titled Promote in Content: each
- * network's Posts and Commenting rows. Fixed, as the Dashboards block is: never in the "/"
- * list, never taken off, put back at the top of a page saved without it. It
- * keeps no values; the page draws it from the project.
+/*
+ * The description held fixed blocks until 27 Nov 2026: Promo's Networks
+ * block (titled Promote in Content) and Content's Dashboards, Viral, Content,
+ * Research and Videos. They made the project's own left panel. A project now
+ * opens under the Projects dashboard's left panel, with Content, Research and
+ * Promote as tabs in the middle (Tyler, 27 Nov 2026: "The idea is we move all
+ * the blocks per project to the middle panel"), so the description is words
+ * and the shell's basic blocks alone. A page saved with a fixed block is read
+ * and saved without it, as any block the page does not know.
  */
-export const PROJECT_NETWORKS_NODE = "notePromoNetworks"
 
 /**
- * Content's blocks above the Networks block (`workspace/docs/content-app.md`,
- * "A project's own page"), fixed as the Networks block is:
- *
- * - Dashboards (Overview and Projects) and Viral (Vault, Hooks and Formats),
- *   the Projects dashboard's two blocks on the project's page (Tyler, 27 Nov
- *   2026: "lets bring back the dashboard block for project. The only link we
- *   have there is overview, projects, vault, hook and format", and of the
- *   last three, "should be its own block called "Viral"").
- * - Content, the project's videos, carousels and pictures (Tyler, 27 Nov
- *   2026: "put content into its own block").
- * - Research, what Viral found for the project, and Videos, its videos.
- *
- * Promo's Archive block and Content's first Dashboard block, which held
- * Overview and Content, are gone; a page saved with either is cleaned of it,
- * as of any block it does not know.
- */
-export const PROJECT_DASHBOARDS_NODE = "contentProjectDashboards"
-export const PROJECT_VIRAL_NODE = "contentProjectViral"
-export const PROJECT_CONTENT_NODE = "contentProjectContent"
-export const PROJECT_RESEARCH_NODE = "contentProjectResearch"
-export const PROJECT_VIDEOS_NODE = "contentProjectVideos"
-
-/** The project page's own block names, which the editor and the server both clean a page with. */
-export const PROJECT_PAGE_BLOCK_TYPES = [
-  PROJECT_DASHBOARDS_NODE,
-  PROJECT_VIRAL_NODE,
-  PROJECT_CONTENT_NODE,
-  PROJECT_RESEARCH_NODE,
-  PROJECT_VIDEOS_NODE,
-  PROJECT_NETWORKS_NODE,
-] as const
-
-/**
- * The page with each of its fixed blocks once. One that is missing goes on
- * top, so a new page reads Dashboards, Viral, Content, Research, Videos, then
- * the networks; one
- * that was moved stays where it was put.
- */
-function withProjectBlocks(body: NoteNode): NoteNode {
-  return [...PROJECT_PAGE_BLOCK_TYPES].reverse().reduce((page, type) => withFixedBlock(page, type), body)
-}
-
-/**
- * The project's page for the editor: the saved description, which since
- * 12 Nov 2026 may hold "/" blocks, with each of its fixed blocks once. A
- * description saved before then, words and formatting only, reads the same.
+ * The project's description for the editor: the saved document, cleaned to
+ * the words and the basic blocks. A description saved before 12 Nov 2026,
+ * words and formatting only, reads the same.
  */
 export function projectDescriptionPage(stored: string): string {
-  return JSON.stringify(withProjectBlocks(readPageBody(stored, PROJECT_PAGE_BLOCK_TYPES)))
+  return JSON.stringify(readPageBody(stored))
 }
 
 /**
  * What is saved for a page the editor sent: the document cleaned to the
- * words, the basic blocks and the fixed blocks, each kept once. "" when it
- * holds no words and no block but the fixed ones, so an empty description
- * still reads as none.
+ * words and the basic blocks. "" when it holds no words and no block, so an
+ * empty description still reads as none.
  */
 export function storedProjectPage(text: string): string {
-  const stored = storedPageBody(text, PROJECT_PAGE_BLOCK_TYPES)
+  const stored = storedPageBody(text)
   if (!stored) return ""
-  const body = withProjectBlocks(JSON.parse(stored) as NoteNode)
-  // Without app names, only words and the basic blocks count as something written.
-  return noteIsEmpty(body) ? "" : JSON.stringify(body)
+  return noteIsEmpty(JSON.parse(stored) as NoteNode) ? "" : stored
 }
 
 /** The saved description as the editor's document; "" is an empty one. */

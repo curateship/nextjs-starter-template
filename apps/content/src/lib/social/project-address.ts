@@ -59,8 +59,17 @@ export type ProjectSearch = Omit<ArchiveSearch, "project" | "open"> &
   window?: "jobs" | "templates"
   /** The keyword whose posts are listed on Commenting; none is every keyword's. */
   keyword?: string
-  /** Content's Content block (`workspace/docs/content-app.md`), as Promo's Archive row was. With no row named, Overview shows. */
+  /**
+   * Content's All items, the project's Archive, with its filters. The plain
+   * address is Content too; this key carries the Archive's filters, which are
+   * read only beside it, and a guest's Content, since a guest's plain address
+   * is Promote.
+   */
   archive?: "1"
+  /** Content's Videos tab, the project's videos; none is All items. */
+  content?: "videos"
+  /** Promote on a project with no network yet, where no network can be named. */
+  promote?: "1"
 }
 
 /** What the page's address may hold, with the keys it reads once and passes on. */
@@ -89,9 +98,42 @@ export function readProjectSearch(search: Record<string, unknown>): ProjectRoute
     retry: id(search.retry),
     newPost: id(search.newPost),
     pane: oneOf(search.pane, ["voices", "accounts"] as const),
+    content: oneOf(search.content, ["videos"] as const),
+    // The router reads a bare 1 as a number, so both spellings count.
+    promote: search.promote === "1" || search.promote === 1 ? "1" : undefined,
     ...readAccountsFilter(search),
     ...readProjectArchiveSearch(search),
   }
+}
+
+/**
+ * Which of the project's tabs an address opens, on its page (Tyler, 27 Nov
+ * 2026: "middle panel first load will be it's content archive"). Promote when
+ * it names a network or anything only a network has, which is how every bell
+ * notice and old link to a network still lands there; else Content. A guest's
+ * plain address is Promote, as a guest's page always opened on the first
+ * network, and `?archive=1` is a guest's Content. Research has a route of its
+ * own (`/research`).
+ */
+export function projectTabOf(search: ProjectRouteSearch, guest: boolean): "content" | "promote" {
+  const promote =
+    search.network ??
+    search.side ??
+    search.tab ??
+    search.list ??
+    search.view ??
+    search.comment ??
+    search.replies ??
+    search.window ??
+    search.keyword ??
+    search.pane ??
+    search.post ??
+    search.retry ??
+    search.newPost ??
+    search.promote
+  if (promote) return "promote"
+  if (search.archive || search.content) return "content"
+  return guest ? "promote" : "content"
 }
 
 /**

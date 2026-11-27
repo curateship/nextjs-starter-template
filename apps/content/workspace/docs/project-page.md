@@ -37,7 +37,7 @@ Code: `src/components/viral/project-page-panel.tsx` and
     (`?social=`) and opens its first video; pressing it again shows every
     social. The picked one is dark with the sliding bar.
   - **Vault**, fixed under it, as Promo's Archive block: All ideas, with its
-    count, and Winning ads, each opening in the middle and right panels.
+    count.
   - The two fixed blocks are never in the "/" list, can't be deleted, are
     put back if a save lost them, and move with Move up and Move down.
 - **A page from before the blocks** keeps what was written, with Socials and
@@ -176,15 +176,15 @@ The shell's tabbed menu (`project-menu.tsx`), every row saving itself.
 - **The same idea.** "Same idea, other creators" in the right panel's ⋮
   turns the middle panel into the other creators' versions (`?same=`), with
   a back arrow and Search again (`finding-content.md`).
-- **The vault.** With All ideas picked in the Vault block, the middle panel
-  lists the project's ideas on the shell's table and the right panel shows
-  the open one. The first idea opens on arrival. Its header has Select and
-  "+ New idea", which opens on this project. A sample project has no New
-  idea.
-- **Winning ads** picked in the Vault block lists the ads, with Search
-  ads in the header (`winning-ads.md`).
+- **The vault** is not one of Research's lists. A video or post saved to
+  the vault shows on the Projects dashboard's Vault, which lists every
+  project's ideas or one project's (Tyler, 27 Nov 2026: "vault dont belong
+  here").
+- **Winning ads**, Meta's ad library search, was removed on 27 Nov 2026
+  (Tyler: "Remove winning ads feature"), with Settings → Meta and its tables
+  (`drizzle/0258_viral_winning_ads_removed.sql`).
 - Code: `src/components/viral/viral-project-screen.tsx`, `video-grid.tsx`,
-  `hook-board.tsx` and `vault-list.tsx`. The route is
+  and `hook-board.tsx`. The route is
   `src/routes/_authenticated/admin/projects_.$projectId.tsx`.
 
 ## The right panel: the open video

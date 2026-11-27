@@ -17,7 +17,7 @@ import { viralSampleMade } from "@/server/viral/schema"
  * page has something in it:
  *
  * - **Research:** Viral's sample, as it was: made-up found videos, one
- *   analysed video, ideas in the vault, Winning ads, and X and Reddit posts.
+ *   analysed video, ideas in the vault, and X and Reddit posts.
  *   Its screen says it is a sample and refuses to search.
  * - **Videos:** two videos, a draft and one ready, with empty timelines.
  * - **Promote:** YouTube, Reddit and X, and on Reddit's Commenting three

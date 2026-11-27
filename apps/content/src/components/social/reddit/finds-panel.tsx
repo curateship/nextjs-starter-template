@@ -1,13 +1,11 @@
 import * as React from "react"
 
-import { useNetworkPanes, withPaneTabs } from "@/components/content-app/network-panes"
+import { NetworkTabs, useNetworkPanes, withPaneTabs } from "@/components/content-app/network-panes"
 import { BanIcon, ExternalLinkIcon, MessageSquareTextIcon, SkipForwardIcon } from "lucide-react"
 
 import { CrmGroupRow, CrmTable, CrmTableRow, MainCell, useFolds } from "@/components/crm/crm-table"
 import { CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
-import { ViewMenu } from "@/components/shared/view-menu"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { TableCell } from "@/components/ui/table"
@@ -281,19 +279,9 @@ export function FindsPanel({
     <div className="@container flex min-h-0 flex-1 flex-col">
       {header(
         <>
-          <span className="hidden @3xl:contents">
-            {/* Drawn once the first read is in, so the line lands once under "To look at 26" rather
-                than under "To look at" and then sliding wider (Tyler, 12 Nov 2026: "this border and
-                tab here loads twice"). */}
-            {loading && !finds.length ? (
-              <span className="flex-1" />
-            ) : (
-              <DashboardTabs value={paneTabs.value} onValueChange={paneTabs.onValueChange} tabs={paneTabs.choices} />
-            )}
-          </span>
-          <span className="shrink-0 @3xl:hidden">
-            <ViewMenu value={paneTabs.value} onValueChange={paneTabs.onValueChange} choices={paneTabs.choices} label="Which list" />
-          </span>
+          {/* The shell's dropdown of which list shows, as every network's on a project's page (`NetworkTabs`). */}
+          <NetworkTabs tabs={paneTabs} />
+          <span className="flex-1" />
         </>,
         tools
       )}

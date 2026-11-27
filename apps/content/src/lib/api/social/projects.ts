@@ -200,7 +200,7 @@ const arrangeNetworksFn = createServerFn({ method: "POST" })
     arrangeProjectNetworks(context.user.id, projectId, input)
   )
 
-/** Saves the Networks block's order and the networks it leaves out, from its ⋮. */
+/** Saves Promote's tab order and the networks it leaves out, from the project's ⋮. */
 export function arrangeNetworks(projectId: string, input: { order: Network[]; hidden: Network[] }) {
   return arrangeNetworksFn({ data: { projectId, ...input } })
 }
@@ -216,8 +216,8 @@ const updateFn = createServerFn({ method: "POST" })
     z.object({
       projectId: z.string().min(1),
       name: z.string().max(120).optional(),
-      // The project's page as JSON text: the description's words, "/"
-      // blocks and the Networks block. The server cleans it to what a page
+      // The project's description as JSON text: its words and "/" blocks.
+      // The server cleans it to what a page
       // may hold whatever the browser sent, and checks its length as it saves.
       page: z.string().max(PAGE_MAX_LENGTH).optional(),
       // The page the editor started from, as the server last gave it, so a

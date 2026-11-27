@@ -100,7 +100,6 @@ import { Route as AuthenticatedAdminVideoCarouselsProjectIdRouteImport } from '.
 import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes/_authenticated/admin/video-editor.index'
 import { Route as AuthenticatedAdminVideoEditorActorsRouteImport } from './routes/_authenticated/admin/video-editor.actors'
 import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor_.$projectId'
-import { Route as ApiArchiveZipProjectIdRouteImport } from './routes/api/archive/zip/$projectId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiConnectProjectRecordCardRouteImport } from './routes/api/connect/project/record-card'
 import { Route as ApiV1MediaResizedRouteImport } from './routes/api/v1/media/resized'
@@ -611,11 +610,6 @@ const AuthenticatedAdminVideoEditorProjectIdRoute =
     path: '/video-editor/$projectId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
-const ApiArchiveZipProjectIdRoute = ApiArchiveZipProjectIdRouteImport.update({
-  id: '/api/archive/zip/$projectId',
-  path: '/api/archive/zip/$projectId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   id: '/api/auth/google_/callback',
   path: '/api/auth/google/callback',
@@ -810,7 +804,6 @@ export interface FileRoutesByFullPath {
   '/admin/video-carousels/$projectId': typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   '/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
-  '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/connect/project/record-card': typeof ApiConnectProjectRecordCardRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
@@ -918,7 +911,6 @@ export interface FileRoutesByTo {
   '/admin/video-carousels/$projectId': typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   '/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
-  '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/connect/project/record-card': typeof ApiConnectProjectRecordCardRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
@@ -1031,7 +1023,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-carousels_/$projectId': typeof AuthenticatedAdminVideoCarouselsProjectIdRoute
   '/_authenticated/admin/video-editor/actors': typeof AuthenticatedAdminVideoEditorActorsRoute
   '/_authenticated/admin/video-editor_/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
-  '/api/archive/zip/$projectId': typeof ApiArchiveZipProjectIdRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/connect/project/record-card': typeof ApiConnectProjectRecordCardRoute
   '/api/v1/media/resized': typeof ApiV1MediaResizedRoute
@@ -1144,7 +1135,6 @@ export interface FileRouteTypes {
     | '/admin/video-carousels/$projectId'
     | '/admin/video-editor/actors'
     | '/admin/video-editor/$projectId'
-    | '/api/archive/zip/$projectId'
     | '/api/auth/google/callback'
     | '/api/connect/project/record-card'
     | '/api/v1/media/resized'
@@ -1252,7 +1242,6 @@ export interface FileRouteTypes {
     | '/admin/video-carousels/$projectId'
     | '/admin/video-editor/actors'
     | '/admin/video-editor/$projectId'
-    | '/api/archive/zip/$projectId'
     | '/api/auth/google/callback'
     | '/api/connect/project/record-card'
     | '/api/v1/media/resized'
@@ -1364,7 +1353,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-carousels_/$projectId'
     | '/_authenticated/admin/video-editor/actors'
     | '/_authenticated/admin/video-editor_/$projectId'
-    | '/api/archive/zip/$projectId'
     | '/api/auth/google_/callback'
     | '/api/connect/project/record-card'
     | '/api/v1/media/resized'
@@ -1430,7 +1418,6 @@ export interface RootRouteChildren {
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   GuestPromoProjectIdRoute: typeof GuestPromoProjectIdRoute
   GuestVideoEditorProjectIdRoute: typeof GuestVideoEditorProjectIdRoute
-  ApiArchiveZipProjectIdRoute: typeof ApiArchiveZipProjectIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiConnectProjectRecordCardRoute: typeof ApiConnectProjectRecordCardRoute
   ApiV1MediaResizedRoute: typeof ApiV1MediaResizedRoute
@@ -2089,13 +2076,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminVideoEditorProjectIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
-    '/api/archive/zip/$projectId': {
-      id: '/api/archive/zip/$projectId'
-      path: '/api/archive/zip/$projectId'
-      fullPath: '/api/archive/zip/$projectId'
-      preLoaderRoute: typeof ApiArchiveZipProjectIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/auth/google_/callback': {
       id: '/api/auth/google_/callback'
       path: '/api/auth/google/callback'
@@ -2445,7 +2425,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   GuestPromoProjectIdRoute: GuestPromoProjectIdRoute,
   GuestVideoEditorProjectIdRoute: GuestVideoEditorProjectIdRoute,
-  ApiArchiveZipProjectIdRoute: ApiArchiveZipProjectIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiConnectProjectRecordCardRoute: ApiConnectProjectRecordCardRoute,
   ApiV1MediaResizedRoute: ApiV1MediaResizedRoute,

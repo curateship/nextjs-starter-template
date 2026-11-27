@@ -1,10 +1,12 @@
 import * as React from "react"
 
 import type { CrmFrame } from "@/components/crm/crm-frame"
-import { CrmListHeader } from "@/components/crm/crm-row"
 import { AccountsSection } from "@/components/social/projects-dashboard/accounts-section"
 import { VoicesSection } from "@/components/social/projects-dashboard/voices-section"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
+import { HeaderChoice, ListHeader } from "@/components/content-app/list-header"
+import { SHRINKING_MENU } from "@/components/content-app/project-top"
+import { ViewMenu } from "@/components/shared/view-menu"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { loadProjectRows } from "@/lib/api/social/projects"
@@ -85,6 +87,30 @@ export function withPaneTabs<Choice extends { value: string; label: string; coun
 }
 
 /**
+ * A network's own tabs on a project's page, with Voices and Accounts after
+ * them, as the shell's dropdown of which list shows. The one header a
+ * project's middle has starts with the project's controls, so a row of tabs
+ * after them had no room (Tyler, 27 Nov 2026: "Lets put them all in the top
+ * header so we have just one header. The tabs can now be either dropdowns or
+ * filter").
+ */
+export function NetworkTabs({
+  tabs,
+}: {
+  tabs: { value: string; onValueChange: (next: string) => void; choices: Array<{ value: string; label: string; count?: number }> }
+}) {
+  // Gives way when the header is full, cutting its words short, so the buttons at the end keep their place.
+  // Drawn after the search icon of the header it sits in (`HeaderChoice`), wherever the module puts it.
+  return (
+    <HeaderChoice>
+      <span className={SHRINKING_MENU}>
+        <ViewMenu label="Which list" value={tabs.value} onValueChange={tabs.onValueChange} choices={tabs.choices} />
+      </span>
+    </HeaderChoice>
+  )
+}
+
+/**
  * The network's middle and right while Voices or Accounts shows. `tabs` is
  * what the network's own header starts with (its reopen button, the arrow
  * back and its tab row), so the pane keeps the one header.
@@ -124,7 +150,7 @@ export function NetworkPaneColumns({
 function Waiting({ tabs, label, error, onRetry }: { tabs: React.ReactNode; label: string; error: string | null; onRetry: () => void }) {
   return (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <CrmListHeader tabs={tabs} search={null} massSelect={null} menuLabel="More" />
+      <ListHeader tabs={tabs} search={null} massSelect={null} menuLabel="More" />
       {error ? <ErrorRow message={error} onRetry={onRetry} className="p-4" /> : <LoadingRow label={label} />}
     </div>
   )

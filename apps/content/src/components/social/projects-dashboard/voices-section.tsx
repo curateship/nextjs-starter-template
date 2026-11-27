@@ -1,9 +1,11 @@
 import * as React from "react"
+import { ProjectMenuButton } from "@/components/content-app/project-top"
 import { useRouter } from "@tanstack/react-router"
 import { MessageSquareQuoteIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import type { CrmFrame } from "@/components/crm/crm-frame"
-import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
+import { CrmRowMenu } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord } from "@/components/crm/record-frame"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
@@ -148,9 +150,9 @@ export function VoicesSection({
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <CrmListHeader
+      <ListHeader
         tabs={tabs ?? <MiddleHeading icon={MessageSquareQuoteIcon} label="Voices" />}
-        end={<PanelReopenButton side="right" label="Show the voice" />}
+        end={<><ProjectMenuButton /><PanelReopenButton side="right" label="Show the voice" /></>}
         selected={
           massSelect && selected.length ? (
             <SelectedMenu

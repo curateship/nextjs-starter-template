@@ -5,7 +5,8 @@ import { MessageSquareIcon, SkipForwardIcon } from "lucide-react"
 import { FilterRow } from "@/components/admin-dashboard/list-parts"
 import type { CrmFrame } from "@/components/crm/crm-frame"
 import { ActionRow } from "@/components/crm/crm-record-menu"
-import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
+import { CrmRowMenu } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord, RecordFrame } from "@/components/crm/record-frame"
 import { FilterPopover } from "@/components/shared/filter-popover"
@@ -163,7 +164,7 @@ export function MessagesSection({
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <CrmListHeader
+      <ListHeader
         tabs={<MiddleHeading icon={MessageSquareIcon} label="Messages" />}
         end={<PanelReopenButton side="right" label="Show the conversation" />}
         selected={

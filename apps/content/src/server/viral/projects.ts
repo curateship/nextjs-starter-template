@@ -1073,8 +1073,8 @@ export async function createSampleViralProject(
         updatedAt: at,
       },
     ])
-    // A saved format and two made-up ads, for Library → Formats and the Ads row.
-    await addSampleLibrary(tx, ownerId, projectId, at)
+    // A saved format, for Library → Formats.
+    await addSampleLibrary(tx, ownerId, at)
     // What it reads on X and Reddit, with made-up posts already found.
     await addSampleSocials(tx, ownerId, projectId, at)
   })

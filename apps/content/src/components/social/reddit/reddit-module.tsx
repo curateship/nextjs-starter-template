@@ -55,9 +55,8 @@ import { firstFindInTab } from "@/lib/social/reddit/first-find"
 import { FindsPanel, findsTabChoices, findsTabCounts, type FindsHeaderTools } from "./finds-panel"
 import { matchesFindSearch } from "@/lib/social/find-search"
 import { PanelReopenButton } from "@/components/shared/three-panels"
-import { ProjectBackButton } from "@/components/social/projects/project-back"
-import { NetworkPaneColumns, useNetworkPanes, withPaneTabs } from "@/components/content-app/network-panes"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { NetworkPaneColumns, useNetworkPanes, withPaneTabs, NetworkTabs } from "@/components/content-app/network-panes"
+import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
 import { KeywordsBar } from "./keywords-panel"
 import { JobsWindow } from "./jobs-window"
 
@@ -514,9 +513,9 @@ export function RedditModule({
         panes={{ ...panes, pane: panes.pane }}
         tabs={
           <>
-            <PanelReopenButton side="left" label="Show the project" />
-            <ProjectBackButton />
-            <DashboardTabs value={paneTabs.value} onValueChange={paneTabs.onValueChange} tabs={paneTabs.choices} />
+            <PanelReopenButton side="left" label="Show the Projects page" />
+            <ProjectHeaderLead />
+            <NetworkTabs tabs={paneTabs} />
           </>
         }
         left={left}

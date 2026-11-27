@@ -254,7 +254,8 @@ export async function addProjectNetwork(
 }
 
 /**
- * The Networks block's order and which networks it leaves out, from its ⋮.
+ * Promote's tab order and which networks it leaves out, from the project's
+ * ⋮, Networks.
  * The order must name the project's networks, each once; a network the
  * project does not use cannot be hidden.
  */
@@ -336,8 +337,8 @@ export async function removeProjectNetwork(
  * photo it has to be an image this person uploaded, never any address the
  * browser sent. "" takes it off.
  *
- * The description is the project's page as the editor sent it: words, "/"
- * blocks and the fixed Networks block, cleaned here to what a page may hold
+ * The description is the project's page as the editor sent it: words and
+ * "/" blocks, cleaned here to what a page may hold
  * (`storedProjectPage`). Its words alone are what the AI is told, and they
  * are refused, never cut short, past 4,000 letters. It is refused for
  * everyone while Lock description is on.
@@ -573,9 +574,9 @@ export type ProjectView = {
     id: string
     name: string
     /**
-     * The description as the left panel's page: its words, any "/" blocks,
-     * and the fixed Networks block, as JSON for the editor. Its words alone
-     * are what the AI is told.
+     * The description on the ⋮'s General tab: its words and any "/"
+     * blocks, as JSON for the editor. Its words alone are what the AI is
+     * told.
      */
     descriptionPage: string
     /** Lock description is on: nobody can change it until it is unlocked. */
@@ -587,9 +588,9 @@ export type ProjectView = {
     /** The pictures the cover has had, to pick again. */
     coverImages: string[]
     pausedAt: Date | null
-    /** The networks it uses, each a line in its Networks block, in the order dragged there (added last by default). */
+    /** The networks it uses, each a tab on Promote, in the order set in the ⋮ (added last by default). */
     networks: Network[]
-    /** The networks left out of the Networks block; they stay on the project. */
+    /** The networks left out of Promote's tabs; they stay on the project. */
     hiddenNetworks: Network[]
     /** The networks paused on their own while the rest of the project runs. */
     pausedNetworks: Network[]

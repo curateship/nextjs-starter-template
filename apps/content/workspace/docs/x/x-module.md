@@ -50,9 +50,9 @@ column fills the middle and right columns with X's panels. It came from
   the right column as `?open=<id>`.
 - **The right column** shows what is open: a post and the reply to it, a sent
   reply or a mention, a post of your own being written, or a community.
-- **The X row in the left column** carries a count: the strong posts waiting
-  plus the replies and mentions nobody has answered. It has its own pause
-  button, as every network's row does.
+- **"X · Posts" in Promote's dropdown** carries how many of your posts need
+  you, failed ones and drafts not sent yet. X is paused on its own from the
+  project's ⋮, under Networks, as every network is.
 
 ## Keeping up with the queue
 

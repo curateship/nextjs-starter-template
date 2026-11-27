@@ -1,5 +1,7 @@
 import * as React from "react"
-import { ArrowLeftIcon, ListChecksIcon, PlusIcon } from "lucide-react"
+import { ListHeader } from "@/components/content-app/list-header"
+import { ProjectMenuButton } from "@/components/content-app/project-top"
+import { ArrowLeftIcon, PlusIcon } from "lucide-react"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { JobsWindow } from "@/components/social/reddit/jobs-window"
@@ -10,9 +12,9 @@ import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { PanelReopenButton } from "@/components/shared/three-panels"
-import { NetworkPaneColumns, useNetworkPanes, withPaneTabs } from "@/components/content-app/network-panes"
+import { NetworkPaneColumns, useNetworkPanes, withPaneTabs, NetworkTabs } from "@/components/content-app/network-panes"
+import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
 import {
   getPhoneAppErrorMessage,
   loadAppModule,
@@ -27,7 +29,6 @@ import { AppAccountPicker } from "./app-account-picker"
 import { AppCommentsTable, AppPostsTable } from "./app-tables"
 import { InboxAnswer } from "./inbox-answer"
 import { PostComposer } from "./post-composer"
-import { ProjectBackButton } from "@/components/social/projects/project-back"
 
 /** How often to ask what the queue is doing, while it is doing something. */
 const POLL_MS = 2_000
@@ -127,25 +128,21 @@ export function AppModule({
       { value: "comments", label: "Comments", count: view ? view.comments.filter((row) => row.status === "open").length : undefined },
     ]
   )
-  // The arrow back to the Projects dashboard first, then the tabs (Tyler, 12 Nov 2026: "put the arrow back again").
+  // The left of the one header (`ListHeader`, which every list here draws, the tables too): the
+  // project's controls, and the network's own list dropdown, which lands after the search icon.
   const tabs = (
-    <>
-    <ProjectBackButton />
-    {/* The tabs every dashboard draws, as Reddit's (Tyler, 14 Nov 2026: "some networks is not using the correct tab ui"). */}
-    <DashboardTabs value={paneTabs.value} onValueChange={paneTabs.onValueChange} tabs={paneTabs.choices} />
-    </>
+    <span className="flex min-w-0 items-center gap-1">
+      <PanelReopenButton side="left" label="Show the Projects page" />
+      <ProjectHeaderLead />
+      <NetworkTabs tabs={paneTabs} />
+    </span>
   )
   // Voices or Accounts, in place of this network's own lists.
   if (panes?.pane) {
     return (
       <NetworkPaneColumns
         panes={{ ...panes, pane: panes.pane }}
-        tabs={
-          <>
-            <PanelReopenButton side="left" label="Show the project" />
-            {tabs}
-          </>
-        }
+        tabs={tabs}
         left={left}
         dialogs={dialogs}
       />
@@ -154,16 +151,6 @@ export function AppModule({
 
   const controls = (
     <>
-      {guest ? null : <DashboardToolbarButton
-        type="button"
-        variant="outline"
-        onClick={() => onSearch({ window: "jobs" })}
-        aria-label={jobsWaiting ? `Jobs, ${jobsWaiting} running or waiting` : "Jobs"}
-      >
-        <ListChecksIcon className="size-4" />
-        <span className="hidden sm:inline">Jobs</span>
-        {jobsWaiting ? <span className="text-muted-foreground tabular-nums">{jobsWaiting}</span> : null}
-      </DashboardToolbarButton>}
       <DashboardToolbarButton
         type="button"
         onClick={() => {
@@ -177,24 +164,29 @@ export function AppModule({
     </>
   )
 
+  // The project's ⋮, last in the one header (`content-app/project-top.tsx`).
+  const menu = <ProjectMenuButton jobs={guest ? null : { waiting: jobsWaiting, onOpen: () => onSearch({ window: "jobs" }) }} />
+
   const middle = !view ? (
-    error ? (
-      <ErrorRow message={error} onRetry={() => void refresh()} />
-    ) : (
-      <LoadingRow label={`Reading this project's ${NETWORK_NAMES[network]} posts`} />
-    )
+    // The one header stays while the list is read, so moving here from another tab never blanks it
+    // (Tyler, 27 Nov 2026: "why does cliucking on promote flashes the page").
+    <>
+      <ListHeader tabs={tabs} primary={controls} end={menu} menuLabel="More for this list" search={null} massSelect={null} />
+      {error ? <ErrorRow message={error} onRetry={() => void refresh()} /> : <LoadingRow label={`Reading this project's ${NETWORK_NAMES[network]} posts`} />}
+    </>
   ) : tab === "comments" ? (
     <AppCommentsTable
       network={network}
       tabs={tabs}
       controls={controls}
+      menu={menu}
       rows={view.comments}
       selectedId={openComment}
       onOpen={(id) => onSearch({ comment: id })}
       onRefresh={refresh}
     />
   ) : (
-    <AppPostsTable network={network} tabs={tabs} controls={controls} rows={view.posts} onRefresh={refresh} />
+    <AppPostsTable network={network} tabs={tabs} controls={controls} menu={menu} rows={view.posts} onRefresh={refresh} />
   )
 
   const accountPicker = view ? (

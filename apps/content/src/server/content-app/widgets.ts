@@ -8,8 +8,8 @@ import { viralProjectResults } from "@/server/viral/schema"
 /**
  * The two Overview widgets Content adds to the Projects dashboard's
  * (`workspace/docs/content-app.md`, "The Projects dashboard"): what Research
- * found in the last day, and the videos still drafts. Both are per project, so
- * a project's own Overview narrows them to itself as it does Promo's widgets.
+ * found in the last day, and the videos still drafts, one row per project,
+ * each opening that project.
  */
 
 /** A day, in milliseconds: Found today means the last 24 hours. */

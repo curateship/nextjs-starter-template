@@ -9,8 +9,8 @@ Nothing here has run on a real phone yet.
 
 ## On the project's dashboard
 
-Pick Instagram or TikTok in the project's left column. The right column is a
-new post:
+Pick Instagram or TikTok in the dropdown of the project's Promote tab. The
+right column is a new post:
 
 1. **Photo or video:** picked from the media library, or uploaded there.
 2. **What the post is about:** a line or two for the AI. It is never posted.

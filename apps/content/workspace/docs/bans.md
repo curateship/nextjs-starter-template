@@ -208,7 +208,7 @@ Instagram twice".
   accounts in use; a press opens Accounts filtered to that status, and
   Accounts' Filter narrows to one app. The strip of counts per app that sat
   above the Accounts list went on 12 Nov 2026, so that list keeps one header.
-- **Lost accounts per project.** Each project's row and its left column say
+- **Lost accounts per project.** Each project's row on the Projects list says
   "2 accounts banned in the last 30 days", counting accounts a counted ban
   hit. Clicking it opens the Anti Detect dashboard's Bans filtered to that project and the
   last 30 days. Nothing shows when there are none.

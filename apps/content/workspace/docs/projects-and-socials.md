@@ -106,7 +106,7 @@ be read because Promo has no Threads.
 A new account gets one sample project the first time its list of projects
 is read (`ensureSampleViralProject`). It has made-up results, one analysed
 video, three ideas in the vault (Idea, Scripted and Posted, so the board has
-cards), two made-up Winning ads, one saved format on Library → Formats, and
+cards), one saved format on Library → Formats, and
 X and Reddit with two X searches and accounts, one subreddit and three
 made-up posts whose replies are already in, so every panel has something in
 it (`src/server/viral/sample-socials.ts`). It

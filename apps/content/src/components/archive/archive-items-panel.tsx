@@ -1,6 +1,5 @@
 import * as React from "react"
 import {
-  DownloadIcon,
   FilmIcon,
   GalleryHorizontalIcon,
   ImageIcon,
@@ -11,25 +10,26 @@ import {
   UploadIcon,
 } from "lucide-react"
 
-import { DashboardCardHeader, DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
+import { ViewMenu } from "@/components/shared/view-menu"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
-import { MassSelectChip, SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
-import { SearchToggle } from "@/components/shared/search-toggle"
+import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { AskForVideoDialog } from "@/components/archive/ask-for-video-dialog"
 import { MediaPicker } from "@/components/media/media-picker"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { Label } from "@/components/ui/label"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   addUploadsToArchive,
   binArchiveItems,
+  deleteArchiveItemForGood,
   getArchiveErrorMessage,
   loadArchiveItems,
   restoreArchiveItem,
@@ -41,7 +41,9 @@ import { formatFileSize } from "@/lib/format/format-bytes"
 import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
-import { ProjectBackButton } from "@/components/social/projects/project-back"
+import { ListHeader } from "@/components/content-app/list-header"
+import { ProjectMenuButton, SHRINKING_MENU } from "@/components/content-app/project-top"
+import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
 
 /** How often the list asks again while something is still arriving from Video. */
 const ARRIVING_POLL_MS = 4_000
@@ -52,12 +54,13 @@ const ANY = "any"
  * The Archive on a project's own page (`workspace/docs/archive.md`): one
  * project's videos, carousels and pictures as a grid, newest first, pinned
  * on top, where a guest from Project sees it too, with nothing to manage.
- * The Projects dashboard's Archive section is `archive-section.tsx`.
  *
- * Tabs pick the kind; the toolbar has mass select, search, Filter (not
- * posted yet, most viewed, grouped by Video project) and "+ Add",
- * which opens the media library to upload or pick files (part 28). The ⋮
- * after the tabs holds the Bin and the whole project as one zip.
+ * One header (`ListHeader`): the search icon, a dropdown of which kind shows,
+ * Filter (not posted yet, most viewed, grouped by Video project) and "+ Add", which opens the media library to
+ * upload or pick files (part 28). Select is in the project's ⋮, and the Bin is
+ * a tab of it. The whole
+ * project as one zip went on 27 Nov 2026 (Tyler: "Remove the download zip
+ * feature").
  */
 export function ArchiveItemsPanel({
   projectId,
@@ -90,10 +93,9 @@ export function ArchiveItemsPanel({
   const [picking, setPicking] = React.useState(false)
   const [asking, setAsking] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
-  const inBin = search.bin === "1"
 
 
-  const queryKey = JSON.stringify([projectId, search.kind, search.q, search.posted, search.sort, inBin, reloads])
+  const queryKey = JSON.stringify([projectId, search.kind, search.q, search.posted, search.sort, reloads])
   React.useEffect(() => {
     let cancelled = false
     loadArchiveItems({
@@ -102,7 +104,7 @@ export function ArchiveItemsPanel({
       q: search.q,
       notPosted: search.posted === "no",
       sort: search.sort === "views" ? "views" : "newest",
-      bin: inBin,
+      bin: false,
     }).then(
       (answer) => {
         if (cancelled) return
@@ -164,116 +166,120 @@ export function ArchiveItemsPanel({
     }
   }
 
-  async function putBack(itemId: string) {
-    try {
-      await restoreArchiveItem(itemId)
-      setReloads((count) => count + 1)
-    } catch (failure) {
-      showErrorToast(getArchiveErrorMessage(failure))
-    }
-  }
-
   return (
     <>
-      {inBin ? (
-        <DashboardCardTitleHeader
-          back={{ label: "Back to the archive", onClick: () => onSearch({ bin: undefined, open: undefined }) }}
-          title="Bin"
-          meta={<span className="text-sm text-muted-foreground">Gone for good {BIN_DAYS} days after deleting</span>}
-        />
-      ) : (
-        <DashboardCardHeader className="group/title @container">
-          {/* On a project's own page, the arrow back to the Projects dashboard first. */}
-          <ProjectBackButton />
-          <DashboardTabs
-            value={search.kind ?? "all"}
-            onValueChange={(value) => onSearch({ kind: value === "all" ? undefined : (value as ArchiveItemKind), open: undefined })}
-            tabs={[
-              { value: "all", label: "All" },
-              { value: "video", label: "Videos" },
-              { value: "carousel", label: "Carousels" },
-              { value: "picture", label: "Pictures" },
-            ]}
-            after={
-              canManage ? (
-                <ArchiveMoreMenu projectId={projectId} binCount={binCount} onBin={() => onSearch({ bin: "1", open: undefined })} />
-              ) : undefined
-            }
-          />
-          <div className="flex shrink-0 items-center gap-1">
-            {selected.size && canManage ? (
-              <SelectedMenu
-                count={selected.size}
-                busy={busy}
-                onClear={() => setSelected(new Set())}
-                main={(menu) => (
-                  <SelectedMenuRow
-                    className="text-destructive"
-                    onClick={() => {
-                      menu.close()
-                      void binSelected()
-                    }}
-                  >
-                    Move to the Bin
-                  </SelectedMenuRow>
-                )}
-                pages={{}}
-              />
-            ) : null}
-            {canManage ? (
-              <MassSelectChip
-                on={selecting}
-                onToggle={() => {
+      {/* The one list header every dashboard in Content has (`ListHeader`): the project's controls, then
+          the search icon, which kind shows, Filter, the Bin, Add, and the project's ⋮ last. Select is in
+          that ⋮, at the top of General (Tyler, 27 Nov 2026, `workspace/tasks/Misc/misc.md`). */}
+      <ListHeader
+        tabs={
+          <span className="flex min-w-0 items-center gap-1">
+            <ProjectHeaderLead />
+          </span>
+        }
+        choices={
+          <span className={SHRINKING_MENU}>
+            <ViewMenu
+              label="Which kind of item"
+              value={search.kind ?? "all"}
+              onValueChange={(value) => onSearch({ kind: value === "all" ? undefined : (value as ArchiveItemKind), open: undefined })}
+              choices={[
+                { value: "all", label: "Every kind" },
+                { value: "video", label: "Videos" },
+                { value: "carousel", label: "Carousels" },
+                { value: "picture", label: "Pictures" },
+              ]}
+            />
+          </span>
+        }
+        selected={
+          selected.size && canManage ? (
+            <SelectedMenu
+              count={selected.size}
+              busy={busy}
+              onClear={() => setSelected(new Set())}
+              main={(menu) => (
+                <SelectedMenuRow
+                  className="text-destructive"
+                  onClick={() => {
+                    menu.close()
+                    void binSelected()
+                  }}
+                >
+                  Move to the Bin
+                </SelectedMenuRow>
+              )}
+              pages={{}}
+            />
+          ) : null
+        }
+        search={{
+          name: "archive-search",
+          label: "Search the archive",
+          placeholder: "Search titles and captions…",
+          value: search.q ?? "",
+          onChange: (q) => onSearch({ q: q || undefined }),
+        }}
+        massSelect={
+          canManage
+            ? {
+                on: selecting,
+                onToggle: () => {
                   if (selecting) setSelected(new Set())
                   setSelecting(!selecting)
-                }}
-              />
-            ) : null}
-            <SearchToggle
-              name="archive-search"
-              label="Search the archive"
-              placeholder="Search titles and captions…"
-              value={search.q ?? ""}
-              onChange={(q) => onSearch({ q: q || undefined })}
+                },
+              }
+            : null
+        }
+        filter={
+        <FilterPopover
+          count={archiveFilterCount(search)}
+          open={filterOpen}
+          onOpenChange={setFilterOpen}
+          onClear={() => onSearch({ posted: undefined, sort: undefined })}
+          save={null}
+        >
+          <div className="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
+            <FilterRow
+              id="archive-filter-posted"
+              label="Posted"
+              value={search.posted}
+              anyLabel="Posted or not"
+              options={[["no", "Not posted yet"]]}
+              onChange={(posted) => onSearch({ posted: posted === "no" ? "no" : undefined })}
             />
-            <FilterPopover
-              count={archiveFilterCount(search)}
-              open={filterOpen}
-              onOpenChange={setFilterOpen}
-              onClear={() => onSearch({ posted: undefined, sort: undefined })}
-              save={null}
-            >
-              <div className="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
-                <FilterRow
-                  id="archive-filter-posted"
-                  label="Posted"
-                  value={search.posted}
-                  anyLabel="Posted or not"
-                  options={[["no", "Not posted yet"]]}
-                  onChange={(posted) => onSearch({ posted: posted === "no" ? "no" : undefined })}
-                />
-                <FilterRow
-                  id="archive-filter-sort"
-                  label="Sort"
-                  value={search.sort}
-                  anyLabel="Newest first"
-                  options={[["views", "Most viewed"]]}
-                  onChange={(sort) => onSearch({ sort: sort === "views" ? "views" : undefined })}
-                />
-                <FilterRow
-                  id="archive-filter-group"
-                  label="Group"
-                  value={search.group}
-                  anyLabel="No groups"
-                  options={[["source", "By Video project"]]}
-                  onChange={(group) => onSearch({ group: group === "source" ? "source" : undefined })}
-                />
-              </div>
-            </FilterPopover>
-            {canManage ? <AddMenu onUpload={() => setPicking(true)} onAsk={() => setAsking(true)} /> : null}
+            <FilterRow
+              id="archive-filter-sort"
+              label="Sort"
+              value={search.sort}
+              anyLabel="Newest first"
+              options={[["views", "Most viewed"]]}
+              onChange={(sort) => onSearch({ sort: sort === "views" ? "views" : undefined })}
+            />
+            <FilterRow
+              id="archive-filter-group"
+              label="Group"
+              value={search.group}
+              anyLabel="No groups"
+              options={[["source", "By Video project"]]}
+              onChange={(group) => onSearch({ group: group === "source" ? "source" : undefined })}
+            />
           </div>
-        </DashboardCardHeader>
-      )}
+        </FilterPopover>
+        }
+        primary={canManage ? <AddMenu onUpload={() => setPicking(true)} onAsk={() => setAsking(true)} /> : undefined}
+        menuLabel="More for the archive"
+        // The Bin is a tab of the project's ⋮ (Tyler, 27 Nov 2026: "move bin into the tab here instead").
+        end={
+          <ProjectMenuButton
+            extraTabs={
+              canManage
+                ? [{ value: "bin", label: binCount ? `Bin · ${binCount}` : "Bin", content: <BinTab projectId={projectId} onPutBack={() => setReloads((count) => count + 1)} /> }]
+                : undefined
+            }
+          />
+        }
+      />
 
       <ScrollArea className="min-h-0 flex-1">
         {error ? (
@@ -286,9 +292,7 @@ export function ArchiveItemsPanel({
           </div>
         ) : !items.length ? (
           <p className="p-4 text-sm text-muted-foreground">
-            {inBin
-              ? "The Bin is empty."
-              : search.q || search.kind || search.posted
+            {search.q || search.kind || search.posted
                 ? "Nothing in the archive matches that."
                 : canManage
                   ? `${projectName}'s archive is empty. Press Send to Promo on an export in Video, or + Add to upload a file.`
@@ -305,7 +309,7 @@ export function ArchiveItemsPanel({
                       key={item.id}
                       item={item}
                       open={item.id === openId}
-                      selecting={selecting && canManage && !inBin}
+                      selecting={selecting && canManage}
                       ticked={selected.has(item.id)}
                       onTick={() =>
                         setSelected((current) => {
@@ -316,7 +320,6 @@ export function ArchiveItemsPanel({
                         })
                       }
                       onOpen={() => onOpen(item.id)}
-                      onPutBack={inBin ? () => void putBack(item.id) : undefined}
                     />
                   ))}
                 </div>
@@ -329,6 +332,125 @@ export function ArchiveItemsPanel({
       {canManage && asking ? <AskForVideoDialog projectId={projectId} projectName={projectName} onClose={() => setAsking(false)} /> : null}
       {canManage ? <MediaPicker open={picking} onOpenChange={setPicking} onSelectMedia={(url) => void addUpload(url)} showVideos /> : null}
     </>
+  )
+}
+
+/**
+ * The Bin, a tab of the project's ⋮ on Content (Tyler, 27 Nov 2026: "The bin
+ * should open up a modal instead", then "move bin into the tab here
+ * instead"): the project's deleted items, newest first, each with Put back
+ * and Delete for good, which asks first, as the item's own ⋮ in the Bin did.
+ * They go for good 30 days after deleting anyway. Read each time the tab opens.
+ */
+function BinTab({ projectId, onPutBack }: { projectId: string; onPutBack: () => void }) {
+  const [items, setItems] = React.useState<ArchiveCard[] | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+  const [reloads, setReloads] = React.useState(0)
+  const [busyId, setBusyId] = React.useState<string | null>(null)
+  const [forGood, setForGood] = React.useState<ArchiveCard | null>(null)
+  React.useEffect(() => {
+    let cancelled = false
+    loadArchiveItems({ projectId, sort: "newest", bin: true, notPosted: false }).then(
+      (answer) => {
+        if (cancelled) return
+        setItems(answer.items)
+        setError(null)
+      },
+      (failure: unknown) => {
+        if (!cancelled) setError(getArchiveErrorMessage(failure))
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, reloads])
+
+  async function act(itemId: string, work: () => Promise<void>) {
+    setBusyId(itemId)
+    dismissErrorToast()
+    try {
+      await work()
+      setReloads((count) => count + 1)
+    } catch (failure) {
+      showErrorToast(getArchiveErrorMessage(failure))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <div className="grid gap-1 p-3">
+      <p className="px-1 pb-1 text-xs text-muted-foreground">Gone for good {BIN_DAYS} days after deleting.</p>
+      {error ? (
+        <ErrorRow message={error} onRetry={() => setReloads((count) => count + 1)} />
+      ) : !items ? (
+        <LoadingRow label="Opening the Bin…" />
+      ) : !items.length ? (
+        <p className="px-1 py-1.5 text-sm text-muted-foreground">The Bin is empty.</p>
+      ) : (
+        items.map((item) => {
+          const Icon = KIND_ICONS[item.kind]
+          return (
+            <div key={item.id} className="flex min-h-11 min-w-0 items-center gap-2.5 px-1 py-1">
+              <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                {item.coverUrl ? <img src={item.coverUrl} alt="" className="size-full object-cover" loading="lazy" /> : <Icon className="size-4 text-muted-foreground" />}
+              </span>
+              <span className="grid min-w-0 flex-1 leading-tight">
+                <span className="truncate text-sm">{item.title || "Untitled"}</span>
+                <span className="truncate text-xs text-muted-foreground">{cardMeasure(item)}</span>
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busyId !== null}
+                onClick={() =>
+                  void act(item.id, async () => {
+                    await restoreArchiveItem(item.id)
+                    onPutBack()
+                  })
+                }
+              >
+                {busyId === item.id && !forGood ? <Loader2Icon className="animate-spin" /> : null}
+                Put back
+              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-destructive hover:text-destructive"
+                    disabled={busyId !== null}
+                    aria-label={`Delete ${item.title || "this item"} for good`}
+                    onClick={() => setForGood(item)}
+                  >
+                    <Trash2Icon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete for good</TooltipContent>
+              </Tooltip>
+            </div>
+          )
+        })
+      )}
+      <ConfirmDialog
+        open={forGood !== null}
+        onOpenChange={(open) => (open ? null : setForGood(null))}
+        title="Delete this for good?"
+        description="Its files go from storage now, and it can't be put back. Posts already made stay on their networks."
+        confirmLabel="Delete for good"
+        loading={busyId !== null}
+        onConfirm={() => {
+          const item = forGood
+          if (!item) return
+          void act(item.id, async () => {
+            await deleteArchiveItemForGood(item.id)
+            setForGood(null)
+          })
+        }}
+      />
+    </div>
   )
 }
 
@@ -366,7 +488,6 @@ function ArchiveCardButton({
   ticked,
   onTick,
   onOpen,
-  onPutBack,
 }: {
   item: ArchiveCard
   open: boolean
@@ -374,7 +495,6 @@ function ArchiveCardButton({
   ticked: boolean
   onTick: () => void
   onOpen: () => void
-  onPutBack?: () => void
 }) {
   const Icon = KIND_ICONS[item.kind]
   const arriving = item.status === "copying"
@@ -417,11 +537,6 @@ function ArchiveCardButton({
       </button>
       {selecting ? (
         <Checkbox className="absolute top-2.5 left-2.5 bg-background" checked={ticked} onCheckedChange={onTick} aria-label={`Select ${item.title || "this item"}`} />
-      ) : null}
-      {onPutBack ? (
-        <Button type="button" variant="outline" size="xs" onClick={onPutBack}>
-          Put back
-        </Button>
       ) : null}
     </div>
   )
@@ -494,38 +609,9 @@ function AddMenu({ onUpload, onAsk }: { onUpload: () => void; onAsk: () => void 
           onAsk()
         }}
       >
-        Ask Video for a video
+        {/* Tyler, 27 Nov 2026: rename it to "Create video". It sends a brief to Video, which makes a draft video. */}
+        Create video
       </MenuAction>
     </FoldingMenu>
   )
 }
-
-/** The ⋮ after the tabs: the Bin with its count, and the whole project as one zip (part 31). */
-function ArchiveMoreMenu({ projectId, binCount, onBin }: { projectId: string; binCount: number; onBin: () => void }) {
-  const [open, setOpen] = React.useState(false)
-  return (
-    <div className="flex items-center border-b-2 border-transparent">
-      <FoldingMenu label="More for this archive" fit open={open} onOpenChange={setOpen}>
-        <MenuAction
-          icon={<Trash2Icon className="size-4" />}
-          onClick={() => {
-            setOpen(false)
-            onBin()
-          }}
-        >
-          Bin{binCount ? ` (${binCount})` : ""}
-        </MenuAction>
-        <MenuAction
-          icon={<DownloadIcon className="size-4" />}
-          onClick={() => {
-            setOpen(false)
-            window.location.assign(`/api/archive/zip/${encodeURIComponent(projectId)}`)
-          }}
-        >
-          Download everything as a zip
-        </MenuAction>
-      </FoldingMenu>
-    </div>
-  )
-}
-

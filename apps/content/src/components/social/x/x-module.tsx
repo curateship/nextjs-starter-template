@@ -1,9 +1,8 @@
 import * as React from "react"
-import { CrmListHeader } from "@/components/crm/crm-row"
+import { ProjectMenuButton } from "@/components/content-app/project-top"
+import { ListHeader } from "@/components/content-app/list-header"
 import { HeaderActionsProvider } from "@/components/social/header-actions"
-import { DashboardTabs } from "@/components/shared/dashboard-tabs"
-import { ViewMenu } from "@/components/shared/view-menu"
-import { NetworkPaneColumns, useNetworkPanes, withPaneTabs } from "@/components/content-app/network-panes"
+import { NetworkPaneColumns, useNetworkPanes, withPaneTabs, NetworkTabs } from "@/components/content-app/network-panes"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { Link } from "@tanstack/react-router"
 import { AlertTriangleIcon, MoonIcon, PauseIcon } from "lucide-react"
@@ -11,6 +10,7 @@ import { AlertTriangleIcon, MoonIcon, PauseIcon } from "lucide-react"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
 import { JobsWindow } from "@/components/social/reddit/jobs-window"
+import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
 import {
   changeXHidden,
   getXErrorMessage,
@@ -45,7 +45,6 @@ import { XKeywords } from "./x-keywords"
 import { XPostPanel, XPostsList } from "./x-posts"
 import { XMentionPanel, XMentionsList, XRepliesList, XReplyPanel } from "./x-replies"
 import { XTodayList } from "./x-today"
-import { ProjectBackButton } from "@/components/social/projects/project-back"
 
 /** How often to ask what the queue is doing, while it is doing something. */
 const POLL_MS = 2_000
@@ -330,30 +329,22 @@ export function XModule({
   // The tabs from 768px wide, and below that one dropdown naming the list,
   // as Reddit's (`finds-panel.tsx`).
   const paneTabs = withPaneTabs(panes, tab, pickTab, tabChoices)
-  const tabList = (
-    <>
-      <span className="hidden @3xl:contents">
-        <DashboardTabs value={paneTabs.value} onValueChange={paneTabs.onValueChange} tabs={paneTabs.choices} />
-      </span>
-      <span className="shrink-0 @3xl:hidden">
-        <ViewMenu value={paneTabs.value} onValueChange={paneTabs.onValueChange} choices={paneTabs.choices} label="Which list" />
-      </span>
-    </>
-  )
+  // The shell's dropdown of which list shows, as every network's on a project's page (`NetworkTabs`).
+  const tabList = <NetworkTabs tabs={paneTabs} />
   // Posts' one header, as Reddit's Posts has it: the arrow back and the tabs,
   // then the list's own buttons (Post ideas, New post) at its right end,
   // drawn there by the list through `HeaderActions`.
   const headerStart = (
     <>
-      <PanelReopenButton side="left" label="Show the project" />
-      <ProjectBackButton />
+      <PanelReopenButton side="left" label="Show the Projects page" />
+      <ProjectHeaderLead />
       {tabList}
     </>
   )
   const tabs = (
-    <CrmListHeader
+    <ListHeader
       tabs={headerStart}
-      end={<PanelReopenButton side="right" label="Show the open post" />}
+      end={<><ProjectMenuButton /><PanelReopenButton side="right" label="Show the open post" /></>}
       search={null}
       massSelect={null}
       menuLabel="More"

@@ -1,7 +1,8 @@
 import * as React from "react"
 import { PlusIcon, Trash2Icon, VaultIcon } from "lucide-react"
 
-import { CrmListHeader, CrmRowMenu } from "@/components/crm/crm-row"
+import { CrmRowMenu } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { EmptyRecord } from "@/components/crm/record-frame"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { FilterPopover } from "@/components/shared/filter-popover"
@@ -173,7 +174,7 @@ export function VaultSection({ data, search, frame, onChanged }: SectionProps<Da
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <CrmListHeader
+      <ListHeader
         tabs={<MiddleHeading icon={VaultIcon} label={project?.name ?? "Vault"} />}
         end={<PanelReopenButton side="right" label="Show the idea" />}
         menuLabel="More for the vault"

@@ -14,8 +14,11 @@ import { orderSections } from "@/lib/layout/styling-values"
  * - **Dashboards**, fixed: Overview, then each section, the one showing
  *   picked, each with its count. Its ⋮ shows and hides every section but
  *   Overview and drags them into order.
- * - **Projects**: every project, pinned first. Pressing one narrows the
- *   sections to it; pressing it again lets it go.
+ * - **Projects**, when `projectsBlock` names one: every project, pinned
+ *   first. Pressing one narrows the sections to it; pressing it again lets it
+ *   go. The Anti Detect dashboard has it; Content's Projects dashboard does
+ *   not, since a row of its Projects list opens the project (Tyler, 27 Nov
+ *   2026: "Remove projects block. List row only").
  * - **A group of its own**, fixed, when `group` names one: some sections in a
  *   block of their own under Dashboards, as Content's Viral block holds
  *   Vault, Hooks and Formats. Its ⋮ shows, hides and orders them as the
@@ -35,12 +38,16 @@ export type DashboardBlocks<Section extends string, ListSection extends Section>
   onSectionsChange: (sections: { hidden: ListSection[]; order: ListSection[] }) => void
   /** Each row's count. Null while it is read. */
   counts: Record<Section, number | null>
-  /** Every project, pinned ones first, each with how many of the open section's rows are its own; null shows no pill. */
-  projects: { id: string; name: string; count: number | null }[]
+  /**
+   * The Projects block's rows, when the dashboard has one: every project,
+   * pinned ones first, each with how many of the open section's rows are its
+   * own; null shows no pill.
+   */
+  projects?: { id: string; name: string; count: number | null }[]
   /** The project the sections are narrowed to, or "". */
-  activeProject: string
+  activeProject?: string
   /** Narrows to a project; "" lets it go. */
-  onProject: (projectId: string) => void
+  onProject?: (projectId: string) => void
 }
 
 export function makeDashboardBlocks<Section extends string, ListSection extends Section>(config: {
@@ -51,12 +58,10 @@ export function makeDashboardBlocks<Section extends string, ListSection extends 
   labels: Record<Section, string>
   /** The "/" node names; the server cleans a saved page with them. */
   sectionsNode: string
-  projectsNode: string
-  /** Each block's kind, which its remembered fold is kept under. */
+  /** The Dashboards block's kind, which its remembered fold is kept under. */
   sectionsKind: string
-  projectsKind: string
-  /** The Projects block's line with no project yet. */
-  noProjects: string
+  /** The Projects block, when the dashboard has one: its node, its kind and its line with no project yet. */
+  projectsBlock?: { node: string; kind: string; empty: string }
   /** Sections drawn in a fixed block of their own, under Dashboards, rather than in it. */
   group?: {
     title: string
@@ -139,17 +144,18 @@ export function makeDashboardBlocks<Section extends string, ListSection extends 
 
   function ProjectsBlock() {
     const blocks = React.useContext(Context)
-    useBlockCount(blocks?.projects.length || undefined)
+    const projects = blocks?.projects ?? []
+    useBlockCount(projects.length || undefined)
     if (!blocks) return <NotHere />
     return (
       <SideRows
-        empty={config.noProjects}
-        rows={blocks.projects.map((project) => ({
+        empty={config.projectsBlock?.empty ?? ""}
+        rows={projects.map((project) => ({
           key: project.id,
           name: project.name,
           value: project.count === null ? undefined : project.count.toLocaleString(),
           picked: blocks.activeProject === project.id,
-          onPress: () => blocks.onProject(blocks.activeProject === project.id ? "" : project.id),
+          onPress: () => blocks.onProject?.(blocks.activeProject === project.id ? "" : project.id),
         }))}
       />
     )
@@ -163,12 +169,15 @@ export function makeDashboardBlocks<Section extends string, ListSection extends 
     fixed: true,
   })
 
-  const ProjectsView = blockView({
-    kind: config.projectsKind,
-    title: "Projects",
-    icon: <FolderOpenIcon />,
-    Draw: ProjectsBlock,
-  })
+  const projectsBlock = config.projectsBlock
+  const ProjectsView = projectsBlock
+    ? blockView({
+        kind: projectsBlock.kind,
+        title: "Projects",
+        icon: <FolderOpenIcon />,
+        Draw: ProjectsBlock,
+      })
+    : null
 
   const group = config.group
   const GroupView = group
@@ -181,7 +190,7 @@ export function makeDashboardBlocks<Section extends string, ListSection extends 
       })
     : null
 
-  /** Dashboards (fixed, never in the "/" list), the group's block when there is one, then Projects under Advanced blocks. */
+  /** Dashboards (fixed, never in the "/" list), the group's block when there is one, then Projects under Advanced blocks when there is one. */
   const appBlocks: readonly AppBlock[] = [
     {
       key: "promoSections",
@@ -203,13 +212,17 @@ export function makeDashboardBlocks<Section extends string, ListSection extends 
           },
         ]
       : []),
-    {
-      key: "promoProjects",
-      label: "Projects",
-      icon: FolderOpenIcon,
-      node: config.projectsNode,
-      extension: blockNode(config.projectsNode, {}, ProjectsView),
-    },
+    ...(projectsBlock && ProjectsView
+      ? [
+          {
+            key: "promoProjects",
+            label: "Projects",
+            icon: FolderOpenIcon,
+            node: projectsBlock.node,
+            extension: blockNode(projectsBlock.node, {}, ProjectsView),
+          },
+        ]
+      : []),
   ]
 
   return { Provider, SectionsBlock, appBlocks }

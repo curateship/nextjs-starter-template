@@ -44,8 +44,6 @@ old `/admin/voices` is gone since 13 Nov 2026 ([Old addresses](old-addresses.md)
 - **Deleting says who loses it.** Delete is in the voice's ⋮, its row's
   right-click menu and the selected rows' menu; the question names the
   accounts, and they are kept with no voice.
-- **The Projects block** narrows nothing here, because a voice belongs to no
-  project.
 
 ## Trying a voice
 

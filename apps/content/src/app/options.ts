@@ -164,12 +164,6 @@ export const appOptions: AppOptions = {
          */
         panel: () => import("@/components/social/behaviour-settings"),
       },
-      // The Meta ad library token, for Winning ads.
-      defineSettingsTab({
-        id: "meta",
-        label: "Meta",
-        panel: () => import("@/components/viral/settings/meta-settings"),
-      }),
       // Which AI writes Research's words, picked once.
       defineSettingsTab({
         id: "writer",

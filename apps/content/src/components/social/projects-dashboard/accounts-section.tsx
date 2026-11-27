@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ProjectMenuButton } from "@/components/content-app/project-top"
 import { useRouter } from "@tanstack/react-router"
 import {
   ArchiveIcon,
@@ -12,7 +13,8 @@ import {
 } from "lucide-react"
 
 import type { CrmFrame } from "@/components/crm/crm-frame"
-import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { Chip, CrmGroupRow, CrmTable, CrmTableRow, MainCell, useFolds } from "@/components/crm/crm-table"
 import { EmptyRecord } from "@/components/crm/record-frame"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
@@ -318,7 +320,7 @@ export function AccountsSection({
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <CrmListHeader
+      <ListHeader
         tabs={
           networkTabs ?? (
             <>
@@ -332,7 +334,7 @@ export function AccountsSection({
             </>
           )
         }
-        end={<PanelReopenButton side="right" label="Show the account" />}
+        end={<><ProjectMenuButton /><PanelReopenButton side="right" label="Show the account" /></>}
         selected={
           massSelect && selected.length ? (
             <SelectedMenu

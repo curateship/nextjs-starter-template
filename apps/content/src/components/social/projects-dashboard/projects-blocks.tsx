@@ -1,7 +1,7 @@
 import { FlameIcon } from "lucide-react"
 
 import { makeDashboardBlocks, type DashboardBlocks } from "@/components/dashboard-page/dashboard-blocks"
-import { PROJECTS_PICKER_NODE, PROJECTS_SECTIONS_NODE, PROJECTS_VIRAL_NODE } from "@/lib/social/projects-dashboard-page"
+import { PROJECTS_SECTIONS_NODE, PROJECTS_VIRAL_NODE } from "@/lib/social/projects-dashboard-page"
 import {
   RESEARCH_SECTIONS,
   PROJECTS_LIST_SECTIONS,
@@ -13,11 +13,15 @@ import {
 
 /**
  * The Projects dashboard's own "/" blocks on its left page (Tyler, 12 Nov
- * 2026): Dashboards (Overview, Projects, Accounts and Messages), Content's
+ * 2026): Dashboards (Overview, Projects, Accounts and Messages) and Content's
  * Viral (Vault, Hooks and Formats; Tyler, 27 Nov 2026: "should be its own
- * block called "Viral""), and Projects, which narrows Overview, Accounts and
- * Messages to one project, and Projects to its own row. Drawn by the shared
- * `makeDashboardBlocks`, as the Anti Detect dashboard's are.
+ * block called "Viral""). Drawn by the shared `makeDashboardBlocks`, as the
+ * Anti Detect dashboard's are. The same left panel shows on a project's page
+ * (`content-app/projects-left.tsx`).
+ *
+ * It has no Projects block (Tyler, 27 Nov 2026: "Remove projects block. List
+ * row only"): a row of the Projects list opens the project in the middle and
+ * right.
  */
 
 export type ProjectsBlocks = DashboardBlocks<ProjectsSection, ProjectsListSection>
@@ -28,10 +32,7 @@ const blocks = makeDashboardBlocks<ProjectsSection, ProjectsListSection>({
   listSections: PROJECTS_LIST_SECTIONS,
   labels: PROJECTS_SECTION_LABELS,
   sectionsNode: PROJECTS_SECTIONS_NODE,
-  projectsNode: PROJECTS_PICKER_NODE,
   sectionsKind: "promo-sections",
-  projectsKind: "promo-projects",
-  noProjects: "No projects yet. New project in the Projects section makes one.",
   group: {
     title: "Viral",
     icon: FlameIcon,

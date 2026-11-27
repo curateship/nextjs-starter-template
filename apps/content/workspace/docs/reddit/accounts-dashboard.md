@@ -45,8 +45,9 @@ the Reddit accounts page left the left menu on 14 Oct 2026
 - **The old addresses** `/admin/accounts` and `/admin/reddit-accounts` are gone
   since 13 Nov 2026. Bell notices that held them now open this section with
   the same `?platform=` and `?open=` ([Old addresses](../old-addresses.md)).
-- **The Projects block** on the dashboard's left page narrows the list to one
-  project's accounts.
+- **One project's accounts** are each network's Accounts choice on that
+  project's page; this list shows every project's (the Projects block that
+  narrowed it went on 27 Nov 2026).
 - **Windows that stay:** Add account, from New account; Help-only posts, from
   the account's ⋮; and Retire, which asks why. One window at a time.
 - **Each action speaks its account's network.** Add account asks for the

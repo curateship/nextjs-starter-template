@@ -19,12 +19,13 @@ export function useEditorBack() {
 
 /**
  * The button the editor's header starts with: the arrow and the project's
- * name, going back to the project's page, which opens on its Overview.
+ * name, going back to the project's Content tab on Videos, the list the video
+ * was opened from.
  */
 export function EditorBackButton({ project }: { project: { id: string; name: string } }) {
   return (
     <Button asChild variant="ghost" className="max-w-56 shrink-0 gap-1.5 px-2 font-normal">
-      <Link to="/admin/projects/$projectId" params={{ projectId: project.id }} aria-label={`Back to ${project.name}`}>
+      <Link to="/admin/projects/$projectId" params={{ projectId: project.id }} search={{ content: "videos" }} aria-label={`Back to ${project.name}`}>
         <ArrowLeftIcon />
         <span className="min-w-0 truncate">{project.name}</span>
       </Link>

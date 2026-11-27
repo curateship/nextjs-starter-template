@@ -11,7 +11,8 @@ import {
 } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
-import { DashboardToolbarButton, DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { SearchToggle } from "@/components/shared/search-toggle"
 import {
   SelectAllTableHead,
   SortableTableHeader,
@@ -470,13 +471,13 @@ function SentTable({
                   Check ({selection.selected.size})
                 </DashboardToolbarButton>
               ) : null}
-              <DashboardToolbarSearch
+              <SearchToggle
                 name="comment-search"
-                aria-label="Search comments"
+                label="Search comments"
                 placeholder="Search comments…"
                 value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value)
+                onChange={(next) => {
+                  setSearch(next)
                   setPage(1)
                 }}
               />

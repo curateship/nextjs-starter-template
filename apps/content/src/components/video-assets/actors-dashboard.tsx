@@ -1,4 +1,5 @@
 import * as React from "react"
+import { SearchToggle } from "@/components/shared/search-toggle"
 import { PlusIcon, SettingsIcon, SparklesIcon, Trash2Icon } from "lucide-react"
 
 import { ActorFormDialog } from "@/components/video-assets/actor-form-dialog"
@@ -6,8 +7,7 @@ import { ExtraFormDialog } from "@/components/video-assets/extra-form-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import {
   DashboardToolbarButton,
-  DashboardToolbarSearch,
-} from "@/components/shared/dashboard-toolbar"
+  } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -170,11 +170,12 @@ export function ActorsDashboard({
         }
         controls={
           <>
-            <DashboardToolbarSearch
-              aria-label={`Search ${tabLabel(tab).toLowerCase()}`}
+            <SearchToggle
+              name="actor-search"
+              label={`Search ${tabLabel(tab).toLowerCase()}`}
               placeholder={`Search ${tabLabel(tab).toLowerCase()}`}
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={setSearch}
             />
             <DashboardToolbarButton
               onClick={() => (kind ? setEditingExtra("new") : setEditing("new"))}

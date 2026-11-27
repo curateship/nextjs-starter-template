@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ListHeader } from "@/components/content-app/list-header"
 import { CircleDashedIcon, ExternalLinkIcon, GalleryHorizontalIcon, ImageIcon, Loader2Icon, PlayIcon, XIcon } from "lucide-react"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
@@ -40,7 +41,9 @@ import { IN_COLUMN_TABLE } from "../projects/project-columns"
  */
 const APP_TABLE = cn(
   IN_COLUMN_TABLE,
-  "[&>:first-child]:min-h-[57px] [&>:first-child]:border-b [&>:first-child]:p-3 [&>:first-child]:px-5 sm:[&>:first-child]:items-stretch sm:[&>:first-child]:gap-2 sm:[&>:first-child>:first-child]:gap-2"
+  // The shell table's own toolbar is hidden: the list's header is Content's one `ListHeader`, drawn above
+  // it, so this list's header looks like every other (Tyler, 27 Nov 2026: "fix ui for promote dashboard").
+  "h-auto min-h-0 flex-1 [&>:first-child]:hidden"
 )
 
 type PostColumn = "post" | "account" | "status" | "views" | "likes" | "comments" | "posted"
@@ -89,12 +92,15 @@ export function AppPostsTable({
   network,
   tabs,
   controls,
+  menu,
   rows,
   onRefresh,
 }: {
   network: PhoneAppNetwork
   tabs: React.ReactNode
   controls: React.ReactNode
+  /** The project's ⋮, last in the header. */
+  menu?: React.ReactNode
   rows: AppPostRow[]
   onRefresh: () => Promise<void>
 }) {
@@ -126,135 +132,148 @@ export function AppPostsTable({
   }
 
   return (
-    <DashboardTable
-      title="Posts"
-      fillHeight
-      className={APP_TABLE}
-      tabs={tabs}
-      count={rows.length}
-      selectedCount={selection.selected.size}
-      onClearSelection={selection.clear}
-      controls={
-        <>
-          {selection.selected.size && !guest ? (
-            <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void callOff([...selection.selected])}>
-              {busy ? <Loader2Icon className="size-4 animate-spin" /> : <XIcon className="size-4" />}
-              Call off ({selection.selected.size})
-            </DashboardToolbarButton>
-          ) : null}
-          {controls}
-        </>
-      }
-      header={
-        <SortableTableHeader
-          columns={POST_COLUMNS}
-          sort={sort}
-          direction={direction}
-          onSort={toggleSort}
-          leading={
-            <SelectAllTableHead
-              noun="posts"
-              checked={selection.selectAllState(visibleIds)}
-              onCheckedChange={() => selection.toggleVisible(visibleIds)}
-            />
-          }
-          trailing={<TableHead column="meta">Actions</TableHead>}
-        />
-      }
-      isEmpty={rows.length === 0}
-      emptyText={`Nothing posted on ${NETWORK_NAMES[network]} from this project yet. Pick a photo or video on the right and press Post.`}
-      emptyColSpan={POST_COLUMNS.length + 2}
-      footer={{ type: "summary", count: rows.length, label: "posts" }}
-    >
-      {sorted.map((row) => {
-        const name = handleWords(network, row.account.handle) || "An account not signed in"
-        const when = postedDateText(new Date(row.postedAt ?? row.createdAt))
-        const title = row.caption.split("\n")[0] || row.mediaName || "A post with no caption"
-        const numbersWhen = row.numbersReadAt ? `Numbers read ${postedDateText(new Date(row.numbersReadAt)).toLowerCase()}` : "Numbers not read yet"
-        return (
-          <TableRow key={row.id} className="group">
-            <TableCell column="select">
-              <Checkbox
-                checked={selection.selected.has(row.id)}
-                onCheckedChange={() => selection.toggle(row.id)}
-                aria-label={`Select ${title}`}
+    <>
+      <ListHeader
+        tabs={tabs}
+        selected={
+          selection.selected.size ? (
+            <>
+              <DashboardToolbarButton type="button" variant="ghost" onClick={selection.clear}>
+                Clear {selection.selected.size} selected
+              </DashboardToolbarButton>
+              {selection.selected.size && !guest ? (
+                <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void callOff([...selection.selected])}>
+                  {busy ? <Loader2Icon className="size-4 animate-spin" /> : <XIcon className="size-4" />}
+                  Call off ({selection.selected.size})
+                </DashboardToolbarButton>
+              ) : null}
+            </>
+          ) : null
+        }
+        primary={controls}
+        menuLabel="More for these posts"
+        search={null}
+        massSelect={null}
+        end={menu}
+      />
+      <DashboardTable
+        title="Posts"
+        fillHeight
+        className={APP_TABLE}
+        count={rows.length}
+        selectedCount={selection.selected.size}
+        onClearSelection={selection.clear}
+        header={
+          <SortableTableHeader
+            columns={POST_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="posts"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
               />
-            </TableCell>
-            <TableCell column="main" className="max-w-0">
-              <span className="flex min-w-0 items-center gap-2">
-                {row.placement === "story" ? (
-                  <CircleDashedIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Story" />
-                ) : row.mediaKind === "video" ? (
-                  <PlayIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Video" />
-                ) : row.mediaKind === "carousel" ? (
-                  <GalleryHorizontalIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Carousel" />
-                ) : (
-                  <ImageIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Photo" />
-                )}
-                <Hint label={row.caption || row.mediaName}>
-                  <span className="block truncate text-sm font-medium">{title}</span>
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
+        }
+        isEmpty={rows.length === 0}
+        emptyText={`Nothing posted on ${NETWORK_NAMES[network]} from this project yet. Pick a photo or video on the right and press Post.`}
+        emptyColSpan={POST_COLUMNS.length + 2}
+        footer={{ type: "summary", count: rows.length, label: "posts" }}
+      >
+        {sorted.map((row) => {
+          const name = handleWords(network, row.account.handle) || "An account not signed in"
+          const when = postedDateText(new Date(row.postedAt ?? row.createdAt))
+          const title = row.caption.split("\n")[0] || row.mediaName || "A post with no caption"
+          const numbersWhen = row.numbersReadAt ? `Numbers read ${postedDateText(new Date(row.numbersReadAt)).toLowerCase()}` : "Numbers not read yet"
+          return (
+            <TableRow key={row.id} className="group">
+              <TableCell column="select">
+                <Checkbox
+                  checked={selection.selected.has(row.id)}
+                  onCheckedChange={() => selection.toggle(row.id)}
+                  aria-label={`Select ${title}`}
+                />
+              </TableCell>
+              <TableCell column="main" className="max-w-0">
+                <span className="flex min-w-0 items-center gap-2">
+                  {row.placement === "story" ? (
+                    <CircleDashedIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Story" />
+                  ) : row.mediaKind === "video" ? (
+                    <PlayIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Video" />
+                  ) : row.mediaKind === "carousel" ? (
+                    <GalleryHorizontalIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Carousel" />
+                  ) : (
+                    <ImageIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label="Photo" />
+                  )}
+                  <Hint label={row.caption || row.mediaName}>
+                    <span className="block truncate text-sm font-medium">{title}</span>
+                  </Hint>
+                </span>
+                <span className="block truncate text-xs text-muted-foreground @4xl:hidden">
+                  {name} · {when}
+                </span>
+                {row.status === "failed" && row.lastError ? (
+                  <Hint label={row.lastError}>
+                    <span className="block truncate text-xs text-destructive">{row.lastError}</span>
+                  </Hint>
+                ) : null}
+              </TableCell>
+              <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
+                <span className="block truncate">{name}</span>
+              </TableCell>
+              <TableCell column="meta">
+                <span className={cn(row.status === "failed" ? "text-destructive" : row.status === "waiting" ? "text-muted-foreground" : "")}>
+                  {POST_STATUS_WORDS[row.status]}
+                </span>
+              </TableCell>
+              <TableCell column="meta" className="text-right tabular-nums">
+                <Hint label={numbersWhen}>
+                  <span>{countWords(row.views)}</span>
                 </Hint>
-              </span>
-              <span className="block truncate text-xs text-muted-foreground @4xl:hidden">
-                {name} · {when}
-              </span>
-              {row.status === "failed" && row.lastError ? (
-                <Hint label={row.lastError}>
-                  <span className="block truncate text-xs text-destructive">{row.lastError}</span>
-                </Hint>
-              ) : null}
-            </TableCell>
-            <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
-              <span className="block truncate">{name}</span>
-            </TableCell>
-            <TableCell column="meta">
-              <span className={cn(row.status === "failed" ? "text-destructive" : row.status === "waiting" ? "text-muted-foreground" : "")}>
-                {POST_STATUS_WORDS[row.status]}
-              </span>
-            </TableCell>
-            <TableCell column="meta" className="text-right tabular-nums">
-              <Hint label={numbersWhen}>
-                <span>{countWords(row.views)}</span>
-              </Hint>
-            </TableCell>
-            <TableCell column="meta" className="hidden text-right tabular-nums @2xl:table-cell">
-              {countWords(row.likes)}
-            </TableCell>
-            <TableCell column="meta" className="hidden text-right tabular-nums @2xl:table-cell">
-              {countWords(row.comments)}
-            </TableCell>
-            <TableCell column="meta" className="hidden text-muted-foreground @4xl:table-cell">
-              {when}
-            </TableCell>
-            <TableCell column="actions">
-              {row.postUrl ? (
-                <Hint label={`Open it on ${NETWORK_NAMES[network]}`}>
-                  <Button type="button" size="icon" variant="ghost" asChild>
-                    <a href={row.postUrl} target="_blank" rel="noreferrer" aria-label={`Open ${title} on ${NETWORK_NAMES[network]}`}>
-                      <ExternalLinkIcon className="size-4" />
-                    </a>
-                  </Button>
-                </Hint>
-              ) : null}
-              {row.cancellable && !guest ? (
-                <Hint label="Call off: the phone has not started on it">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => void callOff([row.id])}
-                    aria-label={`Call off ${title}`}
-                  >
-                    <XIcon className="size-4" />
-                  </Button>
-                </Hint>
-              ) : null}
-            </TableCell>
-          </TableRow>
-        )
-      })}
-    </DashboardTable>
+              </TableCell>
+              <TableCell column="meta" className="hidden text-right tabular-nums @2xl:table-cell">
+                {countWords(row.likes)}
+              </TableCell>
+              <TableCell column="meta" className="hidden text-right tabular-nums @2xl:table-cell">
+                {countWords(row.comments)}
+              </TableCell>
+              <TableCell column="meta" className="hidden text-muted-foreground @4xl:table-cell">
+                {when}
+              </TableCell>
+              <TableCell column="actions">
+                {row.postUrl ? (
+                  <Hint label={`Open it on ${NETWORK_NAMES[network]}`}>
+                    <Button type="button" size="icon" variant="ghost" asChild>
+                      <a href={row.postUrl} target="_blank" rel="noreferrer" aria-label={`Open ${title} on ${NETWORK_NAMES[network]}`}>
+                        <ExternalLinkIcon className="size-4" />
+                      </a>
+                    </Button>
+                  </Hint>
+                ) : null}
+                {row.cancellable && !guest ? (
+                  <Hint label="Call off: the phone has not started on it">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => void callOff([row.id])}
+                      aria-label={`Call off ${title}`}
+                    >
+                      <XIcon className="size-4" />
+                    </Button>
+                  </Hint>
+                ) : null}
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </DashboardTable>
+    </>
   )
 }
 
@@ -289,6 +308,7 @@ export function AppCommentsTable({
   network,
   tabs,
   controls,
+  menu,
   rows,
   selectedId,
   onOpen,
@@ -299,6 +319,8 @@ export function AppCommentsTable({
   network: PhoneAppNetwork | "youtube"
   tabs: React.ReactNode
   controls: React.ReactNode
+  /** The project's ⋮, last in the header. */
+  menu?: React.ReactNode
   rows: InboxRow[]
   selectedId: string | null
   onOpen: (id: string) => void
@@ -329,105 +351,118 @@ export function AppCommentsTable({
   }
 
   return (
-    <DashboardTable
-      title="Comments"
-      fillHeight
-      className={APP_TABLE}
-      tabs={tabs}
-      count={rows.length}
-      selectedCount={selection.selected.size}
-      onClearSelection={selection.clear}
-      controls={
-        <>
-          {selection.selected.size ? (
-            <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void skip([...selection.selected])}>
-              {busy ? <Loader2Icon className="size-4 animate-spin" /> : <XIcon className="size-4" />}
-              Skip ({selection.selected.size})
-            </DashboardToolbarButton>
-          ) : null}
-          {controls}
-        </>
-      }
-      header={
-        <SortableTableHeader
-          columns={COMMENT_COLUMNS}
-          sort={sort}
-          direction={direction}
-          onSort={toggleSort}
-          leading={
-            <SelectAllTableHead
-              noun="comments"
-              checked={selection.selectAllState(visibleIds)}
-              onCheckedChange={() => selection.toggleVisible(visibleIds)}
-            />
-          }
-          trailing={<TableHead column="meta">Actions</TableHead>}
-        />
-      }
-      isEmpty={rows.length === 0}
-      emptyText={emptyText ?? `No comments yet. When ${NETWORK_NAMES[network]} tells a phone someone commented on one of its posts, the phone reads it and it shows here.`}
-      emptyColSpan={COMMENT_COLUMNS.length + 2}
-      footer={{ type: "summary", count: rows.length, label: "comments" }}
-    >
-      {sorted.map((row) => {
-        const line = row.lines[row.lines.length - 1]
-        const name = handleWords(network, row.account.handle) || "your account"
-        return (
-          <TableRow
-            key={row.id}
-            className={cn("group", row.id === selectedId && "bg-muted")}
-            rowAction={() => onOpen(row.id)}
-          >
-            <TableCell column="select">
-              <Checkbox
-                checked={selection.selected.has(row.id)}
-                onCheckedChange={() => selection.toggle(row.id)}
-                aria-label={`Select the comment by ${row.author}`}
-              />
-            </TableCell>
-            <TableCell column="main" className="max-w-0">
-              <button
-                type="button"
-                onClick={() => onOpen(row.id)}
-                className="block max-w-full truncate text-left text-sm font-medium group-hover:underline"
-              >
-                {row.author}: {line?.text ?? ""}
-              </button>
-              <span className="block truncate text-xs text-muted-foreground">
-                {row.thread ? `Under "${row.thread}"` : "Under one of its posts"}
-                <span className="@4xl:hidden"> · {name}</span>
-              </span>
-            </TableCell>
-            <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
-              <span className="block truncate">{name}</span>
-            </TableCell>
-            <TableCell column="meta">
-              <span className={cn(row.status === "open" ? "font-medium" : "text-muted-foreground", row.lastError && "text-destructive")}>
-                {row.lastError ? "Answer failed" : INBOX_STATUS_WORDS[row.status]}
-              </span>
-            </TableCell>
-            <TableCell column="meta" className="hidden text-muted-foreground @2xl:table-cell">
-              {postedDateText(new Date(row.updatedAt))}
-            </TableCell>
-            <TableCell column="actions">
-              {row.status === "open" ? (
-                <Hint label="Skip: put it away without answering">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => void skip([row.id])}
-                    aria-label={`Skip the comment by ${row.author}`}
-                  >
-                    <XIcon className="size-4" />
-                  </Button>
-                </Hint>
+    <>
+      <ListHeader
+        tabs={tabs}
+        selected={
+          selection.selected.size ? (
+            <>
+              <DashboardToolbarButton type="button" variant="ghost" onClick={selection.clear}>
+                Clear {selection.selected.size} selected
+              </DashboardToolbarButton>
+              {selection.selected.size ? (
+                <DashboardToolbarButton type="button" variant="outline" disabled={busy} onClick={() => void skip([...selection.selected])}>
+                  {busy ? <Loader2Icon className="size-4 animate-spin" /> : <XIcon className="size-4" />}
+                  Skip ({selection.selected.size})
+                </DashboardToolbarButton>
               ) : null}
-            </TableCell>
-          </TableRow>
-        )
-      })}
-    </DashboardTable>
+            </>
+          ) : null
+        }
+        primary={controls}
+        menuLabel="More for these comments"
+        search={null}
+        massSelect={null}
+        end={menu}
+      />
+      <DashboardTable
+        title="Comments"
+        fillHeight
+        className={APP_TABLE}
+        count={rows.length}
+        selectedCount={selection.selected.size}
+        onClearSelection={selection.clear}
+        header={
+          <SortableTableHeader
+            columns={COMMENT_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="comments"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
+        }
+        isEmpty={rows.length === 0}
+        emptyText={emptyText ?? `No comments yet. When ${NETWORK_NAMES[network]} tells a phone someone commented on one of its posts, the phone reads it and it shows here.`}
+        emptyColSpan={COMMENT_COLUMNS.length + 2}
+        footer={{ type: "summary", count: rows.length, label: "comments" }}
+      >
+        {sorted.map((row) => {
+          const line = row.lines[row.lines.length - 1]
+          const name = handleWords(network, row.account.handle) || "your account"
+          return (
+            <TableRow
+              key={row.id}
+              className={cn("group", row.id === selectedId && "bg-muted")}
+              rowAction={() => onOpen(row.id)}
+            >
+              <TableCell column="select">
+                <Checkbox
+                  checked={selection.selected.has(row.id)}
+                  onCheckedChange={() => selection.toggle(row.id)}
+                  aria-label={`Select the comment by ${row.author}`}
+                />
+              </TableCell>
+              <TableCell column="main" className="max-w-0">
+                <button
+                  type="button"
+                  onClick={() => onOpen(row.id)}
+                  className="block max-w-full truncate text-left text-sm font-medium group-hover:underline"
+                >
+                  {row.author}: {line?.text ?? ""}
+                </button>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {row.thread ? `Under "${row.thread}"` : "Under one of its posts"}
+                  <span className="@4xl:hidden"> · {name}</span>
+                </span>
+              </TableCell>
+              <TableCell column="meta" className="hidden max-w-32 @4xl:table-cell">
+                <span className="block truncate">{name}</span>
+              </TableCell>
+              <TableCell column="meta">
+                <span className={cn(row.status === "open" ? "font-medium" : "text-muted-foreground", row.lastError && "text-destructive")}>
+                  {row.lastError ? "Answer failed" : INBOX_STATUS_WORDS[row.status]}
+                </span>
+              </TableCell>
+              <TableCell column="meta" className="hidden text-muted-foreground @2xl:table-cell">
+                {postedDateText(new Date(row.updatedAt))}
+              </TableCell>
+              <TableCell column="actions">
+                {row.status === "open" ? (
+                  <Hint label="Skip: put it away without answering">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => void skip([row.id])}
+                      aria-label={`Skip the comment by ${row.author}`}
+                    >
+                      <XIcon className="size-4" />
+                    </Button>
+                  </Hint>
+                ) : null}
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </DashboardTable>
+    </>
   )
 }

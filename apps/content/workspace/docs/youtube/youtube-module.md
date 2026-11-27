@@ -38,8 +38,12 @@ not picked.
   project uploaded: its title, a Short or video mark, the channel, the status,
   the views, likes and comments, and when it went up. **Comments** lists what
   people wrote under them (`?view=comments`).
-- **The middle header:** the arrow back, the tabs, then **Templates** with
-  the project's count, **Jobs**, and **New post**.
+- **The middle header** is the project's one header (`list-header.md`): the
+  project's controls, "YouTube" and the list dropdown (Posts, Comments,
+  Voices, Accounts), then **New post** and the project's ⋮. **Jobs** is an
+  action on the ⋮'s General tab, and the description templates are its
+  **Templates** tab (Tyler, 27 Nov 2026: "Move jobs button here", and of the
+  templates button, "This should be in here").
 - **Right column:** New YouTube video, or an open comment with its answer box
   (`?comment=<id>`).
 - **Tables fold** the channel and the date into the line under the title when
@@ -134,7 +138,8 @@ phone that stopped part-way may already have uploaded it.
 
 ## Description templates
 
-Templates opens a window (`?window=templates`) listing the project's
+The ⋮'s Templates tab lists them, each with its number of sections, and New
+template; each opens a window (`?window=templates`) listing the project's
 templates. A template is a name and a list of sections in order. Each section
 has a name and is **Fixed words** or **AI writes it**.
 

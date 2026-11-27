@@ -528,8 +528,6 @@ export const viralSettings = pgTable(
     promoKey: text("promo_key"),
     /** Who saved the Promo key: Promo's calls back only touch their reads and ideas (0105). */
     promoKeyOwnerId: varchar("promo_key_owner_id", { length: 36 }).references(() => customShellUsers.id, { onDelete: "set null" }),
-    /** The Meta ad library token on Settings → Meta, for Winning ads (0103). */
-    metaToken: text("meta_token"),
     /** Which AI writes Viral's words, on Settings → AI writer (`src/lib/viral/writers.ts`). NULL is Gemini Flash (0107). */
     writer: varchar("writer", { length: 20 }).$type<WriterId>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -1007,68 +1005,7 @@ export const viralHookIdeas = pgTable(
 
 export type ViralOwnHookRow = typeof viralOwnHooks.$inferSelect
 
-/**
- * One project's last Winning ads search: ads from Meta's ad library that
- * match its keywords and have run 30 days or more (`workspace/docs/winning-ads.md`).
- */
-export const viralAds = pgTable(
-  "viral_ads",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    ownerId: varchar("owner_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => viralProjects.id, { onDelete: "cascade" }),
-    adArchiveId: varchar("ad_archive_id", { length: 64 }).notNull(),
-    pageName: text("page_name").notNull().default(""),
-    body: text("body").notNull().default(""),
-    title: text("title").notNull().default(""),
-    keyword: text("keyword").notNull().default(""),
-    platforms: jsonb("platforms").$type<string[]>().notNull().default([]),
-    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
-    foundAt: timestamp("found_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [uniqueIndex("ux_viral_ads_project_ad").on(table.projectId, table.adArchiveId)]
-)
-
-/** When a project's Winning ads were last searched, and why it failed if it did. */
-export const viralAdRuns = pgTable("viral_ad_runs", {
-  projectId: varchar("project_id", { length: 36 })
-    .primaryKey()
-    .references(() => viralProjects.id, { onDelete: "cascade" }),
-  searchedAt: timestamp("searched_at", { withTimezone: true }).notNull(),
-  error: text("error"),
-})
-
-/**
- * An ad written in a Winning ad's style for the project's topic (0109, task
- * part 10, Tyler: "Meta's three boxes"). Kept by the project and the ad's
- * library id, because a new search replaces `viral_ads`.
- */
-export const viralAdCopies = pgTable(
-  "viral_ad_copies",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    ownerId: varchar("owner_id", { length: 36 })
-      .notNull()
-      .references(() => customShellUsers.id, { onDelete: "cascade" }),
-    projectId: varchar("project_id", { length: 36 })
-      .notNull()
-      .references(() => viralProjects.id, { onDelete: "cascade" }),
-    adArchiveId: varchar("ad_archive_id", { length: 64 }).notNull(),
-    mainText: text("main_text").notNull(),
-    headline: text("headline").notNull(),
-    description: text("description").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  },
-  (table) => [index("ix_viral_ad_copies_ad").on(table.projectId, table.adArchiveId, table.createdAt)]
-)
-
 export type ViralFormatRow = typeof viralFormats.$inferSelect
-export type ViralAdRow = typeof viralAds.$inferSelect
-export type ViralAdCopyRow = typeof viralAdCopies.$inferSelect
 
 /**
  * The link with the Promo app (`workspace/docs/promo-connection.md`), made by

@@ -34,10 +34,12 @@ const blocks = makeDashboardBlocks<AntiDetectSection, AntiDetectListSection>({
   listSections: ANTI_DETECT_LIST_SECTIONS,
   labels: ANTI_DETECT_SECTION_LABELS,
   sectionsNode: ANTI_DETECT_SECTIONS_NODE,
-  projectsNode: ANTI_DETECT_PROJECTS_NODE,
   sectionsKind: "promo-anti-detect-sections",
-  projectsKind: "promo-anti-detect-projects",
-  noProjects: "No projects yet. New project on the Projects dashboard makes one.",
+  projectsBlock: {
+    node: ANTI_DETECT_PROJECTS_NODE,
+    kind: "promo-anti-detect-projects",
+    empty: "No projects yet. New project on the Projects dashboard makes one.",
+  },
 })
 
 const API: DashboardPageApi = {

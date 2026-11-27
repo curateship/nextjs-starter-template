@@ -3,7 +3,8 @@ import { useNavigate, useRouter } from "@tanstack/react-router"
 import { ArrowUpRightIcon, BanIcon, SmartphoneIcon, UserIcon } from "lucide-react"
 
 import type { CrmFrame } from "@/components/crm/crm-frame"
-import { CrmListHeader, CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { CrmRowMenu, type RowMenuItem } from "@/components/crm/crm-row"
+import { ListHeader } from "@/components/content-app/list-header"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { EmptyRecord, FooterState, RecordFrame } from "@/components/crm/record-frame"
 import { FilterPick } from "@/components/dashboard-page/filter-pick"
@@ -166,7 +167,7 @@ export function BansSection({
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <CrmListHeader
+      <ListHeader
         tabs={<MiddleHeading icon={BanIcon} label="Bans" />}
         end={<PanelReopenButton side="right" label="Show the ban" />}
         menuLabel="More for bans"

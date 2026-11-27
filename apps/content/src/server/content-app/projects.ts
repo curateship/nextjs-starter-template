@@ -117,7 +117,7 @@ export async function projectIdsAmong(ids: string[], database: CustomShellDb = d
   return new Set(rows.map((row) => row.id))
 }
 
-/** What the project's left panel draws in its Research and Videos blocks. */
+/** The counts on Research's row of tabs, and the videos on Content's Videos tab. */
 export type ProjectParts = {
   research: {
     socials: string[]

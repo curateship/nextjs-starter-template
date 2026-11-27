@@ -127,7 +127,6 @@ the reply and says it in words. The reply itself never reaches the screen.
   - `viral_own_idea_script`, Write a script on your own idea
   - `viral_hook_ideas`, Write hooks like this on the Library
   - `viral_hook_type`, the Label button on Settings → Hook types
-  - `viral_ad_copy`, Write an ad like this on a Winning ad
 - **The spend limit.** Every call carries the project's id, so the
   project's spend limit counts it. The one call that doesn't is the hook-type
   labelling pass: a hook can be analysed in several projects, so its cost

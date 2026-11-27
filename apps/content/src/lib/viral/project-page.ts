@@ -9,8 +9,7 @@ import { readPageBody, storedPageBody } from "@/lib/notes/page-body"
  *
  * - **Socials**, fixed at the top, as Promo's Networks block: each social the
  *   project uses, picking what the middle shows.
- * - **Vault**, fixed under it, as Promo's Archive block: the project's ideas
- *   and its Winning ads.
+ * - **Vault**, fixed under it, as Promo's Archive block: the project's ideas.
  *
  * The creators and what Promo reads on X, Reddit and LinkedIn were blocks
  * here, and moved to the middle (Tyler, 21 Nov 2026: "Move the creators block

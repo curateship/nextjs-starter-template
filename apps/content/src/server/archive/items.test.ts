@@ -10,8 +10,8 @@ import { createTestDatabase, insertUser, insertWorkspace, type TestDatabase } fr
 
 /**
  * The Archive dashboard's reading and changing: the list's order and
- * filters, the Bin, pins, copy and move, uploads, storage per project, the
- * zip, and a project that still holds items.
+ * filters, the Bin, pins, copy and move, uploads, storage per project, and a
+ * project that still holds items.
  */
 
 vi.mock("@/server/media/storage", () => ({
@@ -23,8 +23,7 @@ vi.mock("@/server/media/library", () => ({
 }))
 
 const items = await import("./items")
-const { promoArchiveItems, promoArchiveSlides } = await import("./schema")
-const { projectZip, streamZip } = await import("./zip")
+const { promoArchiveItems } = await import("./schema")
 const { writeArchiveCaptions } = await import("./posting")
 
 let client: PGlite
@@ -188,32 +187,6 @@ describe("copy, move and uploads", () => {
       ["cover", "picture", "upload"],
     ])
     await expect(items.addUploadsToArchive(user.id, projectId, [urls[2]], db)).rejects.toThrow("Sound files")
-  })
-})
-
-describe("the whole project as a zip", () => {
-  it("names files from their titles, puts a carousel's slides in a folder, and makes a zip that opens", async () => {
-    await item({ title: "Launch", fileSize: 3 })
-    const carousel = await item({ kind: "carousel", title: "Tips", storagePath: "", fileSize: 6 })
-    await db.insert(promoArchiveSlides).values([
-      { id: uuid(), itemId: carousel, position: 0, kind: "photo", storagePath: "s/1.png", mimeType: "image/png", fileSize: 3 },
-      { id: uuid(), itemId: carousel, position: 1, kind: "photo", storagePath: "s/2.png", mimeType: "image/png", fileSize: 3 },
-    ])
-    const zip = await projectZip(user.id, projectId, db)
-    if ("refused" in zip) throw new Error(zip.refused)
-    expect(zip.name).toBe("Launch week.zip")
-    expect(zip.entries.map((entry) => entry.name)).toEqual(["Launch.mp4", "Tips/slide 01.png", "Tips/slide 02.png"])
-    const bytes = new Uint8Array(await new Response(streamZip(zip.entries)).arrayBuffer())
-    const view = new DataView(bytes.buffer)
-    // The end record says three files, and the first local header starts the file.
-    expect(view.getUint32(0, true)).toBe(0x04034b50)
-    const end = bytes.byteLength - 22
-    expect(view.getUint32(end, true)).toBe(0x06054b50)
-    expect(view.getUint16(end + 10, true)).toBe(3)
-  })
-
-  it("refuses an empty archive with a sentence", async () => {
-    expect(await projectZip(user.id, projectId, db)).toEqual({ refused: "This project's archive is empty, so there is nothing to download." })
   })
 })
 

@@ -33,11 +33,10 @@ afterEach(async () => {
 const types = (body: string) => JSON.parse(body).content.map((node: { type: string }) => node.type)
 
 describe("the Projects dashboard's left page", () => {
-  it("starts with the Dashboards, Viral and Projects blocks, and keeps Dashboards and Viral whatever is saved", async () => {
+  it("starts with the Dashboards and Viral blocks, and keeps them whatever is saved", async () => {
     expect(types((await getProjectsPageAndSections(anna.id, db)).page.body)).toEqual([
       "notePromoSections",
       "contentViralSections",
-      "notePromoProjects",
       "paragraph",
     ])
 
@@ -64,7 +63,17 @@ describe("the Projects dashboard's left page", () => {
     )
     expect(types((await getProjectsPageAndSections(anna.id, db)).page.body)).toEqual(["notePromoSections", "paragraph", "contentViralSections"])
     // Each person's page is their own.
-    expect(types((await getProjectsPageAndSections(ben.id, db)).page.body)).toHaveLength(4)
+    expect(types((await getProjectsPageAndSections(ben.id, db)).page.body)).toHaveLength(3)
+  })
+
+  it("reads a page saved with the old Projects block without it", async () => {
+    // The Projects block went on 27 Nov 2026 (Tyler: "Remove projects block. List row only").
+    await saveProjectsPageBody(
+      anna.id,
+      JSON.stringify({ type: "doc", content: [{ type: "notePromoSections" }, { type: "contentViralSections" }, { type: "notePromoProjects" }] }),
+      db
+    )
+    expect(types((await getProjectsPageAndSections(anna.id, db)).page.body)).toEqual(["notePromoSections", "contentViralSections"])
   })
 
   it("refuses to save a locked page", async () => {

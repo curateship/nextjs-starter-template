@@ -294,7 +294,23 @@ describe("racks", () => {
     const onOpen = vi.fn()
     const phones = (page: PhonesPage, search: RackSearch = {}, rackId: string | null = "r1") =>
       draw(
-        <RackPhonesPanel page={page} rackId={rackId} search={search} views={[]} onSearch={onSearch} onOpen={onOpen} onChanged={async () => {}} />
+        <RackPhonesPanel
+          page={page}
+          rackId={rackId}
+          search={search}
+          views={[]}
+          onSearch={onSearch}
+          onOpen={onOpen}
+          onChanged={async () => {}}
+          // The dashboard's ⋮ draws Select first (Tyler, 27 Nov 2026: "Move all the mass select button to here"); a button stands in for it.
+          menu={(select) =>
+            select ? (
+              <button type="button" aria-label="Mass select" onClick={select.onToggle}>
+                {select.on ? "Hide select" : "Select"}
+              </button>
+            ) : null
+          }
+        />
       )
     const rowNames = () =>
       Array.from(container.querySelectorAll("tbody tr"))

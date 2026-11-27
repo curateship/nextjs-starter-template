@@ -1,4 +1,5 @@
 import * as React from "react"
+import { cn } from "@/lib/utils"
 import { BookmarkPlusIcon } from "lucide-react"
 
 import { NewPhoneDropdown } from "@/components/phones/new-phone-dropdown"
@@ -12,7 +13,8 @@ import { RackWall } from "@/components/phones/rack-wall"
 import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { DashboardTabs } from "@/components/shared/dashboard-tabs"
 import { FilterPopover } from "@/components/shared/filter-popover"
-import { MassSelectChip, SelectedMenu, SelectedMenuRow, SelectedMenuSeparator } from "@/components/shared/mass-select"
+import { OUTLINED_TOOLBAR } from "@/components/content-app/list-header"
+import { SelectedMenu, SelectedMenuRow, SelectedMenuSeparator } from "@/components/shared/mass-select"
 import { SavedViewsControls, SaveViewDialog, type SavedViewsScreen } from "@/components/shared/saved-views"
 import { SearchToggle } from "@/components/shared/search-toggle"
 import { Badge } from "@/components/ui/badge"
@@ -84,8 +86,12 @@ export function RackPhonesPanel({
   rackId: string | null
   /** Before the tabs: the dashboard's button that brings back the left page. */
   start?: React.ReactNode
-  /** The dashboard's ⋮ for every rack, after New phone. */
-  menu?: React.ReactNode
+  /**
+   * The dashboard's ⋮ for every rack, after New phone, handed the list's
+   * Select to draw first (Tyler, 27 Nov 2026: "Move all the mass select button
+   * to here"). Null while another tab than Phones shows.
+   */
+  menu?: (select: { on: boolean; onToggle: () => void } | null) => React.ReactNode
   /** Last: the button that brings back the right panel. */
   end?: React.ReactNode
   search: RackSearch
@@ -159,7 +165,7 @@ export function RackPhonesPanel({
               : []),
           ]}
         />
-        <div className="flex shrink-0 items-center gap-1">
+        <div className={cn("flex shrink-0 items-center gap-1", OUTLINED_TOOLBAR)}>
           {selected.size ? (
             <SelectedMenu
               count={selected.size}
@@ -283,15 +289,6 @@ export function RackPhonesPanel({
                     </form>
                   ),
                 },
-              }}
-            />
-          ) : null}
-          {list === "phones" ? (
-            <MassSelectChip
-              on={selecting}
-              onToggle={() => {
-                if (selecting) setSelected(new Set())
-                setSelecting(!selecting)
               }}
             />
           ) : null}
@@ -443,7 +440,17 @@ export function RackPhonesPanel({
               onOpen(phoneId)
             }}
           />
-          {menu}
+          {menu?.(
+            list === "phones"
+              ? {
+                  on: selecting,
+                  onToggle: () => {
+                    if (selecting) setSelected(new Set())
+                    setSelecting(!selecting)
+                  },
+                }
+              : null
+          )}
         </div>
         {end}
       </DashboardCardHeader>

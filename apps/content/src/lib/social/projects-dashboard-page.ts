@@ -21,7 +21,7 @@ import type { NoteNode } from "@/lib/notes/note-blocks"
  * both clean a page with this list, so a block missing here is dropped on
  * save.
  */
-export const PROJECTS_PAGE_BLOCK_TYPES = ["notePromoSections", "contentViralSections", "notePromoProjects"] as const
+export const PROJECTS_PAGE_BLOCK_TYPES = ["notePromoSections", "contentViralSections"] as const
 
 /**
  * The Dashboards block: Overview, Projects, Accounts and Messages, one row
@@ -39,8 +39,12 @@ export const PROJECTS_SECTIONS_NODE = "notePromoSections"
  */
 export const PROJECTS_VIRAL_NODE = "contentViralSections"
 
-/** The Projects block: every project, picking one narrows the section showing to it. */
-export const PROJECTS_PICKER_NODE = "notePromoProjects"
+/*
+ * The Projects block (`notePromoProjects`), which narrowed the sections to one
+ * project, is gone (Tyler, 27 Nov 2026: "Remove projects block. List row
+ * only"). It is not in the list above, so a page saved with it is read and
+ * saved without it, as any block the page does not know.
+ */
 
 /** What a refused save of the page says. */
 export const PROJECTS_PAGE_ERRORS = {
@@ -48,11 +52,11 @@ export const PROJECTS_PAGE_ERRORS = {
   locked: "The page is locked. Unlock the notes in its ⋮ first.",
 } as const
 
-/** A page nobody has written on: the Dashboards block, Viral, then Projects. */
+/** A page nobody has written on: the Dashboards block, then Viral. */
 export function defaultProjectsPage(): NoteNode {
   return {
     type: "doc",
-    content: [{ type: PROJECTS_SECTIONS_NODE }, { type: PROJECTS_VIRAL_NODE }, { type: PROJECTS_PICKER_NODE }, { type: "paragraph" }],
+    content: [{ type: PROJECTS_SECTIONS_NODE }, { type: PROJECTS_VIRAL_NODE }, { type: "paragraph" }],
   }
 }
 

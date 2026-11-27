@@ -15,7 +15,7 @@ import { viralSettings } from "@/server/viral/schema"
 const SETTINGS_ROW_ID = "viral"
 const YOUTUBE_ENV_VAR = "VIRAL_YOUTUBE_API_KEY"
 
-type KeyColumn = "youtubeApiKey" | "videoKey" | "metaToken" | "promoKey"
+type KeyColumn = "youtubeApiKey" | "videoKey" | "promoKey"
 
 async function readRow(database: CustomShellDb) {
   const [row] = await database.select().from(viralSettings).where(eq(viralSettings.id, SETTINGS_ROW_ID)).limit(1)
@@ -122,24 +122,6 @@ export async function getVideoUrl(database: CustomShellDb = db): Promise<string>
 
 export function saveVideoUrl(url: string, database: CustomShellDb = db) {
   return upsert({ videoUrl: url }, database)
-}
-
-/** The Meta ad library token on Settings → Meta, for Winning ads, or null. */
-export async function getMetaToken(database: CustomShellDb = db): Promise<string | null> {
-  const row = await readRow(database)
-  return row?.metaToken ? decryptSecret(row.metaToken) : null
-}
-
-export async function getMetaTokenStatus(database: CustomShellDb = db): Promise<SavedKeyStatus> {
-  return statusOf((await readRow(database))?.metaToken)
-}
-
-export function saveMetaToken(token: string, database: CustomShellDb = db) {
-  return saveKey("metaToken", token, database)
-}
-
-export function removeMetaToken(database: CustomShellDb = db) {
-  return removeKey("metaToken", database)
 }
 
 /** The key the Promo app made for Viral on its Settings → Viral, or null (`workspace/docs/promo-connection.md`). */

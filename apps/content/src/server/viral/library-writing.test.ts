@@ -9,7 +9,6 @@ import { type CustomShellDb } from "@/server/db"
 import { type CustomShellUser } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { analyseVideo } from "@/server/viral/ai-analysis"
-import { AD_COPY_FEATURE, listAdCopies, writeAdCopy } from "@/server/viral/ad-copy"
 import { HOOK_IDEAS_FEATURE, listHookIdeas, writeHookIdeas } from "@/server/viral/hook-ideas"
 import {
   addHookType,
@@ -20,17 +19,14 @@ import {
   unlabelledHooks,
 } from "@/server/viral/hook-types"
 import { listLibraryHooks, setHookTags } from "@/server/viral/library"
-import { searchProjectAds } from "@/server/viral/meta-ads"
 import { createOwnHook, deleteOwnHook, updateOwnHook } from "@/server/viral/own-hooks"
 import { createViralProject, ensureSampleViralProject, listViralProjects } from "@/server/viral/projects"
 import { viralAnalyses, viralHookIdeas, viralOwnHooks, viralVideos } from "@/server/viral/schema"
-import { saveMetaToken } from "@/server/viral/settings"
 
 /**
- * The Library's writing (more-features task parts 6, 7 and 8) and Write an
- * ad like this (part 10), with a fake writer and no network: hook types and
- * the pass that labels old hooks, your own hooks, five hooks written from
- * any hook, and ads written from a Winning ad that outlive a new search.
+ * The Library's writing (more-features task parts 6, 7 and 8), with a fake
+ * writer and no network: hook types and the pass that labels old hooks, your
+ * own hooks, and five hooks written from any hook.
  */
 
 const asked = vi.hoisted(() => ({
@@ -82,8 +78,8 @@ afterEach(async () => {
   await client.close()
 })
 
-async function project(topic = "meal-prep course for busy dads", keywords: string[] = []) {
-  return createViralProject(user.id, { name: "Meal prep", description: "", topic, socials: ["youtube"], keywords, folderId: null })
+async function project(topic = "meal-prep course for busy dads") {
+  return createViralProject(user.id, { name: "Meal prep", description: "", topic, socials: ["youtube"], keywords: [], folderId: null })
 }
 
 const PIECES = {
@@ -296,61 +292,6 @@ describe("Write hooks like this", () => {
     const own = await createOwnHook(user.id, { words: "Hi there.", link: "", typeId: null, tags: [] })
     await expect(writeHookIdeas(user.id, { kind: "own", hookId: own.id, projectId: sample.id })).rejects.toThrow(/sample project/)
     await expect(writeHookIdeas(user.id, { kind: "own", hookId: own.id, projectId: blank.id })).rejects.toThrow(/no topic/)
-    expect(asked.calls).toEqual([])
-  })
-})
-
-describe("Write an ad like this", () => {
-  const DAY = 24 * 60 * 60 * 1000
-  const metaAnswering = (ids: string[]) =>
-    (async () =>
-      new Response(
-        JSON.stringify({
-          data: ids.map((id) => ({
-            id,
-            page_name: "Prep Co",
-            ad_creative_bodies: ["Dinner in 10 minutes, every night."],
-            ad_creative_link_titles: ["10 minute dinners"],
-            ad_delivery_start_time: new Date(Date.now() - 60 * DAY).toISOString(),
-          })),
-        })
-      )) as unknown as typeof fetch
-
-  it("writes Meta's three boxes, keeps one that runs long, and keeps them after a new search", async () => {
-    await saveMetaToken("token")
-    const made = await project("meal-prep course for busy dads", ["meal prep"])
-    await searchProjectAds(user.id, made.id, metaAnswering(["111", "222"]))
-    const long = "x".repeat(400)
-    asked.answers[AD_COPY_FEATURE] = { mainText: long, headline: "Dinner, sorted by Sunday night", description: "Plans for dads" }
-
-    const written = await writeAdCopy(user.id, made.id, "111")
-    expect(written.mainText).toHaveLength(400)
-    expect(asked.calls[0]).toMatchObject({ feature: AD_COPY_FEATURE, metadata: { viralProjectId: made.id, adArchiveId: "111" } })
-    expect(asked.calls[0].prompt).toContain("Dinner in 10 minutes")
-    expect(asked.calls[0].prompt).toContain("125 characters")
-
-    // A new search replaces the ads, and the written one is still there.
-    await searchProjectAds(user.id, made.id, metaAnswering(["111"]))
-    const kept = await listAdCopies(user.id, made.id, "111")
-    expect(kept.copies.map((one) => one.id)).toEqual([written.id])
-    expect(kept.price.cents).toBeGreaterThan(0)
-    expect((await listAdCopies(user.id, made.id, "222")).copies).toEqual([])
-
-    // An ad gone from the list can't be written from.
-    await expect(writeAdCopy(user.id, made.id, "222")).rejects.toThrow(/no longer in this project's Winning ads/)
-    const other = await insertUser(database)
-    await expect(listAdCopies(other.id, made.id, "111")).rejects.toThrow(/That project is gone/)
-  })
-
-  it("refuses the sample's made-up ads and a project with no topic, before the AI is asked", async () => {
-    await ensureSampleViralProject(user.id)
-    const [sample] = await listViralProjects(user.id, { archived: false })
-    await expect(writeAdCopy(user.id, sample.id, "sample-ad-1")).rejects.toThrow(/made up/)
-
-    await saveMetaToken("token")
-    const blank = await project("", ["meal prep"])
-    await searchProjectAds(user.id, blank.id, metaAnswering(["333"]))
-    await expect(writeAdCopy(user.id, blank.id, "333")).rejects.toThrow(/no topic/)
     expect(asked.calls).toEqual([])
   })
 })

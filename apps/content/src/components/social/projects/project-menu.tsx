@@ -1,7 +1,12 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
+  ArrowUpIcon,
   CopyIcon,
+  ListChecksIcon,
+  ListTodoIcon,
+  EyeIcon,
+  EyeOffIcon,
   Loader2Icon,
   LockIcon,
   LockOpenIcon,
@@ -15,20 +20,16 @@ import {
 } from "lucide-react"
 
 import { ActionRow } from "@/components/crm/crm-record-menu"
-import { DashboardCardHeader, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
-import { PageCover } from "@/components/shared/notes/page-cover"
 import { CoverRow } from "@/components/shared/notes/page-rows"
 import { PickGroup, PickRow } from "@/components/shared/notes/pick-rows"
 import { SavingDocument } from "@/components/shared/notes/saving-document"
-import { TabbedMenu, type TabbedMenuState } from "@/components/shared/notes/tabbed-menu"
-import { SidePanelCollapseButton } from "@/components/shared/three-panels"
-import { usePromoGuest, usePromoSaveStatus } from "@/components/social/guest/guest-mode"
+import { TabbedMenu, type MySettingsTab, type TabbedMenuState } from "@/components/shared/notes/tabbed-menu"
+import type { ProjectMenuMore } from "@/components/content-app/project-top"
+import { usePromoSaveStatus } from "@/components/social/guest/guest-mode"
 import { NetworkIcon } from "@/components/social/network-icon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   copyProject,
   getProjectErrorMessage,
@@ -38,20 +39,10 @@ import {
   saveProjectAiCap,
   type ProjectView,
 } from "@/lib/api/social/projects"
-import { PANEL_GUTTER } from "@/lib/layout/panel-gutter"
-import { storedProjectPage } from "@/lib/social/project-description"
+import { projectDescriptionText, storedProjectPage } from "@/lib/social/project-description"
 import { NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { dollarsText, parseCapDollars } from "@/lib/social/spend-cap"
-import type { Side } from "@/lib/social/sides"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
-
-import { CONTENT_PROJECT_BLOCKS, ContentProjectProvider, type ContentProjectBlocks } from "@/components/content-app/project-blocks"
-
-import { PROJECT_APP_BLOCKS, ProjectNetworksProvider, type ProjectNetworksBlock } from "./project-networks-block"
-
-/** Content's Content, Research and Videos blocks, then Promote (`project-blocks.tsx`). */
-const PAGE_BLOCKS = [...CONTENT_PROJECT_BLOCKS, ...PROJECT_APP_BLOCKS]
 
 /** How long typing has to stop before the name saves. */
 const SAVE_AFTER_MS = 700
@@ -59,156 +50,19 @@ const SAVE_AFTER_MS = 700
 type Project = ProjectView["project"]
 
 /**
- * A project's own page's left panel, in the Admin 3 panel design (Tyler,
- * 12 Nov 2026: "the project page itsel is not updated to the new design";
- * `workspace/tasks/Projects/project-page-design.md`).
- *
- * - **Header:** the collapse button, the name with Paused, and the ⋮. The arrow back to the Projects dashboard was taken out
- *   (Tyler, 12 Nov 2026: "actually just remove it"); Projects in the left
- *   menu leads back.
- * - **The ⋮** is the tabbed menu: General (Name, Cover photo, Pin, Pause
- *   this project, Lock description, New project, Duplicate, Delete project), Networks
- *   (pause or take off each one, and add the others) and, in Content, Widgets
- *   (Overview's rows and spots). The pin and the + that sat in the header
- *   live there now.
- * - **The page** is the description, written in place in the "/" editor
- *   under the project's picture, with the fixed Networks block at its top
- *   (Tyler: "Description page + Networks block"). "/" blocks can go under it.
- *   The AI is told the words alone (`projectDescriptionText`).
- *
- * A guest sent from Project works the project but never runs it: no ⋮, no Pause on a row, and no "/" list, since its blocks upload
- * and a guest can't. A guest still writes the words.
- */
-export function ProjectPanel({
-  view,
-  selectedNetwork,
-  selectedSide,
-  onSelect,
-  onAddNetwork,
-  onArrangeNetworks,
-  onRemoveNetwork,
-  onToggleNetworkPause,
-  onNewProject,
-  onDeleteProject,
-  onTogglePause,
-  onSaved,
-  content,
-  contentReloadKey = 0,
-  menuState,
-  widgets,
-}: {
-  view: ProjectView
-  /** The network whose panels fill the middle and right columns. */
-  selectedNetwork: Network | null
-  /** Which of its two rows: your own posts, or commenting on other people's. */
-  selectedSide: Side
-  onSelect: (network: Network, side: Side) => void
-  onAddNetwork: (network: Network) => Promise<void>
-  /** The Networks block's order and the networks it leaves out, from its ⋮. */
-  onArrangeNetworks: (arranged: { order: Network[]; hidden: Network[] }) => Promise<void>
-  onRemoveNetwork: (network: Network) => Promise<void>
-  /** Pauses one network of the project, or resumes it, while the rest runs. */
-  onToggleNetworkPause: (network: Network, paused: boolean) => Promise<void>
-  onNewProject: () => void
-  onDeleteProject: () => void
-  /** Pauses the project, or resumes it when it is paused. */
-  onTogglePause: () => Promise<void>
-  /** Something about the project was saved, so the page should read it again. */
-  onSaved: () => void
-  /** What Content's Dashboard, Research and Videos blocks draw and do (`project-blocks.tsx`). */
-  content: ContentProjectBlocks
-  /** Changed to read the project's research and videos again. */
-  contentReloadKey?: number
-  /** The ⋮'s open state and tab, held by the page so a widget's Manage widgets opens it at Widgets. */
-  menuState: TabbedMenuState
-  /** The ⋮'s Widgets tab: Overview's rows and spots. */
-  widgets: React.ReactNode
-}) {
-  const project = view.project
-  const guest = Boolean(usePromoGuest())
-  const cover = project.imageUrl || null
-
-  const networks: ProjectNetworksBlock = {
-    projectId: project.id,
-    networks: project.networks,
-    hidden: project.hiddenNetworks,
-    paused: project.pausedNetworks,
-    pausedCommenting: project.pausedCommenting,
-    postCounts: view.postCounts ?? {},
-    selected: content.pick.kind === "network" ? selectedNetwork : null,
-    selectedSide,
-    onSelect,
-    onArrange: guest ? null : onArrangeNetworks,
-    emptyLine: guest
-      ? "This project uses no network yet."
-      : "No network yet. Add one from the ⋮, under Networks, to post and comment from this project.",
-  }
-
-  return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-card">
-      {/* The shell's cover: a picture or the drawn sky, faint behind the header, fading into the panel. */}
-      <PageCover url={cover} />
-      {/* Wrapped in its own div, so the shell's table line under a header never matches this side panel's header. */}
-      <div className="relative shrink-0">
-        <DashboardCardHeader className={cn("@container gap-1", cover && "border-b-transparent")}>
-          <SidePanelCollapseButton side="left" label="Hide the project" />
-          {/* The name keeps room for a few letters at the panel's narrowest; Paused gives way first. No
-              bans mark here (Tyler, 12 Nov 2026: "remove this"); the Projects dashboard's row and its
-              Overview's Bans widget say how many were banned. */}
-          <span className={cn("flex min-w-12 flex-1 items-center gap-2 pl-1", dashboardCardHeadingClassName)}>
-            <FullNameOnHover name={project.name} />
-            {project.pausedAt ? <span className="hidden shrink-0 text-xs font-normal text-muted-foreground @[14rem]:inline">Paused</span> : null}
-          </span>
-          {guest ? null : (
-            <ProjectMenu
-              key={project.id}
-              project={project}
-              menuState={menuState}
-              widgets={widgets}
-              onSaved={onSaved}
-              onNewProject={onNewProject}
-              onDeleteProject={onDeleteProject}
-              onTogglePause={onTogglePause}
-              onAddNetwork={onAddNetwork}
-              onRemoveNetwork={onRemoveNetwork}
-              onToggleNetworkPause={onToggleNetworkPause}
-            />
-          )}
-        </DashboardCardHeader>
-      </div>
-
-      <ScrollArea className="relative min-h-0 flex-1">
-        {/* data-side-panel-body: the shell's mark that draws the first block at Settings → Styling → Panel cards → Opacity. */}
-        <div data-side-panel-body="" className={cn(PANEL_GUTTER, "grid grid-cols-[minmax(0,1fr)] pt-0")}>
-          <ContentProjectProvider value={content} reloadKey={contentReloadKey}>
-          <ProjectNetworksProvider value={networks}>
-            <ProjectPage
-              // Locking or unlocking draws it again from what was saved.
-              key={`${project.id}:${project.descriptionLocked}`}
-              projectId={project.id}
-              page={project.descriptionPage}
-              locked={project.descriptionLocked}
-              guest={guest}
-            />
-          </ProjectNetworksProvider>
-          </ContentProjectProvider>
-        </div>
-      </ScrollArea>
-    </div>
-  )
-}
-
-/**
- * The project's page: the description in the "/" editor, with the Networks
- * block. It saves 700ms after the last letter and when it is left, with
- * Saving… and Saved in the page header, and is what the AI is told about what
- * you make, its words alone. Locked, it reads only, for everyone.
+ * The project's description in the "/" editor, opened from the Description
+ * row on the ⋮'s General tab.
+ * It saves 700ms after the last letter and when it is left, with Saving… and
+ * Saved in the page header, and is what the AI is told about what you make
+ * and what Research searches for, its words alone. Locked, it reads only, for
+ * everyone. It holds words and the shell's basic blocks: the fixed blocks the
+ * project's left panel drew in it are gone (`project-description.ts`).
  *
  * A guest gets no "/" list and no right-click list of blocks: the blocks
  * upload pictures and read web pages, which a guest can't. "/" is not typed
  * at all on a guest's page, since the editor would read it as asking for one.
  */
-function ProjectPage({ projectId, page, locked, guest }: { projectId: string; page: string; locked: boolean; guest: boolean }) {
+function ProjectDescription({ projectId, page, locked, guest }: { projectId: string; page: string; locked: boolean; guest: boolean }) {
   const setSaveStatus = usePromoSaveStatus()
   // The page as the server last gave it. Each save says it started from this,
   // and the server refuses one whose start is no longer what is stored.
@@ -253,7 +107,6 @@ function ProjectPage({ projectId, page, locked, guest }: { projectId: string; pa
       <SavingDocument
         value={page}
         locked={locked}
-        appBlocks={PAGE_BLOCKS}
         placeholder="Describe what you make. The AI is told this."
         onSave={(json) => {
           queue.current = queue.current.then(() => save(json))
@@ -265,56 +118,40 @@ function ProjectPage({ projectId, page, locked, guest }: { projectId: string; pa
 }
 
 /**
- * The project's name in the header, cut short with "…" when the column is
- * narrow. Pointing at a cut name shows all of it; a name that fits shows no
- * tooltip.
- */
-function FullNameOnHover({ name }: { name: string }) {
-  const ref = React.useRef<HTMLSpanElement>(null)
-  const [cut, setCut] = React.useState(false)
-
-  React.useLayoutEffect(() => {
-    const element = ref.current
-    if (!element) return
-    const measure = () => setCut(element.scrollWidth > element.clientWidth)
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [name])
-
-  // Always the same tooltip, kept shut while the name fits, so the measured
-  // name is never swapped for a new one as the column is dragged.
-  return (
-    <Tooltip open={cut ? undefined : false}>
-      <TooltipTrigger asChild>
-        <span ref={ref} className="min-w-0 truncate">
-          {name}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{name}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-/**
- * The project's ⋮, the design's tabbed menu (Tyler, 12 Nov 2026: "Collapse,
- * back, name, bans, ⋮"), opening to the right over the middle.
+ * The project's ⋮, at the end of its Content, Research and Promote row
+ * (Tyler, 27 Nov 2026: "A ⋮ on the project's tabs"), the design's tabbed
+ * menu, opening under the row towards the middle.
  *
- * - **General:** Name and Picture as rows that open their field, each saving
- *   itself; then Pin, Pause this project, Lock description, New project and
- *   Duplicate, which opens the copy; then Delete project in red under a line.
- * - **Networks:** each network the project uses with Pause or Resume (that
- *   network alone, its posts and comments) and Take off, which the server
- *   refuses while the project still holds that network's accounts or
- *   keywords; then the networks it does not use yet, each a row to add it.
- * - **Widgets:** Overview's rows and spots, the Projects dashboard's one
- *   layout. A widget's own Manage widgets opens this tab.
+ * - **General:** Name, Description, AI spend cap and Cover photo as rows that
+ *   open their field, each saving itself; the Description row opens the "/"
+ *   editor (Tyler, 27 Nov 2026: "move discritption to general. it dfoesnt
+ *   need its own tab"). Then Pin, Pause this project, Lock description, New
+ *   project and Duplicate, which opens the copy; then Delete project in red
+ *   under a line.
+ * - **Networks:** each network the project uses, in Promote's tab order, with
+ *   Move up, Hide or Show (its tab on Promote; Tyler, 14 Nov 2026: "i should
+ *   be able to hide and drag and drop networks here", of the Networks block
+ *   these tabs replaced), Pause or Resume (that network alone, its posts and
+ *   comments) and Take off, which the server refuses while the project still
+ *   holds that network's accounts or keywords; then the networks it does not
+ *   use yet, each a row to add it.
+ *
+ * On Research, its own settings follow as **Research** (Search and AI) and
+ * **Socials** (Tyler, 27 Nov 2026: "should be merged"). A list with actions
+ * of its own adds them as a last tab: Reddit Commenting's Jobs, Ideas and
+ * Self-promotion threads, and Research's hidden channels to show again.
+ *
+ * A guest sent from Project gets General with the Description row alone: a guest writes
+ * the words but never runs the project.
  */
-function ProjectMenu({
+export function ProjectMenu({
   project,
+  guest,
   menuState,
-  widgets,
+  extraTabs = [],
+  actions,
+  select = null,
+  jobs = null,
   onSaved,
   onNewProject,
   onDeleteProject,
@@ -322,10 +159,20 @@ function ProjectMenu({
   onAddNetwork,
   onRemoveNetwork,
   onToggleNetworkPause,
+  onArrangeNetworks,
 }: {
   project: Project
+  guest: boolean
+  /** Held by the page, so Promote's line with no network yet can open the ⋮ at Networks. */
   menuState: TabbedMenuState
-  widgets: React.ReactNode
+  /** Tabs a part of the project adds after the project's own: Research's Research and Socials. */
+  extraTabs?: MySettingsTab[]
+  /** The list's own actions, a last tab named for them: Reddit Commenting's Jobs, Ideas and Self-promotion threads. */
+  actions?: ProjectMenuMore["actions"]
+  /** The list's Select, first of General's actions (Tyler, 27 Nov 2026: "Move all the mass select button to here"). */
+  select?: ProjectMenuMore["select"]
+  /** The network's Jobs window, after Select (Tyler, 27 Nov 2026: "Move jobs button here"). */
+  jobs?: ProjectMenuMore["jobs"]
   onSaved: () => void
   onNewProject: () => void
   onDeleteProject: () => void
@@ -333,6 +180,8 @@ function ProjectMenu({
   onAddNetwork: (network: Network) => Promise<void>
   onRemoveNetwork: (network: Network) => Promise<void>
   onToggleNetworkPause: (network: Network, paused: boolean) => Promise<void>
+  /** Promote's tab order and the networks it leaves out. */
+  onArrangeNetworks: (arranged: { order: Network[]; hidden: Network[] }) => Promise<void>
 }) {
   const navigate = useNavigate()
   const { onOpenChange: setOpen } = menuState
@@ -353,12 +202,31 @@ function ProjectMenu({
     action()
   }
   const addable = NETWORKS.filter((network) => !project.networks.includes(network))
+  // The list's Select: ticks its rows for the "N selected" menu in its header, and hides them again.
+  // Then the network's Jobs window, with how many run or wait.
+  const selectRow = (
+    <>
+      {select ? (
+        <ActionRow icon={<ListChecksIcon className="size-4" />} onClick={then(select.onToggle)}>
+          {select.on ? "Hide select" : "Select"}
+        </ActionRow>
+      ) : null}
+      {jobs ? (
+        <ActionRow icon={<ListTodoIcon className="size-4" />} onClick={then(jobs.onOpen)}>
+          {jobs.waiting ? `Jobs · ${jobs.waiting}` : "Jobs"}
+        </ActionRow>
+      ) : null}
+    </>
+  )
 
   return (
     <TabbedMenu
       label="Project settings"
-      align="start"
-      width="20.4rem"
+      align="end"
+      // Four tabs (Research adds Research and Socials) open it a little wider, so their row never
+      // scrolls sideways (Tyler, 27 Nov 2026: "reduce the padding a bit so we dont get this areascroll").
+      // The 32px between tabs is the shell's own rule (tabbed-menu.tsx), so the width gives instead.
+      width={extraTabs.length + (actions?.items.length ? 1 : 0) > 1 ? "26rem" : "22.7rem"}
       open={menuState.open}
       onOpenChange={menuState.onOpenChange}
       tab={menuState.tab}
@@ -367,11 +235,46 @@ function ProjectMenu({
         {
           value: "general",
           label: "General",
-          content: (
+          content: guest ? (
+            // A guest writes the description and nothing else of the project.
+            <div className="grid gap-3 p-3">
+              <PickGroup title="Project">
+                {/* The description, what the AI is told and Research searches for, a row that opens its
+                    editor (Tyler, 27 Nov 2026: "move discritption to general. it dfoesnt need its own tab"). */}
+                <PickRow label="Description" value={projectDescriptionText(project.descriptionPage) || "None"}>
+                  <div className="max-h-[60vh] overflow-y-auto">
+                    <ProjectDescription
+                      // Locking or unlocking draws it again from what was saved.
+                      key={`${project.id}:${project.descriptionLocked}`}
+                      projectId={project.id}
+                      page={project.descriptionPage}
+                      locked={project.descriptionLocked}
+                      guest={guest}
+                    />
+                  </div>
+                </PickRow>
+              </PickGroup>
+              {select ? <div className="grid">{selectRow}</div> : null}
+            </div>
+          ) : (
             <div className="grid gap-3 p-3">
               <PickGroup title="Project">
                 <PickRow label="Name" value={project.name}>
                   <ProjectNameField project={project} onSaved={onSaved} />
+                </PickRow>
+                {/* The description, what the AI is told and Research searches for, a row that opens its
+                    editor (Tyler, 27 Nov 2026: "move discritption to general. it dfoesnt need its own tab"). */}
+                <PickRow label="Description" value={projectDescriptionText(project.descriptionPage) || "None"}>
+                  <div className="max-h-[60vh] overflow-y-auto">
+                    <ProjectDescription
+                      // Locking or unlocking draws it again from what was saved.
+                      key={`${project.id}:${project.descriptionLocked}`}
+                      projectId={project.id}
+                      page={project.descriptionPage}
+                      locked={project.descriptionLocked}
+                      guest={guest}
+                    />
+                  </div>
                 </PickRow>
                 <PickRow
                   label="AI spend cap"
@@ -400,6 +303,7 @@ function ProjectMenu({
                 />
               </PickGroup>
               <div className="grid">
+                {selectRow}
                 <ActionRow
                   icon={project.pinned ? <PinOffIcon className="size-4" /> : <PinIcon className="size-4" />}
                   disabled={busy !== null}
@@ -455,16 +359,18 @@ function ProjectMenu({
             </div>
           ),
         },
-        {
+        ...(guest ? [] : [{
           value: "networks",
           label: "Networks",
           content: (
             <div className="grid gap-3 p-3">
               <PickGroup title="In use">
                 {project.networks.length ? (
-                  project.networks.map((network) => {
+                  project.networks.map((network, at) => {
                     const paused = project.pausedNetworks.includes(network)
+                    const hidden = project.hiddenNetworks.includes(network)
                     const name = NETWORK_NAMES[network]
+                    const order = project.networks
                     return (
                       <div key={network} className="flex min-h-11 items-center gap-2 px-3 py-1.5 text-sm">
                         <span className="text-muted-foreground [&_svg]:size-4">
@@ -473,7 +379,44 @@ function ProjectMenu({
                         <span className="min-w-0 flex-1 truncate">
                           {name}
                           {paused ? <span className="text-muted-foreground"> · Paused</span> : null}
+                          {hidden ? <span className="text-muted-foreground"> · Hidden</span> : null}
                         </span>
+                        {at > 0 ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            disabled={busy !== null}
+                            aria-label={`Move ${name} up`}
+                            onClick={() =>
+                              void run(`order:${network}`, () =>
+                                onArrangeNetworks({
+                                  order: [...order.slice(0, at - 1), network, order[at - 1], ...order.slice(at + 1)],
+                                  hidden: project.hiddenNetworks,
+                                })
+                              )
+                            }
+                          >
+                            <ArrowUpIcon />
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={busy !== null}
+                          aria-label={hidden ? `Show ${name} on Promote` : `Hide ${name} from Promote`}
+                          onClick={() =>
+                            void run(`hide:${network}`, () =>
+                              onArrangeNetworks({
+                                order,
+                                hidden: hidden ? project.hiddenNetworks.filter((other) => other !== network) : [...project.hiddenNetworks, network],
+                              })
+                            )
+                          }
+                        >
+                          {hidden ? <EyeOffIcon /> : <EyeIcon />}
+                        </Button>
                         <Button
                           type="button"
                           variant="ghost"
@@ -524,8 +467,25 @@ function ProjectMenu({
               ) : null}
             </div>
           ),
-        },
-        { value: "widgets", label: "Widgets", content: widgets },
+        }]),
+        ...(guest ? [] : extraTabs),
+        ...(actions?.items.length
+          ? [
+              {
+                value: "actions",
+                label: actions.title,
+                content: (
+                  <div className="grid p-3">
+                    {actions.items.map((item) => (
+                      <ActionRow key={item.label} icon={item.icon} onClick={then(item.onClick)}>
+                        {item.label}
+                      </ActionRow>
+                    ))}
+                  </div>
+                ),
+              },
+            ]
+          : []),
       ]}
     />
   )

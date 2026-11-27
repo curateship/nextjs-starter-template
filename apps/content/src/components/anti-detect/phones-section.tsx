@@ -1,6 +1,6 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
-import { FlaskConicalIcon, PauseIcon, PlayIcon, ServerIcon } from "lucide-react"
+import { FlaskConicalIcon, PauseIcon, PlayIcon, ServerIcon, ListChecksIcon } from "lucide-react"
 
 import type { RackWindows } from "@/components/anti-detect/rack-blocks"
 import type { CrmFrame } from "@/components/crm/crm-frame"
@@ -161,8 +161,13 @@ export function PhonesSection({
         rackId={rackId}
         start={<PanelReopenButton side="left" label="Show the page" />}
         end={<PanelReopenButton side="right" label="Show the phone" />}
-        menu={
+        menu={(select) => (
           <FoldingMenu label="More for phones" fit align="end" open={menuOpen} onOpenChange={setMenuOpen}>
+            {select ? (
+              <MenuAction icon={<ListChecksIcon className="size-4" />} onClick={then(select.onToggle)}>
+                {select.on ? "Hide select" : "Select"}
+              </MenuAction>
+            ) : null}
             <MenuAction icon={<ServerIcon className="size-4" />} onClick={then(rackWindows.newRack)}>
               New rack
             </MenuAction>
@@ -179,7 +184,7 @@ export function PhonesSection({
               Self-test and app updates
             </MenuAction>
           </FoldingMenu>
-        }
+        )}
         search={rackSearch}
         views={views.data ?? []}
         onSearch={onSearch}

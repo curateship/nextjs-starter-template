@@ -8,33 +8,18 @@ import { VaultSection } from "@/components/viral/dashboard/sections/vault-sectio
 import { researchSearchOf, withOpen } from "@/lib/content-app/research-search"
 import { useCrmFrame } from "@/components/crm/crm-frame"
 import { RightCoverProvider } from "@/components/shared/notes/page-cover"
-import { useTabbedMenuState } from "@/components/shared/notes/tabbed-menu"
 import { middleGutterClassName, ThreePanels } from "@/components/shared/three-panels"
-import { useWidgetLayout, type WidgetStore } from "@/components/shared/widgets/use-widget-layout"
-import { ManageWidgetsProvider, WidgetSettings } from "@/components/shared/widgets/widget-menus"
+import { ManageWidgetsProvider } from "@/components/shared/widgets/widget-menus"
+import { useProjectsLeft } from "@/components/content-app/projects-left"
 import { AccountsSection } from "@/components/social/projects-dashboard/accounts-section"
 import { MessagesSection } from "@/components/social/projects-dashboard/messages-section"
-import type { ProjectsBlocks } from "@/components/social/projects-dashboard/projects-blocks"
 import { ProjectsOverview } from "@/components/social/projects-dashboard/projects-overview"
-import { ProjectsPagePanel } from "@/components/social/projects-dashboard/projects-page-panel"
 import { ProjectsSectionList } from "@/components/social/projects-dashboard/projects-section"
 import { ErrorRow } from "@/components/ui/error-row"
-import { widgetsShown } from "@/lib/admin-dashboard/overview-widgets"
 import type { ArchiveProjectRow } from "@/lib/api/archive/items"
 import type { InboxRow } from "@/lib/api/social/phone-apps"
-import {
-  getProjectsDashboardErrorMessage,
-  loadProjectsPage,
-  loadProjectsWidgets,
-  saveProjectsPageSections,
-  saveProjectsWidgetLayout,
-  type ProjectsSections,
-} from "@/lib/api/social/projects-dashboard"
 import type { ProjectRow } from "@/lib/api/social/projects"
 import type { RedditAccountsPage } from "@/lib/api/social/reddit-accounts"
-import { useLoad } from "@/lib/hooks/use-load"
-import type { StoredPage } from "@/lib/notes/page-body"
-import { PROJECTS_WIDGET_OFFER } from "@/lib/social/projects-dashboard-page"
 import {
   PROJECTS_SECTION_LABELS,
   sectionOf,
@@ -48,18 +33,7 @@ import {
   PROJECTS_OVERVIEW_LAYOUT_KEY,
   PROJECTS_PLACE_KEY,
 } from "@/lib/social/panel-keys"
-import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
-
-/** Overview's layout is each person's own, kept with their Projects page, and shared with each project's own Overview. */
-export const PROJECTS_WIDGET_STORE: WidgetStore = {
-  load: loadProjectsWidgets,
-  save: saveProjectsWidgetLayout,
-  message: getProjectsDashboardErrorMessage,
-}
-
-/** The name the left page's read is kept under between visits, so coming back draws it at once. */
-const PAGE_READ = "promo-projects-page"
 
 /** What the route reads for every section at once, so each Dashboards row has its count from the start. */
 export type ProjectsDashboardData = {
@@ -77,9 +51,9 @@ export type ProjectsDashboardData = {
  * design"). Laid out as the Admin dashboard, the CRM and Travel's Trips
  * dashboard are.
  *
- * - **Left:** the person's page of blocks. Its fixed Dashboards block picks
- *   the section. Its Projects block narrows the sections to one project. Its
- *   ⋮ holds General (cover, Lock blocks) and Widgets.
+ * - **Left:** the person's page of blocks (`useProjectsLeft`). Its fixed
+ *   Dashboards and Viral blocks pick the section. Its ⋮ holds General (cover,
+ *   Lock blocks) and Widgets. A project's page draws the same left panel.
  * - **Middle:** Overview's widgets straight on the dashboard, taking the
  *   right panel's room too; or a section's list, each in one header and
  *   table shape.
@@ -87,82 +61,26 @@ export type ProjectsDashboardData = {
  *   and the dashboard goes back to where it was.
  *
  * The frame stays while the section changes (`useCrmFrame`), so the left
- * page, its ⋮ and anything typed there carry on across a switch. A project's
- * own page, where its posting and commenting happen, is still
- * `/admin/projects/<id>`, opened from the project's Open project.
+ * page, its ⋮ and anything typed there carry on across a switch. A project
+ * opens from its row on the Projects list at `/admin/projects/<id>`, which
+ * keeps this left panel and fills the middle and right (Tyler, 27 Nov 2026:
+ * "click project > middle and right panel change").
  */
 export function ProjectsDashboard({ data, search }: { data: ProjectsDashboardData; search: ProjectsSearch }) {
   const navigate = useNavigate({ from: "/admin/projects" })
   const router = useRouter()
   const section = sectionOf(search)
   const overview = section === "overview"
-  const projectId = search.project ?? ""
 
-  const pageRead = useLoad(loadProjectsPage, getProjectsDashboardErrorMessage, { remember: PAGE_READ })
-  const leftPage = pageRead.data?.page ?? null
-  const setLeftPage = (next: StoredPage) => pageRead.setData((current) => (current ? { ...current, page: next } : current))
-
-  // Hidden and dragged sections show at once and save behind; a refused save puts them back.
-  const sections: ProjectsSections = pageRead.data?.sections ?? { hidden: [], order: [] }
-  const changeSections = (next: ProjectsSections) => {
-    const was = sections
-    pageRead.setData((current) => (current ? { ...current, sections: next } : current))
-    saveProjectsPageSections(next).catch((error: unknown) => {
-      pageRead.setData((current) => (current ? { ...current, sections: was } : current))
-      showErrorToast(getProjectsDashboardErrorMessage(error))
-    })
-  }
-
-  const widgets = useWidgetLayout(PROJECTS_WIDGET_STORE, null)
-  const leftMenu = useTabbedMenuState()
-  const { openAt: openLeftMenuAt } = leftMenu
-  const manageWidgets = React.useCallback(() => openLeftMenuAt("widgets"), [openLeftMenuAt])
-
-  // A project that has since gone narrows nothing.
-  const narrowedTo = data.projects.some((project) => project.id === projectId) ? projectId : ""
-  const inProject = (id: string | null | undefined) => !narrowedTo || id === narrowedTo
-  const accountsInUse = data.accounts.accounts.filter((account) => !account.retiredAt)
-
-  /** How many of a section's rows are one project's, for its row in the Projects block. */
-  const countFor = (sectionShown: ProjectsSection, id: string): number | null => {
-    switch (sectionShown) {
-      case "projects":
-        return data.projects.find((project) => project.id === id)?.accountCount ?? 0
-      case "accounts":
-        return accountsInUse.filter((account) => account.project?.id === id).length
-      case "messages":
-        return data.messages.filter((row) => row.account.projectId === id).length
-      default:
-        return null
-    }
-  }
-
-  const goTo = (next: ProjectsSearch) => void navigate({ search: next })
-  const keep = narrowedTo ? { project: narrowedTo } : {}
-
-  const blocks: ProjectsBlocks = {
+  const { left, coverUrl, widgets, manageWidgets } = useProjectsLeft({
     section,
-    onPickSection: (next: ProjectsSection) => goTo(sectionSearch(next, keep)),
-    hiddenSections: sections.hidden,
-    sectionOrder: sections.order,
-    onSectionsChange: changeSections,
     counts: {
-      overview: widgets.layout ? widgetsShown(widgets.layout) : null,
-      projects: narrowedTo ? 1 : data.projects.length,
-      accounts: accountsInUse.filter((account) => inProject(account.project?.id)).length,
-      messages: data.messages.filter((row) => inProject(row.account.projectId)).length,
-      // Research's lists are read when they show, so their rows carry no count.
-      vault: null,
-      hooks: null,
-      formats: null,
+      projects: data.projects.length,
+      accounts: data.accounts.accounts.filter((account) => !account.retiredAt).length,
+      messages: data.messages.length,
     },
-    projects: [...data.projects]
-      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.name.localeCompare(b.name))
-      .map((project) => ({ id: project.id, name: project.name, count: countFor(section, project.id) })),
-    activeProject: narrowedTo,
-    // A new project picked starts the section afresh, with nothing open.
-    onProject: (id: string) => goTo(sectionSearch(section, id ? { project: id } : {})),
-  }
+    onPickSection: (next: ProjectsSection) => void navigate({ search: sectionSearch(next) }),
+  })
 
   const { place, frame, setRightSpot } = useCrmFrame<ProjectsSection>(section)
 
@@ -181,14 +99,14 @@ export function ProjectsDashboard({ data, search }: { data: ProjectsDashboardDat
         <FormatsSection key="formats" {...props} data={loaded} />
       ) : null
   } else if (section === "projects") {
-    middle = <ProjectsSectionList key="projects" projects={data.projects} search={search} projectId={narrowedTo} frame={frame} />
+    middle = <ProjectsSectionList key="projects" projects={data.projects} search={search} projectId="" frame={frame} />
   } else if (section === "accounts") {
-    middle = <AccountsSection key="accounts" initial={data.accounts} projects={data.projects} search={search} projectId={narrowedTo} frame={frame} />
+    middle = <AccountsSection key="accounts" initial={data.accounts} projects={data.projects} search={search} projectId="" frame={frame} />
   } else if (section === "messages") {
-    middle = <MessagesSection key="messages" initial={data.messages} search={search} projectId={narrowedTo} frame={frame} />
+    middle = <MessagesSection key="messages" initial={data.messages} search={search} projectId="" frame={frame} />
   } else {
     middle = widgets.layout ? (
-      <ProjectsOverview data={data} projectId={narrowedTo} layout={widgets.layout} onChange={widgets.change} />
+      <ProjectsOverview data={data} layout={widgets.layout} onChange={widgets.change} />
     ) : widgets.error ? (
       <ErrorRow message={widgets.error} onRetry={widgets.retry} />
     ) : null
@@ -199,7 +117,7 @@ export function ProjectsDashboard({ data, search }: { data: ProjectsDashboardDat
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* The left page's cover carries on behind the record on the right. */}
-      <RightCoverProvider value={leftPage?.coverUrl ?? null}>
+      <RightCoverProvider value={coverUrl}>
         <ManageWidgetsProvider value={manageWidgets}>
           <ThreePanels
             // Overview is two panels, with a layout of its own.
@@ -218,25 +136,7 @@ export function ProjectsDashboard({ data, search }: { data: ProjectsDashboardDat
             left={{
               label: "Page",
               showLabel: "Show the page",
-              content: (
-                <ProjectsPagePanel
-                  page={leftPage}
-                  error={pageRead.error}
-                  onRetry={pageRead.retry}
-                  blocks={blocks}
-                  menuState={leftMenu}
-                  onPageChange={setLeftPage}
-                  widgets={
-                    <WidgetSettings
-                      offer={PROJECTS_WIDGET_OFFER}
-                      layout={widgets.layout}
-                      error={widgets.error}
-                      onRetry={widgets.retry}
-                      onChange={widgets.change}
-                    />
-                  }
-                />
-              ),
+              content: left,
             }}
             middle={{
               label: PROJECTS_SECTION_LABELS[section],

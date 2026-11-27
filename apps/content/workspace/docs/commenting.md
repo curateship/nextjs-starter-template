@@ -1,9 +1,11 @@
 # Commenting inside a project
 
-Each network in a project's left panel has two rows in the Networks block: **Posts**,
-your own posts on it, and **Commenting**, the other people's posts its
-keywords found and what you sent under them. Picking a row fills the middle
-and right columns with it.
+Each network a project uses has two sides: **Posts**, your own posts on it,
+and **Commenting**, the other people's posts its keywords found and what you
+sent under them. Since 27 Nov 2026 each side is a choice of the dropdown in
+the one header of the project's Promote tab, "Reddit · Posts" and "Reddit ·
+Commenting"; before then they were two rows on the project's left panel.
+Picking one fills the middle and right columns with it.
 
 Tyler, 5 Nov 2026: "Every middle panel clicking from the left panel should
 show my own posts but reddit, medium, x and linkedin are showing search to
@@ -28,52 +30,52 @@ is `workspace/tasks/Projects/commenting-dashboard.md`.
   own posts, on their Posts row (Tyler, 16 Oct 2026: "IG and tiktok is not
   reddit").
 
-## A network's rows
+## A network's two sides
 
-Since 12 Nov 2026 the networks are one fixed Networks block at the top of the
-project's page, not a card each (Tyler: "Description page + Networks block";
-[A project's own page](projects-dashboard.md#a-projects-own-page)). Tyler's
-rows of 5 Nov 2026 stay.
+They were rows of a Networks block on the project's left panel from 12 Nov
+2026, and are two choices of Promote's dropdown since 27 Nov 2026
+([A project's own page](projects-dashboard.md#a-projects-own-page)). Tyler's
+two of 5 Nov 2026 stay.
 
-- **Each network** is its mark and name, with Paused after it while the
-  whole network is paused. Only a network with both rows folds; Instagram
-  and TikTok are one line that opens their posts. The block's ⋮ hides and
-  reorders networks
-  ([The Networks block](projects-dashboard.md#a-projects-own-page)). Pause and Take off for the whole network are in
-  the project's ⋮, under Networks.
-- **Posts** has how many of your posts on it need you in its pill: failed
+- **Each network** is its name, with "(paused)" while the whole network is
+  paused. Instagram, TikTok, Threads and YouTube have Posts alone. The
+  project's ⋮, under Networks, orders, hides, pauses and takes off networks.
+- **Posts** has how many of your posts on it need you as its count: failed
   ones and drafts not sent yet.
 - **Commenting** has no count (Tyler, 14 Nov 2026, of its "2", the Strong
   fit posts and replies waiting: "remove it"). It says Paused after its name
   while commenting is paused. The Pause button itself is in the keywords dropdown (below).
 - **The keywords are not on the left.** Since 14 Nov 2026 they are a
   dropdown in Commenting's middle header ([The keywords](#the-keywords)).
-- **The picked row** has the sliding bar, as a Dashboards row does.
 
 ## Commenting's middle and right columns
 
 - **Middle: the posts to comment on, under one header.** Every network's
   Commenting has Reddit's header since 14 Nov 2026 (Tyler: "fix all the
-  tabs. the only thing that looks right is the reddit tabs"): the arrow back
-  and the tabs on the left, To look at, Replied, Skipped, Today and Sent
-  (LinkedIn adds People); then Search posts, Select (Reddit), the keywords
-  dropdown, the amber jobs warning and a "⋮" whose first row is Jobs. No
-  header names the network any more. Under the header, only the warnings
+  tabs. the only thing that looks right is the reddit tabs"). Since 27 Nov
+  2026 it is the project's one header (Tyler: "Lets put them all in the top
+  header so we have just one header. The tabs can now be either dropdowns or
+  filter"): the project's controls (the arrow back, Content, Research and
+  Promote, and "Reddit · Commenting"), then the list dropdown, To look at,
+  Replied, Skipped, Today and Sent (LinkedIn adds People), then Search posts,
+  Select (Reddit), the keywords dropdown, the amber jobs warning, and the
+  project's ⋮ last, whose Commenting tab on Reddit holds Jobs, Ideas and the
+  self-promotion threads. Under the header, only the warnings
   that need a setting changed stay as red lines, such as no search account
   or no reader browser.
-- **Every Posts row has one header too:** the arrow back, the tabs, and the
-  list's own buttons at its right end, such as Post ideas or Article ideas
+- **Every network's Posts has one header too:** the project's controls, the
+  list dropdown, and the list's own buttons at its right end before the
+  project's ⋮, such as Post ideas or Article ideas
   and New post, New publication on Medium's Publications and Add community
   on X's Communities. Until 14 Nov 2026 those sat on a row of their own
   under the tabs, with a line saying what publications or communities are;
   that line is gone. The list puts its buttons there through `HeaderActions`
   (`src/components/social/header-actions.tsx`).
-- **The tabs are the dashboard's own** (`DashboardTabs`) on every network,
-  drawn in the style Settings → Styling picks, as Reddit's are (Tyler,
-  14 Nov 2026: "some networks is not using the correct tab ui", of
-  Instagram's grey pill tabs). Every header is 57px with the tabs 56px tall,
-  starting at the same place. Narrower than 768px, Medium's, X's and
-  LinkedIn's tabs become one "Which list" dropdown, as Reddit's do. A tab's
+- **The lists are one "Which list" dropdown** on every network since 27 Nov
+  2026 (`NetworkTabs` in `src/components/content-app/network-panes.tsx`),
+  Voices and Accounts last. Until then they were the dashboard's own tabs
+  (Tyler, 14 Nov 2026: "some networks is not using the correct tab ui"),
+  which became that dropdown only below 768px. Every header is 57px. A list's
   count is the plain grey count; Medium's, X's and LinkedIn's Sent tab shows
   how many failed when any did, no longer in red. Instagram's and TikTok's
   tabs sit in the shell's table toolbar, given the header's height, its line
