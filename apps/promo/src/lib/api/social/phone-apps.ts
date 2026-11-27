@@ -69,6 +69,8 @@ const WRITTEN_HERE = [
   "does not answer",
   "A carousel holds",
   "of the carousel",
+  // An answer under a YouTube video never carries a link (YouTube task, part 9).
+  "has a link in it",
 ]
 
 const lookup = createErrorMessage(

@@ -92,7 +92,7 @@ except Exception as _failure:  # A missing file, or one its own imports break.
     iphone = None
     _IPHONE_IMPORT_ERROR = _failure
 
-VERSION = "2026.11.18.1"
+VERSION = "2026.11.26.1"
 
 # The launcher restarts the program when it exits with this code: a new
 # version was written, or someone switched versions on disk.
@@ -1042,8 +1042,11 @@ APP_PACKAGES = {
     # Threads, Meta's (part 9 of the 18 Nov 2026 features task), signed in
     # through the Instagram account on the same phone.
     "threads": "com.instagram.barcelona",
+    # YouTube (workspace/tasks/YouTube/01-youtube-features.md): a channel's
+    # uploads, its daily reading and the comments under its videos.
+    "youtube": "com.google.android.youtube",
 }
-APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok", "medium": "Medium", "x": "X", "linkedin": "LinkedIn", "threads": "Threads"}
+APP_NAMES = {"reddit": "Reddit", "instagram": "Instagram", "tiktok": "TikTok", "medium": "Medium", "x": "X", "linkedin": "LinkedIn", "threads": "Threads", "youtube": "YouTube"}
 PLAY_STORE = "com.android.vending"
 
 # The same apps on an iPhone, by App Store bundle id, and Apple's own apps
@@ -1063,6 +1066,9 @@ APP_BUNDLES = {
     # Threads' App Store bundle id. Its steps are not written for an iPhone
     # yet, so `app_screens` refuses one there.
     "threads": "com.burbn.barcelona",
+    # YouTube's App Store bundle id. Its steps are not written for an iPhone
+    # yet, so `app_screens` refuses one there.
+    "youtube": "com.google.ios.youtube",
 }
 IOS_SETTINGS = "com.apple.Preferences"
 IOS_MESSAGES = "com.apple.MobileSMS"
@@ -1158,7 +1164,7 @@ UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": PLAY_STORE}
 # The same apps in the App Store (phone farm part 53): each app's page by
 # Apple's own number, opened through the itms-apps address the store owns.
 APP_STORE = "com.apple.AppStore"
-APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320", "medium": "828256236", "x": "333903271", "linkedin": "288429040", "threads": "6446901002"}
+APP_STORE_IDS = {"reddit": "1064216828", "instagram": "389801252", "tiktok": "835599320", "medium": "828256236", "x": "333903271", "linkedin": "288429040", "threads": "6446901002", "youtube": "544007664"}
 IOS_UPDATE_BUTTON = {"textMatches": "(?i)^update$", "packageName": APP_STORE}
 IOS_OPEN_BUTTON = {"textMatches": "(?i)^open$", "packageName": APP_STORE}
 # The page's What's New says "Version 2025.40.0" under the newest notes.
@@ -2346,6 +2352,7 @@ def action_reddit_comment(serial, args, walk):
 INSTAGRAM = APP_PACKAGES["instagram"]
 TIKTOK = APP_PACKAGES["tiktok"]
 THREADS = APP_PACKAGES["threads"]
+YOUTUBE = APP_PACKAGES["youtube"]
 
 
 def shapes(package, *patterns):
@@ -2824,6 +2831,57 @@ APP_SCREENS["linkedin"] = linkedin_screens(
 APP_SCREENS[IOS_LINKEDIN] = linkedin_screens(IOS_LINKEDIN, ios_field_in(IOS_LINKEDIN), ios_first_cell(IOS_LINKEDIN), ios=True)
 
 
+# YouTube (workspace/tasks/YouTube/01-youtube-features.md), Android only:
+# the You tab for the channel's @handle, its channel page for subscribers and
+# videos, the upload screen a shared video opens, and the comments through
+# the shared inbox steps. Words from the YouTube app as it is known, unproven
+# on a phone until the first self-test.
+APP_SCREENS["youtube"] = {
+    "package": YOUTUBE,
+    "profile_tab": shapes(YOUTUBE, "(?i)^(you|library)$") + [{"resourceIdMatches": "(?i).*pivot_(you|library).*", "packageName": YOUTUBE}],
+    "view_channel": shapes(YOUTUBE, "(?i)^(view channel|go to channel|your channel)$"),
+    "your_videos": shapes(YOUTUBE, "(?i)^(your videos)$"),
+    "create": shapes(YOUTUBE, "(?i)^(create|upload)$") + [{"resourceIdMatches": "(?i).*(pivot_create|create_button).*", "packageName": YOUTUBE}],
+    "upload_video": shapes(YOUTUBE, "(?i)^(upload a video|upload video|upload)$"),
+    "next": shapes(YOUTUBE, "(?i)^next$"),
+    "title": shapes(YOUTUBE, "(?i)^(create a title|add a title|title|caption your short|add a caption)$") + field_in(YOUTUBE),
+    "description": shapes(YOUTUBE, "(?i)^(add description|description)$"),
+    "visibility": shapes(YOUTUBE, "(?i)^visibility$"),
+    "public": shapes(YOUTUBE, "(?i)^public$"),
+    "audience": shapes(YOUTUBE, "(?i)^(select audience|audience)$"),
+    "not_for_kids": shapes(YOUTUBE, "(?i)^no,? it'?s not made for kids$"),
+    "show_more": shapes(YOUTUBE, "(?i)^show more$"),
+    "altered": shapes(YOUTUBE, "(?i)^altered (or synthetic )?content$"),
+    "altered_yes": shapes(YOUTUBE, "(?i)^yes$"),
+    "altered_no": shapes(YOUTUBE, "(?i)^no$"),
+    "share": shapes(YOUTUBE, "(?i)^(upload|upload video|upload short)$"),
+    "posted": ("upload complete", "your video is uploaded", "your short is uploaded", "video uploaded", "processing"),
+    "post_failed": ("upload failed", "couldn't upload", "can't upload", "upload unsuccessful"),
+    "first_video_menu": [{"descriptionMatches": "(?i)^(action menu|more options)$", "packageName": YOUTUBE}],
+    "share_menu": shapes(YOUTUBE, "(?i)^share$"),
+    "copy_link": shapes(YOUTUBE, "(?i)^copy link$"),
+    "activity": [{"descriptionMatches": "(?i)^notifications?$", "packageName": YOUTUBE}] + shapes(YOUTUBE, "(?i)^notifications?$"),
+    "reply": shapes(YOUTUBE, "(?i)^reply$"),
+    "comment_box": shapes(YOUTUBE, "(?i)^(add a reply.*|reply.*)$") + field_in(YOUTUBE),
+    "comment_send": [{"descriptionMatches": "(?i)^(send|reply|post)$", "packageName": YOUTUBE}] + shapes(YOUTUBE, "(?i)^(send|reply)$"),
+    "field": field_in(YOUTUBE),
+    "handle_id": "(?i).*(channel_handle|handle).*",
+    "figures": {"posts": "videos", "followers": "subscribers", "following": ""},
+    "link_shape": re.compile(r"^https://(www\.|m\.)?(youtube\.com/(watch\?v=|shorts/)|youtu\.be/)[A-Za-z0-9_-]{6,20}\S*$"),
+}
+
+# The whole phone upload, from the download to YouTube saying the video is
+# in: the app waits 42 minutes for the answer and the `youtube_upload` job's
+# claim lasts 60 (jobs.ts), so the phone stops well inside both.
+YOUTUBE_PHONE_BUDGET_SECONDS = 36 * 60
+# A YouTube file is streamed to the rack's disk, never held in memory: up to
+# 5 GB, the most the Archive keeps, in up to 15 minutes. With the 18 minutes
+# to upload and the screens between, an upload ends inside the app's 42.
+YOUTUBE_DOWNLOAD_LIMIT = 5 * 1024 ** 3
+YOUTUBE_DOWNLOAD_SECONDS = 15 * 60
+YOUTUBE_HANDLE = re.compile(r"@([A-Za-z0-9._-]{3,100})")
+
+
 def app_screens(serial, app):
     """The app's buttons on this phone: the iPhone app's, keyed by its bundle
     id, on an iPhone; the Android app's, keyed by its name, otherwise. An app
@@ -2875,7 +2933,8 @@ def profile_handle(hierarchy_xml, app):
     root = ElementTree.fromstring(hierarchy_xml)
     packages = app_packages(app)
     pattern = APP_SCREENS[app]["handle_id"]
-    in_title = APP_SCREENS[APP_BUNDLES[app]].get("handle_in_title", False)
+    # An app written for Android only (Threads, YouTube) has no iPhone table to ask.
+    in_title = APP_SCREENS.get(APP_BUNDLES[app], {}).get("handle_in_title", False)
     for node in root.iter("node"):
         if not own_node(node, packages):
             continue
@@ -3717,6 +3776,322 @@ def action_instagram_story(serial, args, walk):
         raise RuntimeError("story: pressed Your story but Instagram did not say it was shared within %d seconds. It may still be uploading; check the app before posting again." % POST_LANDED_APP_SECONDS)
     return {"postUrl": ""}
 
+def youtube_profile_from_screen(hierarchy_xml):
+    """The channel's @handle, subscribers and videos as the YouTube app's You tab
+    or channel page shows them. None where one is not shown."""
+    lines = screen_lines(hierarchy_xml, app_packages("youtube"))
+    handle = None
+    for line in lines:
+        found = YOUTUBE_HANDLE.search(line)
+        if found:
+            handle = found.group(1).rstrip(".")
+            break
+    figures = {"subscribers": None, "videos": None}
+    for line in lines:
+        text = line.replace(",", "")
+        for key, word in (("subscribers", "subscribers?"), ("videos", "videos?")):
+            match = re.search(r"(?i)(\d[\d.]*\s*[km]?)\s+%s\b" % word, text)
+            if match and figures[key] is None:
+                figures[key] = parse_count(match.group(1).replace(" ", ""))
+    return {"handle": handle, "subscribers": figures["subscribers"], "videos": figures["videos"]}
+
+
+def read_youtube_channel(serial, walk):
+    """Opens the YouTube app on the You tab and reads the channel; its channel
+    page too when the You tab shows no figures. Leaves it there."""
+    open_app(serial, "youtube")
+    walk.shot("Opened YouTube")
+    device = walk.screen()
+    if signed_out(device.dump_hierarchy(), "youtube"):
+        return {"handle": None, "subscribers": None, "videos": None}
+    screens = app_screens(serial, "youtube")
+    walk.tap_first("Open the You tab", selectors=screens["profile_tab"])
+    time.sleep(2)
+    reading = youtube_profile_from_screen(device.dump_hierarchy())
+    if reading["handle"] and reading["subscribers"] is None:
+        try:
+            walk.tap_first("Open the channel", timeout=4, selectors=screens["view_channel"])
+            time.sleep(2.5)
+            page = youtube_profile_from_screen(device.dump_hierarchy())
+            reading.update({key: value for key, value in page.items() if value is not None})
+        except StepFailed:
+            pass  # The You tab's handle stands; the figures wait for tomorrow.
+    walk.shot("Read the channel")
+    return reading
+
+
+def action_youtube_quick_state(serial, args, walk):
+    """Who the YouTube app is signed in as, read after every YouTube job. One
+    that cannot be read says "not checked", so a failed look is never
+    written down as signed out."""
+    if is_iphone(serial):
+        return {"checked": False, "handle": None, "blocked": False, "reason": "YouTube is not done on an iPhone yet", "banScreen": None}
+    try:
+        walk.screen().screen_on()
+        reading = read_youtube_channel(serial, walk)
+        walk.home()
+    except Cancelled:
+        raise
+    except Exception as failure:  # Not checked rather than signed out.
+        log("Could not read who is signed in to YouTube on %s: %s" % (serial, failure))
+        return {"checked": False, "handle": None, "blocked": False, "reason": "", "banScreen": None}
+    return {"checked": True, "handle": reading["handle"], "blocked": False, "reason": "", "banScreen": None}
+
+
+def action_youtube_health(serial, args, walk):
+    """The daily reading: the channel's subscribers and videos, then the
+    numbers of each video named, opened by its link. A video that will not
+    open is left out, and its numbers stay as they were. Comments on a phone
+    come through YouTube's notifications, so none are read here."""
+    if is_iphone(serial):
+        raise RuntimeError("health: YouTube is not done on an iPhone yet. Put the channel on an Android phone.")
+    walk.screen().screen_on()
+    reading = read_youtube_channel(serial, walk)
+    result = {"handle": reading["handle"], "subscribers": reading["subscribers"], "videos": reading["videos"], "verified": None, "numbers": [], "comments": [], "banScreen": None}
+    if not reading["handle"]:
+        walk.home()
+        return result
+    shape = app_screens(serial, "youtube")["link_shape"]
+    for url in [str(url) for url in (args.get("videoUrls") or []) if shape.match(str(url))][:20]:
+        walk.check()
+        try:
+            open_link(serial, "youtube", url)
+            numbers = post_numbers_from_screen(walk.screen().dump_hierarchy(), "youtube")
+            walk.shot("Read a video's numbers")
+            result["numbers"].append(dict(numbers, url=url))
+        except Cancelled:
+            raise
+        except Exception as failure:  # One video that will not open never loses the rest.
+            log("A YouTube video's numbers on %s: %s" % (serial, short_words(failure)))
+    walk.home()
+    return result
+
+
+def download_to_rack(url, limit, seconds):
+    """Streams one of Promo's own https files to the rack's disk, never into
+    memory, and returns its path and extension."""
+    if not url.startswith("https://"):
+        raise RuntimeError("upload: the file's address is not an https address")
+    extension = media_extension(url)
+    if not extension or not MEDIA_TYPES[extension].startswith("video/"):
+        raise RuntimeError("upload: the file is not an MP4, MOV or WebM video")
+    folder = os.path.join(HOME, "media")
+    os.makedirs(folder, exist_ok=True)
+    local = os.path.join(folder, camera_name(extension))
+    deadline = time.time() + seconds
+    size = 0
+    try:
+        with urllib.request.urlopen(url, timeout=60) as response, open(local, "wb") as out:
+            while True:
+                if time.time() > deadline:
+                    raise RuntimeError("upload: the file took longer than %d minutes to download" % (seconds // 60))
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > limit:
+                    raise RuntimeError("upload: the file is larger than Promo sends to a phone")
+                out.write(chunk)
+    except Exception:
+        try:
+            os.remove(local)
+        except OSError:
+            pass
+        raise
+    if not size:
+        os.remove(local)
+        raise RuntimeError("upload: the file came back empty")
+    return local, extension
+
+
+def push_to_gallery(serial, local, extension):
+    """Puts a file already on the rack's disk in the phone's camera folder, then deletes the rack's copy."""
+    remote = "/sdcard/DCIM/Camera/%s" % os.path.basename(local)
+    try:
+        adb(["push", local, remote], serial=serial, timeout=YOUTUBE_DOWNLOAD_SECONDS)
+    finally:
+        try:
+            os.remove(local)
+        except OSError:
+            pass
+    shell(serial, "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d 'file://%s'" % remote, timeout=15)
+    time.sleep(2)
+    return remote
+
+
+def read_youtube_link(serial, walk):
+    """The newest video's link: You, Your videos, its menu, Share, Copy link,
+    and the clipboard read. "" when the app would not give it."""
+    screens = app_screens(serial, "youtube")
+    try:
+        open_app(serial, "youtube")
+        walk.tap_first("Open the You tab", selectors=screens["profile_tab"])
+        time.sleep(2)
+        walk.tap_first("Open Your videos", selectors=screens["your_videos"])
+        time.sleep(2.5)
+        walk.tap_first("Open the newest video's menu", selectors=screens["first_video_menu"])
+        time.sleep(1)
+        walk.tap_first("Open Share", selectors=screens["share_menu"])
+        time.sleep(1)
+        walk.tap_first("Copy its link", selectors=screens["copy_link"])
+        time.sleep(1)
+        link = str(walk.screen().clipboard or "").strip()
+    except (StepFailed, AttributeError) as failure:
+        log("Could not read the new video's link on %s: %s" % (walk.serial, short_words(failure)))
+        return ""
+    return link if screens["link_shape"].match(link) else ""
+
+
+def action_youtube_upload(serial, args, walk):
+    """Uploads one video, a long one or a Short, once.
+
+    The file is streamed from Promo's own address to the rack, put in the
+    phone's camera folder and handed to the YouTube app's share screen, which
+    opens its upload screen. Next until the title box shows, the title typed
+    with a person's rhythm, then the description, "No, it's not made for
+    kids", the altered content question answered (it must be found when the
+    answer is Yes), Public, and Upload pressed once. It counts as uploaded
+    when the app says so inside the upload's 36 minutes, counted from the
+    download's start; then the link is read off Your
+    videos. YouTube makes a tall video of three minutes or less a Short by
+    itself. The app sets no thumbnail and no tags at upload, so a thumbnail
+    asked for comes back as not set, with why.
+
+    A rehearsal opens the app's Create button and finds Upload a video
+    without pressing it, so nothing is uploaded or downloaded.
+    """
+    if is_iphone(serial):
+        raise RuntimeError("upload: YouTube is not done on an iPhone yet. Upload from a channel on an Android phone or in a browser.")
+    screens = app_screens(serial, "youtube")
+    device = walk.screen()
+    device.screen_on()
+    if walk.rehearse:
+        open_app(serial, "youtube")
+        try:
+            walk.tap_first("Open Create", selectors=screens["create"])
+            time.sleep(1.5)
+            walk.find_first("Find Upload a video", selectors=screens["upload_video"])
+            walk.shot("Found Upload a video (not pressed)")
+        finally:
+            leave_app_screen(serial, walk, "youtube", times=2)
+            walk.home()
+        return {"postUrl": "", "thumbnailSet": None, "thumbnailNote": ""}
+    title = str(args.get("title") or "")[:100]
+    description = str(args.get("description") or "")[:5000]
+    if not title.strip():
+        raise RuntimeError("upload: the video has no title")
+    # One deadline from the start, inside the app's 42 minutes, so the app never
+    # gives up on an upload the phone is still making.
+    deadline = time.time() + YOUTUBE_PHONE_BUDGET_SECONDS
+    local, extension = download_to_rack(str(args.get("mediaUrl") or ""), YOUTUBE_DOWNLOAD_LIMIT, YOUTUBE_DOWNLOAD_SECONDS)
+    remote = push_to_gallery(serial, local, extension)
+    walk.shot("Put the video in the gallery")
+    link = ""
+    try:
+        try:
+            share_into(serial, "youtube", media_uri(serial, remote, extension), extension)
+            walk.shot("Opened YouTube's upload screen")
+            if signed_out(device.dump_hierarchy(), "youtube"):
+                raise RuntimeError("upload: the app is not signed in to YouTube")
+            tap_next_until(walk, "Press Next", screens["next"], screens["title"])
+            box = walk.find_first("Find the title box", selectors=screens["title"])
+            clear_and_type(serial, walk, box, title)
+            walk.shot("Typed the title")
+            go_back(serial)  # The keyboard down.
+            if description.strip():
+                try:
+                    walk.tap_first("Open the description", timeout=5, selectors=screens["description"])
+                    time.sleep(1)
+                    field = walk.find_first("Find the description box", timeout=5, selectors=screens["field"])
+                    # Up to 5,000 characters typed a key at a time would take ten
+                    # minutes, so the description is put in whole, as a paste is.
+                    put_text(serial, walk, field, description)
+                    walk.shot("Put in the description")
+                    go_back(serial)
+                    go_back(serial)
+                except StepFailed:
+                    pass  # A Short's screen holds the title alone.
+            walk.tap_first("Open Select audience", selectors=screens["audience"])
+            time.sleep(1)
+            walk.tap_first("Pick not made for kids", selectors=screens["not_for_kids"])
+            go_back(serial)
+            time.sleep(1)
+            try:
+                walk.tap_first("Show more", timeout=4, selectors=screens["show_more"])
+                time.sleep(1)
+            except StepFailed:
+                pass
+            try:
+                walk.tap_first("Open altered content", timeout=5, selectors=screens["altered"])
+                time.sleep(1)
+                walk.tap_first("Answer altered content", selectors=screens["altered_yes" if args.get("aiMade") else "altered_no"])
+                go_back(serial)
+            except StepFailed:
+                # YouTube's own answer is No; a Yes must be given, so a missing question stops the upload.
+                if args.get("aiMade"):
+                    raise
+            try:
+                walk.tap_first("Open Visibility", timeout=5, selectors=screens["visibility"])
+                time.sleep(1)
+                walk.tap_first("Pick Public", selectors=screens["public"])
+                go_back(serial)
+            except StepFailed:
+                pass  # The app's own choice for a new channel is Public.
+            if time.time() > deadline - 5 * 60:
+                raise RuntimeError("upload: the screens took too long, so Upload was not pressed. Nothing was uploaded.")
+            time.sleep(random.uniform(*BEFORE_SUBMIT_SECONDS))
+            walk.final_first("Press Upload", selectors=screens["share"])
+        except Cancelled:
+            raise
+        except Exception:
+            # Stopped before the last button: the draft is discarded and nothing was uploaded.
+            leave_app_screen(serial, walk, "youtube")
+            raise
+        landed = False
+        while time.time() < deadline:
+            time.sleep(5)
+            walk.check()
+            try:
+                hierarchy = device.dump_hierarchy()
+            except Exception:  # A screen caught mid-change; look again.
+                continue
+            if screen_says(hierarchy, "youtube", screens["post_failed"]):
+                walk.shot("The app said it failed")
+                raise RuntimeError("upload: the app said it could not upload: %s" % screen_says(hierarchy, "youtube", screens["post_failed"]))
+            if screen_says(hierarchy, "youtube", screens["posted"]):
+                landed = True
+                break
+        walk.shot("Looked for the upload")
+        if not landed:
+            raise RuntimeError("upload: pressed Upload but YouTube did not say it was uploaded in time. It may still be uploading; look in the app before uploading again.")
+        try:
+            link = read_youtube_link(serial, walk)
+        except Exception as failure:  # Includes a cancel: the video is up either way.
+            log("After the upload on %s: %s" % (serial, short_words(failure)))
+        walk.home()
+    finally:
+        # Only once YouTube has the file, or the upload stopped: the app reads it while it uploads.
+        quietly(serial, "rm -f '%s'" % remote)
+        quietly(serial, "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d 'file://%s'" % remote)
+    asked = bool(args.get("thumbnailUrl"))
+    return {
+        "postUrl": link,
+        "thumbnailSet": False if asked else None,
+        "thumbnailNote": "The YouTube app on a phone sets no thumbnail at upload. Set it in YouTube Studio." if asked else "",
+    }
+
+
+def put_text(serial, walk, element, text):
+    """Puts a long text into a box whole, as a paste does, where typing it a key
+    at a time would take minutes. A box that will not take it is typed into."""
+    walk.press(element)
+    time.sleep(0.6)
+    try:
+        element.set_text(text)
+    except Exception:  # A box set_text cannot reach: typed with a person's rhythm instead.
+        type_like_a_person(serial, walk.screen(), text, walk.check)
+
+
 def clear_and_type(serial, walk, element, text):
     """Empties a text box and types into it with a person's rhythm."""
     walk.press(element)
@@ -3857,7 +4232,7 @@ def alert_kind(item):
     channel. Likes, reactions, follows and invitations are nothing."""
     words = plain("%s %s" % (item["title"], item["text"]))
     meta = plain(item["meta"])
-    if item["app"] in ("instagram", "tiktok", "threads") and COMMENT_ALERT.search(words):
+    if item["app"] in ("instagram", "tiktok", "threads", "youtube") and COMMENT_ALERT.search(words):
         return "comment"
     if MESSAGE_ALERT.search(words) or re.search(r"(direct|messag(e|ing)|chat|\bmsg\b|\bim\b|(?<![a-z])dms?(?![a-z]))", meta):
         return "message"
@@ -4372,6 +4747,14 @@ REHEARSALS.update({
     "threads/reply": {"kind": "comment", "thread": "", "author": "", "quote": "", "text": ""},
     "threads/warm_up": {"likes": 0},
 })
+# YouTube's steps (YouTube task): the upload walks the Create button up to
+# Upload a video, never pressed; the comments walk the notifications.
+REHEARSALS.update({
+    "youtube/health": {"videoUrls": []},
+    "youtube/upload": {"mediaUrl": "", "title": "", "description": "", "tags": [], "thumbnailUrl": "", "aiMade": False, "short": False},
+    "youtube/inbox": {"kind": "comment", "via": "activity", "handle": ""},
+    "youtube/reply": {"kind": "comment", "thread": "", "author": "", "quote": "", "text": ""},
+})
 
 
 def rehearsal_args(rehearsals, overrides):
@@ -4388,7 +4771,10 @@ def rehearsal_args(rehearsals, overrides):
 # task, parts 8 and 9): neither Threads nor an Instagram Story is written for
 # an iPhone yet, and Threads' steps need its app on the phone. One left out is
 # neither passed nor broken, so its jobs stay refused and no bell rings for it.
-ANDROID_ONLY_REHEARSALS = ("threads/", "instagram/post_story")
+ANDROID_ONLY_REHEARSALS = ("threads/", "instagram/post_story", "youtube/")
+
+# Apps whose walks wait until the app is on the phone.
+NEEDS_THE_APP = ("threads", "youtube")
 
 
 def rehearsals_not_here(serial, names):
@@ -4398,15 +4784,15 @@ def rehearsals_not_here(serial, names):
         return set()
     if is_iphone(serial):
         return set(wanted)
-    threads = [name for name in wanted if name.startswith("threads/")]
-    if not threads:
+    needing = [name for name in wanted if name.split("/", 1)[0] in NEEDS_THE_APP]
+    if not needing:
         return set()
     try:
         installed = parse_app_versions(shell(serial, APPS_COMMAND, timeout=30))
     except Exception as failure:  # Not known: walk them, and a broken one says why.
         log("Could not read which apps are on %s: %s" % (serial, short_words(failure)))
         return set()
-    return set() if "threads" in installed else set(threads)
+    return set(name for name in needing if name.split("/", 1)[0] not in installed)
 
 
 def action_self_test(serial, args, walk, rehearsals=None):
@@ -6183,6 +6569,15 @@ ACTIONS.update({
 })
 ACTIONS["instagram/post_story"] = action_instagram_story
 ACTIONS.update({
+    # YouTube (YouTube task): who is signed in, the daily reading, an upload,
+    # and the comments under its videos through the shared inbox steps.
+    "youtube/quick_state": action_youtube_quick_state,
+    "youtube/health": action_youtube_health,
+    "youtube/upload": action_youtube_upload,
+    "youtube/inbox": action_app_inbox("youtube"),
+    "youtube/reply": action_app_reply("youtube"),
+})
+ACTIONS.update({
     "threads/warm_up": action_app_warm_up("threads"),
     "threads/quick_state": action_app_quick_state("threads"),
     "threads/health": action_app_health("threads"),
@@ -6191,7 +6586,7 @@ ACTIONS.update({
     "threads/inbox": action_app_inbox("threads"),
     "threads/reply": action_app_reply("threads"),
 })
-for _app in ("reddit", "instagram", "tiktok", "medium", "x", "linkedin", "threads"):
+for _app in ("reddit", "instagram", "tiktok", "medium", "x", "linkedin", "threads", "youtube"):
     ACTIONS["%s/ban_look" % _app] = action_ban_look(_app)
 ACTIONS.update({
     "linkedin/state": action_linkedin_state,
@@ -6283,6 +6678,16 @@ BAN_SCREENS += [("x", kind, [form for phrase in phrases for form in (phrase, phr
 BAN_SCREENS += [
     ("threads", "suspended", ["we suspended your account", "your account has been suspended", "your profile has been suspended"]),
     ("threads", "confirm", ["confirm it's you", "help us confirm it's you", "we detected unusual activity"]),
+    # YouTube's (YouTube task, part 2): a terminated channel, a strike, and the
+    # Google account check. Words as YouTube is known to show them, unproven.
+    ("youtube", "suspended", [
+        "your channel has been terminated",
+        "this channel was terminated",
+        "your account has been terminated",
+        "your account has been disabled",
+        "your channel received a community guidelines strike",
+    ]),
+    ("youtube", "confirm", ["verify it's you", "confirm it's you"]),
 ]
 
 # LinkedIn's (LinkedIn task, part 5), each with and without a full stop.

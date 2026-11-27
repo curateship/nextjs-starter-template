@@ -12,8 +12,11 @@ export type ArchiveItemStatus = "copying" | "ready"
 export type ArchiveSource = "video" | "upload"
 export type ArchiveSlideKind = "photo" | "video"
 
-/** The networks Write captions writes for, each within its own limits. */
-export const CAPTION_NETWORKS = ["instagram", "tiktok", "threads"] as const
+/**
+ * The networks Write captions writes for, each within its own limits.
+ * YouTube's box holds the video's description (YouTube task, part 5).
+ */
+export const CAPTION_NETWORKS = ["instagram", "tiktok", "threads", "youtube"] as const
 export type CaptionNetwork = (typeof CAPTION_NETWORKS)[number]
 export type ArchiveCaptions = Partial<Record<CaptionNetwork, string>>
 

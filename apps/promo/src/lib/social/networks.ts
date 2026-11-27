@@ -12,10 +12,11 @@
  * `workspace/tasks/X/01-x-features.md`, and LinkedIn with
  * `workspace/tasks/LinkedIn/01-linkedin-features.md`, and Threads, on phones
  * like Instagram, with part 9 of
- * `workspace/tasks/New features/new-features-18-nov.md`. The server reads
- * this same list to refuse anything else.
+ * `workspace/tasks/New features/new-features-18-nov.md`, and YouTube, in a
+ * browser or on a phone, with `workspace/tasks/YouTube/01-youtube-features.md`.
+ * The server reads this same list to refuse anything else.
  */
-export const NETWORKS = ["reddit", "instagram", "tiktok", "medium", "x", "linkedin", "threads"] as const
+export const NETWORKS = ["reddit", "instagram", "tiktok", "medium", "x", "linkedin", "threads", "youtube"] as const
 
 export type Network = (typeof NETWORKS)[number]
 
@@ -27,6 +28,7 @@ export const NETWORK_NAMES: Record<Network, string> = {
   x: "X",
   linkedin: "LinkedIn",
   threads: "Threads",
+  youtube: "YouTube",
 }
 
 export function isNetwork(value: unknown): value is Network {

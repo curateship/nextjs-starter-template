@@ -3470,3 +3470,137 @@ class BansTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class YoutubeTest(unittest.TestCase):
+    """YouTube's phone steps (workspace/tasks/YouTube/01-youtube-features.md), Android only."""
+
+    def screen(self, *lines):
+        nodes = "".join('<node text="%s" package="com.google.android.youtube" bounds="[0,%d][1080,%d]" />' % (line, 100 * index, 100 * index + 90) for index, line in enumerate(lines))
+        return '<hierarchy><node text="" package="com.google.android.youtube" bounds="[0,0][1080,2400]">%s</node></hierarchy>' % nodes
+
+    def test_the_you_tab_gives_the_handle_and_the_channel_page_its_figures(self):
+        reading = promo_rack.youtube_profile_from_screen(self.screen("Pomoder", "@pomoder", "View channel"))
+        self.assertEqual(reading, {"handle": "pomoder", "subscribers": None, "videos": None})
+        reading = promo_rack.youtube_profile_from_screen(self.screen("Pomoder", "@pomoder • 1.2K subscribers • 48 videos"))
+        self.assertEqual(reading, {"handle": "pomoder", "subscribers": 1200, "videos": 48})
+
+    def test_a_comment_notification_reads_the_comments_and_nothing_else_counts(self):
+        comment = {"app": "youtube", "title": "@sam commented on your video", "text": "Does it work offline?", "meta": ""}
+        self.assertEqual(promo_rack.alert_kind(comment), "comment")
+        self.assertIsNone(promo_rack.alert_kind({"app": "youtube", "title": "New video from a channel you follow", "text": "", "meta": ""}))
+
+    def test_a_terminated_channel_and_a_strike_are_ban_screens(self):
+        self.assertEqual(promo_rack.ban_screen_in(self.screen("Your channel has been terminated"), "youtube")["kind"], "suspended")
+        self.assertEqual(promo_rack.ban_screen_in(self.screen("Verify it's you"), "youtube")["kind"], "confirm")
+
+    def test_an_android_only_app_reads_its_handle_without_an_iphone_table(self):
+        # Before 26 Nov 2026 this looked up Threads' iPhone table, which does not exist, and every Threads look read as not checked.
+        threads = '<hierarchy><node text="@quiet.maple" package="com.instagram.barcelona" bounds="[0,0][1080,90]" /></hierarchy>'
+        self.assertEqual(promo_rack.profile_handle(threads, "threads"), "quiet.maple")
+
+    def test_every_step_promo_calls_is_an_action_and_the_upload_is_rehearsed(self):
+        for name in ("youtube/quick_state", "youtube/health", "youtube/upload", "youtube/inbox", "youtube/reply", "youtube/ban_look"):
+            self.assertIn(name, promo_rack.ACTIONS)
+        for name in ("youtube/health", "youtube/upload", "youtube/inbox", "youtube/reply"):
+            self.assertIn(name, promo_rack.REHEARSALS)
+
+    def test_youtube_is_walked_only_on_an_android_phone_with_the_app(self):
+        rehearsals = {"youtube/upload": {}, "test/comment": {}}
+        with mock.patch.object(promo_rack, "is_iphone", lambda serial: False), mock.patch.object(
+            promo_rack, "shell", lambda serial, command, timeout=30: "com.instagram.android versionName=400.0"
+        ):
+            self.assertEqual(promo_rack.rehearsals_not_here("A1", rehearsals), {"youtube/upload"})
+        with mock.patch.object(promo_rack, "is_iphone", lambda serial: False), mock.patch.object(
+            promo_rack, "shell", lambda serial, command, timeout=30: "com.google.android.youtube versionName=19.40.0"
+        ):
+            self.assertEqual(promo_rack.rehearsals_not_here("A1", rehearsals), set())
+        with mock.patch.object(promo_rack, "is_iphone", lambda serial: True):
+            self.assertEqual(promo_rack.rehearsals_not_here("A1", rehearsals), {"youtube/upload"})
+
+    def test_an_iphone_is_refused_before_anything_is_downloaded(self):
+        with mock.patch.object(promo_rack, "is_iphone", lambda serial: True):
+            with self.assertRaises(RuntimeError) as caught:
+                promo_rack.action_youtube_upload("A1", {"title": "T", "mediaUrl": "https://media.test/a.mp4"}, None)
+        self.assertIn("not done on an iPhone yet", str(caught.exception))
+
+    def test_only_an_https_video_is_downloaded(self):
+        with self.assertRaises(RuntimeError) as caught:
+            promo_rack.download_to_rack("http://media.test/a.mp4", 10, 10)
+        self.assertIn("not an https address", str(caught.exception))
+        with self.assertRaises(RuntimeError) as caught:
+            promo_rack.download_to_rack("https://media.test/a.jpg", 10, 10)
+        self.assertIn("not an MP4, MOV or WebM video", str(caught.exception))
+
+    def test_only_youtubes_own_links_are_kept(self):
+        shape = promo_rack.APP_SCREENS["youtube"]["link_shape"]
+        self.assertTrue(shape.match("https://youtu.be/abcdefghijk"))
+        self.assertTrue(shape.match("https://www.youtube.com/shorts/abcdefghijk"))
+        self.assertFalse(shape.match("https://evil.test/watch?v=abcdefghijk"))
+
+
+class YoutubeStepsTest(unittest.TestCase):
+    """YouTube's phone steps walked on a fake phone: the upload pressed once and its file kept until YouTube has it, and every rehearsal finding its last button without pressing it."""
+
+    def run_action(self, handler, device, args, rehearse=False):
+        def download(url, limit, seconds):
+            handle, path = tempfile.mkstemp(suffix=".mp4")
+            os.close(handle)
+            return path, ".mp4"
+
+        with mock.patch.object(promo_rack, "download_to_rack", download):
+            return AppActionsTest.run_action(self, handler, device, args, rehearse)
+
+    def test_a_real_upload_presses_upload_once_reads_its_link_and_deletes_the_file_only_after(self):
+        device = ScriptedAppPhone(
+            promo_rack.YOUTUBE,
+            # The buttons on the fake screen; the screen read after Upload says it is in.
+            ["Create a title", "Select audience", "No, it's not made for kids", "Upload", "You", "Your videos", "Action menu", "Share", "Copy link"],
+            "Upload",
+            ["Upload complete"],
+            clipboard="https://youtu.be/abcdefghijk",
+        )
+        result, sent = self.run_action(
+            promo_rack.action_youtube_upload,
+            device,
+            {"mediaUrl": "https://media.test/a.mp4", "title": "Study night", "description": "", "tags": [], "thumbnailUrl": "https://media.test/c.jpg", "aiMade": False, "short": False},
+        )
+        self.assertEqual(result, {"postUrl": "https://youtu.be/abcdefghijk", "thumbnailSet": False, "thumbnailNote": "The YouTube app on a phone sets no thumbnail at upload. Set it in YouTube Studio."})
+        self.assertEqual(device.pressed.count("Upload"), 1)
+        self.assertIn("No, it's not made for kids", device.pressed)
+        removed = max(index for index, command in enumerate(sent) if command.startswith("rm -f '/sdcard/DCIM/Camera/"))
+        reopened = max(index for index, command in enumerate(sent) if "monkey -p com.google.android.youtube" in command)
+        # The video stays on the phone while YouTube uploads it, through the link read after.
+        self.assertGreater(removed, reopened)
+
+    def test_an_ai_made_video_is_never_uploaded_without_its_answer(self):
+        device = ScriptedAppPhone(promo_rack.YOUTUBE, ["Create a title", "Select audience", "No, it's not made for kids", "Upload"], "Upload", ["Upload complete"])
+        failure, sent = self.run_action(
+            promo_rack.action_youtube_upload,
+            device,
+            {"mediaUrl": "https://media.test/a.mp4", "title": "Study night", "description": "", "tags": [], "thumbnailUrl": "", "aiMade": True, "short": False},
+        )
+        self.assertIsInstance(failure, promo_rack.StepFailed)
+        self.assertNotIn("Upload", device.pressed)
+        self.assertTrue(any(command.startswith("rm -f '/sdcard/DCIM/Camera/") for command in sent))
+
+    def test_a_rehearsed_upload_finds_upload_a_video_and_downloads_nothing(self):
+        device = ScriptedAppPhone(promo_rack.YOUTUBE, ["Create", "Upload a video"], "Upload a video", [])
+        result, sent = self.run_action(promo_rack.action_youtube_upload, device, dict(promo_rack.REHEARSALS["youtube/upload"]), rehearse=True)
+        self.assertEqual(result, {"postUrl": "", "thumbnailSet": None, "thumbnailNote": ""})
+        self.assertNotIn("Upload a video", device.pressed)
+        self.assertFalse([command for command in sent if command.startswith("push")])
+
+    def test_the_rehearsed_comment_steps_open_the_notifications_and_send_nothing(self):
+        device = ScriptedAppPhone(promo_rack.YOUTUBE, ["Notifications"], "Send", [])
+        result, _ = self.run_action(promo_rack.action_app_reply("youtube"), device, dict(promo_rack.REHEARSALS["youtube/reply"]), rehearse=True)
+        self.assertEqual(result, {"sent": False})
+        result, _ = self.run_action(promo_rack.action_app_inbox("youtube"), device, dict(promo_rack.REHEARSALS["youtube/inbox"]), rehearse=True)
+        self.assertEqual(result, {"conversations": [], "comments": []})
+        self.assertEqual(device.pressed, ["Notifications", "Notifications"])
+
+    def test_the_weekly_look_reads_the_app_and_presses_nothing(self):
+        device = ScriptedAppPhone(promo_rack.YOUTUBE, [], "", [])
+        result, _ = self.run_action(promo_rack.ACTIONS["youtube/ban_look"], device, {})
+        self.assertNotIsInstance(result, Exception)
+        self.assertEqual(device.pressed, [])

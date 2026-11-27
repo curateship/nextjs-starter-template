@@ -46,6 +46,7 @@ import { formatFileSize } from "@/lib/format/format-bytes"
 import { formatDate } from "@/lib/format/format-time"
 import { NETWORK_NAMES, type Network } from "@/lib/social/networks"
 import { CAPTION_MAX, captionProblem } from "@/lib/social/phone-apps"
+import { DESCRIPTION_MAX } from "@/lib/social/youtube/options"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /** Words typed in the ⋮ save themselves this long after the last letter. */
@@ -325,22 +326,32 @@ function CaptionsCard({ item, onSaved }: { item: Item; onSaved: (captions: Item[
   return (
     <PanelCard storageId="promo-archive-captions" title="Captions">
       <div className="grid gap-3">
-        {CAPTION_NETWORKS.map((network) => {
+        {/* YouTube takes videos only, so a picture or carousel has no YouTube box. */}
+        {CAPTION_NETWORKS.filter((network) => network !== "youtube" || item.kind === "video").map((network) => {
           const words = captions[network] ?? ""
-          const problem = words ? captionProblem(network, words) : null
+          // YouTube's box is the video's description (YouTube task, part 5), held to YouTube's own limit.
+          const youtube = network === "youtube"
+          const max = youtube ? DESCRIPTION_MAX : CAPTION_MAX[network]
+          const problem = !words
+            ? null
+            : youtube
+              ? words.length > DESCRIPTION_MAX
+                ? `The description is ${words.length.toLocaleString("en-US")} characters, and YouTube allows ${DESCRIPTION_MAX.toLocaleString("en-US")}. Shorten it first.`
+                : null
+              : captionProblem(network, words)
           return (
             <div key={network} className="grid gap-1.5">
               <div className="flex items-baseline justify-between gap-2">
-                <Label htmlFor={`archive-caption-${network}`}>{NETWORK_NAMES[network]}</Label>
+                <Label htmlFor={`archive-caption-${network}`}>{youtube ? "YouTube description" : NETWORK_NAMES[network]}</Label>
                 <span className="text-xs text-muted-foreground">
-                  {words.length.toLocaleString()} of {CAPTION_MAX[network].toLocaleString()}
+                  {words.length.toLocaleString()} of {max.toLocaleString()}
                 </span>
               </div>
               <Textarea
                 id={`archive-caption-${network}`}
                 value={words}
                 aria-invalid={problem ? true : undefined}
-                placeholder={`Press Write captions, or type the ${NETWORK_NAMES[network]} caption.`}
+                placeholder={youtube ? "Press Write captions, or type the YouTube description." : `Press Write captions, or type the ${NETWORK_NAMES[network]} caption.`}
                 onChange={(event) => change(network, event.target.value)}
               />
               {problem ? <p className="text-sm text-destructive">{problem}</p> : null}

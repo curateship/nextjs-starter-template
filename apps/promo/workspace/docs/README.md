@@ -138,6 +138,17 @@ the repo's `docs/`, and is never copied here.
   routines, the LinkedIn app on a phone, and that nothing has run against the
   real LinkedIn yet.
 
+## YouTube
+
+- [YouTube](youtube/youtube-module.md): Tyler's answers of 26 Nov 2026, the
+  Posts and Comments tabs, New post with three titles, the description
+  template, the thumbnail and YouTube's AI question, Shorts, what Post
+  refuses, the upload tried once, description templates, the daily reading,
+  comments answered with no link, ban screens, and the channel's status.
+- [How YouTube is run](youtube/how-youtube-is-run.md): the browser routines
+  and their times, the phone steps, the self-test, and that nothing has run
+  against the real YouTube yet.
+
 ## Messages
 
 - [Messages](messages-dashboard.md): the Projects dashboard's Messages

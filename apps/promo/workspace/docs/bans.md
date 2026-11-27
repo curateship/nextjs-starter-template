@@ -118,6 +118,9 @@ Instagram twice".
 - **Every browser catches its own ban page.** Reddit and Medium in a browser
   now read the page for the account's own suspended or locked lines, the
   same words the rack uses, and stop the account like X and LinkedIn do.
+  YouTube, in a browser or on a phone, stops on a strike, a terminated
+  channel, a disabled account or Google's "verify it's you"
+  ([YouTube](youtube/youtube-module.md#ban-screens)).
   Posts, comments, stories and questions on the page never count. The
   stop survives the next run; only "Let it run again" clears it. Lines about
   somebody else ("This account has been suspended" on another person's
@@ -223,7 +226,8 @@ Instagram twice".
   from a throwaway in r/name first." Important accounts only run on phones,
   where the Reddit app only comments, so a comment is the only post there.
   On Instagram and TikTok it covers the first photo, the first video and
-  the first carousel of pictures instead. The throwaway must not be banned, and its comment must not be
+  the first carousel of pictures instead. On YouTube it covers an important
+  channel's first long video and its first Short. The throwaway must not be banned, and its comment must not be
   removed or deleted. Any throwaway counts, so the apart rules still hold.
 
 ## After a ban (parts 25 and 26)

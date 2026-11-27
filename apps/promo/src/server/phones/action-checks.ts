@@ -54,6 +54,8 @@ const NEEDS_A_PASS = new Set([
   "linkedin/comment",
   "linkedin/publish",
   "linkedin/connect",
+  // A YouTube upload, walked to its last button by the self-test (YouTube task, part 4).
+  "youtube/upload",
 ])
 
 /**

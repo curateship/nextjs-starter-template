@@ -169,7 +169,7 @@ export function appWarmUp(target: CommandTarget, network: PhoneAppNetwork, args:
  */
 export function appInbox(
   target: CommandTarget,
-  network: PhoneAppNetwork | "reddit" | "x" | "linkedin",
+  network: PhoneAppNetwork | "reddit" | "x" | "linkedin" | "youtube",
   args: { kind: "message" | "comment"; via: "notification" | "inbox"; handle: string }
 ) {
   return call(target, `${network}/inbox`, { ...args }, inboxShape, READ_TIMEOUT_MS)
@@ -181,7 +181,7 @@ export function appInbox(
  */
 export function appReply(
   target: CommandTarget,
-  network: PhoneAppNetwork | "reddit" | "x" | "linkedin",
+  network: PhoneAppNetwork | "reddit" | "x" | "linkedin" | "youtube",
   args: { kind: "message" | "comment"; thread: string; author: string; quote: string; text: string }
 ) {
   // Reddit's, X's and LinkedIn's own steps already answer under a post, so their message answer has its own name.

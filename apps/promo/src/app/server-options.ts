@@ -166,6 +166,21 @@ export const appServerOptions: AppServerOptions = {
         },
       },
       {
+        name: "promo-youtube",
+        /**
+         * YouTube's upkeep (`src/server/social/youtube/upkeep.ts`): every ten
+         * minutes, asks for each signed-in channel's daily reading inside its
+         * waking hours, once a day: subscribers, the numbers of the videos
+         * Promo uploaded, and the newest comments under them. Only writes
+         * jobs; the browser program reads, in the channel's browser or on its
+         * phone.
+         */
+        tick: async () => {
+          const { youtubeUpkeep } = await import("@/server/social/youtube/upkeep")
+          await youtubeUpkeep()
+        },
+      },
+      {
         name: "promo-bans",
         /**
          * The Bans task's upkeep (`src/server/bans/upkeep.ts`): every five

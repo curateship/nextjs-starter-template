@@ -72,6 +72,8 @@ export const appGuardedDeeper: Record<string, string> = {
     "editorPost, then actorForComment in src/server/social/project-guests.ts: the comment must be in the guest's project, otherwise the caller must be a signed-in admin.",
   "social/phone-apps.ts:moduleFn":
     "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, with the owner's free accounts taken out; anyone else must be a signed-in admin.",
+  "social/youtube.ts:moduleFn":
+    "editorGet, then actorFor in src/server/social/project-guests.ts: a guest only for their own project, with the owner's free channels taken out; anyone else must be a signed-in admin.",
   "social/phone-apps.ts:replyFn":
     "editorPost, then actorForInbox in src/server/social/project-guests.ts: the inbox row's account must be in the guest's project, otherwise the caller must be a signed-in admin.",
   "social/phone-apps.ts:skipFn":

@@ -116,6 +116,11 @@ export async function accountStatuses(
       out.set(account.id, linkedinAccountStatus(account, now))
       continue
     }
+    // A YouTube channel has no warm-up (YouTube task): Banned, Working or Ready.
+    if (account.platform === "youtube") {
+      out.set(account.id, appAccountStatus(account, 0, now))
+      continue
+    }
     if (account.platform !== "reddit") {
       out.set(account.id, appAccountStatus(account, behaviour.appWarmUpDays, now))
       continue

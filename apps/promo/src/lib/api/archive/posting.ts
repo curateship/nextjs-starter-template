@@ -30,16 +30,20 @@ export function writeArchiveCaptions(itemId: string): Promise<{ captions: Archiv
 
 const picksFn = createServerFn({ method: "GET" })
   .middleware([editorGet])
-  .inputValidator(z.object({ projectId: z.string().min(1).max(36), network: z.enum(["instagram", "tiktok", "linkedin", "x", "threads"]) }))
+  .inputValidator(z.object({ projectId: z.string().min(1).max(36), network: z.enum(["instagram", "tiktok", "linkedin", "x", "threads", "youtube"]), pictures: z.boolean().optional() }))
   .handler(async ({ context, data }) => {
     const actor = await actorFor(context.caller, data.projectId)
     const posting = await import("@/server/archive/posting")
-    return posting.listArchivePicks(actor.userId, data.projectId, data.network)
+    return posting.listArchivePicks(actor.userId, data.projectId, data.network, undefined, data.pictures ?? false)
   })
 
 /** What the From archive window lists for one network's post writer (parts 34 and 35). */
-export function loadArchivePicks(projectId: string, network: "instagram" | "tiktok" | "linkedin" | "x" | "threads"): Promise<{ items: ArchiveCard[]; draftIds: string[] }> {
-  return picksFn({ data: { projectId, network } })
+export function loadArchivePicks(
+  projectId: string,
+  network: "instagram" | "tiktok" | "linkedin" | "x" | "threads" | "youtube",
+  pictures = false
+): Promise<{ items: ArchiveCard[]; draftIds: string[] }> {
+  return picksFn({ data: { projectId, network, pictures } })
 }
 
 const postsFn = createServerFn({ method: "POST" })

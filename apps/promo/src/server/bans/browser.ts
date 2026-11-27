@@ -5,6 +5,7 @@ import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import { handleWords } from "@/lib/social/networks"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { settleFailedMediumJob } from "@/server/social/medium/settle"
+import { settleFailedYoutubeJob } from "@/server/social/youtube/settle"
 import { ringBell } from "@/server/social/notices"
 import { promoAccounts, promoJobs } from "@/server/social/schema"
 
@@ -53,7 +54,10 @@ export async function stopForBanPage(
         )
         .returning({ id: promoJobs.id, kind: promoJobs.kind })
     : []
-  for (const job of dropped) await settleFailedMediumJob(job, `Not sent: the account hit a ban page first ("${banned}").`, db)
+  for (const job of dropped) {
+    await settleFailedMediumJob(job, `Not sent: the account hit a ban page first ("${banned}").`, db)
+    await settleFailedYoutubeJob(job, `Not sent: the channel hit a ban page first ("${banned}").`, db)
+  }
   await recordBan(account.userId, { accountId: stopped.id, kind: banKindFromWords(banned, stopped.platform), words: banned }, db, now)
   const name = appName(stopped.platform)
   await ringBell(

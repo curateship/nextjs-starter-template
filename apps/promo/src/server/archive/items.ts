@@ -9,6 +9,7 @@ import { customShellMedia } from "@/server/schema"
 import { promoAccounts, promoAppPosts, promoProjects } from "@/server/social/schema"
 import { promoLinkedinPosts } from "@/server/social/linkedin/schema"
 import { promoXPosts } from "@/server/social/x/schema"
+import { promoYoutubePosts } from "@/server/social/youtube/schema"
 
 import { archivePath } from "./paths"
 import { promoArchiveDrafts, promoArchiveItems, promoArchiveSlides, type PromoArchiveItemRow } from "./schema"
@@ -120,6 +121,13 @@ async function postCounts(ids: string[], db: CustomShellDb) {
     .where(and(inArray(promoAppPosts.archiveItemId, ids), isNotNull(promoAppPosts.postedAt)))
     .groupBy(promoAppPosts.archiveItemId)
   for (const row of app) add(row.id, row.n, row.views ?? 0)
+  // YouTube's uploads count their views too, read once a day (YouTube task, part 8).
+  const youtube = await db
+    .select({ id: promoYoutubePosts.archiveItemId, n: count(), views: sum(promoYoutubePosts.views).mapWith(Number) })
+    .from(promoYoutubePosts)
+    .where(and(inArray(promoYoutubePosts.archiveItemId, ids), isNotNull(promoYoutubePosts.postedAt)))
+    .groupBy(promoYoutubePosts.archiveItemId)
+  for (const row of youtube) add(row.id, row.n, row.views ?? 0)
   for (const table of [promoLinkedinPosts, promoXPosts] as const) {
     const rows = await db
       .select({ id: table.archiveItemId, n: count() })
@@ -301,6 +309,16 @@ export async function readArchiveItem(userId: string, itemId: string, db: Custom
     for (const post of rows) {
       otherPosts.push({ network, handle: post.handle ?? "", postedAt: post.postedAt?.toISOString() ?? null, url: "", views: null, status: post.status })
     }
+  }
+  // Uploads to YouTube, with their link and views (YouTube task, parts 3 and 8).
+  const youtubePosts = await db
+    .select({ handle: promoAccounts.handle, postedAt: promoYoutubePosts.postedAt, url: promoYoutubePosts.postUrl, views: promoYoutubePosts.views, status: promoYoutubePosts.status })
+    .from(promoYoutubePosts)
+    .innerJoin(promoAccounts, eq(promoAccounts.id, promoYoutubePosts.accountId))
+    .where(eq(promoYoutubePosts.archiveItemId, row.id))
+    .orderBy(desc(promoYoutubePosts.createdAt))
+  for (const post of youtubePosts) {
+    otherPosts.push({ network: "youtube", handle: post.handle, postedAt: post.postedAt?.toISOString() ?? null, url: post.url, views: post.views, status: post.status })
   }
   const drafts = await db
     .select({ network: promoArchiveDrafts.network })

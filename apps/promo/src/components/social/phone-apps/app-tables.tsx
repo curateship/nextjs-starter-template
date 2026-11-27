@@ -293,14 +293,18 @@ export function AppCommentsTable({
   selectedId,
   onOpen,
   onRefresh,
+  emptyText,
 }: {
-  network: PhoneAppNetwork
+  /** YouTube's comments are listed here too, under its videos (YouTube task, part 9). */
+  network: PhoneAppNetwork | "youtube"
   tabs: React.ReactNode
   controls: React.ReactNode
   rows: InboxRow[]
   selectedId: string | null
   onOpen: (id: string) => void
   onRefresh: () => Promise<void>
+  /** What the empty list says, when the network hears of comments another way. */
+  emptyText?: string
 }) {
   const { sort, direction, toggleSort } = useTableSort<CommentColumn>("when", "desc")
   const selection = useSelection()
@@ -361,7 +365,7 @@ export function AppCommentsTable({
         />
       }
       isEmpty={rows.length === 0}
-      emptyText={`No comments yet. When ${NETWORK_NAMES[network]} tells a phone someone commented on one of its posts, the phone reads it and it shows here.`}
+      emptyText={emptyText ?? `No comments yet. When ${NETWORK_NAMES[network]} tells a phone someone commented on one of its posts, the phone reads it and it shows here.`}
       emptyColSpan={COMMENT_COLUMNS.length + 2}
       footer={{ type: "summary", count: rows.length, label: "comments" }}
     >

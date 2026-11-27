@@ -34,6 +34,8 @@ const BAN_LOOK_ACTIONS = {
   medium: "medium/ban_look",
   x: "x/ban_look",
   linkedin: "linkedin/ban_look",
+  threads: "threads/ban_look",
+  youtube: "youtube/ban_look",
 } as const
 
 export async function queueBanLooks(db: CustomShellDb = defaultDb, now: Date = new Date()): Promise<number> {

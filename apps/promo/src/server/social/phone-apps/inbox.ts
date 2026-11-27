@@ -10,6 +10,7 @@ import { promoPhones } from "@/server/phones/schema"
 import { refuseBrokenAction } from "@/server/phones/action-checks"
 import { phoneStepRefusal } from "@/lib/phones/options"
 import { xHandle } from "@/lib/social/x/options"
+import { hasLink } from "@/lib/social/youtube/options"
 import { NOTICE_HEADINGS } from "@/lib/social/notice-words"
 import { handleWords, isNetwork, isPhoneAppNetwork, NETWORK_NAMES } from "@/lib/social/networks"
 import {
@@ -62,8 +63,13 @@ import { appInbox, appReply, type AppInboxReading } from "./calls"
  * (`promo_inbox_seen`), so the same lines are not listed again.
  */
 
-/** The networks whose accounts may also run in a browser, which has no notifications, so their inbox is read on a timer there. */
-const BROWSER_INBOX_NETWORKS = new Set(["x", "linkedin"])
+/**
+ * The networks whose accounts may also run in a browser, which has no
+ * notifications, so their inbox is read on a timer there. A YouTube
+ * channel's comments come in its daily reading in a browser
+ * (`youtube/run.ts`), and are answered here like the rest.
+ */
+const BROWSER_INBOX_NETWORKS = new Set(["x", "linkedin", "youtube"])
 
 type AccountRow = typeof promoAccounts.$inferSelect
 
@@ -96,7 +102,9 @@ export async function queueInboxRead(
   if (!account || account.retiredAt || account.banScreenAt) return false
   // Only X and LinkedIn read an inbox in a browser; every other network reads it on its phone.
   if (!account.phoneId && !(BROWSER_INBOX_NETWORKS.has(account.platform) && account.profileId)) return false
-  if (kind === "comment" && !isPhoneAppNetwork(account.platform)) return false
+  // Comments are under the phone networks' posts and YouTube's videos; YouTube has no direct messages.
+  if (kind === "comment" && !isPhoneAppNetwork(account.platform) && account.platform !== "youtube") return false
+  if (kind === "message" && account.platform === "youtube") return false
   if (await pausedBy(userId, account, db)) return false
   const [waiting] = await db
     .select({ id: promoJobs.id })
@@ -461,13 +469,14 @@ export function buildReplyPrompt(input: {
   return [
     input.kind === "message"
       ? `You are answering a direct message on ${input.network}, as the account ${input.handle || "you"}.`
-      : `You are answering a comment under your own ${input.network} post, as the account ${input.handle || "you"}.`,
+      : `You are answering a comment under your own ${input.network} ${input.network === "YouTube" ? "video" : "post"}, as the account ${input.handle || "you"}.`,
     input.voice ? `How you write:\n${input.voice}` : "",
     input.rules ? `Rules you always follow:\n${input.rules}` : "",
     input.product ? `What you make, for context only. Mention it only if they asked about it:\n${input.product}` : "",
-    input.kind === "comment" && input.thread ? `Your post begins: ${input.thread}` : "",
+    input.kind === "comment" && input.thread ? `${input.network === "YouTube" ? "Your video is called" : "Your post begins"}: ${input.thread}` : "",
     `${input.kind === "message" ? "The conversation so far, oldest first" : "The comment"}:\n${said}`,
     `Write one answer, at most ${input.max} characters, as plain text. No quotation marks around it, no hashtags, no preamble.`,
+    input.network === "YouTube" ? "Never put a link or a web address in it." : "",
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -532,6 +541,10 @@ export async function sendInboxReply(
   if (!words) throw new Error("Write the answer first.")
   const max = replyMax(item.kind, item.platform)
   if (words.length > max) throw new Error(`The answer is ${words.length} characters, and it may be ${max}. Shorten it first.`)
+  // Tyler, 26 Nov 2026: "Never a link" in an answer under a YouTube video.
+  if (item.platform === "youtube" && hasLink(words)) {
+    throw new Error("The answer has a link in it, and an answer under a YouTube video never does. Take the link out first.")
+  }
   if (item.status === "answered" || item.status === "skipped") {
     throw new Error("That one has been answered or skipped already, so nothing was sent.")
   }

@@ -127,6 +127,17 @@ ROUTINE_TIMEOUT_SECONDS = {
     # The own feed scrolls and the inbox opens up to eight conversations.
     "linkedin.feed": 120,
     "linkedin.inbox": 120,
+    # A YouTube upload downloads a file of up to 5 GB, types the words at a
+    # person's pace and waits for YouTube to say the file is in; the app
+    # waits 42 minutes and the job's claim lasts 60 (`jobs.ts`).
+    "youtube.upload": 2400,
+    # The daily reading opens the channel and up to 20 videos with their
+    # comments; the app waits 630 seconds.
+    "youtube.health": 600,
+    # The comments under the five newest videos; the app waits 300 seconds.
+    "youtube.inbox": 270,
+    # One answer: the video found, the comment found, the words typed; the app waits 600 seconds.
+    "youtube.reply": 570,
 }
 
 work = queue.Queue()

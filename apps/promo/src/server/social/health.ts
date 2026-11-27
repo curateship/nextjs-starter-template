@@ -130,6 +130,27 @@ export async function queueHealthCheck(
     if (account.profileId) await queueProfileCheck(userId, account.profileId, db)
     return true
   }
+  // A YouTube channel's reading is its daily one, asked for now (YouTube
+  // task, part 8): subscribers, videos and comments. In a browser, Check now
+  // also reads who it is signed in as.
+  if (account.platform === "youtube") {
+    if (account.profileId) await queueProfileCheck(userId, account.profileId, db)
+    const [waiting] = await db
+      .select({ id: promoJobs.id })
+      .from(promoJobs)
+      .where(
+        and(
+          eq(promoJobs.userId, userId),
+          eq(promoJobs.kind, "youtube_health"),
+          inArray(promoJobs.status, ["queued", "running"]),
+          sql`${promoJobs.payload}->>'accountId' = ${accountId}`
+        )
+      )
+      .limit(1)
+    if (waiting) return false
+    await queueJob(userId, "youtube_health", { accountId }, db)
+    return true
+  }
   // Medium has no health reading of its own. Check now looks at who its
   // browser is signed in as, which reads when it joined and its followers
   // too; on a phone the reader reads its public page instead.

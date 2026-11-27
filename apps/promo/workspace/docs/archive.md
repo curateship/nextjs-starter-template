@@ -163,9 +163,14 @@ moment is not caught.
 
 ## Posting from the Archive
 
-- **From archive.** The Instagram, TikTok, LinkedIn and X post writers have a From
-  archive button (`src/components/archive/archive-picker.tsx`).
+- **From archive.** The Instagram, TikTok, Threads, LinkedIn, X and YouTube post
+  writers have a From archive button (`src/components/archive/archive-picker.tsx`).
   - X lists pictures only.
+  - YouTube lists videos only, and its Thumbnail from archive lists pictures only
+    ([YouTube](youtube/youtube-module.md)). A YouTube upload shows on the item's
+    Posted list with its link and views, and its views count in Most viewed.
+  - Write captions writes a YouTube description too, on a video only, in the
+    project's first YouTube channel's voice, from the item's words and subtitles.
   - A pick fills the file, its caption for that network (or the caption from Video)
     and any warnings.
 - **Archive files count as the person's own.** Every network checks that a file is

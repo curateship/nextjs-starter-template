@@ -3,7 +3,8 @@
 Promo posts to social networks: Reddit, since phone farm file 06 Instagram
 and TikTok, since `workspace/tasks/Medium/01-medium-features.md` Medium,
 since `workspace/tasks/X/01-x-features.md` X, and since
-`workspace/tasks/LinkedIn/01-linkedin-features.md` LinkedIn. The folders are
+`workspace/tasks/LinkedIn/01-linkedin-features.md` LinkedIn, and since
+`workspace/tasks/YouTube/01-youtube-features.md` YouTube. The folders are
 split by one question: **will the next network share this, or is it one
 network's own?**
 
@@ -144,6 +145,29 @@ browser, looked at before and after) and its account jobs to
 `linkedin/run.ts`, and learns nothing else about LinkedIn. LinkedIn's messages
 use the Messages section's own `inbox_read` and `inbox_reply` jobs, in a
 browser as on a phone (`src/server/social/phone-apps/inbox.ts`).
+
+## What belongs to YouTube alone
+
+YouTube runs in the browser or on a phone, either from the start
+([YouTube](youtube/youtube-module.md)). It posts and reads its own channel
+only: no keywords, no search accounts, and no Commenting row. Every job of
+its own runs as the channel, in its own browser or on its own Android phone.
+It keeps its own tables beside the other networks', for the reason Medium
+does.
+
+| Folder | What is in it |
+| --- | --- |
+| `src/server/social/youtube/` | The tables (`schema.ts`), the calls to the browser and the phone (`calls.ts`), Post's checks, the upload and the list (`uploads.ts`), the titles, descriptions and filled templates (`drafts.ts`), the templates (`templates.ts`), the uploads a day (`settings.ts`), the daily reading, who is signed in and the job handlers (`run.ts`), the once-a-day upkeep (`upkeep.ts`) and the module's one read (`module.ts`). |
+| `src/lib/social/youtube/options.ts` | The limits, the Short, the tags, the link checks and the words both halves read. |
+| `src/lib/api/social/youtube.ts` | Every YouTube endpoint, admin only apart from the module's read. |
+| `src/components/social/youtube/` | The module (`youtube-module.tsx`), the Posts table, New post, the channel dropdown, the Templates window, and YouTube's card in Settings → Behaviour. The Comments tab and the answer box are Instagram's (`src/components/social/phone-apps/`). |
+| `docker/browser/routines/youtube.py` | The only file that knows how a YouTube page is put together, its page details in one `SELECTORS` block. Its phone twin is the YouTube part of `rack/promo_rack.py`. |
+
+The runner hands YouTube's jobs to `youtube/run.ts` and learns nothing else
+about YouTube. The comments under its videos use the Messages section's own
+`inbox_read` and `inbox_reply` jobs, in a browser as on a phone
+(`src/server/social/phone-apps/inbox.ts`), and are never messages: YouTube
+has none.
 
 ## Phones
 

@@ -8,6 +8,7 @@ import { RedditModule } from "@/components/social/reddit/reddit-module"
 import { RedditPostsModule } from "@/components/social/reddit/reddit-posts-module"
 import { LinkedinModule } from "@/components/social/linkedin/linkedin-module"
 import { XModule } from "@/components/social/x/x-module"
+import { YoutubeModule } from "@/components/social/youtube/youtube-module"
 import { DashboardCardHeader, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import {
   getNetworkErrorMessage,
@@ -246,6 +247,8 @@ export function ProjectsWorkspace({
   )
 
   const dialogs = <ProjectDialogs dialog={dialog} onClose={() => setDialog(null)} />
+  // Only YouTube has a Templates window; every other module knows the Jobs window alone.
+  const jobsWindow = search.window === "jobs" ? "jobs" : undefined
 
   if (archive) {
     return framed(
@@ -262,6 +265,18 @@ export function ProjectsWorkspace({
         // afresh rather than showing one's posts under the other.
         key={network}
         network={network}
+        projectId={projectId}
+        left={left}
+        dialogs={dialogs}
+        search={{ view: search.view === "comments" ? "comments" : undefined, comment: search.comment, window: jobsWindow }}
+        onSearch={setSearch}
+      />
+    )
+  }
+
+  if (network === "youtube") {
+    return framed(
+      <YoutubeModule
         projectId={projectId}
         left={left}
         dialogs={dialogs}
@@ -298,7 +313,7 @@ export function ProjectsWorkspace({
       onProjectChanged: refreshView,
     }
     const commenting = side === "commenting"
-    const own = { open: search.open, list: commenting ? (search.list === "failed" ? "failed" : undefined) : undefined, window: commenting ? search.window : undefined, keyword: commenting ? search.keyword : undefined } as const
+    const own = { open: search.open, list: commenting ? (search.list === "failed" ? "failed" : undefined) : undefined, window: commenting ? jobsWindow : undefined, keyword: commenting ? search.keyword : undefined } as const
     module =
       network === "medium" ? (
         <MediumModule {...shared} search={{ ...own, tab: tabOf(search.tab, commenting ? MEDIUM_COMMENT_VIEWS : MEDIUM_POST_VIEWS) }} />
@@ -316,7 +331,7 @@ export function ProjectsWorkspace({
           initialKeywords={initialKeywords}
           left={left}
           dialogs={dialogs}
-          search={{ view: search.view, list: search.list === "failed" ? "failed" : undefined, replies: search.replies, comment: search.comment, window: search.window, keyword: search.keyword }}
+          search={{ view: search.view, list: search.list === "failed" ? "failed" : undefined, replies: search.replies, comment: search.comment, window: jobsWindow, keyword: search.keyword }}
           onSearch={(patch) => {
             // Sent's own list is "sent" or "failed"; only Failed is written down.
             const { list, ...rest } = patch

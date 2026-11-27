@@ -29,6 +29,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 import { LinkedinBehaviourCard } from "./linkedin/linkedin-behaviour-card"
 import { XBehaviourCard } from "./x/x-behaviour-card"
+import { YoutubeBehaviourCard } from "./youtube/youtube-behaviour-card"
 
 /**
  * Settings → Behaviour: how every account acts, wherever it runs.
@@ -323,6 +324,8 @@ function BehaviourSettingsPanel() {
       <XBehaviourCard profiles={readers.filter((profile) => profile.id !== settings.readerProfileId)} />
 
       <LinkedinBehaviourCard profiles={readers.filter((profile) => profile.id !== settings.readerProfileId)} />
+
+      <YoutubeBehaviourCard />
     </CardGroup>
   )
 }

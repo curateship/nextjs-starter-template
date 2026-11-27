@@ -93,6 +93,13 @@ export type FindStatus = (typeof FIND_STATUSES)[number]
  * `READER_JOB_KINDS` run in the signed-out reader browser, never in the
  * account's own: the account Reddit sees commenting never searches.
  *
+ * The `youtube_` kinds are YouTube's
+ * (`workspace/tasks/YouTube/01-youtube-features.md`), each run as the channel
+ * itself, in its own browser or on its phone: an upload, a long video or a
+ * Short, and the daily reading of the channel's subscribers and each video's
+ * numbers. The comments under its videos use `inbox_read` and `inbox_reply`,
+ * in a browser as on a phone.
+ *
  * `viral_read`, `x_viral_read` and `linkedin_viral_read` are reads the Viral
  * app asked for (`workspace/docs/viral-link.md`): Reddit in the reader, X and
  * LinkedIn in a search account's browser, the same as Promo's own reads.
@@ -176,6 +183,8 @@ export type JobKind =
   | "linkedin_numbers"
   | "linkedin_feed"
   | "linkedin_warm_up"
+  | "youtube_upload"
+  | "youtube_health"
   | "viral_read"
   | "x_viral_read"
   | "linkedin_viral_read"
@@ -261,6 +270,7 @@ export const WRITE_JOB_KINDS: readonly JobKind[] = [
   "linkedin_delete",
   "linkedin_connect",
   "linkedin_accept",
+  "youtube_upload",
 ]
 
 /**

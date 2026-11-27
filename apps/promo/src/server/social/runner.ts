@@ -79,6 +79,9 @@ import { runViralRedditRead } from "@/server/viral-link/reads"
 import { handlePosts, saveSearcherHandle, searcherForLane, stopSearcher, utcDay, type PickedSearcher } from "./x/searchers"
 import { settleFailedXJob } from "./x/settle"
 import { linkedinQuickState, linkedinState } from "./linkedin/calls"
+import { youtubeQuickState, youtubeState } from "./youtube/calls"
+import { runYoutubeAccountJob, saveYoutubeSignIn, YOUTUBE_ACCOUNT_KINDS } from "./youtube/run"
+import { settleFailedYoutubeJob } from "./youtube/settle"
 import { LINKEDIN_ACCOUNT_KINDS, LINKEDIN_PHONE_KINDS, runLinkedinAccountJob, runLinkedinSearcherJob, saveLinkedinSignIn } from "./linkedin/run"
 import {
   linkedinSearcherForLane,
@@ -168,6 +171,7 @@ export async function runOneJob(
       await settleFailedMediumJob(job, message, db)
       await settleFailedXJob(job, message, db)
       await settleFailedLinkedinJob(job, message, db)
+      await settleFailedYoutubeJob(job, message, db)
     }
     // A comment, an answer or a post that did not go out rings the bell.
     await ringForFailure(job, message, db)
@@ -390,7 +394,9 @@ async function runBanLook(job: QueuedJob, account: Account, db: CustomShellDb): 
           ? await xState(target).then((state) => ({ banScreen: state.banScreen, signedIn: Boolean(state.handle) }))
           : account.platform === "linkedin"
             ? await linkedinState(target).then((state) => ({ banScreen: state.banScreen, signedIn: Boolean(state.slug) }))
-            : { banScreen: null, signedIn: false }
+            : account.platform === "youtube"
+              ? await youtubeState(target).then((state) => ({ banScreen: state.banScreen, signedIn: Boolean(state.handle) }))
+              : { banScreen: null, signedIn: false }
   await finishBanLook(job.userId, { accountId: account.id, banId, banSeen: Boolean(look.banScreen), signedIn: look.signedIn }, db)
 }
 
@@ -414,6 +420,17 @@ function refuseWrongNetwork(kind: JobKind, account: Account): void {
   if (kind === "ban_look") return
   const network = account.platform
   const sharedInbox = kind === "inbox_read" || kind === "inbox_reply"
+  // A YouTube channel uploads, takes its daily reading, and reads and answers
+  // the comments under its videos through the shared inbox jobs, in a
+  // browser or on a phone alike (YouTube task, part 1).
+  const youtubeKind = YOUTUBE_ACCOUNT_KINDS.includes(kind)
+  if (network === "youtube") {
+    if (youtubeKind || sharedInbox) return
+    throw new Refusal("That is not something a YouTube channel does. Nothing was sent.")
+  }
+  if (youtubeKind) {
+    throw new Refusal(`That is YouTube's, and this is ${isNetwork(network) ? aNetwork(network) : "another network's"} account. Nothing was sent.`)
+  }
   if (LINKEDIN_ACCOUNT_KINDS.includes(kind) !== (network === "linkedin") && !(network === "linkedin" && sharedInbox)) {
     throw new Refusal(
       network === "linkedin"
@@ -501,6 +518,8 @@ async function runAccountJob(
       await runXAccountJob(job, account, target, db)
     } else if (LINKEDIN_ACCOUNT_KINDS.includes(job.kind)) {
       await runLinkedinAccountJob(job, account, target, db)
+    } else if (YOUTUBE_ACCOUNT_KINDS.includes(job.kind)) {
+      await runYoutubeAccountJob(job, account, target, db)
     } else if (job.kind === "comment") {
       const findId = String(job.payload.findId ?? "")
       const text = String(job.payload.text ?? "")
@@ -573,7 +592,8 @@ async function runAccountJob(
     // On a phone, only the app the job worked in is looked at: opening every
     // app on the phone after each job is not what a person does. An
     // Instagram or TikTok health reading has just read who is signed in.
-    const justRead = job.kind === "health" && isPhoneAppNetwork(account.platform)
+    // A YouTube reading on a phone has just read the channel's handle too.
+    const justRead = (job.kind === "health" && isPhoneAppNetwork(account.platform)) || (job.kind === "youtube_health" && Boolean(account.phoneId))
     if (!justRead) {
       await readSignIns(
         job.userId,
@@ -927,6 +947,26 @@ async function readSignIns(
         // job the last saved answer stays.
         if (full) throw error
         console.error(`Could not read who is signed in to LinkedIn for account ${account.id}`, error)
+      }
+      continue
+    }
+    if (account.platform === "youtube") {
+      try {
+        const state = full ? await youtubeState(target) : await youtubeQuickState(target)
+        // A check a person asked for that could not see YouTube says so,
+        // rather than writing the channel down as signed out.
+        if (full && !state.checked) {
+          throw new Refusal(state.reason || "The browser could not load YouTube, so who is signed in was not read. Try Check now again.")
+        }
+        const signedIn = await saveYoutubeSignIn(account, state, db)
+        if (signedIn && "phoneId" in where) {
+          await recordPhoneEvent(userId, where.phoneId, "account_signed_in", `@${signedIn} is signed in to YouTube.`, db)
+        }
+      } catch (error) {
+        // A check a person asked for fails with its reason; after any other
+        // job the last saved answer stays.
+        if (full) throw error
+        console.error(`Could not read who is signed in to YouTube for account ${account.id}`, error)
       }
       continue
     }

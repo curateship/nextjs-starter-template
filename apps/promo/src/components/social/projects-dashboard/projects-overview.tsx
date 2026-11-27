@@ -261,6 +261,7 @@ const LIKE_WORDS: Record<Network, [string, string]> = {
   instagram: ["like", "likes"],
   tiktok: ["like", "likes"],
   threads: ["like", "likes"],
+  youtube: ["like", "likes"],
 }
 
 /**

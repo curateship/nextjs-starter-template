@@ -93,6 +93,7 @@ export const PHONE_ACTIONS = [
   "medium/ban_look",
   "x/ban_look",
   "linkedin/ban_look",
+  "youtube/ban_look",
 ] as const
 
 export type PhoneAction = (typeof PHONE_ACTIONS)[number]
@@ -121,6 +122,7 @@ const PHONE_ACTION_WORDS: Record<PhoneAction, string> = {
   "medium/ban_look": "Weekly look at a banned Medium account",
   "x/ban_look": "Weekly look at a banned X account",
   "linkedin/ban_look": "Weekly look at a banned LinkedIn account",
+  "youtube/ban_look": "Weekly look at a banned YouTube channel",
 }
 
 /** A job's app steps, which the rack does in the Reddit, Instagram, TikTok, Medium, X and LinkedIn apps, in words. */
@@ -200,6 +202,11 @@ const APP_STEP_WORDS: Record<string, string> = {
   "linkedin/warm_up": "LinkedIn warm-up visit",
   "linkedin/inbox": "Read LinkedIn's messages",
   "linkedin/reply_message": "Answer a LinkedIn message",
+  "youtube/quick_state": "Read who YouTube is signed in as",
+  "youtube/health": "Read a YouTube channel's numbers",
+  "youtube/upload": "Upload a video to YouTube",
+  "youtube/inbox": "Read the comments under YouTube videos",
+  "youtube/reply": "Answer a comment on YouTube",
   "linkedin/enter_code": "typing an emailed code",
   "linkedin/search": "searching LinkedIn",
   "linkedin/post": "reading a LinkedIn post",
@@ -297,9 +304,17 @@ export const PHONE_APP_ROUTINES = [
   "linkedin/warm_up",
   "linkedin/inbox",
   "linkedin/reply_message",
+  // YouTube (YouTube task, parts 1, 3, 4, 8 and 9): who is signed in, an
+  // upload, a long video or a Short, the daily reading, and the comments
+  // under its videos through the shared inbox steps. Android only.
+  "youtube/quick_state",
+  "youtube/health",
+  "youtube/upload",
+  "youtube/inbox",
+  "youtube/reply",
 ] as const
 
-const APP_PREFIXES = ["reddit/", "instagram/", "tiktok/", "medium/", "x/", "linkedin/"]
+const APP_PREFIXES = ["reddit/", "instagram/", "tiktok/", "medium/", "x/", "linkedin/", "youtube/"]
 
 /**
  * Why a phone cannot do an app step, in words, or null when it can. Said
@@ -314,6 +329,9 @@ export function phoneStepRefusal(routine: string, phoneName: string): string | n
   }
   if (routine.startsWith("x/")) {
     return `${phoneName} cannot do ${actionWords(routine)}: on a phone, the X app reads who is signed in, replies, quotes, posts, follows, warms up, and reads and answers messages. Searches, reading posts again, edits, deletes, lists and sign-in codes are done in a browser. Nothing was sent.`
+  }
+  if (routine.startsWith("youtube/")) {
+    return `${phoneName} cannot do ${actionWords(routine)}: on a phone, the YouTube app reads who is signed in, uploads videos and Shorts, takes the daily reading, and reads and answers comments. Nothing was sent.`
   }
   if (routine.startsWith("linkedin/")) {
     return `${phoneName} cannot do ${actionWords(routine)}: on a phone, the LinkedIn app reads who is signed in, comments, posts with words and a picture, sends and accepts connection requests, warms up, and reads and answers messages. Who viewed the profile, the account's numbers, its own feed, searches, reading posts again, edits, deletes, newsletters and the emailed sign-in code are done in a browser. Nothing was sent.`

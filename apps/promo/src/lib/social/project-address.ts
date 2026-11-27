@@ -46,7 +46,8 @@ export type ProjectSearch = Omit<ArchiveSearch, "project" | "open"> & {
   comment?: string
   /** A sent Reddit comment's Replies window. */
   replies?: string
-  window?: "jobs"
+  /** The Jobs window, or YouTube's description templates (YouTube task, part 6). */
+  window?: "jobs" | "templates"
   /** The keyword whose posts are listed on Commenting; none is every keyword's. */
   keyword?: string
   archive?: "1"
@@ -72,7 +73,7 @@ export function readProjectSearch(search: Record<string, unknown>): ProjectRoute
     view: oneOf(search.view, REDDIT_VIEWS),
     comment: id(search.comment),
     replies: id(search.replies),
-    window: oneOf(search.window, ["jobs"] as const),
+    window: oneOf(search.window, ["jobs", "templates"] as const),
     keyword: id(search.keyword),
     post: id(search.post),
     retry: id(search.retry),

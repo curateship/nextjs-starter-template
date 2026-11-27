@@ -120,6 +120,7 @@ const loadFn = createServerFn({ method: "GET" })
         x: await phonesFreeFor(userId, null, undefined, "x"),
         linkedin: await phonesFreeFor(userId, null, undefined, "linkedin"),
         threads: await phonesFreeFor(userId, null, undefined, "threads"),
+        youtube: await phonesFreeFor(userId, null, undefined, "youtube"),
       },
     }
   })

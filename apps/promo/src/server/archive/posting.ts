@@ -5,6 +5,7 @@ import { CAPTION_NETWORKS, type ArchiveCaptions, type CaptionNetwork } from "@/l
 import { ABOUT_MAX } from "@/lib/social/phone-apps"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { draftCaption } from "@/server/social/phone-apps/captions"
+import { writeArchiveYoutubeDescription } from "@/server/social/youtube/drafts"
 import { promoAccounts } from "@/server/social/schema"
 import { queueAppPost } from "@/server/social/phone-apps/posts"
 import { actorFor, type EditorCaller } from "@/server/social/project-guests"
@@ -34,7 +35,8 @@ export async function writeArchiveCaptions(
   {
     db = defaultDb,
     draft = draftCaption,
-  }: { db?: CustomShellDb; draft?: typeof draftCaption } = {}
+    describe = writeArchiveYoutubeDescription,
+  }: { db?: CustomShellDb; draft?: typeof draftCaption; describe?: typeof writeArchiveYoutubeDescription } = {}
 ): Promise<{ captions: ArchiveCaptions; written: CaptionNetwork[] }> {
   const [item] = await db
     .select()
@@ -59,22 +61,30 @@ export async function writeArchiveCaptions(
       .orderBy(asc(promoAccounts.createdAt))
       .limit(1)
     if (!account) continue
-    captions[network] = await draft(userId, { accountId: account.id, about, kind: item.kind === "video" ? "video" : "photo" }, db)
+    // A YouTube box is the video's description, in the first channel's voice, from the item's words and subtitles.
+    if (network === "youtube") {
+      if (item.kind !== "video") continue
+      captions.youtube = await describe(userId, { accountId: account.id, about, itemId: item.id }, db)
+    } else {
+      captions[network] = await draft(userId, { accountId: account.id, about, kind: item.kind === "video" ? "video" : "photo" }, db)
+    }
     written.push(network)
   }
-  if (!written.length) throw new Error("Add an Instagram or TikTok account to this project first, so the captions are in its voice.")
+  if (!written.length) throw new Error("Add an Instagram, TikTok, Threads or YouTube account to this project first, so the captions are in its voice.")
   await db.update(promoArchiveItems).set({ captions, updatedAt: new Date() }).where(eq(promoArchiveItems.id, item.id))
   return { captions, written }
 }
 
 /** What each network's post writer may take from the Archive (part 34). X takes pictures only. */
-export const PICKABLE: Record<"instagram" | "tiktok" | "linkedin" | "x" | "threads", ArchiveCard["kind"][]> = {
+export const PICKABLE: Record<"instagram" | "tiktok" | "linkedin" | "x" | "threads" | "youtube", ArchiveCard["kind"][]> = {
   instagram: ["video", "picture", "carousel"],
   tiktok: ["video", "picture", "carousel"],
   linkedin: ["video", "picture", "carousel"],
   x: ["picture"],
   // One picture or video a post: the phone has no Threads carousel step yet.
   threads: ["video", "picture"],
+  // YouTube takes videos (YouTube task, part 3); its thumbnail picker lists pictures on its own.
+  youtube: ["video"],
 }
 
 /**
@@ -85,9 +95,12 @@ export async function listArchivePicks(
   userId: string,
   projectId: string,
   network: keyof typeof PICKABLE,
-  db: CustomShellDb = defaultDb
+  db: CustomShellDb = defaultDb,
+  /** Pictures alone, for a YouTube thumbnail (YouTube task, part 7): no drafts wait for one. */
+  pictures = false
 ): Promise<{ items: ArchiveCard[]; draftIds: string[] }> {
   const { items } = await listArchiveItems(userId, { projectId }, db)
+  if (pictures) return { items: items.filter((item) => item.status === "ready" && item.kind === "picture"), draftIds: [] }
   const drafts = await db
     .select({ itemId: promoArchiveDrafts.itemId })
     .from(promoArchiveDrafts)

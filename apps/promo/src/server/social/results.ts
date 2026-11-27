@@ -8,6 +8,7 @@ import { promoLinkedinComments, promoLinkedinPosts } from "./linkedin/schema"
 import { promoMediumArticles, promoMediumResponses } from "./medium/schema"
 import { promoAppPosts, promoComments, promoFinds, promoKeywords, promoPosts, promoProjects } from "./schema"
 import { promoXPosts, promoXReplies } from "./x/schema"
+import { promoYoutubePosts } from "./youtube/schema"
 
 /**
  * The Projects dashboard's Results widget (part 4 of
@@ -129,6 +130,7 @@ export async function readResults(
         ...(await tally(db, promoLinkedinPosts, promoLinkedinPosts, userId, since, "posted", sum(promoLinkedinPosts.reactions), sum(promoLinkedinPosts.commentCount))),
       ],
     ],
+    ["youtube", await tally(db, promoYoutubePosts, promoYoutubePosts, userId, since, "posted", sum(promoYoutubePosts.likes), sum(promoYoutubePosts.comments))],
   ]
   for (const network of PHONE_ONLY_NETWORKS) {
     const rows = await db

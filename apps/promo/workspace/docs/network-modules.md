@@ -32,7 +32,10 @@ instagram panels."
   [The Medium module](medium/medium-module.md)), since 22 Oct 2026 X
   (`workspace/tasks/X/01-x-features.md`, [The X module](x/x-module.md)), and
   LinkedIn (`workspace/tasks/LinkedIn/01-linkedin-features.md`,
-  [The LinkedIn module](linkedin/linkedin-module.md)).
+  [The LinkedIn module](linkedin/linkedin-module.md)), since 18 Nov 2026
+  Threads, and since 26 Nov 2026 YouTube
+  (`workspace/tasks/YouTube/01-youtube-features.md`,
+  [YouTube](youtube/youtube-module.md)).
 - **Voices and Accounts serve every network,** so they are sections of the
   [Projects dashboard](projects-dashboard.md), not part of any network's
   module. Accounts has a Platform filter (Tyler, 15 Oct 2026: "I think
@@ -53,7 +56,7 @@ rather than a card each ([A project's own page](projects-dashboard.md#a-projects
 - **Commenting,** other people's posts its keywords found
   ([Commenting inside a project](commenting.md)): the keywords listed under
   the row, the posts they find, Today, the comments you sent, and LinkedIn's
-  People. Instagram and TikTok have no Commenting row.
+  People. Instagram, TikTok, Threads and YouTube have no Commenting row.
 
 Medium, X and LinkedIn draw both sides from one module, with `side="posts"` or
 `side="commenting"`, so their panels are written once. Reddit's commenting is
@@ -73,7 +76,8 @@ switches to that row.
   of each: "My project still holds 2 Reddit accounts and 1 keyword. Take its
   accounts out and remove its keywords first, then take Reddit off."
 - **New project** asks for the networks with the name, every built network
-  ticked to begin with: Reddit, Instagram, TikTok, Medium, X and LinkedIn.
+  ticked to begin with: Reddit, Instagram, TikTok, Medium, X, LinkedIn,
+  Threads and YouTube.
 - **Pause** on a network's row pauses that network on this project alone: its
   accounts send nothing and do not warm up, and the project's other networks
   keep running. Added with Medium (part 5), on every network's row. Commenting

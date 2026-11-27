@@ -117,7 +117,8 @@ export function loadArchiveItem(itemId: string): Promise<ArchiveItemView & { can
   return itemFn({ data: { itemId } })
 }
 
-const captionsShape = z.object(Object.fromEntries(CAPTION_NETWORKS.map((network) => [network, z.string().max(4_000).optional()])))
+// YouTube's box is a description, which YouTube allows 5,000 characters.
+const captionsShape = z.object(Object.fromEntries(CAPTION_NETWORKS.map((network) => [network, z.string().max(network === "youtube" ? 5_000 : 4_000).optional()])))
 
 const saveFn = createServerFn({ method: "POST" })
   .middleware([editorPost])

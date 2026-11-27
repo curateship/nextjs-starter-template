@@ -55,7 +55,11 @@ acts on a bad reading". Tyler picked this the same day.
 - **A message or a comment a phone read**: "New message for @name on
   Instagram", which opens the Projects dashboard's Messages, and "New comment on a post
   by @name on TikTok", which opens the project's Comments tab for that
-  network. Nothing is sent until a person presses Send.
+  network. A YouTube channel's comments ring the same notice, whether its
+  phone or its daily reading in a browser found them. Nothing is sent until a
+  person presses Send.
+- **A YouTube upload that did not go out**: "Did not go out: a YouTube
+  upload", which opens the project's YouTube with the reason on the row.
 - **An Instagram or TikTok post, a profile change, or an answer that did not go
   out**: "Did not go out: a post on Instagram", "… a profile change on
   TikTok", "… an answer to a message on Reddit". Each opens where it was

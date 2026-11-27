@@ -16,6 +16,9 @@ export const VIDEO_LIMITS: Partial<Record<Network, { seconds: number; bytes: num
   tiktok: { seconds: 10 * 60, bytes: 4 * 1024 ** 3 },
   linkedin: { seconds: 15 * 60, bytes: 5 * 1024 ** 3 },
   threads: { seconds: 5 * 60, bytes: 1024 ** 3 },
+  // A channel YouTube has not verified with a phone number takes 15 minutes;
+  // a verified one far more, so YouTube's warning says which (YouTube task, part 3).
+  youtube: { seconds: 15 * 60, bytes: 256 * 1024 ** 3 },
 }
 
 /** The networks whose videos are watched tall, full screen. */
@@ -32,7 +35,11 @@ export function fitWarnings(network: Network, item: FitInput): string[] {
   const limit = VIDEO_LIMITS[network]
   if (item.kind === "video" && limit) {
     if (item.durationMs && item.durationMs > limit.seconds * 1000) {
-      warnings.push(`${name} takes videos up to ${Math.round(limit.seconds / 60)} minutes. This one is ${Math.ceil(item.durationMs / 60_000)} minutes.`)
+      warnings.push(
+        network === "youtube"
+          ? `This one is ${Math.ceil(item.durationMs / 60_000)} minutes. A channel YouTube has not verified with a phone number takes videos up to ${Math.round(limit.seconds / 60)} minutes.`
+          : `${name} takes videos up to ${Math.round(limit.seconds / 60)} minutes. This one is ${Math.ceil(item.durationMs / 60_000)} minutes.`
+      )
     }
     if (item.fileSize > limit.bytes) {
       warnings.push(`${name} takes files up to ${Math.round(limit.bytes / 1024 ** 3)} GB. This one is ${(item.fileSize / 1024 ** 3).toFixed(1)} GB.`)

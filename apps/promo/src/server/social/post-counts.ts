@@ -7,6 +7,8 @@ import { promoLinkedinPosts } from "./linkedin/schema"
 import { promoMediumArticles } from "./medium/schema"
 import { promoAppPosts, promoJobs, promoPosts } from "./schema"
 import { promoXPosts } from "./x/schema"
+import { promoYoutubePosts } from "./youtube/schema"
+import { youtubeNeedsYou } from "./youtube/uploads"
 
 /**
  * How many of a project's own posts need you on each network: failed ones
@@ -45,6 +47,7 @@ export async function readPostCounts(
       )
     counts.linkedin = row?.n ?? 0
   }
+  if (networks.includes("youtube")) counts.youtube = await youtubeNeedsYou(userId, projectId, db)
   if (networks.includes("medium")) {
     const [row] = await db
       .select({ n: count() })
@@ -123,6 +126,11 @@ export async function readProjectPosts(
       .from(promoAppPosts)
       .where(and(eq(promoAppPosts.userId, userId), eq(promoAppPosts.status, "posted")))
       .groupBy(promoAppPosts.projectId),
+    db
+      .select({ projectId: promoYoutubePosts.projectId, n: count(), last: max(promoYoutubePosts.postedAt) })
+      .from(promoYoutubePosts)
+      .where(and(eq(promoYoutubePosts.userId, userId), eq(promoYoutubePosts.status, "posted")))
+      .groupBy(promoYoutubePosts.projectId),
   ])
   const out = new Map<string, { posts: number; lastPostAt: Date | null }>()
   for (const rows of reads) {

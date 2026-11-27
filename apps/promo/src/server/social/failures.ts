@@ -299,7 +299,7 @@ function text(value: unknown): string {
 }
 
 /** Medium's, X's and LinkedIn's writes, and how each is named on the bell. */
-const NETWORK_WRITE_WORDS: Record<string, { network: "medium" | "x" | "linkedin"; what: string; view: string }> = {
+const NETWORK_WRITE_WORDS: Record<string, { network: "medium" | "x" | "linkedin" | "youtube"; what: string; view: string }> = {
   medium_respond: { network: "medium", what: "a Medium response", view: "&tab=responses&list=failed" },
   medium_publish: { network: "medium", what: "a Medium article", view: "&tab=articles" },
   medium_edit: { network: "medium", what: "a change on Medium", view: "&tab=responses" },
@@ -318,6 +318,7 @@ const NETWORK_WRITE_WORDS: Record<string, { network: "medium" | "x" | "linkedin"
   linkedin_connect: { network: "linkedin", what: "a LinkedIn connection request", view: "&tab=people" },
   linkedin_accept: { network: "linkedin", what: "accepting a LinkedIn request", view: "&tab=people" },
   linkedin_code: { network: "linkedin", what: "LinkedIn's emailed code", view: "" },
+  youtube_upload: { network: "youtube", what: "a YouTube upload", view: "" },
 }
 
 /** Each network's tabs that sit on a network's Commenting. */
@@ -328,7 +329,7 @@ const COMMENT_TABS: Record<"medium" | "x" | "linkedin", readonly string[]> = {
 }
 
 /**
- * Rings the bell for a Medium, X or LinkedIn write that did not go out,
+ * Rings the bell for a Medium, X, LinkedIn or YouTube write that did not go out,
  * opening where it was pressed: a comment's on the network's Commenting, a
  * post of your own's on its Posts.
  */
@@ -344,17 +345,24 @@ async function ringForNetworkFailure(
     .innerJoin(promoAccounts, eq(promoAccounts.id, sql`${promoJobs.payload}->>'accountId'`))
     .where(and(eq(promoJobs.id, job.id), eq(promoJobs.userId, job.userId)))
     .limit(1)
+  // YouTube has no Commenting row: a failed upload opens its Posts.
+  if (words.network === "youtube") {
+    const href = row?.projectId ? `/admin/projects/${encodeURIComponent(row.projectId)}?network=youtube` : "/admin/projects"
+    await ringBell(job.userId, { kind: "failed", targetId: job.id, message: `${NOTICE_HEADINGS.failed} ${words.what}`, detail: reason, href }, db)
+    return
+  }
+  const network = words.network
   const view = new URLSearchParams(words.view.replace(/^&/, ""))
   const tab = view.get("tab") ?? ""
-  const onCommenting = !tab || COMMENT_TABS[words.network].includes(tab)
+  const onCommenting = !tab || COMMENT_TABS[network].includes(tab)
   const href = onCommenting
     ? commentingHref(row?.projectId ?? null, {
-        network: words.network,
+        network,
         tab: (tab || undefined) as CommentingParams["tab"],
         list: view.get("list") === "failed" ? "failed" : undefined,
       })
     : row?.projectId
-      ? `/admin/projects/${encodeURIComponent(row.projectId)}?network=${words.network}${words.view}`
+      ? `/admin/projects/${encodeURIComponent(row.projectId)}?network=${network}${words.view}`
       : "/admin/projects"
   await ringBell(job.userId, { kind: "failed", targetId: job.id, message: `${NOTICE_HEADINGS.failed} ${words.what}`, detail: reason, href }, db)
 }

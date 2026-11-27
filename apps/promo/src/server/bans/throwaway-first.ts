@@ -6,6 +6,7 @@ import type { PhoneAppMediaKind } from "@/lib/social/phone-apps"
 import { Refusal } from "@/server/browser/refusal"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import { promoAccounts, promoAppPosts, promoComments, promoFinds } from "@/server/social/schema"
+import { promoYoutubePosts } from "@/server/social/youtube/schema"
 
 /**
  * Throwaway first (Bans task, part 22): a throwaway takes the risk before an
@@ -107,6 +108,46 @@ export async function refuseImportantFirstKind(
   if (!tried) {
     throw new Error(
       `Post a ${kind} from a throwaway on ${NETWORK_NAMES[network]} first. This important account's first ${kind} waits until a throwaway's has stayed up 24 hours.`
+    )
+  }
+}
+
+/**
+ * On YouTube the same rule by kind of upload (YouTube task, part 3): an
+ * important channel's first long video, or first Short, waits until a
+ * throwaway channel's upload of that kind has stayed up 24 hours.
+ */
+export async function refuseImportantFirstYoutube(
+  account: Important,
+  short: boolean,
+  db: CustomShellDb = defaultDb,
+  now: Date = new Date()
+): Promise<void> {
+  if (account.importance !== "important") return
+  const [been] = await db
+    .select({ id: promoYoutubePosts.id })
+    .from(promoYoutubePosts)
+    .where(and(eq(promoYoutubePosts.accountId, account.id), eq(promoYoutubePosts.status, "posted"), eq(promoYoutubePosts.isShort, short)))
+    .limit(1)
+  if (been) return
+  const [tried] = await db
+    .select({ id: promoYoutubePosts.id })
+    .from(promoYoutubePosts)
+    .innerJoin(promoAccounts, eq(promoAccounts.id, promoYoutubePosts.accountId))
+    .where(
+      and(
+        eq(promoYoutubePosts.userId, account.userId),
+        eq(promoYoutubePosts.isShort, short),
+        eq(promoYoutubePosts.status, "posted"),
+        lte(promoYoutubePosts.postedAt, new Date(now.getTime() - THROWAWAY_FIRST_MS)),
+        healthyThrowaway
+      )
+    )
+    .limit(1)
+  if (!tried) {
+    const what = short ? "Short" : "long video"
+    throw new Refusal(
+      `Upload a ${what} from a throwaway channel first. This important channel's first ${what} waits until a throwaway's has stayed up 24 hours.`
     )
   }
 }

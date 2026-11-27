@@ -15,6 +15,7 @@ import { pickLinkedinSearcher } from "./linkedin/searchers"
 import { settleFailedLinkedinJob } from "./linkedin/settle"
 import { pickSearcher } from "./x/searchers"
 import { settleFailedXJob } from "./x/settle"
+import { settleFailedYoutubeJob } from "./youtube/settle"
 
 /**
  * The queue between the screen and the browser.
@@ -84,6 +85,22 @@ const MEDIUM_ABANDONED =
  * claim is given longer than a visit's before it counts as abandoned.
  */
 const LINKEDIN_PUBLISH_CLAIM_TIMEOUT_MINUTES = 40
+
+/**
+ * A YouTube upload can be a long video on a slow line: the browser allows it
+ * 40 minutes (`youtube.upload` in `docker/browser/launch.py`) and the app
+ * waits 42 (`UPLOAD_TIMEOUT_MS` in `youtube/calls.ts`). Around that, a cold
+ * browser can take 5 minutes to open, a phone can hold the step 5 minutes
+ * behind its other actions, and the look at who is signed in runs after, so
+ * its claim lasts 60. Shorter, an upload that went up could be called
+ * abandoned while that look was still running, and the bell would say it
+ * failed.
+ */
+const YOUTUBE_UPLOAD_CLAIM_TIMEOUT_MINUTES = 60
+
+/** What an abandoned YouTube upload says, since it is never tried again. */
+const YOUTUBE_ABANDONED =
+  "The upload stopped part-way. It is not tried again, because the video may already be on YouTube. Look at the channel in YouTube Studio before uploading again."
 
 /** What an abandoned LinkedIn comment, post, edit, delete, connect or accept says. */
 const LINKEDIN_ABANDONED =
@@ -324,6 +341,7 @@ export async function failExpiredClaims(
             THEN ${X_ABANDONED}
           WHEN "promo_jobs"."kind" IN ('linkedin_comment', 'linkedin_publish', 'linkedin_edit', 'linkedin_delete', 'linkedin_connect', 'linkedin_accept')
             THEN ${LINKEDIN_ABANDONED}
+          WHEN "promo_jobs"."kind" = 'youtube_upload' THEN ${YOUTUBE_ABANDONED}
           WHEN "promo_jobs"."kind" IN (${WRITES})
             THEN ${COMMENT_ABANDONED}
           WHEN "promo_jobs"."attempts" >= ${MAX_ATTEMPTS}
@@ -339,7 +357,9 @@ export async function failExpiredClaims(
       AND "promo_jobs"."claimed_at" < now() - CASE
         WHEN "promo_jobs"."kind" = 'linkedin_publish'
           THEN ${sql.raw(`interval '${LINKEDIN_PUBLISH_CLAIM_TIMEOUT_MINUTES} minutes'`)}
-        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up', 'health', 'inbox_read', 'medium_warm_up', 'x_warm_up', 'linkedin_warm_up', 'app_warm_up')
+        WHEN "promo_jobs"."kind" = 'youtube_upload'
+          THEN ${sql.raw(`interval '${YOUTUBE_UPLOAD_CLAIM_TIMEOUT_MINUTES} minutes'`)}
+        WHEN "promo_jobs"."kind" IN (${WRITES}, 'warm_up', 'health', 'youtube_health', 'inbox_read', 'medium_warm_up', 'x_warm_up', 'linkedin_warm_up', 'app_warm_up')
           THEN ${sql.raw(`interval '${VISIT_CLAIM_TIMEOUT_MINUTES} minutes'`)}
         ELSE ${sql.raw(`interval '${CLAIM_TIMEOUT_MINUTES} minutes'`)}
       END
@@ -360,6 +380,7 @@ export async function failExpiredClaims(
     await settleFailedMediumJob({ id: row.id, kind: row.kind }, row.last_error, db)
     await settleFailedXJob({ id: row.id, kind: row.kind }, row.last_error, db)
     await settleFailedLinkedinJob({ id: row.id, kind: row.kind }, row.last_error, db)
+    await settleFailedYoutubeJob({ id: row.id, kind: row.kind }, row.last_error, db)
     await ringForFailure({ id: row.id, userId: row.user_id, kind: row.kind }, row.last_error, db)
   }
   return rows.length

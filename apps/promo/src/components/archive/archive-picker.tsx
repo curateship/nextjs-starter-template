@@ -13,7 +13,7 @@ import { NETWORK_NAMES } from "@/lib/social/networks"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
-export type PickNetwork = "instagram" | "tiktok" | "linkedin" | "x" | "threads"
+export type PickNetwork = "instagram" | "tiktok" | "linkedin" | "x" | "threads" | "youtube"
 
 /** What a post writer gets back from the Archive. */
 export type ArchivePick = {
@@ -41,11 +41,14 @@ export function ArchivePickButton({
   network,
   onPick,
   label = "From archive",
+  pictures = false,
 }: {
   projectId: string
   network: PickNetwork
   onPick: (pick: ArchivePick) => void
   label?: string
+  /** Pictures alone, for a YouTube thumbnail. */
+  pictures?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   return (
@@ -54,7 +57,7 @@ export function ArchivePickButton({
         <ArchiveIcon className="size-4" />
         {label}
       </Button>
-      {open ? <ArchivePicker projectId={projectId} network={network} onClose={() => setOpen(false)} onPick={onPick} /> : null}
+      {open ? <ArchivePicker projectId={projectId} network={network} pictures={pictures} onClose={() => setOpen(false)} onPick={onPick} /> : null}
     </>
   )
 }
@@ -62,11 +65,13 @@ export function ArchivePickButton({
 function ArchivePicker({
   projectId,
   network,
+  pictures,
   onClose,
   onPick,
 }: {
   projectId: string
   network: PickNetwork
+  pictures: boolean
   onClose: () => void
   onPick: (pick: ArchivePick) => void
 }) {
@@ -77,7 +82,7 @@ function ArchivePicker({
 
   React.useEffect(() => {
     let cancelled = false
-    loadArchivePicks(projectId, network).then(
+    loadArchivePicks(projectId, network, pictures).then(
       (loaded) => {
         if (!cancelled) setAnswer(loaded)
       },
@@ -88,7 +93,7 @@ function ArchivePicker({
     return () => {
       cancelled = true
     }
-  }, [network, projectId, reloads])
+  }, [network, pictures, projectId, reloads])
 
   async function pick(card: ArchiveCard) {
     setOpening(card.id)
@@ -99,7 +104,8 @@ function ArchivePicker({
         item,
         mediaUrl: mediaUrls[0] ?? "",
         mediaUrls,
-        caption: network === "instagram" || network === "tiktok" || network === "threads" ? (item.captions[network] ?? item.caption) : item.caption,
+        caption:
+          network === "instagram" || network === "tiktok" || network === "threads" || network === "youtube" ? (item.captions[network] ?? item.caption) : item.caption,
         warnings: fitWarnings(network, item),
       })
       onClose()
@@ -117,7 +123,13 @@ function ArchivePicker({
         <DialogHeader>
           <DialogTitle>From the archive</DialogTitle>
           <DialogDescription>
-            {network === "x" ? "Pictures from this project's archive. X takes pictures only." : `Videos, pictures and carousels from this project's archive, for ${NETWORK_NAMES[network]}.`}
+            {pictures
+              ? "Pictures from this project's archive, for the video's thumbnail."
+              : network === "x"
+              ? "Pictures from this project's archive. X takes pictures only."
+              : network === "youtube"
+                ? "Videos from this project's archive, for YouTube."
+                : `Videos, pictures and carousels from this project's archive, for ${NETWORK_NAMES[network]}.`}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>

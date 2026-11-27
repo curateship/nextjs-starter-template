@@ -74,6 +74,8 @@ function ageLine(row: RedditAccountRow) {
       return row.x.joinedAt ? `${accountAgeText(new Date(row.x.joinedAt))} on X` : "Not read yet"
     case "linkedin":
       return row.signedInAt ? `First seen signed in ${formatTimeAgo(row.signedInAt)}` : "Not seen signed in yet"
+    case "youtube":
+      return row.postCount === null ? "Videos not read yet" : `${countWords(row.postCount)} videos`
     default:
       return row.postCount === null ? "Posts not read yet" : `${countWords(row.postCount)} posts`
   }
@@ -257,8 +259,8 @@ export function AccountRecord({
       : `${row.karma} karma`
     : row.followers === null
       ? "Not read yet"
-      : `${countWords(row.followers)} followers`
-  const lastWord = reddit ? "Last comment" : row.platform === "medium" ? "Last response or article" : "Last post"
+      : `${countWords(row.followers)} ${row.platform === "youtube" ? "subscribers" : "followers"}`
+  const lastWord = reddit ? "Last comment" : row.platform === "medium" ? "Last response or article" : row.platform === "youtube" ? "Last upload" : "Last post"
 
   return (
     <RecordFrame
