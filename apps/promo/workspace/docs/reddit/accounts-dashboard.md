@@ -13,8 +13,10 @@ platform filtering". It had been a window inside each project for a day, after
 the Reddit accounts page left the left menu on 14 Oct 2026
 ([Networks as modules](../network-modules.md)).
 
-- **Platform** is one of Filter's choices, "All platforms" or one network, and
-  each row names its platform after the account ("u/name · Reddit",
+- **Each network is a tab** in the middle header, All first, then YouTube,
+  then Reddit, Instagram, TikTok, Medium, X, LinkedIn and Threads (Tyler,
+  26 Nov 2026: "we need tabs for all the networks starting with "All" then
+  "Youtube""). Each row names its platform after the account ("u/name · Reddit",
   "@name · Instagram", "in/name · LinkedIn"). Reddit, Instagram, TikTok,
   Medium, X and LinkedIn accounts are listed.
 - **A Medium account's row** says how long it has been on Medium and its
@@ -64,7 +66,7 @@ did, and a page for each account are not built yet.
 ## Several accounts
 
 **Add account** asks for the network (Reddit, Instagram or TikTok, starting
-on the one the Platform filter shows), where the account runs, and which voice
+on the network tab showing), where the account runs, and which voice
 it drafts with. "Runs on" is one list of browser profiles and phones from the
 [Anti Detect dashboard's Phones](../phones/racks-dashboard.md); for Instagram and TikTok it
 lists phones only, since they never run on a browser profile. One account of a
@@ -130,8 +132,12 @@ set it by hand.
 
 ## The list
 
-The middle header has **In use** and **Retired** as tabs (a dropdown when the
-middle is narrow), then search, Select, Filter and **New account**. Columns:
+The middle header has the network tabs, then search, Select, Filter and
+**New account**. All carries the count of accounts in the list showing. A tab
+row too long for the header scrolls sideways, as every dashboard's tabs do;
+in a middle narrower than 42rem the tabs are one dropdown. In use and Retired
+were the tabs until 26 Nov 2026 (Tyler: "This 2 tabs should be in the filter
+dropdown") and are now Filter's **Show** row. Columns:
 the account (u/name, or "Not signed in") with its platform and "Paused", its
 status, its project or "No project", where it runs ("Phone:" and the phone's
 name, or "Nowhere" in red), and its last comment or post. Columns drop out as
@@ -139,11 +145,12 @@ the middle narrows, the last first.
 
 - **No counts strip.** The cards of counts per app that sat above the list
   (Bans task, part 17) went on 12 Nov 2026, so the middle keeps one header.
-  The same counts are Filter's Status and Platform choices and Overview's
+  The same counts are All's count, Filter's Status choices and Overview's
   Accounts by status widget.
-- **Filter** by platform, status (Warming up, Ready, Working, At risk,
-  Banned), important or throwaway, the profile's or phone's tag, and on
-  Retired why it was retired. **Rows group** under their profile's or phone's
+- **Filter** by Show (In use, the default, or Retired), status (Warming up,
+  Ready, Working, At risk, Banned), important or throwaway, the profile's or
+  phone's tag, and on Retired why it was retired. Clear filters leaves the
+  network tab as it is. **Rows group** under their profile's or phone's
   folder, with "No folder" last; with no folders anywhere there are no
   headings. Nothing new is stored for either.
 - **Select, tick many, then act** from the "N selected" menu. Each is one
@@ -160,7 +167,7 @@ the middle narrows, the last first.
 
 Pressing a row opens the account on the right with `?open=<id>`, which is
 where a phone's Accounts card, a phone's History tab and the Anti Detect dashboard's Bans
-lead. A link to a retired account opens the Retired tab on it. It replaced the
+lead. A link to a retired account opens Show: Retired on it. It replaced the
 settings window on 12 Nov 2026.
 
 - **The header** has its name and platform, its project (or when and why it
@@ -172,20 +179,23 @@ settings window on 12 Nov 2026.
   profile or phone, where sign-ins do not move with it; an important account,
   and an Instagram or TikTok one, is offered phones only, and the test phone of
   the daily self-test never.
+- **The ⋮'s Setup tab** holds the cards that were in the body until 26 Nov
+  2026 (Tyler: "all these goes into the 3 dot dropdown top right"):
+  important or throwaway, with **Mark important** for a throwaway on a phone
+  and **Move to a phone**, **Check sign-in** and **Cancel move** for one on a
+  browser profile ([Reddit on phones](reddit-on-phones.md)); the two-factor
+  code; and **Where it came from**: made or bought, the seller and the price,
+  saved as they change. A move's progress reads itself again only while the
+  ⋮ is open.
 - **The body** has its status with every line it adds (set by hand, paused
   and why, half pace, important, moving to a phone, stopped by a ban,
   shadowbanned or not, X's reach and Paid, LinkedIn's comments look, Premium
   and the emailed code, and the status's own warning), then Last read: its
   age or joined date, karma or followers, last comment or post, where it runs
   and how that goes online.
-- **Then the cards the window held:** a ban's card with its words, picture,
-  appeal, **Let it run again** and **Clean up** ([Bans](../bans.md)); an app's
-  Profile; X's and LinkedIn's own; important or throwaway, with **Mark
-  important** for a throwaway on a phone and **Move to a phone**, **Check
-  sign-in** and **Cancel move** for one on a browser profile
-  ([Reddit on phones](reddit-on-phones.md)); the two-factor code; and **Where
-  it came from**: made or bought, the seller and the price, saved as they
-  change. Its **History** is last: added, moved, banned, appealed, let run
+- **Then its cards:** a ban's card with its words, picture, appeal, **Let it
+  run again** and **Clean up** ([Bans](../bans.md)); an app's Profile; and
+  X's and LinkedIn's own. Its **History** is last: added, moved, banned, appealed, let run
   again, retired and cleaned up, newest first.
 - **The footer** has its status and Check now, or Bring back.
 - **Half pace** shows in amber under the status while the account goes at

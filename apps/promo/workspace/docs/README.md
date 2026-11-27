@@ -159,8 +159,8 @@ the repo's `docs/`, and is never copied here.
 ## Reddit
 
 - [Accounts](reddit/accounts-dashboard.md): the Projects dashboard's Accounts
-  section, every account on every platform with In use and Retired tabs and
-  Filter, its status, project, profile and proxy, the account on the right
+  section, every account on every platform with a tab per network and
+  Filter (In use or Retired among it), its status, project, profile and proxy, the account on the right
   with its ⋮ and the old window's cards, adding one, setting a status by
   hand, pausing, help-only posts, and retiring.
 - [Finding posts worth answering](reddit/finding-posts.md) — what a keyword is,

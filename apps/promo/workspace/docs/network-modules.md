@@ -38,7 +38,7 @@ instagram panels."
   [YouTube](youtube/youtube-module.md)).
 - **Voices and Accounts serve every network,** so they are sections of the
   [Projects dashboard](projects-dashboard.md), not part of any network's
-  module. Accounts has a Platform filter (Tyler, 15 Oct 2026: "I think
+  module. Accounts has a tab per network (Tyler, 15 Oct 2026: "I think
   accounts should be on its own dashboard with platform filtering"). They sat
   under Projects in the left menu until 12 Nov 2026.
 
@@ -126,7 +126,7 @@ platform.
 | Today, a page across every project | The **Today** tab of Reddit on Commenting ([Today](commenting.md#today)) |
 | Comments, a page across every project | The **Sent** tab of Reddit on Commenting, with its Failed list ([What happened to your comments](reddit/sent-comments.md)) |
 | Posts of your own, a list under Comments | Reddit's **Posts** row, with Failed beside it and New post in the right column ([Posts of your own](reddit/your-own-posts.md)) |
-| Reddit accounts, a page | The **Accounts** section of the Projects dashboard, every platform's, with a Platform filter; **Manage accounts** in the accounts dropdown goes there filtered to Reddit ([The Projects dashboard's Accounts](reddit/accounts-dashboard.md)) |
+| Reddit accounts, a page | The **Accounts** section of the Projects dashboard, every platform's, with a tab per network; **Manage accounts** in the accounts dropdown goes there filtered to Reddit ([The Projects dashboard's Accounts](reddit/accounts-dashboard.md)) |
 | Jobs, a page | The **Jobs** window, from the **Jobs** button in the middle column's header on Commenting ([The Jobs window](browser/jobs-dashboard.md)) |
 | Account cards in the left column | The **Comment as** dropdown above the comment box ([The accounts dropdown](commenting.md#the-accounts-dropdown)) |
 

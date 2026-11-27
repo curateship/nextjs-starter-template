@@ -47,7 +47,7 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useListSearchNavigate, useOpenRecord } from "@/lib/nav/list-search"
 import { ACCOUNT_STATUSES, ACCOUNT_STATUS_LABELS, type AccountStatus } from "@/lib/social/account-status"
 import { IMPORTANCE_WORDS } from "@/lib/social/importance"
-import { handleWords, isNetwork, NETWORK_NAMES, NETWORKS } from "@/lib/social/networks"
+import { handleWords, isNetwork, NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { REASON_NOT_RECORDED, type ProjectsSearch } from "@/lib/social/projects-dashboard-search"
 import { postedDateText } from "@/lib/social/wording"
 
@@ -56,6 +56,9 @@ type Column = "account" | "status" | "project" | "runsOn" | "last"
 /** Status order when sorting: the five in Tyler's order, then never read. */
 const STATUS_ORDER: Record<AccountStatus, number> = { warming_up: 0, ready: 1, working: 2, at_risk: 3, banned: 4 }
 const ALL = "all"
+
+/** The header's tabs after All: YouTube first, then the other networks in their usual order. */
+const TAB_NETWORKS: readonly Network[] = ["youtube", ...NETWORKS.filter((network) => network !== "youtube")]
 const time = (value: Date | string | null) => (value ? new Date(value).getTime() : Number.NEGATIVE_INFINITY)
 
 function platformName(platform: string) {
@@ -68,11 +71,13 @@ function platformName(platform: string) {
  * Accounts table with its counts strip, icon buttons, selects in each row and
  * settings window (`workspace/docs/reddit/accounts-dashboard.md`).
  *
- * - **Header:** In use and Retired as tabs; search, Select, Filter
- *   (Platform, Status, Important or throwaway, Tag, and on Retired the
- *   reason) and New account. The counts strip went: its figures are in
- *   Filter's choices and Overview's Accounts by status, so the middle keeps
- *   one header.
+ * - **Header:** a tab per network, All first, then YouTube, then the rest
+ *   (Tyler, 26 Nov 2026: "we need tabs for all the networks starting with
+ *   "All" then "Youtube""); search, Select, Filter (Show: In use or Retired,
+ *   which were the tabs before; Status, Important or throwaway, Tag, and on
+ *   Retired the reason) and New account. The counts strip went: its figures
+ *   are in Filter's choices and Overview's Accounts by status, so the middle
+ *   keeps one header.
  * - **Table:** each account's name and platform, its status, project, where
  *   it runs and its last comment or post, under its profile's or phone's
  *   folder when there are folders.
@@ -296,12 +301,12 @@ export function AccountsSection({
           { label: "Retire", icon: <ArchiveIcon className="size-4" />, destructive: true, onSelect: () => setRetiring([row]) },
         ]
 
-  const filterCount = [search.platform, search.status, search.importance, search.tag, retiredTab ? search.reason : undefined].filter(Boolean).length
+  const filterCount = [search.show, search.status, search.importance, search.tag, retiredTab ? search.reason : undefined].filter(Boolean).length
   const tabs = [
-    { value: "inuse", label: "In use", count: inUsePage.accounts.filter((row) => !row.retiredAt && (!projectId || row.project?.id === projectId)).length },
-    { value: "retired", label: "Retired" },
+    { value: ALL, label: "All", count: page ? accounts.filter((row) => !projectId || row.project?.id === projectId).length : undefined },
+    ...TAB_NETWORKS.map((network) => ({ value: network, label: NETWORK_NAMES[network] })),
   ]
-  const pickTab = (value: string) => setListSearch({ show: value === "retired" ? "retired" : undefined, reason: undefined, open: undefined })
+  const pickTab = (value: string) => setListSearch({ platform: value === ALL ? undefined : (value as Network), open: undefined })
 
   const middle = (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-card">
@@ -310,10 +315,10 @@ export function AccountsSection({
           <>
             <PanelReopenButton side="left" label="Show the page" />
             <span className="hidden @2xl:contents">
-              <DashboardTabs value={retiredTab ? "retired" : "inuse"} onValueChange={pickTab} tabs={tabs} />
+              <DashboardTabs value={search.platform ?? ALL} onValueChange={pickTab} tabs={tabs} />
             </span>
             <span className="shrink-0 @2xl:hidden">
-              <ViewMenu value={retiredTab ? "retired" : "inuse"} onValueChange={pickTab} choices={tabs} label="Which accounts" />
+              <ViewMenu value={search.platform ?? ALL} onValueChange={pickTab} choices={tabs} label="Which network" />
             </span>
           </>
         }
@@ -426,17 +431,17 @@ export function AccountsSection({
         filter={
           <FilterPopover
             count={filterCount}
-            onClear={() => setListSearch({ platform: undefined, status: undefined, importance: undefined, tag: undefined, reason: undefined })}
+            onClear={() => setListSearch({ show: undefined, status: undefined, importance: undefined, tag: undefined, reason: undefined, open: undefined })}
             save={null}
             contentClassName="w-60"
           >
             <FilterPick
-              id="accounts-platform"
-              label="Platform"
-              value={search.platform}
-              any="All platforms"
-              options={NETWORKS.map((network) => [network, NETWORK_NAMES[network]])}
-              onChange={(platform) => setListSearch({ platform })}
+              id="accounts-show"
+              label="Show"
+              value={search.show}
+              any="In use"
+              options={[["retired", "Retired"]]}
+              onChange={(show) => setListSearch({ show, reason: undefined, open: undefined })}
             />
             <FilterPick
               id="accounts-status"
@@ -527,8 +532,10 @@ export function AccountsSection({
               : q || filterCount
                 ? "No accounts match that."
                 : retiredTab
-                  ? "No retired accounts."
-                  : projectId
+                  ? `No retired ${search.platform ? `${NETWORK_NAMES[search.platform]} ` : ""}accounts.`
+                  : search.platform
+                    ? `No ${NETWORK_NAMES[search.platform]} accounts${projectId ? " in this project" : ""} yet. Press New account to make one.`
+                    : projectId
                     ? "No accounts in this project yet. Put one in from its ⋮, or make one with New account."
                     : "No accounts yet. Press New account, pick the network and where it runs, then sign in there."
           }

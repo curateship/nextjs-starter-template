@@ -89,11 +89,12 @@ function ageLine(row: RedditAccountRow) {
  *   sign-in key, and the ⋮.
  * - **The ⋮:** General is Project, Voice, Runs on and Status as rows that
  *   save on a pick; then Check now, Send sign-in code, Help-only posts,
- *   Pause or Resume, and Retire or Bring back in red.
+ *   Pause or Resume, and Retire or Bring back in red. Setup is important or
+ *   throwaway (with Move to a phone), its two-factor code and where it came
+ *   from.
  * - **Body:** its status with every line it adds, what was last read of it,
- *   then the cards the window held, kept as they were: a ban, its app
- *   profile, X's and LinkedIn's own, important or throwaway, its two-factor
- *   code and where it came from. Its history is last.
+ *   then a ban, its app profile, and X's and LinkedIn's own cards. Its
+ *   history is last.
  * - **Footer:** its status, and Check now.
  */
 export function AccountRecord({
@@ -277,7 +278,22 @@ export function AccountRecord({
             width="20.4rem"
             open={menuOpen}
             onOpenChange={setMenuOpen}
-            tabs={[{ value: "general", label: "General", content: general }]}
+            tabs={[
+              { value: "general", label: "General", content: general },
+              // Throwaway or important, the two-factor secret and where it came from, out of the panel's body
+              // (Tyler, 26 Nov 2026: "all these goes into the 3 dot dropdown top right").
+              {
+                value: "setup",
+                label: "Setup",
+                content: (
+                  <div className="grid gap-3 p-3">
+                    <ImportanceCard account={row} phones={phones} onChanged={onChanged} />
+                    <TwoFactorCard accountId={row.id} saved={row.twoFactor} onChanged={onChanged} />
+                    <AccountSourceCard accountId={row.id} initial={row.source} onSaved={onChanged} />
+                  </div>
+                ),
+              },
+            ]}
           />
         </>
       }
@@ -348,9 +364,6 @@ export function AccountRecord({
           {appNetwork ? <AppProfileCard accountId={row.id} network={appNetwork} /> : null}
           {row.platform === "x" ? <XAccountCard account={row} onChanged={onChanged} /> : null}
           {row.platform === "linkedin" ? <LinkedinAccountCard account={row} onChanged={onChanged} /> : null}
-          <ImportanceCard account={row} phones={phones} onChanged={onChanged} />
-          <TwoFactorCard accountId={row.id} saved={row.twoFactor} onChanged={onChanged} />
-          <AccountSourceCard accountId={row.id} initial={row.source} onSaved={onChanged} />
           <section className="grid gap-2" aria-label="History">
             <h3 className="px-0.5 text-sm font-medium text-muted-foreground">History</h3>
             <AccountHistoryPanel accountId={row.id} />

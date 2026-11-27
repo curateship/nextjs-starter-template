@@ -34,6 +34,8 @@ export function ImportanceCard({
   onChanged: () => Promise<void>
 }) {
   const name = account.handle ? handleWords(account.platform, account.handle) : "this account"
+  // The same name at the start of a sentence.
+  const sentenceName = account.handle ? name : "This account"
   const [confirming, setConfirming] = React.useState(false)
   const [busy, setBusy] = React.useState<null | "mark" | "start" | "check" | "cancel">(null)
   const [phoneId, setPhoneId] = React.useState("")
@@ -67,7 +69,7 @@ export function ImportanceCard({
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            {name} is important. It runs on a phone only, and Promo keeps it apart from every
+            {sentenceName} is important. It runs on a phone only, and Promo keeps it apart from every
             throwaway: no shared voice, project or proxy, and no throwaway answers it or names it.
           </p>
         </CardContent>
@@ -85,7 +87,7 @@ export function ImportanceCard({
         {account.phone ? (
           <>
             <p className="text-sm text-muted-foreground">
-              {name} runs on a phone as a throwaway. Marking it important keeps it apart from every
+              {sentenceName} runs on a phone as a throwaway. Marking it important keeps it apart from every
               throwaway from then on. It cannot be undone.
             </p>
             <div>
@@ -150,7 +152,7 @@ export function ImportanceCard({
         ) : account.profile ? (
           <>
             <p className="text-sm text-muted-foreground">
-              {name} runs on a browser profile. Move it to a phone to make it important, one way only:
+              {sentenceName} runs on a browser profile. Move it to a phone to make it important, one way only:
               once the phone reads it signed in, it can never go back onto a browser profile.
             </p>
             <div className="grid gap-2">
@@ -196,7 +198,7 @@ export function ImportanceCard({
           </>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {name} runs on nothing yet. Pick a phone or a browser profile under Runs on.
+            {sentenceName} runs on nothing yet. Pick a phone or a browser profile under Runs on.
           </p>
         )}
       </CardContent>
