@@ -153,7 +153,7 @@ export function LibraryHookPanel({
             </div>
           </PanelCard>
           <PanelCard storageId="viral-library-hook-tags" title="Tags">
-            <TagField id={`library-hook-tags-${hook.id}`} value={hook.tags} known={tags} onChange={saveTags} />
+            <TagField id={`library-hook-tags-${hook.id}`} value={hook.tags} known={tags} onChange={saveTags} inTagsCard />
           </PanelCard>
           <HookIdeasCards hook={hook} projects={projects} writeForId={writeForId} price={ideasPrice} />
           {hook.kind === "video" ? (
@@ -169,9 +169,10 @@ export function LibraryHookPanel({
       }
       footer={
         home ? (
-          <Button type="button" className="w-full" onClick={() => openIn(home.id)}>
+          <Button type="button" className="w-full min-w-0" onClick={() => openIn(home.id)}>
             <PlayIcon />
-            Open in {home.name}
+            {/* A long project name cuts short inside the button instead of running past its edge. */}
+            <span className="min-w-0 truncate">Open in {home.name}</span>
           </Button>
         ) : undefined
       }

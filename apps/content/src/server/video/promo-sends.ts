@@ -427,7 +427,7 @@ async function ringFailedSend(row: VideoPromoSendRow, db: CustomShellDb, at: Dat
       id: uuid(),
       recipientUserId: row.userId,
       type: "app_activity",
-      message: `${name} didn't reach Promo`,
+      message: `${name} wasn't added to the project`,
       detail: `${row.error || PROMO_SEND_FAILED} Press Try again on the Exports page.`.slice(0, 1_000),
       createdAt: at,
     })
@@ -449,7 +449,7 @@ export async function startPromoSends(request: SendRequest, deps: SendDeps = {})
   const connection = deps.connection ?? (await readPromoConnection(db))
   const exportIds = [...new Set(request.exportIds ?? [])]
   const thumbnailIds = [...new Set(request.thumbnailIds ?? [])]
-  if (!request.promoProjects.length) throw new Error("Pick a Promo project first.")
+  if (!request.promoProjects.length) throw new Error("Pick a project first.")
   if (!exportIds.length && !thumbnailIds.length) throw new Error("Pick something to send first.")
 
   const exports = exportIds.length
@@ -706,7 +706,7 @@ export async function refreshPromoSends(userId: string, sendIds: string[], deps:
         deps.fetchImpl ?? linkFetch
       )
       if (answer.status === "ready") out.push(await markArrived(row.id, answer.itemId ?? row.promoItemId, answer.itemUrl ?? row.promoItemUrl, db, at))
-      else if (answer.status === "gone") out.push(await failSend(row, "Promo couldn't copy it. Try again.", db, at))
+      else if (answer.status === "gone") out.push(await failSend(row, "Content couldn't copy it. Try again.", db, at))
       else out.push(row)
     } catch {
       // Promo didn't answer this time; the send waits for its own news.
@@ -786,7 +786,7 @@ export async function applyPromoEvent(
   const [row] = await db.select().from(videoPromoSends).where(eq(videoPromoSends.id, event.sendId)).limit(1)
   if (!row) return { known: false }
   if (event.type === "arrived") await markArrived(row.id, event.itemId, event.itemUrl, db, at)
-  else await failSend(row, event.error || "Promo couldn't copy it. Try again.", db, at)
+  else await failSend(row, event.error || "Content couldn't copy it. Try again.", db, at)
   return { known: true }
 }
 

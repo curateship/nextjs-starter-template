@@ -32,7 +32,7 @@ export const Route = createFileRoute("/guest/promo/$projectId")({
   },
   head: ({ loaderData }) => ({
     meta: [
-      { title: loaderData ? `${loaderData.view.project.name} · Promo` : "Promo" },
+      { title: loaderData ? `${loaderData.view.project.name} · Content` : "Content" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

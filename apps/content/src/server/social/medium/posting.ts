@@ -138,7 +138,7 @@ export async function writingAccount(
   }
   if (!account.handle) {
     throw new Refusal(
-      "Promo has not seen this account signed in to Medium. Sign it in, then press Check who is signed in on the Accounts dashboard."
+      "Content has not seen this account signed in to Medium. Sign it in, then press Check who is signed in on the Accounts dashboard."
     )
   }
   return account
@@ -310,7 +310,7 @@ export async function queueMediumResponse(
   const line = (input.line ?? "").trim()
   if (line) refuseOnPhone(account, "Answering one highlighted line")
   if (line && find.text && !find.text.includes(line)) {
-    throw new Refusal("That line is not in the story as Promo read it. Pick a sentence from the story, or leave the line empty.")
+    throw new Refusal("That line is not in the story as Content read it. Pick a sentence from the story, or leave the line empty.")
   }
   return queueWriting(
     userId,
@@ -356,7 +356,7 @@ export async function queueMediumAnswer(
       .from(promoMediumResponses)
       .where(and(eq(promoMediumResponses.id, input.under.responseId), eq(promoMediumResponses.userId, userId)))
       .limit(1)
-    if (!parent || parent.status !== "posted") throw new Error("That response is not one Promo sent.")
+    if (!parent || parent.status !== "posted") throw new Error("That response is not one Content sent.")
     accountId = parent.accountId
     incoming = parent.incoming ?? []
     parentId = parent.id
@@ -366,7 +366,7 @@ export async function queueMediumAnswer(
       .from(promoMediumArticles)
       .where(and(eq(promoMediumArticles.id, input.under.articleId), eq(promoMediumArticles.userId, userId)))
       .limit(1)
-    if (!article || article.status !== "published" || !article.accountId) throw new Error("That article is not one Promo published.")
+    if (!article || article.status !== "published" || !article.accountId) throw new Error("That article is not one Content published.")
     accountId = article.accountId
     incoming = article.incoming ?? []
     articleId = article.id

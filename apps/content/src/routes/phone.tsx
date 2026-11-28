@@ -25,7 +25,7 @@ import {
 export const Route = createFileRoute("/phone")({
   head: () => ({
     meta: [
-      { title: "Send to Video" },
+      { title: "Send to Content" },
       { name: "robots", content: "noindex, nofollow" },
       { name: "referrer", content: "no-referrer" },
     ],

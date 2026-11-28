@@ -405,11 +405,14 @@ export function TagField({
   value,
   known,
   onChange,
+  inTagsCard = false,
 }: {
   id: string
   value: string[]
   known: string[]
   onChange: (next: string[]) => Promise<boolean>
+  /** In a card already titled Tags: its label is only read out, so "Tags" shows once. */
+  inTagsCard?: boolean
 }) {
   const [text, setText] = React.useState("")
   const listId = `${id}-known`
@@ -430,7 +433,9 @@ export function TagField({
 
   return (
     <div className="grid gap-2">
-      <Label htmlFor={id}>Tags</Label>
+      <Label htmlFor={id} className={cn(inTagsCard && "sr-only")}>
+        Tags
+      </Label>
       {value.length ? (
         <ul className="flex flex-wrap gap-1.5" aria-label="Tags">
           {value.map((tag) => (

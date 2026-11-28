@@ -104,7 +104,7 @@ export async function recordVitals(
   // A phone that has been on for less time than at the last reading was
   // restarted in between, by the rack, a person, or itself.
   if (phone.upSeconds !== null && vitals.upSeconds !== null && vitals.upSeconds < phone.upSeconds) {
-    const why = vitals.restartWhy.trim().slice(0, 300) || "Nobody in Promo asked it to. It restarted by itself or by hand."
+    const why = vitals.restartWhy.trim().slice(0, 300) || "Nobody in Content asked it to. It restarted by itself or by hand."
     await recordPhoneEvent(userId, phone.id, "restarted", why, db, now)
   }
 
@@ -246,7 +246,7 @@ const WDA_WARN_MS = 24 * 60 * 60_000
 
 /** What to do on the rack Mac, in the notice. */
 const WDA_RESIGN_WORDS =
-  "On the rack Mac, run `bash ~/Library/Application Support/PromoRack/wda.sh` and follow its prompts. The rack's page in Promo shows when the signature runs out."
+  "On the rack Mac, run `bash ~/Library/Application Support/PromoRack/wda.sh` and follow its prompts. The rack's page in Content shows when the signature runs out."
 
 /**
  * WebDriverAgent, the tool the rack taps iPhones through, is signed with a
@@ -582,7 +582,7 @@ export async function stopForBanScreen(
           message: `${NOTICE_HEADINGS.ban_unknown} Is it a ban? ${name} on ${phoneWords(phone)}`,
           detail: [
             `${appName} showed: "${words}".`,
-            `Promo stopped the account${droppedWords} to be safe.`,
+            `Content stopped the account${droppedWords} to be safe.`,
             "Press It's a ban or Not a ban in Waiting on you, on the Anti Detect dashboard's Overview. Not a ban lets it run again, and that screen never stops it again.",
           ].join(" "),
           href: "/admin/anti-detect?section=overview",
@@ -603,7 +603,7 @@ export async function stopForBanScreen(
         message: `Ban screen: ${name} on ${phoneWords(phone)}`,
         detail: [
           `${appName} showed it ${BAN_KIND_WORDS[kind] ?? "stopped"}: "${words}".`,
-          `Promo stopped the account${droppedWords}.`,
+          `Content stopped the account${droppedWords}.`,
           "The picture is in the Anti Detect dashboard's Bans. Appeal it in the app first if you want to, then let it run again or press Clean up there.",
         ].join(" "),
         href: "/admin/anti-detect?section=bans",

@@ -261,7 +261,10 @@ list before: "this is a crazy ui ... i dont even know what to look at"):
 - **Columns:** Post, Where (the subreddit, when it went up, where Reddit put
   it such as "match 9", and the keyword when several are listed together),
   Upvotes and Replies. A long title is cut short with "…", so the figures
-  always show; Where drops out first as the middle narrows.
+  always show; Where drops out first as the middle narrows. From a 48rem
+  middle, Where shows its whole line ("r/officeworkers · Yesterday · match 1")
+  and the title, which wraps, takes what is left; narrower, Where is held to
+  224px and cut with "…".
 - **Groups:** Strong fit, Possible and Low fit, each folding from its
   heading. The Upvotes and Replies headings sort by that figure, most first
   or, pressed again, fewest first; sorted, the list is one list with no

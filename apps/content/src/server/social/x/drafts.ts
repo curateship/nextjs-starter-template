@@ -215,7 +215,7 @@ export async function writeXDrafts(
   if (!find) throw new Error("That X post is no longer saved.")
   const kind = input.kind ?? "reply"
   const under = input.underReplyId ? (find.topReplies ?? []).find((reply) => reply.id === input.underReplyId) ?? null : null
-  if (input.underReplyId && !under) throw new Refusal("That reply is not one of the post's top replies as Promo read them.")
+  if (input.underReplyId && !under) throw new Refusal("That reply is not one of the post's top replies as Content read them.")
   const { words, examples, limit } = await accountWords(userId, input.accountId, find.projectId, db)
   const product = input.helpOnly ? "" : await projectDescription(userId, find.projectId, db)
   const picked = await pickProvider(input)
@@ -310,7 +310,7 @@ export async function rewriteXReply(
   input: { findId: string; accountId: string | null; text: string; how: XRewrite },
   db: CustomShellDb = defaultDb
 ): Promise<XDraftView> {
-  if (!X_REWRITE_WORDS[input.how]) throw new Error("That rewrite is not one Promo knows.")
+  if (!X_REWRITE_WORDS[input.how]) throw new Error("That rewrite is not one Content knows.")
   const text = input.text.trim()
   if (!text) throw new Refusal("Write the reply first, then rewrite it.")
   const find = await ownedXFind(userId, input.findId, db)

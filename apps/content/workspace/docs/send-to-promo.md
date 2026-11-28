@@ -1,5 +1,7 @@
 # Send to Promo
 
+**In Content the button says Add to project** (Tyler, 27 Nov 2026: "Add to project"), since Video and Promo are one app. Its window is Add to project, a finished one reads "Added to <project>", and a failure "Adding it to the project failed. Try again." The page below keeps the feature's old name, Send to Promo, as the code does.
+
 **In Content** there is no Settings → Promo and no key to paste: the link to the Archive sets itself up, and every call stays inside the app (`content-app.md`, "The links between Video, Promo and Viral"). The rest of this page holds as written.
 
 Send to Promo copies a finished video, carousel or thumbnail into a project's Archive in the Promo app. Promo keeps its own copy, so deleting the export in Video never breaks what is in Promo (Tyler, 4 Nov 2026: "Own copy"). The task is `workspace/tasks/promo/01-send-to-promo-and-archive.md`. Promo's side is in Promo's `workspace/docs/archive.md`.

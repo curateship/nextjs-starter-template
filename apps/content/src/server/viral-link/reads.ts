@@ -124,10 +124,10 @@ export async function acceptRead(link: PromoViralLinkRow, note: ReadNote, db: Cu
   if (already) return toAnswer(already)
 
   if (!KINDS_BY_NETWORK[note.network].includes(note.kind)) {
-    throw new ViralLinkRefusal(400, `Promo can't read a ${note.kind} on ${note.network}.`)
+    throw new ViralLinkRefusal(400, `Content can't read a ${note.kind} on ${note.network}.`)
   }
   const value = cleanReadValue(note.network, note.kind, note.value)
-  if (!value) throw new ViralLinkRefusal(400, "That doesn't look like something Promo can read. Check the words or the address.")
+  if (!value) throw new ViralLinkRefusal(400, "That doesn't look like something Content can read. Check the words or the address.")
 
   // Viral asks again while a read waits, so a stalled reader would otherwise
   // pile up copies in the same lane as Promo's own jobs.
@@ -136,10 +136,10 @@ export async function acceptRead(link: PromoViralLinkRow, note: ReadNote, db: Cu
     .from(promoViralReads)
     .where(and(eq(promoViralReads.userId, link.userId), eq(promoViralReads.status, "waiting")))
   if (waiting.some((read) => read.network === note.network && read.kind === note.kind && read.value === value)) {
-    throw new ViralLinkRefusal(409, "Promo is still reading this from an earlier ask. Its answer comes when Promo's reader gets to it.")
+    throw new ViralLinkRefusal(409, "Content is still reading this from an earlier ask. Its answer comes when Content's reader gets to it.")
   }
   if (waiting.length >= MAX_WAITING_READS) {
-    throw new ViralLinkRefusal(429, `Promo already has ${MAX_WAITING_READS} reads waiting. Try again once its readers catch up.`)
+    throw new ViralLinkRefusal(429, `Content already has ${MAX_WAITING_READS} reads waiting. Try again once its readers catch up.`)
   }
 
   const id = uuid()
@@ -154,7 +154,7 @@ export async function acceptRead(link: PromoViralLinkRow, note: ReadNote, db: Cu
     // Nothing can read it, such as no X search account: the read goes, and
     // Viral is told why at once.
     await db.delete(promoViralReads).where(eq(promoViralReads.id, id))
-    throw new ViralLinkRefusal(409, error instanceof Error ? error.message : "Promo could not queue that read.")
+    throw new ViralLinkRefusal(409, error instanceof Error ? error.message : "Content could not queue that read.")
   }
   return toAnswer(row)
 }
@@ -166,7 +166,7 @@ export async function readStatus(link: PromoViralLinkRow, readId: string, db: Cu
     .from(promoViralReads)
     .where(and(eq(promoViralReads.userId, link.userId), eq(promoViralReads.readId, readId)))
     .limit(1)
-  if (!row) throw new ViralLinkRefusal(404, "Promo has no read by that id.")
+  if (!row) throw new ViralLinkRefusal(404, "Content has no read by that id.")
   return toAnswer(row)
 }
 
@@ -240,7 +240,7 @@ async function loadRead(job: QueuedJob, db: CustomShellDb): Promise<PromoViralRe
   const [row] = id
     ? await db.select().from(promoViralReads).where(and(eq(promoViralReads.id, id), eq(promoViralReads.userId, job.userId))).limit(1)
     : []
-  if (!row) throw new Error("That Viral read is no longer saved.")
+  if (!row) throw new Error("That Research read is no longer saved.")
   return row
 }
 
@@ -336,7 +336,7 @@ export async function sweepViralReads(db: CustomShellDb = defaultDb, fetchImpl?:
     .limit(SWEEP_BATCH)
   for (const { read, jobStatus, jobError } of waiting) {
     // A job that finished "done" without finishing its read lost its answer; it says so.
-    const error = jobStatus === "failed" ? jobError || "Promo's reader failed." : "Promo's reader stopped before it finished."
+    const error = jobStatus === "failed" ? jobError || "Content's reader failed." : "Content's reader stopped before it finished."
     await db
       .update(promoViralReads)
       .set({ status: "failed", error: error.slice(0, 1_000), finishedAt: new Date() })

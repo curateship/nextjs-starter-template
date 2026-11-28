@@ -56,7 +56,7 @@ export function readSecret(input: string): string {
   const period = url.searchParams.get("period") ?? "30"
   const algorithm = (url.searchParams.get("algorithm") ?? "SHA1").toUpperCase()
   if (url.hostname !== "totp" || digits !== "6" || period !== "30" || algorithm !== "SHA1") {
-    throw new Error("That link asks for a kind of code Promo does not make. Paste the secret letters instead.")
+    throw new Error("That link asks for a kind of code Content does not make. Paste the secret letters instead.")
   }
   base32Bytes(secret)
   return secret.toUpperCase()

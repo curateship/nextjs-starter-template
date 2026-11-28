@@ -51,9 +51,9 @@ export function WritePostForPromoButton({ itemId, className }: { itemId: string;
   const [open, setOpen] = React.useState(false)
   return (
     <>
-      <TipButton type="button" variant="outline" className={className} tip="Write a post for Promo" onClick={() => setOpen(true)}>
+      <TipButton type="button" variant="outline" className={className} tip="Write a post for a project" onClick={() => setOpen(true)}>
         <MegaphoneIcon />
-        <FitLabel full="Post for Promo" />
+        <FitLabel full="Post for a project" />
       </TipButton>
       <PromoPostDialog open={open} itemId={itemId} onClose={() => setOpen(false)} />
     </>
@@ -150,7 +150,7 @@ function PromoPostDialog({ open, itemId, onClose }: { open: boolean; itemId: str
   async function send() {
     if (!written) return
     if (!projectId) {
-      showErrorToast("Pick the Promo project it goes to first.")
+      showErrorToast("Pick the project it goes to first.")
       return
     }
     setBusy("send")
@@ -214,7 +214,7 @@ function PromoPostDialog({ open, itemId, onClose }: { open: boolean; itemId: str
                     </Select>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {sendsToPromo(network) ? "" : "Promo has no Threads, so a Threads post is for Copy. "}
+                    {sendsToPromo(network) ? "" : "Promote has no Threads, so a Threads post is for Copy. "}
                     {price ? `Writing costs ${writerPriceWords(price)}.` : "Writing costs about 1 cent of AI."}
                   </p>
                 </CardContent>
@@ -267,7 +267,7 @@ function PromoPostDialog({ open, itemId, onClose }: { open: boolean; itemId: str
                   </CardHeader>
                   <CardContent className="grid gap-4">
                     {projects.state === "loading" ? (
-                      <LoadingRow label="Asking Promo for its projects" />
+                      <LoadingRow label="Reading the projects" />
                     ) : projects.state === "failed" ? (
                       <ErrorRow message={projects.error} onRetry={() => setReloads((count) => count + 1)} />
                     ) : projects.projects.length ? (
@@ -287,9 +287,9 @@ function PromoPostDialog({ open, itemId, onClose }: { open: boolean; itemId: str
                         </Select>
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Promo has no projects yet. Make one in Promo first.</p>
+                      <p className="text-sm text-muted-foreground">There are no projects yet. Make one on the Projects dashboard first.</p>
                     )}
-                    {written.status === "failed" && written.error ? <ErrorRow message={`Promo said: ${written.error}`} /> : null}
+                    {written.status === "failed" && written.error ? <ErrorRow message={`It wasn't added: ${written.error}`} /> : null}
                     {sent ? (
                       <p className="text-sm text-muted-foreground">
                         It's a draft in Promo. Press Post there when it's ready, and Viral hears when it's up.
@@ -328,7 +328,7 @@ function PromoPostDialog({ open, itemId, onClose }: { open: boolean; itemId: str
                       {toPromo ? (
                         <Button type="button" disabled={busy !== null} onClick={() => void send()}>
                           {busy === "send" ? <Loader2Icon className="animate-spin" /> : null}
-                          Send to Promo
+                          Add to project
                         </Button>
                       ) : null}
                     </>

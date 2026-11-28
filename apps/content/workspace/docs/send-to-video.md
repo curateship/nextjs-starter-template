@@ -1,5 +1,7 @@
 # Send to Video
 
+**In Content the button says Make a draft** (Tyler, 27 Nov 2026: "Make a draft / Open draft"), since Viral and Video are one app. While it works it reads "Making the draft…", once made "Open draft" opens it, and pressed again it is "Make another draft", asking Replace the draft or A new draft. The page below keeps the feature's old name, Send to Video, as the code does.
+
 **In Content** there is no Settings → Video connection and no key to paste: the link to the editor sets itself up, and every call stays inside the app (`content-app.md`, "The links between Video, Promo and Viral"). The rest of this page holds as written.
 
 Send to Video puts a vault idea into the Video app as a draft. Tyler, 4 Nov

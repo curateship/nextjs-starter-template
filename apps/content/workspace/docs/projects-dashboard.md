@@ -161,7 +161,10 @@ dashboard goes back to the section and row it was on.
   straight to project"). Its actions column has an eye, which shows the
   project's summary on the right, and a bin, which deletes it after asking.
   The right panel is the project's summary: its picture and description, each network with "2 need you" or
-  "1 to answer", its Archive's items and the bans line. Its ⋮ holds Pin,
+  "1 to answer", its Content card and the bans line. The Content card counts
+  Drafts, the videos still in the editor, and Published, the Archive's items,
+  in Content's Status words (Polish task, part 7); its title shows the two
+  added together. Its ⋮ holds Pin,
   Pause this project and Delete; Open project is at its foot.
 - **Accounts and Messages** are described in their own docs:
   [Accounts](reddit/accounts-dashboard.md) and [Messages](messages-dashboard.md).
@@ -195,7 +198,7 @@ with the left page in `projects-page-panel.tsx`, its blocks in
 `projects-blocks.tsx`, Overview in `projects-overview.tsx` and one file per
 section beside them. The records on the right are `account-record.tsx`,
 `voice-record.tsx`, the Archive's `archive-item-panel.tsx`, and the project
-summary (grey cards: What it makes, Networks, Archive, as the shell's
+summary (grey cards: What it makes, Networks, Content, as the shell's
 records are) and conversation inside their sections. The page's server is
 `src/server/social/projects-dashboard.ts`. The Dashboards block and the left
 page panel are drawn by `src/components/dashboard-page/`, which [the Anti

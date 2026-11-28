@@ -233,7 +233,7 @@ async function ownedResponse(userId: string, responseId: string, db: CustomShell
     .from(promoMediumResponses)
     .where(and(eq(promoMediumResponses.id, responseId), eq(promoMediumResponses.userId, userId)))
     .limit(1)
-  if (!row) throw new Error("That response is not one Promo sent.")
+  if (!row) throw new Error("That response is not one Content sent.")
   return row
 }
 
@@ -504,7 +504,7 @@ export async function runMediumChange(
     .from(promoMediumArticles)
     .where(and(eq(promoMediumArticles.id, articleId), eq(promoMediumArticles.userId, userId)))
     .limit(1)
-  if (!article || !article.storyId) throw new Error("That article is not one Promo published.")
+  if (!article || !article.storyId) throw new Error("That article is not one Content published.")
   if (kind === "medium_delete") {
     const { done } = await mediumDelete(target, { storyId: article.storyId })
     if (!done) throw new Error("Delete was pressed but the article still shows on Medium. Look at it there.")
@@ -600,7 +600,7 @@ export async function findPhoneResponse(
     .innerJoin(promoAccounts, eq(promoAccounts.id, promoMediumResponses.accountId))
     .where(and(eq(promoMediumResponses.id, responseId), eq(promoMediumResponses.userId, userId)))
     .limit(1)
-  if (!row) throw new Refusal("That response is not one Promo sent.")
+  if (!row) throw new Refusal("That response is not one Content sent.")
   if (row.response.responseId) return
   const found = await mediumFindResponse(target, { storyId: row.response.storyId, writer: row.handle, text: row.response.text })
   if (!found.responseId) throw new TryAgainLater("The response is not under the story yet.", 5 * 60_000)

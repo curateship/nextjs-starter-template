@@ -32,6 +32,7 @@ import { RetireDialog } from "@/components/social/accounts/retire-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { TableCell } from "@/components/ui/table"
+import { EmptyLine, EmptyLineButton } from "@/components/content-app/empty-line"
 import {
   checkRedditAccounts,
   getRedditAccountsErrorMessage,
@@ -545,11 +546,18 @@ export function AccountsSection({
                 ? "No accounts match that."
                 : retiredTab
                   ? `No retired ${search.platform ? `${NETWORK_NAMES[search.platform]} ` : ""}accounts.`
-                  : search.platform
-                    ? `No ${NETWORK_NAMES[search.platform]} accounts${projectId ? " in this project" : ""} yet. Press New account to make one.`
-                    : projectId
-                    ? "No accounts in this project yet. Put one in from its ⋮, or make one with New account."
-                    : "No accounts yet. Press New account, pick the network and where it runs, then sign in there."
+                  : (
+                      <EmptyLine
+                        line={
+                          search.platform
+                            ? `No ${NETWORK_NAMES[search.platform]} accounts${projectId ? " in this project" : ""} yet. Press New account to make one.`
+                            : projectId
+                              ? "No accounts in this project yet. Put one in from its ⋮, or make one with New account."
+                              : "No accounts yet. Press New account, pick the network and where it runs, then sign in there."
+                        }
+                        action={<EmptyLineButton label="New account" onClick={() => setAdding(true)} />}
+                      />
+                    )
           }
         >
           {groups.map((group) => (

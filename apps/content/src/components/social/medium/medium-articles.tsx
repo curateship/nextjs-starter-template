@@ -19,7 +19,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Hint } from "@/components/social/hint"
@@ -117,7 +117,7 @@ export function MediumArticlesList({
   const [checking, setChecking] = React.useState(false)
   const published = articles.filter((article) => article.status === "published" && !article.deletedAt).map((article) => article.id)
 
-  async function start(input: { about: string; accountId: string | null; redditCommentId?: string }) {
+  async function start(input: NewArticleInput) {
     try {
       const { id } = await startMediumArticle({ projectId, ...input })
       await onChanged()
@@ -239,9 +239,11 @@ export function MediumArticlesList({
                 ))}
               </div>
             ) : (
-              <p className="px-4 pt-3 text-sm text-muted-foreground">
-                No posts of your own yet. Press New post to write one.
-              </p>
+              // The header's New post is "+" alone in a narrow header, so the line carries its own.
+              <div className="grid justify-items-start gap-3 px-4 pt-3">
+                <p className="text-sm text-muted-foreground">No posts of your own yet. Press New post to write one.</p>
+                <NewArticleButton projectId={projectId} accounts={accounts} onCreate={start} />
+              </div>
             )}
             <div className="grid gap-2 border-t px-3 pt-3">
               <p className="text-xs font-medium text-muted-foreground">On the accounts&apos; Medium lists</p>
@@ -312,9 +314,8 @@ export function MediumArticlesList({
 
 /**
  * New post as a dropdown, the way every dashboard's New button works
- * (Ui-standards): what it is about first, then who publishes it, then
- * whether it grows from a Reddit comment that did well (part 30), and
- * Create article at the bottom right.
+ * (Ui-standards). The form itself is `NewArticleForm`, which the right panel
+ * also shows while no article is open.
  */
 function NewArticleButton({
   projectId,
@@ -323,9 +324,52 @@ function NewArticleButton({
 }: {
   projectId: string
   accounts: Account[]
-  onCreate: (input: { about: string; accountId: string | null; redditCommentId?: string }) => Promise<void>
+  onCreate: (input: NewArticleInput) => Promise<void>
 }) {
   const [open, setOpen] = React.useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <DashboardToolbarButton type="button">
+          <PlusIcon className="size-4" />
+          New post
+        </DashboardToolbarButton>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-3">
+        <NewArticleForm
+          projectId={projectId}
+          accounts={accounts}
+          autoFocus
+          onCreate={async (input) => {
+            await onCreate(input)
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+type NewArticleInput = { about: string; accountId: string | null; redditCommentId?: string }
+
+/**
+ * What it is about first, then who publishes it, then whether it grows from a
+ * Reddit comment that did well (part 30), and Create article at the bottom
+ * right. The Reddit comments are read when the form first shows.
+ */
+function NewArticleForm({
+  projectId,
+  accounts,
+  autoFocus = false,
+  onCreate,
+}: {
+  projectId: string
+  accounts: Account[]
+  autoFocus?: boolean
+  onCreate: (input: NewArticleInput) => Promise<void>
+}) {
+  // The panel and the dropdown can both hold this form at once.
+  const id = React.useId()
   const [about, setAbout] = React.useState("")
   const [accountId, setAccountId] = React.useState<string>("none")
   const [source, setSource] = React.useState<string>("none")
@@ -333,7 +377,6 @@ function NewArticleButton({
   const [busy, setBusy] = React.useState(false)
 
   React.useEffect(() => {
-    if (!open || sources) return
     let alive = true
     loadRedditSources(projectId).then(
       (rows) => alive && setSources(rows),
@@ -342,7 +385,7 @@ function NewArticleButton({
     return () => {
       alive = false
     }
-  }, [open, projectId, sources])
+  }, [projectId])
 
   async function create(event?: React.FormEvent) {
     event?.preventDefault()
@@ -358,7 +401,6 @@ function NewArticleButton({
         accountId: accountId === "none" ? null : accountId,
         ...(picked ? { redditCommentId: picked.id } : {}),
       })
-      setOpen(false)
       setAbout("")
       setSource("none")
     } finally {
@@ -367,63 +409,53 @@ function NewArticleButton({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <DashboardToolbarButton type="button">
-          <PlusIcon className="size-4" />
-          New post
-        </DashboardToolbarButton>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-3">
-        <form className="grid gap-4" onSubmit={create}>
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="medium-new-about">What it is about</FieldLabel>
-            <Input id="medium-new-about" autoFocus value={about} placeholder="How small teams pick a task tool" onChange={(event) => setAbout(event.target.value)} />
-          </div>
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="medium-new-account">Post as</FieldLabel>
-            <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger id="medium-new-account">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Pick later</SelectItem>
-                {accounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {account.handle ? `@${account.handle}` : "Not signed in yet"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="medium-new-source" hint="A Reddit comment of yours that did well. The outline and the article grow from its words.">
-              Grow it from
-            </FieldLabel>
-            <Select value={source} onValueChange={setSource}>
-              <SelectTrigger id="medium-new-source">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nothing, start from scratch</SelectItem>
-                {(sources ?? []).map((row) => (
-                  <SelectItem key={row.id} value={row.id}>
-                    {row.upvotes !== null ? `${row.upvotes} upvotes: ` : ""}
-                    {row.postTitle.slice(0, 60)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex justify-end">
-            <Button type="submit" disabled={busy}>
-              {busy ? <Loader2Icon className="animate-spin" /> : null}
-              Create article
-            </Button>
-          </div>
-        </form>
-      </PopoverContent>
-    </Popover>
+    <form className="grid grid-cols-[minmax(0,1fr)] gap-4" onSubmit={create}>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        <FieldLabel htmlFor={`${id}-about`}>What it is about</FieldLabel>
+        <Input id={`${id}-about`} autoFocus={autoFocus} value={about} placeholder="How small teams pick a task tool" onChange={(event) => setAbout(event.target.value)} />
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        <FieldLabel htmlFor={`${id}-account`}>Post as</FieldLabel>
+        <Select value={accountId} onValueChange={setAccountId}>
+          <SelectTrigger id={`${id}-account`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Pick later</SelectItem>
+            {accounts.map((account) => (
+              <SelectItem key={account.id} value={account.id}>
+                {account.handle ? `@${account.handle}` : "Not signed in yet"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        <FieldLabel htmlFor={`${id}-source`} hint="A Reddit comment of yours that did well. The outline and the article grow from its words.">
+          Grow it from
+        </FieldLabel>
+        <Select value={source} onValueChange={setSource}>
+          <SelectTrigger id={`${id}-source`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Nothing, start from scratch</SelectItem>
+            {(sources ?? []).map((row) => (
+              <SelectItem key={row.id} value={row.id}>
+                {row.upvotes !== null ? `${row.upvotes} upvotes: ` : ""}
+                {row.postTitle.slice(0, 60)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex justify-end">
+        <Button type="submit" disabled={busy}>
+          {busy ? <Loader2Icon className="animate-spin" /> : null}
+          Create article
+        </Button>
+      </div>
+    </form>
   )
 }
 
@@ -442,6 +474,7 @@ export function MediumArticlePanel({
   onBack,
   onClose,
   onChanged,
+  onCreated,
 }: {
   projectId: string
   article: MediumArticleView | null
@@ -450,7 +483,11 @@ export function MediumArticlePanel({
   onBack?: () => void
   onClose: () => void
   onChanged: () => Promise<void>
+  /** An article started from the form shown while none is open. */
+  onCreated: (id: string) => Promise<void>
 }) {
+  // No article open: the New post form, as Reddit's and YouTube's right panels
+  // show, never a line telling you to press something (the right panel is never empty).
   if (!article) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
@@ -459,10 +496,29 @@ export function MediumArticlePanel({
             <Button type="button" size="icon" variant="ghost" aria-label="Back to the list" onClick={onBack}>
               <ArrowLeftIcon />
             </Button>
-          ) : null}
-          <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">An article</span>
+          ) : (
+            <DashboardCardHeaderIcon>
+              <PlusIcon className="size-4" />
+            </DashboardCardHeaderIcon>
+          )}
+          <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>New post</span>
         </DashboardCardHeader>
-        <p className="p-4 text-sm text-muted-foreground">Click a post to write it or to see how it is doing, or press New post.</p>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="p-4">
+            <NewArticleForm
+              projectId={projectId}
+              accounts={accounts}
+              onCreate={async (input) => {
+                try {
+                  const { id } = await startMediumArticle({ projectId, ...input })
+                  await onCreated(id)
+                } catch (failure) {
+                  showErrorToast(getMediumErrorMessage(failure))
+                }
+              }}
+            />
+          </div>
+        </ScrollArea>
       </div>
     )
   }
@@ -1105,7 +1161,7 @@ function PublishedArticle({
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title="Delete this article from Medium?"
-        description="The account's browser deletes it on Medium. Promo keeps its record and its numbers."
+        description="The account's browser deletes it on Medium. Content keeps its record and its numbers."
         confirmLabel="Delete"
         loading={busy === "delete"}
         onConfirm={() =>

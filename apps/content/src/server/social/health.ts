@@ -290,7 +290,7 @@ async function stopForSuspendedReading(userId: string, accountId: string, handle
       message: `${NOTICE_HEADINGS.suspended} u/${handle}`,
       detail: [
         "Reddit marks the account suspended. Nothing it posts will be seen.",
-        `Promo stopped it${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}, and counts it as a ban.`,
+        `Content stopped it${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}, and counts it as a ban.`,
         "Appeal it on Reddit first if you want to, then let it run again or press Clean up from the ban in the Anti Detect dashboard's Bans.",
       ].join(" "),
       href: "/admin/anti-detect?section=bans",

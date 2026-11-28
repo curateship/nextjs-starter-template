@@ -27,6 +27,9 @@ after the window was gone. This covers Captions, Read a script with AI
 
 - **Blur that follows and Find faces:** a picture every half second of the
   blur, at 1,120 tokens each, on Gemini Flash ([blur.md](blur.md)).
+- **Hooks' Write hooks like this and Formats' Write a script:** "Write 5
+  hooks · about 1¢" and "Write · about 1¢", the saved writer's price
+  ([library.md](library.md)).
 - **Picture changes and the Thumbnail board:** the picture model's price
   times the versions a press makes, for example "Make it · $0.27" for four
   Nano Banana 2 pictures. Ideas, the check and Copy a style are priced at

@@ -364,8 +364,10 @@ export function FindsPanel({
                               <MessageSquareTextIcon className="size-3.5 shrink-0 text-muted-foreground" role="img" aria-label="Replies read, ready to answer" />
                             ) : null}
                           </MainCell>
-                          <TableCell column="preview" className="hidden max-w-56 md:hidden @2xl:table-cell">
-                            <span className="block truncate text-muted-foreground">{where}</span>
+                          {/* Capped while the list is narrow; from 48rem the whole line shows and the post's
+                              title, which wraps, takes the room left. */}
+                          <TableCell column="preview" className="hidden max-w-56 md:hidden @2xl:table-cell @3xl:max-w-none">
+                            <span className="block truncate text-muted-foreground @3xl:overflow-visible @3xl:whitespace-nowrap">{where}</span>
                           </TableCell>
                           <TableCell column="mutedMeta" className="hidden tabular-nums md:hidden @lg:table-cell">
                             {find.score}

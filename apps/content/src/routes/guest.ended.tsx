@@ -23,7 +23,7 @@ const REASONS: Record<string, { title: string; text: string }> = {
   },
   gone: {
     title: "This video project no longer exists",
-    text: "It was deleted in Video. Ask whoever gave you the task.",
+    text: "It was deleted in Content. Ask whoever gave you the task.",
   },
   off: {
     title: "Opening videos from Project isn't set up yet",
@@ -40,7 +40,7 @@ export const Route = createFileRoute("/guest/ended")({
   validateSearch: (search: Record<string, unknown>) => ({
     why: typeof search.why === "string" && Object.hasOwn(REASONS, search.why) ? search.why : undefined,
   }),
-  head: () => ({ meta: [{ title: "Video" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({ meta: [{ title: "Content" }, { name: "robots", content: "noindex, nofollow" }] }),
   component: GuestEndedRoute,
 })
 

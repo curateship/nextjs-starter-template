@@ -286,7 +286,7 @@ export function ExportsPage({
   function openSend(targets: RenderJobSummary[]) {
     const ready = targets.filter((item) => item.status === "ready")
     if (!ready.length) {
-      showErrorToast("Only a finished export can go to Promo. Wait for it to finish first.")
+      showErrorToast("Only a finished export can be added to a project. Wait for it to finish first.")
       return
     }
     const first = ready[0]
@@ -323,7 +323,7 @@ export function ExportsPage({
             {selectedCount ? (
               <DashboardToolbarButton type="button" variant="outline" onClick={() => openSend(selectedItems)}>
                 <SendIcon className="size-4" />
-                Send to Promo ({selectedReady})
+                Add to project ({selectedReady})
               </DashboardToolbarButton>
             ) : null}
             {selectedCount ? (
@@ -522,13 +522,13 @@ export function ExportsPage({
                             </Button>
                           </Hint>
                         ) : null}
-                        <Hint label="Send to Promo">
+                        <Hint label="Add to project">
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
                             onClick={() => openSend([item])}
-                            aria-label={`Send ${item.title ?? "this export"} to Promo`}
+                            aria-label={`Add ${item.title ?? "this export"} to a project`}
                           >
                             <SendIcon className="size-4" />
                           </Button>

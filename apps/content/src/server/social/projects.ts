@@ -3,6 +3,7 @@ import { and, asc, count, eq, isNull } from "drizzle-orm"
 import { projectBanCounts } from "@/server/bans/dashboard"
 import { uuid } from "@/server/auth/security"
 import { promoArchiveItems } from "@/server/archive/schema"
+import { videoProjectVideos } from "@/server/video/schema"
 import { deleteProjectParts, ensureProjectParts, syncProjectParts } from "@/server/content-app/projects"
 import { db as defaultDb, type CustomShellDb } from "@/server/db"
 import type { AccountImportance } from "@/lib/social/importance"
@@ -241,7 +242,7 @@ export async function addProjectNetwork(
   network: Network,
   db: CustomShellDb = defaultDb
 ): Promise<void> {
-  if (!isNetwork(network)) throw new Error("Promo cannot use that network yet.")
+  if (!isNetwork(network)) throw new Error("Content cannot use that network yet.")
   const project = await ownedProject(userId, projectId, db)
   const networks = usedNetworks(project)
   if (networks.includes(network)) {
@@ -598,8 +599,10 @@ export type ProjectView = {
     pausedCommenting: Network[]
     /** Its accounts a counted ban hit in the last 30 days (Bans task, part 18). */
     bannedRecently: number
-    /** Items in its Archive, not counting the Bin, on the Archive card's title. */
+    /** Items in its Archive, not counting the Bin: Published on the preview's Content card. */
     archiveCount: number
+    /** Its videos still in the editor, not archived: Drafts on the preview's Content card. */
+    draftCount: number
     /** The monthly AI spend cap in whole cents, or null for none (`spend-cap.ts`). */
     aiCapCents: number | null
     /** What the project's AI calls cost this calendar month, in whole cents. */
@@ -698,6 +701,7 @@ export async function readProjectView(
       pausedCommenting: project.pausedCommenting.filter(isNetwork),
       bannedRecently: (await projectBanCounts(userId, db)).get(project.id) ?? 0,
       archiveCount: await archiveCount(userId, project.id, db),
+      draftCount: await draftCount(userId, project.id, db),
       aiCapCents: project.aiCapCents,
       aiSpentCents: await projectMonthSpendCents(userId, project.id, db),
     },
@@ -832,6 +836,21 @@ async function archiveCount(userId: string, projectId: string, db: CustomShellDb
         eq(promoArchiveItems.userId, userId),
         eq(promoArchiveItems.projectId, projectId),
         isNull(promoArchiveItems.deletedAt)
+      )
+    )
+  return row?.n ?? 0
+}
+
+/** A project's videos still in the editor, as Content's Status Draft lists them: archived ones left out. */
+async function draftCount(userId: string, projectId: string, db: CustomShellDb): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(videoProjectVideos)
+    .where(
+      and(
+        eq(videoProjectVideos.userId, userId),
+        eq(videoProjectVideos.projectId, projectId),
+        isNull(videoProjectVideos.archivedAt)
       )
     )
   return row?.n ?? 0

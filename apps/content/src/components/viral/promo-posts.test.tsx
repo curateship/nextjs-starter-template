@@ -60,7 +60,7 @@ async function openAndWrite() {
       </TooltipProvider>
     )
   )
-  await act(async () => button("Post for Promo")?.click())
+  await act(async () => button("Post for a project")?.click())
   await act(async () => button("Write")?.click())
   expect(document.querySelector("#viral-promo-piece-0")).not.toBeNull()
 }

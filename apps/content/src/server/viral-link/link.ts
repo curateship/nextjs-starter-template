@@ -87,7 +87,7 @@ export function cleanViralUrl(raw: string): string | null {
 }
 
 /** Said when Viral's address points inside the server's own network. */
-export const INSIDE_VIRAL_ADDRESS = "Viral's address points inside the server's own network, so Promo will not call it."
+export const INSIDE_VIRAL_ADDRESS = "Viral's address points inside the server's own network, so Content will not call it."
 
 /** Keeps the Viral address that pressed Test, the only one Promo calls back. */
 export async function rememberViralUrl(userId: string, viralUrl: string, db: CustomShellDb = defaultDb, now = new Date()) {
@@ -141,9 +141,9 @@ export async function answerViral<Shape extends z.ZodType>(
     link = await findViralCaller(request, db)
   } catch (error) {
     console.error("A Viral message could not be checked", error)
-    return answer(503, { error: "Promo could not check this message. Try again shortly." })
+    return answer(503, { error: "Content could not check this message. Try again shortly." })
   }
-  if (!link) return answer(401, { error: "Promo does not know this key." })
+  if (!link) return answer(401, { error: "Content does not know this key." })
 
   try {
     // A read or a post is a press of a button in Viral, so 600 an hour is far
@@ -169,7 +169,7 @@ export async function answerViral<Shape extends z.ZodType>(
       return answer(400, { error: "This message is not JSON." })
     }
     const checked = shape.safeParse(parsed)
-    if (!checked.success) return answer(400, { error: "This message is not in a shape Promo knows." })
+    if (!checked.success) return answer(400, { error: "This message is not in a shape Content knows." })
     parsed = checked.data
   }
 
@@ -178,7 +178,7 @@ export async function answerViral<Shape extends z.ZodType>(
   } catch (error) {
     if (error instanceof ViralLinkRefusal) return answer(error.status, { error: error.message })
     console.error("A Viral message failed", error)
-    return answer(500, { error: "Promo could not do that. It is in the server's log." })
+    return answer(500, { error: "Content could not do that. It is in the server's log." })
   }
 }
 
@@ -208,7 +208,7 @@ export async function callViral(
     redirect: "error",
     signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
   }).catch(() => {
-    throw new Error("Viral could not be reached. Check Viral is running at the address it was tested from.")
+    throw new Error("Research could not be reached. Try again.")
   })
   const reply = (await response.json().catch(() => ({}))) as { error?: unknown }
   if (!response.ok) {

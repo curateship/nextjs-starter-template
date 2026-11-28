@@ -510,9 +510,12 @@ function ProjectSummary({
                   <DetailNote>No networks yet.</DetailNote>
                 )}
               </PanelCard>
-              <PanelCard icon={<FolderArchiveIcon />} storageId="promo-project-summary-archive" title="Archive" meta={project.archiveCount.toLocaleString()}>
+              {/* Content's Status words: Drafts are the videos still in the editor, Published is the
+                  Archive. The storage id stays the old Archive card's, so its folded state carries on. */}
+              <PanelCard icon={<FolderArchiveIcon />} storageId="promo-project-summary-archive" title="Content" meta={(project.draftCount + project.archiveCount).toLocaleString()}>
                 <DetailRows>
-                  <DetailRow label="Items" value={project.archiveCount.toLocaleString()} />
+                  <DetailRow label="Drafts" value={project.draftCount.toLocaleString()} />
+                  <DetailRow label="Published" value={project.archiveCount.toLocaleString()} />
                 </DetailRows>
                 {project.bannedRecently ? (
                   <Link

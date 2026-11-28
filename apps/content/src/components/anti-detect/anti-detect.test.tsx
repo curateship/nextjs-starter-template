@@ -291,7 +291,7 @@ describe("the Anti Detect dashboard", () => {
       await draw(<AntiDetectOverview data={DATA} reach={null} projectId="" layout={LAYOUT} onChange={() => {}} />)
       const words = container.textContent ?? ""
       expect(words).toContain("Every Instagram account is paused")
-      expect(words).toContain("Promo doesn't know this screen. Is it a ban?")
+      expect(words).toContain("Content doesn't know this screen. Is it a ban?")
       expect(words).toContain("4 bans out of 10 bought, $120 lost")
       expect(words).toContain("1 ban")
       expect(words).toContain("Main")

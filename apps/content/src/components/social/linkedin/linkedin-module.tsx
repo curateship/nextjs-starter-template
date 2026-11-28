@@ -5,7 +5,7 @@ import { HeaderActionsProvider } from "@/components/social/header-actions"
 import { NetworkPaneColumns, useNetworkPanes, withPaneTabs, NetworkTabs } from "@/components/content-app/network-panes"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { Link } from "@tanstack/react-router"
-import { AlertTriangleIcon, MailIcon, MoonIcon, PauseIcon } from "lucide-react"
+import { AlertTriangleIcon, MailIcon, MoonIcon, PauseIcon, UsersIcon } from "lucide-react"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
@@ -519,6 +519,10 @@ export function LinkedinModule({
         onBack={back}
         onClose={() => openRecord(null)}
         onChanged={refreshAll}
+        onCreated={async (id) => {
+          await refreshAll()
+          openRecord(id)
+        }}
       />
     )
   } else {
@@ -526,7 +530,7 @@ export function LinkedinModule({
       <LinkedinPeopleTab projectId={projectId} data={list.people} loading={listLoading} error={list.error} onRetry={() => void refreshList()} onChanged={refreshAll} />
     )
     right = (
-      <XPanelFrame title="People" onBack={back}>
+      <XPanelFrame title="People" icon={<UsersIcon />} onBack={back}>
         <p className="p-4 text-sm text-muted-foreground">Everything on the People tab happens in the middle column: accept requests, and connect with people who viewed a profile.</p>
       </XPanelFrame>
     )

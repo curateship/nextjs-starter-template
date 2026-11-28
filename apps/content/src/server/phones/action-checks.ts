@@ -95,6 +95,6 @@ export async function refuseBrokenAction(
   if (!check || check.passed) return
   const day = check.checkedAt.toISOString().slice(0, 10)
   throw new Refusal(
-    `The daily self-test found ${actionWords(action)} broken on ${day}, at "${check.step || "its first step"}", on the ${testPhone}. Promo refuses it on every ${PHONE_KIND_WORDS[kind]} until the self-test passes again; see Self-test in the Anti Detect dashboard's Racks. Nothing was sent.`
+    `The daily self-test found ${actionWords(action)} broken on ${day}, at "${check.step || "its first step"}", on the ${testPhone}. Content refuses it on every ${PHONE_KIND_WORDS[kind]} until the self-test passes again; see Self-test in the Anti Detect dashboard's Racks. Nothing was sent.`
   )
 }

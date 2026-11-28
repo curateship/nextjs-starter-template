@@ -72,7 +72,7 @@ export async function acceptPost(link: PromoViralLinkRow, note: PostNote, db: Cu
     .from(promoProjects)
     .where(and(eq(promoProjects.id, note.projectId), eq(promoProjects.userId, userId)))
     .limit(1)
-  if (!project) throw new ViralLinkRefusal(404, "That Promo project is not there any more. Pick another one.")
+  if (!project) throw new ViralLinkRefusal(404, "That project is not there any more. Pick another one.")
 
   const pieces = note.pieces.map((piece) => piece.trim()).filter(Boolean)
   if (!pieces.length) throw new ViralLinkRefusal(400, "The post has no words.")

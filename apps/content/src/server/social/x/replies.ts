@@ -271,7 +271,7 @@ async function ownedReply(userId: string, replyId: string, db: CustomShellDb): P
     .from(promoXReplies)
     .where(and(eq(promoXReplies.id, replyId), eq(promoXReplies.userId, userId)))
     .limit(1)
-  if (!row) throw new Error("That reply is not one Promo sent.")
+  if (!row) throw new Error("That reply is not one Content sent.")
   return row
 }
 
@@ -852,7 +852,7 @@ export async function runXChange(
     .from(promoXPosts)
     .where(and(eq(promoXPosts.id, postRowId), eq(promoXPosts.userId, userId)))
     .limit(1)
-  if (!post) throw new Error("That post is not one Promo posted.")
+  if (!post) throw new Error("That post is not one Content posted.")
   // A thread is deleted from its last piece back, so no piece is left
   // answering one that is gone.
   for (const piece of [...post.pieces].reverse()) {

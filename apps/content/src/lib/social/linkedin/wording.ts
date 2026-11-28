@@ -56,7 +56,7 @@ export function linkedinPostingRefusal(state: LinkedinPostingState, now: Date = 
   if (state.paused === "network") return "LinkedIn is paused on this project. Resume LinkedIn in the project's left column to post again."
   if (state.paused === "brake") return brakeWords("linkedin")
   if (state.warmUp.ageUnknown) {
-    return "Promo has not seen this account signed in to LinkedIn, so its warm-up has not started. Press Check now on the Accounts dashboard, then try again."
+    return "Content has not seen this account signed in to LinkedIn, so its warm-up has not started. Press Check now on the Accounts dashboard, then try again."
   }
   if (state.warmUp.endsAt && state.warmUp.endsAt > now) {
     return `This account is in its first ${LINKEDIN_WARM_UP_DAYS} days on LinkedIn, only reading and reacting. It may comment ${whenText(state.warmUp.endsAt, now, timeZone)}.`

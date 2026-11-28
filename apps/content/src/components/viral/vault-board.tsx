@@ -112,7 +112,7 @@ function BoardColumn({ status, items, children }: { status: VaultStatus; items: 
         <ul className="flex flex-col gap-2">{children}</ul>
       ) : (
         <p className="px-1 py-2 text-xs text-muted-foreground">
-          {status === "sent" ? "Ideas turn Sent after Send to Video." : "Drag an idea here."}
+          {status === "sent" ? "Ideas turn Sent after Make a draft." : "Drag an idea here."}
         </p>
       )}
     </section>

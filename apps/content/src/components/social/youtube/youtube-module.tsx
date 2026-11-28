@@ -1,14 +1,14 @@
 import * as React from "react"
 import { ListHeader } from "@/components/content-app/list-header"
 import { ProjectMenuButton } from "@/components/content-app/project-top"
-import { ArrowLeftIcon, LayoutTemplateIcon, PlusIcon } from "lucide-react"
+import { ArrowLeftIcon, LayoutTemplateIcon, MessageSquareIcon, PlusIcon } from "lucide-react"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { AppCommentsTable } from "@/components/social/phone-apps/app-tables"
 import { InboxAnswer } from "@/components/social/phone-apps/inbox-answer"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
 import { JobsWindow } from "@/components/social/reddit/jobs-window"
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { PanelReopenButton } from "@/components/shared/three-panels"
 import { NetworkPaneColumns, useNetworkPanes, withPaneTabs, NetworkTabs } from "@/components/content-app/network-panes"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
@@ -23,6 +23,7 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { channelName } from "@/lib/social/youtube/options"
+import { cn } from "@/lib/utils"
 
 import { YoutubeChannelPicker } from "./youtube-channel-picker"
 import { YoutubeComposer } from "./youtube-composer"
@@ -252,8 +253,12 @@ export function YoutubeModule({
   const right = comment ? (
     <div className="flex min-h-0 flex-1 flex-col">
       <DashboardCardHeader>
-        {back}
-        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+        {back ?? (
+          <DashboardCardHeaderIcon>
+            <MessageSquareIcon className="size-4" />
+          </DashboardCardHeaderIcon>
+        )}
+        <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>
           {comment.author} under a video by {channelName(comment.account.handle)}
         </span>
       </DashboardCardHeader>
@@ -273,8 +278,12 @@ export function YoutubeModule({
   ) : (
     <div className="flex min-h-0 flex-1 flex-col">
       <DashboardCardHeader>
-        {back}
-        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">New YouTube video</span>
+        {back ?? (
+          <DashboardCardHeaderIcon>
+            <PlusIcon className="size-4" />
+          </DashboardCardHeaderIcon>
+        )}
+        <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>New YouTube video</span>
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1">
         {!view ? (

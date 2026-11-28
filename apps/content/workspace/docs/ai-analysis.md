@@ -14,6 +14,8 @@ ideas", "Title + hashtags" (`src/server/viral/ai-analysis.ts`).
 3. **The four pieces.** Four writing calls run side by side, so the wait is
    the slowest one:
    - **Why it works:** the hook, each part in order, and what made it spread.
+     The card says the hook once: the parts after "The hook." leave out the
+     breakdown's own Hook part, and so does its Copy.
      The same call names the hook's type for the Library, from the fixed
      types and your own, at no extra cost (`library.md`, "Hook types").
    - **The script:** the same parts in the same order, written for the

@@ -106,7 +106,7 @@ export async function addXKeyword(
   await ownedProject(userId, projectId, db)
   if (!X_KEYWORD_KINDS.includes(input.kind)) throw new Error("X has no keyword of that kind.")
   const mark = input.mark ?? ""
-  if (!X_KEYWORD_MARKS.includes(mark)) throw new Error("That mark is not one Promo knows.")
+  if (!X_KEYWORD_MARKS.includes(mark)) throw new Error("That mark is not one Content knows.")
   if (mark && input.kind !== "search") {
     throw new Error("Only search words can be marked as naming you or a rival. A hashtag or an account names nobody.")
   }
@@ -164,7 +164,7 @@ export async function setXKeyword(
     .limit(1)
   if (!keyword) throw new Error("That keyword is no longer saved.")
   if (change.mark !== undefined) {
-    if (!X_KEYWORD_MARKS.includes(change.mark)) throw new Error("That mark is not one Promo knows.")
+    if (!X_KEYWORD_MARKS.includes(change.mark)) throw new Error("That mark is not one Content knows.")
     if (change.mark && keyword.kind !== "search") {
       throw new Error("Only search words can be marked as naming you or a rival. A hashtag or an account names nobody.")
     }

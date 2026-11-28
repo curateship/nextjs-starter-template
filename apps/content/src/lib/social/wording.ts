@@ -137,7 +137,7 @@ export function postingRefusalText(
   }
   if (state.paused === "brake") return brakeWords("reddit")
   if (state.warmUp.ageUnknown) {
-    return "Promo has not read how old this account is, so it cannot tell when the warm-up ends. Tick it on the Accounts dashboard, and press Check now, then try again."
+    return "Content has not read how old this account is, so it cannot tell when the warm-up ends. Tick it on the Accounts dashboard, and press Check now, then try again."
   }
   if (state.warmUp.endsAt && state.warmUp.endsAt > now) {
     return `This account is still warming up. Its first comment is allowed ${whenText(state.warmUp.endsAt, now, timeZone)}.`
@@ -342,7 +342,7 @@ export function noWordsText(find: {
   const plain = "This post has no words of its own. It is a link or a picture."
   if (!find.linkUrl) return plain
   if (!find.linkReadAt) {
-    return "This post is a link with no words of its own. Promo is reading the page it links to, which shows here when you open the post again."
+    return "This post is a link with no words of its own. Content is reading the page it links to, which shows here when you open the post again."
   }
   return `${plain} The page it links to could not be read. ${find.linkError || "Nothing came back."}`
 }
@@ -536,7 +536,7 @@ export function commentStateWords(row: CommentReading): { label: string; detail:
   if (row.deletedAt) {
     return {
       label: "Deleted by you",
-      detail: "You deleted it from Reddit with Promo. It is kept here, and never read again.",
+      detail: "You deleted it from Reddit with Content. It is kept here, and never read again.",
     }
   }
   if (row.checking) {

@@ -1,21 +1,25 @@
 import * as React from "react"
 import { ArrowLeftIcon, RefreshCwIcon } from "lucide-react"
 
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 /**
  * The X module's right column frame: its header, with the way back to the
- * list on a narrow screen, then whatever is open. The header holds a muted
- * title, or the record's own buttons.
+ * list on a narrow screen, then whatever is open. The header holds an icon
+ * and a title, as every other right panel's does, or the record's own buttons.
  */
 export function XPanelFrame({
   title,
+  icon,
   header,
   onBack,
   children,
 }: {
   title?: string
+  /** Beside the title; the way back takes its place on a narrow screen. */
+  icon?: React.ReactNode
   header?: React.ReactNode
   /** Only on a narrow screen, where the record covers the list. */
   onBack?: () => void
@@ -29,7 +33,12 @@ export function XPanelFrame({
             <ArrowLeftIcon />
           </Button>
         ) : null}
-        {header ?? <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{title}</span>}
+        {header ?? (
+          <>
+            {icon && !onBack ? <DashboardCardHeaderIcon className="[&_svg]:size-4">{icon}</DashboardCardHeaderIcon> : null}
+            <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>{title}</span>
+          </>
+        )}
       </DashboardCardHeader>
       {children}
     </div>

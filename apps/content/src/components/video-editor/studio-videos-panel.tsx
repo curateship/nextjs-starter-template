@@ -102,7 +102,7 @@ export function VideosPanel() {
       // A video asked for in Promo shows what was asked (part 42).
       // A draft sent from Viral's vault shows its script's first line.
       note: video.promo_brief
-        ? { line: `Asked for in Promo: ${video.promo_brief.trim().split("\n")[0]}`, full: video.promo_brief }
+        ? { line: `Asked for in the project: ${video.promo_brief.trim().split("\n")[0]}`, full: video.promo_brief }
         : video.viral_script
           ? { line: `From Viral: ${video.viral_script.trim().split("\n")[0]}`, full: video.viral_script }
           : undefined,
@@ -113,7 +113,7 @@ export function VideosPanel() {
       : (video) => (
           <DropdownMenuItem onSelect={() => void sendToPromo.open({ videoId: video.id })}>
             <SendIcon />
-            Send to Promo
+            Add to project
           </DropdownMenuItem>
         ),
     pending: (video) => video.thumbnail_pending,

@@ -135,7 +135,7 @@ async function waitForAnswer(
       // very moment keeps it and is waited for.
       const [called] = await db
         .update(promoPhoneActions)
-        .set({ status: "cancelled", error: "Promo stopped waiting before the rack started it.", finishedAt: new Date() })
+        .set({ status: "cancelled", error: "Content stopped waiting before the rack started it.", finishedAt: new Date() })
         .where(and(eq(promoPhoneActions.id, id), eq(promoPhoneActions.status, "queued")))
         .returning({ id: promoPhoneActions.id })
       if (called) {
@@ -152,7 +152,7 @@ async function waitForAnswer(
       // (`finishAction` takes only running ones).
       await db
         .update(promoPhoneActions)
-        .set({ status: "failed", error: "Promo stopped waiting for it.", finishedAt: new Date() })
+        .set({ status: "failed", error: "Content stopped waiting for it.", finishedAt: new Date() })
         .where(and(eq(promoPhoneActions.id, id), eq(promoPhoneActions.status, "running")))
       throw new PhoneActionError(
         routine,

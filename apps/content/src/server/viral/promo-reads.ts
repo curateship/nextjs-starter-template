@@ -125,10 +125,10 @@ export type PromoReadRequest = { projectId: string; network: PromoReadNetwork; k
  */
 export async function requestPromoRead(ownerId: string, request: PromoReadRequest, fetchImpl?: typeof fetch): Promise<PromoRead> {
   if (!PROMO_READ_NETWORKS.includes(request.network) || !PROMO_READ_KINDS.includes(request.kind)) {
-    throw viralSays("Promo can't read that.")
+    throw viralSays("Content can't read that.")
   }
   if (!PROMO_READ_KINDS_BY_NETWORK[request.network].includes(request.kind)) {
-    throw viralSays(`Promo can't read a ${request.kind} on ${request.network}.`)
+    throw viralSays(`Content can't read a ${request.kind} on ${request.network}.`)
   }
   const value = request.value.trim().slice(0, 300)
   if (!value) throw viralSays("Type what to read first.")
@@ -136,7 +136,7 @@ export async function requestPromoRead(ownerId: string, request: PromoReadReques
   // Its posts are made up, so there is nothing real for Promo to read.
   if (project.isSample) throw viralSays("The sample project never reads anything. Make a project of your own to read it.")
   const connection = await readPromoConnection().catch((error: unknown) => {
-    throw viralSays(error instanceof Error ? error.message : "Fill in Promo's address and key first.")
+    throw viralSays(error instanceof Error ? error.message : "Content could not link its parts. Try again.")
   })
 
   const id = uuid()
@@ -152,7 +152,7 @@ export async function requestPromoRead(ownerId: string, request: PromoReadReques
     // this read, whatever id Promo echoed, so it can never fill in another.
     if (answer.status !== "waiting") await applyPromoReadAnswer(ownerId, { ...answer, readId: id })
   } catch (error) {
-    const message = error instanceof PromoRefusal || error instanceof Error ? error.message : "Promo didn't answer."
+    const message = error instanceof PromoRefusal || error instanceof Error ? error.message : "Promote didn't answer."
     await db
       .update(viralPromoReads)
       .set({ status: "failed", error: message.slice(0, 1_000), finishedAt: now() })
@@ -181,7 +181,7 @@ export async function applyPromoReadAnswer(ownerId: string, answer: PromoReadAns
   if (answer.status === "failed") {
     await db
       .update(viralPromoReads)
-      .set({ status: "failed", error: (answer.error || "Promo's reader failed.").slice(0, 1_000), finishedAt: at })
+      .set({ status: "failed", error: (answer.error || "Content's reader failed.").slice(0, 1_000), finishedAt: at })
       .where(and(eq(viralPromoReads.id, read.id), eq(viralPromoReads.status, "waiting")))
     return { ok: true, changed: true }
   }
@@ -248,7 +248,7 @@ export async function refreshPromoRead(ownerId: string, readId: string, fetchImp
   if (at.getTime() - read.createdAt.getTime() > READ_STALE_MS) {
     await db
       .update(viralPromoReads)
-      .set({ status: "failed", error: "Promo never answered this read. Ask again.", finishedAt: at })
+      .set({ status: "failed", error: "Content never answered this read. Ask again.", finishedAt: at })
       .where(and(eq(viralPromoReads.id, read.id), eq(viralPromoReads.status, "waiting")))
     return toRead(await ownedRead(ownerId, readId))
   }

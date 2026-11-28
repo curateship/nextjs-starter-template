@@ -95,7 +95,7 @@ export function AppProfileCard({ accountId, network }: { accountId: string; netw
         {error ? (
           <ErrorRow message={error} onRetry={() => void read()} />
         ) : !loaded ? (
-          <LoadingRow label="Reading the profile Promo last set" />
+          <LoadingRow label="Reading the profile Content last set" />
         ) : (
           <>
             {/* Threads shows the Instagram account's name and has no box for one of its own. */}

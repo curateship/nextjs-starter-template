@@ -108,7 +108,7 @@ export async function addLinkedinKeyword(
   await ownedProject(userId, projectId, db)
   if (!LINKEDIN_KEYWORD_KINDS.includes(input.kind)) throw new Error("LinkedIn has no keyword of that kind.")
   const mark = input.mark ?? ""
-  if (!LINKEDIN_KEYWORD_MARKS.includes(mark)) throw new Error("That mark is not one Promo knows.")
+  if (!LINKEDIN_KEYWORD_MARKS.includes(mark)) throw new Error("That mark is not one Content knows.")
   if (mark && input.kind !== "search") throw new Error(MARK_ONLY_ON_WORDS)
   const value = linkedinKeywordValue(input.kind, input.value)
   if (!value) {
@@ -151,7 +151,7 @@ export async function setLinkedinKeyword(
     .limit(1)
   if (!keyword) throw new Error("That keyword is no longer saved.")
   if (change.mark !== undefined) {
-    if (!LINKEDIN_KEYWORD_MARKS.includes(change.mark)) throw new Error("That mark is not one Promo knows.")
+    if (!LINKEDIN_KEYWORD_MARKS.includes(change.mark)) throw new Error("That mark is not one Content knows.")
     if (change.mark && keyword.kind !== "search") throw new Error(MARK_ONLY_ON_WORDS)
   }
   await db

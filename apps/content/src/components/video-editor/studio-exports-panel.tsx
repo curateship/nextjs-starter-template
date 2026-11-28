@@ -226,7 +226,7 @@ export function ExportsPanel() {
                               type="button"
                               variant="ghost"
                               size="icon-sm"
-                              aria-label={`Send ${name} to Promo`}
+                              aria-label={`Add ${name} to a project`}
                               onClick={() => void sendToPromo.open({ exportId: item.id })}
                             >
                               <SendIcon />

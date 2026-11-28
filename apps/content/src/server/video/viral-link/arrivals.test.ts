@@ -148,7 +148,7 @@ describe("a send with no file", () => {
       viralVaultUrl: `${VIRAL}/admin/vault?open=item-1`,
     })
     const bells = await db.select().from(customShellNotifications)
-    expect(bells.map((bell) => [bell.message, bell.detail])).toEqual([["Meal prep in 30 seconds arrived from Viral", "From Meal prep."]])
+    expect(bells.map((bell) => [bell.message, bell.detail])).toEqual([["Meal prep in 30 seconds arrived from Research", "From Meal prep."]])
   })
 
   it("makes one draft when the same send comes twice", async () => {
@@ -207,7 +207,7 @@ describe("a send with the original", () => {
     const answer = await acceptDraft(link, note(withFile), db)
     expect(await copyArrival(answer.arrivalId, { db, fetchImpl: fakeFetch(500), saveFile, tell })).toBe("failed")
     expect(await sentVideos()).toHaveLength(0)
-    expect(tell).toHaveBeenCalledWith(admin.id, { type: "failed", sendId: "send-1", error: "Viral answered 500 for the video." })
+    expect(tell).toHaveBeenCalledWith(admin.id, { type: "failed", sendId: "send-1", error: "Research answered 500 for the video." })
     expect(await sendStatus(link, "send-1", db)).toEqual({ status: "gone" })
     await expect(acceptDraft(link, note(withFile), db)).rejects.toThrow("failed already")
   })
@@ -216,7 +216,7 @@ describe("a send with the original", () => {
     const tell = vi.fn(async () => ({}))
     const first = await acceptDraft(link, note(withFile), db)
     expect(await copyArrival(first.arrivalId, { db, fetchImpl: fakeFetch(new Uint8Array([1, 2, 3, 4]), "text/html"), saveFile, tell })).toBe("failed")
-    expect(tell).toHaveBeenLastCalledWith(admin.id, { type: "failed", sendId: "send-1", error: "Viral's file isn't a video, so Video didn't keep it." })
+    expect(tell).toHaveBeenLastCalledWith(admin.id, { type: "failed", sendId: "send-1", error: "The file isn't a video, so the editor didn't keep it." })
     const second = await acceptDraft(link, note({ ...withFile, sendId: "send-2" }), db)
     expect(await copyArrival(second.arrivalId, { db, fetchImpl: fakeFetch(new Uint8Array([1, 2])), saveFile, tell })).toBe("failed")
     expect(tell).toHaveBeenLastCalledWith(admin.id, { type: "failed", sendId: "send-2", error: "The video arrived incomplete." })

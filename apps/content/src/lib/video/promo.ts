@@ -66,7 +66,7 @@ export const PROMO_TOKEN_HOURS = 2
 export const PROMO_SEND_STALE_HOURS = 3
 
 /** The words a failed send shows when Promo gave none. */
-export const PROMO_SEND_FAILED = "The send to Promo failed. Try again."
+export const PROMO_SEND_FAILED = "Adding it to the project failed. Try again."
 
 /** Every Promo project, once, so the send window can tick several (part 6). */
 export const MAX_PROMO_PROJECTS_PER_SEND = 10

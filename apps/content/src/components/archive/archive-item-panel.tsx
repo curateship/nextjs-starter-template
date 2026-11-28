@@ -179,7 +179,7 @@ export function ArchiveItemPanel({
                 <Button asChild variant="outline" size="sm">
                   <a href={shown.videoEditUrl} target="_blank" rel="noreferrer">
                     <ExternalLinkIcon className="size-4" />
-                    Edit in Video
+                    Open in the editor
                   </a>
                 </Button>
               ) : null}
@@ -206,7 +206,7 @@ export function ArchiveItemPanel({
                 above are not cards. */}
             <div data-side-panel-body="" className="grid grid-cols-[minmax(0,1fr)] gap-3">
               {shown.caption ? (
-                <PanelCard storageId="promo-archive-caption" title="Caption from Video">
+                <PanelCard storageId="promo-archive-caption" title="Caption from the editor">
                   <p className="text-sm whitespace-pre-wrap">{shown.caption}</p>
                 </PanelCard>
               ) : null}
@@ -235,7 +235,7 @@ function facts(item: Item): string {
     length,
     formatFileSize(item.fileSize),
     item.language,
-    item.source === "upload" ? "uploaded" : item.videoProjectName ? `from ${item.videoProjectName} in Video` : "from Video",
+    item.source === "upload" ? "uploaded" : item.videoProjectName ? `from ${item.videoProjectName} in the editor` : "from the editor",
     item.hasSubtitles ? "has subtitles" : "",
   ]
     .filter(Boolean)

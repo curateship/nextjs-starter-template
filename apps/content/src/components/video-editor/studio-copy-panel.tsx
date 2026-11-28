@@ -109,7 +109,7 @@ export function CopyPanel() {
             ) : (
               <p>
                 This video copies no viral video. To start from one, open it in
-                the Viral app and press Send to Video. The draft arrives with
+                a project's Research and press Make a draft. The draft arrives with
                 its script, and the original lands on the Media shelf.
               </p>
             )}

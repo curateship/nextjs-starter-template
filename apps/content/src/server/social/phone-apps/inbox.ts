@@ -162,7 +162,7 @@ export async function runInboxRead(
   now: Date = new Date()
 ): Promise<void> {
   if (!isNetwork(account.platform) || account.platform === "medium") {
-    throw new Refusal("That account is on a network whose inbox Promo does not read.")
+    throw new Refusal("That account is on a network whose inbox Content does not read.")
   }
   const kind: InboxKind = payload.inboxKind === "comment" ? "comment" : "message"
   const via = payload.via === "inbox" ? "inbox" : "notification"
@@ -671,7 +671,7 @@ async function sendOnPhone(
   if (item.status !== "sending" || item.jobId !== jobId) {
     throw new Refusal("That message is not waiting for this answer any more. Nothing was sent.")
   }
-  if (!isNetwork(item.platform) || item.platform === "medium") throw new Refusal("That message is on a network Promo does not answer.")
+  if (!isNetwork(item.platform) || item.platform === "medium") throw new Refusal("That message is on a network Content does not answer.")
   const quote = [...item.lines].reverse().find((line) => !line.mine)
   try {
     // An X account in a browser answers the conversation with the person its thread names. Only a

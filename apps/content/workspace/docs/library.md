@@ -34,8 +34,11 @@ or format is on the right in the shell's record frame
   its cover, its timecode, a Details card (views, whether it is a winner, the
   projects that analysed it) and Open in the project, in the footer and the
   ⋮, which plays the video on that project's page from the hook's first
-  moment. Your own hook has its link instead, and no Open in the project,
-  because there is no video.
+  moment. A long project name cuts short with "…" inside that button. Your own
+  hook has its link instead, and no Open in the project, because there is no
+  video.
+- **The Tags card** says Tags once: the box inside it has no label of its own
+  on screen, only one a screen reader reads (`TagField`'s `inTagsCard`).
 
 ## Hook types
 
@@ -105,7 +108,11 @@ analysed video's or your own (`src/components/viral/library-hook-ideas.tsx`,
   format's does. Samples are left out.
 - **The press.** "Write 5 hooks" asks the writer picked on Settings → AI
   writer for five new hooks in the same style, for the project's topic. The
-  card shows the price first, about 1 cent with any of the three writers. It
+  price is on the button, "Write 5 hooks · about 1¢", as the editor's AI
+  buttons carry theirs ([price-before-you-press.md](price-before-you-press.md));
+  in the card's title it was cut to "Ab…" in a narrow panel. The title names
+  the writer, and the button wraps rather than running past the panel's edge.
+  It is about 1 cent with any of the three writers. It
   goes on the AI meter as `viral_hook_ideas` and counts against the
   project's spend limit.
 - **Refused.** A sample project, and a project with no topic, before the AI
@@ -131,7 +138,8 @@ analysed video's or your own (`src/components/viral/library-hook-ideas.tsx`,
   what the video is about. One call to the writer picked on Settings → AI
   writer (`ai-analysis.md`) writes a script in that structure
   for the project's topic (`writeFromFormat` in
-  `src/server/viral/formats.ts`).
+  `src/server/viral/formats.ts`). Its button carries the price, "Write · about
+  1¢", and the card's title names the writer.
 - **Refused.** A sample project, a project with no topic, and an empty idea,
   before the AI is asked. A script that comes back missing a part of the
   format is refused, as Analyse refuses one.

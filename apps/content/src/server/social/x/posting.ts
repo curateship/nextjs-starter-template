@@ -160,7 +160,7 @@ export async function xWritingAccount(userId: string, accountId: string, db: Cus
     throw new Refusal("This X account has no browser profile or phone. Pick where it runs on the Accounts dashboard.")
   }
   if (!account.handle) {
-    throw new Refusal("Promo has not seen this account signed in to X. Sign it in, then press Check now on the Accounts dashboard.")
+    throw new Refusal("Content has not seen this account signed in to X. Sign it in, then press Check now on the Accounts dashboard.")
   }
   if (account.banScreenAt) {
     throw new Refusal(`This account hit a lock screen and was stopped: "${account.blockedReason}". Let it run again from the Accounts dashboard once it is sorted.`)
@@ -380,7 +380,7 @@ export async function queueXReply(
   if (input.underReplyId) {
     if (kind === "quote") throw new Refusal("A quote is of the post itself, not of one of its replies.")
     const top = (find.topReplies ?? []).find((reply) => reply.id === input.underReplyId)
-    if (!top) throw new Refusal("That reply is not one of the post's top replies as Promo read them. Read the post again.")
+    if (!top) throw new Refusal("That reply is not one of the post's top replies as Content read them. Read the post again.")
     target = { id: top.id, url: xPostUrl(top.id, top.handle), handle: top.handle, text: top.text }
   }
   return queueXWriting(
@@ -430,7 +430,7 @@ export async function queueXAnswer(
       .from(promoXReplies)
       .where(and(eq(promoXReplies.id, input.under.replyId), eq(promoXReplies.userId, userId)))
       .limit(1)
-    if (!parent || parent.status !== "posted") throw new Error("That reply is not one Promo sent.")
+    if (!parent || parent.status !== "posted") throw new Error("That reply is not one Content sent.")
     accountId = parent.accountId
     parentId = parent.id
     reply = (parent.incoming ?? []).find((item) => item.id === input.incomingId)
@@ -440,7 +440,7 @@ export async function queueXAnswer(
       .from(promoXPosts)
       .where(and(eq(promoXPosts.id, input.under.postRowId), eq(promoXPosts.userId, userId)))
       .limit(1)
-    if (!post || post.status !== "posted" || !post.accountId) throw new Error("That post is not one Promo posted.")
+    if (!post || post.status !== "posted" || !post.accountId) throw new Error("That post is not one Content posted.")
     accountId = post.accountId
     reply = (post.incoming ?? []).find((item) => item.id === input.incomingId)
   } else {

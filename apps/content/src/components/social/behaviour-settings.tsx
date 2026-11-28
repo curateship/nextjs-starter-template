@@ -243,13 +243,13 @@ function BehaviourSettingsPanel() {
         <p className="text-sm text-muted-foreground">
           {settings.warmUpDays === 0
             ? "Off. Accounts may comment from their first day."
-            : "While it warms up, Post is refused and once a day, inside its waking hours, the account scrolls its feed, opens a few posts and joins a subreddit or two that Promo has found posts in. It never comments or votes. A profile with no label shows Warming, and moves to Ready when the warm-up ends."}
+            : "While it warms up, Post is refused and once a day, inside its waking hours, the account scrolls its feed, opens a few posts and joins a subreddit or two that Content has found posts in. It never comments or votes. A profile with no label shows Warming, and moves to Ready when the warm-up ends."}
         </p>
         <AccountLines accounts={accounts} render={warmUpLine} />
         <NumberField
           id="promo-app-warm-up-days"
           label="Instagram and TikTok days of warm-up"
-          hint="Counted from the day the account was added to Promo. 0 switches it off."
+          hint="Counted from the day the account was added to Content. 0 switches it off."
           value={settings.appWarmUpDays}
           min={BEHAVIOUR_RANGES.appWarmUpDays.min}
           max={BEHAVIOUR_RANGES.appWarmUpDays.max}
@@ -404,7 +404,7 @@ function clockLine(account: BehaviourAccount, settings: BehaviourSettings): stri
 function warmUpLine(account: BehaviourAccount): string {
   const name = accountName(account)
   if (account.ageUnknown) {
-    return `${name}: Promo has not read how old it is yet, so its warm-up cannot be counted. Tick it on the Accounts dashboard and press Check now.`
+    return `${name}: Content has not read how old it is yet, so its warm-up cannot be counted. Tick it on the Accounts dashboard and press Check now.`
   }
   const age = account.redditCreatedAt ? `is ${accountAgeText(account.redditCreatedAt)}` : "has no age read"
   if (!account.warmUpEndsAt) return `${name} ${age} and past its warm-up.`

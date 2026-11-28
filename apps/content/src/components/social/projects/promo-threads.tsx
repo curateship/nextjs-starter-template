@@ -135,7 +135,7 @@ export function PromoThreads({
         <p className="text-sm text-muted-foreground">
           {looking
             ? "Looking in this project's subreddits. Each one takes the reader browser a minute."
-            : "None found yet. Press Look, and Promo searches the subreddits this project's posts come from. Every subreddit names its thread differently, so some are missed."}
+            : "None found yet. Press Look, and Content searches the subreddits this project's posts come from. Every subreddit names its thread differently, so some are missed."}
         </p>
       ) : (
         <div className="grid gap-2">

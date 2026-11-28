@@ -149,7 +149,7 @@ describe("how a watch stands", () => {
   it("refuses to read again while the last read still waits", async () => {
     await connectPromo()
     const { watch } = await addSocialWatch(user.id, { projectId, network: "x", kind: "search", value: "meal prep" })
-    await expect(readSocialWatchNow(user.id, watch.id)).rejects.toThrow("Promo is still reading it.")
+    await expect(readSocialWatchNow(user.id, watch.id)).rejects.toThrow("Content is still reading it.")
   })
 
   it("is due by kind: searches daily, accounts every 6 hours, a lost read after 2 hours", () => {

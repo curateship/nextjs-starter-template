@@ -114,7 +114,7 @@ export async function acceptArrival(
     .from(promoProjects)
     .where(and(eq(promoProjects.id, note.projectId), eq(promoProjects.userId, userId)))
     .limit(1)
-  if (!project) throw new VideoLinkRefusal(404, "That Promo project is not there any more. Pick another one.")
+  if (!project) throw new VideoLinkRefusal(404, "That project is not there any more. Pick another one.")
 
   if ((note.kind === "carousel") !== note.slides.length > 0) {
     throw new VideoLinkRefusal(400, "A carousel comes with its slides, and nothing else does.")

@@ -506,6 +506,10 @@ export function XModule({
         onBack={back}
         onClose={() => openRecord(null)}
         onChanged={refreshAll}
+        onCreated={async (id) => {
+          await refreshAll()
+          openRecord(id)
+        }}
       />
     )
   } else {

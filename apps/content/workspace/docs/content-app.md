@@ -296,7 +296,8 @@ beside the left menu, as Video's editor always was (Tyler, 26 Nov 2026:
   (`src/components/content-app/content-header-left.tsx`), the shell's own
   everywhere else, and only while Settings → Top left shows is Sidebar links.
   The left menu itself does not mark Projects on the editor: that is the
-  shell's sidebar.
+  shell's sidebar. Actors, at `/admin/video-editor/actors`, is a left menu
+  link of its own, so its top left is the shell's and says Actors.
 
 ## Carousels
 
@@ -398,6 +399,27 @@ leaves the app (`src/server/content-app/links.ts`, task Part 4):
   none. The only message about
   setup left is for an app with no admin yet: "Content links its parts for its
   first admin. Sign in with an admin account and try again."
+
+## Words on screen name Content, never the old apps
+
+Content is one app, so nothing on screen names Video, Promo or Viral as a
+place (Polish task, part 4; Tyler, 27 Nov 2026):
+
+- **Send to Promo is Add to project** ("Add to project"), on the editor's
+  exports, Carousels, a thumbnail and a vault post. The window is Add to
+  project; done, it reads "Added to <project>" ([send-to-promo.md](send-to-promo.md)).
+- **Send to Video is Make a draft, and Open in Video is Open draft** ("Make a
+  draft / Open draft") ([send-to-video.md](send-to-video.md)).
+- **The Archive** says "Caption from the editor", "from <video> in the editor"
+  and Open in the editor.
+- **Messages that named Promo as the app doing the work name Content**: "Content
+  stopped the account", "Content keeps its record", "as Content read them". A
+  message about the Promote side of the links, which is Promo's code, says
+  Promote ("Promote has no Threads, so a Threads post is for Copy").
+- **Left as they are:** a guest's "press Open in Promo", which is the Project
+  app's own button (`apps/project/src/lib/project/linked-records.ts`); the
+  phone rack's program, a generated file; code names, addresses and stored
+  fields.
 
 ## Video, Promo and Viral retired
 

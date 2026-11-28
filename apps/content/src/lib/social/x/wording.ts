@@ -56,7 +56,7 @@ export function xPostingRefusal(state: XPostingState, now: Date = new Date(), ti
   if (state.paused === "network") return "X is paused on this project. Resume X in the project's left column to post again."
   if (state.paused === "brake") return brakeWords("x")
   if (state.warmUp.ageUnknown) {
-    return "Promo has not seen this account signed in to X, so it can't tell when the warm-up ends. Press Check now on the Accounts dashboard, then try again."
+    return "Content has not seen this account signed in to X, so it can't tell when the warm-up ends. Press Check now on the Accounts dashboard, then try again."
   }
   if (state.warmUp.endsAt && state.warmUp.endsAt > now) {
     return `This account is in its first ${X_WARM_UP_DAYS} days on X, warming up. It may post ${whenText(state.warmUp.endsAt, now, timeZone)}.`

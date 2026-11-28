@@ -56,14 +56,14 @@ export async function callPromo<Answer>(
     redirect: "error",
     signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
   }).catch(() => {
-    throw new PromoRefusal(0, "Promo couldn't be reached. Check its address and that it's running.")
+    throw new PromoRefusal(0, "Promote couldn't be reached. Try again.")
   })
   const reply = (await response.json().catch(() => ({}))) as { error?: unknown }
   if (!response.ok) {
     if (response.status === 401) {
-      throw new PromoRefusal(401, "Promo turned down the key Content made for it. Try again: Content makes a new one.")
+      throw new PromoRefusal(401, "Promote turned down the key Content made for it. Try again: Content makes a new one.")
     }
-    throw new PromoRefusal(response.status, typeof reply.error === "string" ? reply.error : `Promo answered ${response.status}.`)
+    throw new PromoRefusal(response.status, typeof reply.error === "string" ? reply.error : `Promote answered ${response.status}.`)
   }
   return reply as Answer
 }

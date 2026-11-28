@@ -17,8 +17,7 @@ import { getPartsErrorMessage, loadProjectParts } from "@/lib/api/content-app/pr
 import { formatRelativeTime } from "@/lib/format/format-time"
 import { useLoad } from "@/lib/hooks/use-load"
 import { formatClock } from "@/lib/video/timeline-utils"
-import { VIDEO_STATUS_LABELS } from "@/lib/video/project-videos"
-import { CARD_GRID, ContentLayoutSwitch, DraftCard, useContentLayout, type DraftVideo } from "@/components/content-app/content-layout"
+import { CARD_GRID, CARD_NAME, ContentLayoutSwitch, DRAFT_STATUS_WORD, DraftCard, useContentLayout, type DraftVideo } from "@/components/content-app/content-layout"
 import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
 import { TableCell } from "@/components/ui/table"
 import { FilterPopover } from "@/components/shared/filter-popover"
@@ -49,6 +48,7 @@ import { archiveFilterCount, type ArchiveSearch } from "@/lib/archive/search"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 import { ListHeader } from "@/components/content-app/list-header"
 import { ProjectMenuButton } from "@/components/content-app/project-top"
@@ -80,6 +80,7 @@ export function ArchiveItemsPanel({
   openId,
   onOpen,
   onShown,
+  onFirstDraft,
   canManage,
   showDrafts = false,
 }: {
@@ -91,6 +92,8 @@ export function ArchiveItemsPanel({
     onOpen: (itemId: string) => void
     /** The list as shown, first card first, so the dashboard can open the first one. */
     onShown?: (ids: string[]) => void
+    /** The first draft listed and how to open it, so the right panel can show it while no item is open. */
+    onFirstDraft?: (first: { video: DraftVideo; open: () => void } | null) => void
     /** False for a guest from Project: no Bin, no uploads, no select. */
     canManage: boolean
     /** The project's videos still in the editor show too, with Status to pick them; not for a guest. */
@@ -126,6 +129,14 @@ export function ArchiveItemsPanel({
   const openDraft = (videoId: string) =>
     void navigate({ to: "/admin/video-editor/$projectId", params: { projectId }, search: { video: videoId, ...(search.stage === "draft" ? { from: "drafts" as const } : {}) } })
   const [layout, setLayout] = useContentLayout()
+  // Told again only when what the right panel would show of it changes.
+  const firstDraft = drafts[0] ?? null
+  const firstDraftKey = firstDraft ? JSON.stringify(firstDraft) : ""
+  React.useEffect(() => {
+    onFirstDraft?.(firstDraft ? { video: firstDraft, open: () => openDraft(firstDraft.id) } : null)
+    // The key holds everything shown of the first draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstDraftKey, search.stage, onFirstDraft])
   const tick = (id: string) =>
     setSelected((current) => {
       const next = new Set(current)
@@ -331,7 +342,7 @@ export function ArchiveItemsPanel({
               : search.q || search.kind || search.posted || search.stage === "draft"
                 ? "Nothing matches that."
                 : canManage
-                  ? `${projectName}'s archive is empty. Press Send to Promo on an export in Video, or + Add to upload a file.`
+                  ? `${projectName}'s archive is empty. Press Add to project on a finished export in the editor, or + Add to upload a file.`
                   : `${projectName}'s archive is empty.`}
           </p>
         ) : layout === "list" ? (
@@ -578,7 +589,7 @@ function ContentTable({
       // A draft is a video; Status says it is not published yet.
       kind: ARCHIVE_KIND_LABELS.video,
       length: formatClock(video.durationMs),
-      status: VIDEO_STATUS_LABELS[video.status],
+      status: DRAFT_STATUS_WORD,
       changed: video.updatedAt,
       video,
     })),
@@ -629,6 +640,7 @@ function ContentTable({
     >
       {sorted.map((row) => {
         const Icon = row.type === "draft" ? ClapperboardIcon : KIND_ICONS[row.item.kind]
+        const picture = row.type === "draft" ? row.video.thumbnailUrl : row.item.coverUrl
         return (
           <CrmTableRow
             key={`${row.type}:${row.id}`}
@@ -638,7 +650,16 @@ function ContentTable({
             tick={selecting ? (row.type === "item" ? { shown: true, ticked: selected.has(row.id), onToggle: () => onTick(row.id) } : { shown: true, ticked: false, onToggle: () => undefined, none: true }) : null}
             onOpen={() => (row.type === "draft" ? onOpenDraft(row.id) : selecting ? onTick(row.id) : onOpenItem(row.id))}
           >
-            <MainCell lead={<Icon className="size-4 text-muted-foreground" />} name={row.name} />
+            <MainCell
+              lead={
+                picture ? (
+                  <img src={picture} alt="" loading="lazy" className="size-6 shrink-0 rounded object-cover" />
+                ) : (
+                  <Icon className="size-4 text-muted-foreground" />
+                )
+              }
+              name={row.name}
+            />
             <TableCell column="meta" className="hidden @md:table-cell">
               {row.kind}
             </TableCell>
@@ -646,7 +667,7 @@ function ContentTable({
               {row.length}
             </TableCell>
             <TableCell column="meta" className="hidden @lg:table-cell">
-              {row.type === "draft" ? <Chip muted={row.video.status === "draft"}>{row.status}</Chip> : row.status}
+              {row.type === "draft" ? <Chip muted>{row.status}</Chip> : row.status}
             </TableCell>
             <TableCell column="meta" className="hidden @2xl:table-cell">
               {formatRelativeTime(row.changed)}
@@ -679,7 +700,7 @@ function ArchiveCardButton({
     <div className={cn("group relative grid gap-1.5 rounded-lg p-1.5", open ? "bg-accent" : "hover:bg-accent/60")}>
       <button
         type="button"
-        className="grid gap-1.5 text-left focus-visible:outline-none"
+        className={cn("grid gap-1.5 rounded-md text-left", focusRing)}
         aria-pressed={open}
         onClick={selecting ? onTick : onOpen}
       >
@@ -701,7 +722,7 @@ function ArchiveCardButton({
             </span>
           ) : null}
         </span>
-        <span className="truncate text-sm font-medium">{item.title || "Untitled"}</span>
+        <span className={CARD_NAME}>{item.title || "Untitled"}</span>
         <span className="truncate text-xs text-muted-foreground">
           {[
             item.language,

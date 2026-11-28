@@ -88,7 +88,7 @@ export function cleanVideoUrl(raw: string): string | null {
 }
 
 /** Said when Video's address points inside the server's own network. */
-export const INSIDE_VIDEO_ADDRESS = "Video's address points inside the server's own network, so Promo will not call it."
+export const INSIDE_VIDEO_ADDRESS = "Video's address points inside the server's own network, so Content will not call it."
 
 /** Keeps the Video address that pressed Test, the only one files are fetched from. */
 export async function rememberVideoUrl(userId: string, videoUrl: string, db: CustomShellDb = defaultDb, now = new Date()) {
@@ -142,9 +142,9 @@ export async function answerVideo<Shape extends z.ZodType>(
     link = await findVideoCaller(request, db)
   } catch (error) {
     console.error("A Video message could not be checked", error)
-    return answer(503, { error: "Promo could not check this message. Try again shortly." })
+    return answer(503, { error: "Content could not check this message. Try again shortly." })
   }
-  if (!link) return answer(401, { error: "Promo does not know this key." })
+  if (!link) return answer(401, { error: "Content does not know this key." })
 
   try {
     // Sends and Tests are a few a send, so 600 an hour is far past real use.
@@ -171,7 +171,7 @@ export async function answerVideo<Shape extends z.ZodType>(
       return answer(400, { error: "This message is not JSON." })
     }
     const checked = shape.safeParse(parsed)
-    if (!checked.success) return answer(400, { error: "This message is not in a shape Promo knows." })
+    if (!checked.success) return answer(400, { error: "This message is not in a shape Content knows." })
     parsed = checked.data
   }
 
@@ -180,7 +180,7 @@ export async function answerVideo<Shape extends z.ZodType>(
   } catch (error) {
     if (error instanceof VideoLinkRefusal) return answer(error.status, { error: error.message })
     console.error("A Video message failed", error)
-    return answer(500, { error: "Promo could not do that. It is in the server's log." })
+    return answer(500, { error: "Content could not do that. It is in the server's log." })
   }
 }
 
@@ -215,7 +215,7 @@ export async function callVideo(
     redirect: "error",
     signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
   }).catch(() => {
-    throw new Error("Video could not be reached. Check Video is running at the address it was tested from.")
+    throw new Error("The editor could not be reached. Try again.")
   })
   const reply = (await response.json().catch(() => ({}))) as { error?: unknown }
   if (!response.ok) {

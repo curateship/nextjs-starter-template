@@ -189,7 +189,8 @@ export function YoutubeComposer({
   }
 
   return (
-    <div className="grid gap-4 p-4">
+    // One column that never grows past the right panel, which opens at its narrowest (UI standard).
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4">
       {waitingDraft && !pick ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm">
           <span className="min-w-0 flex-1">A draft from the archive is waiting: {waitingDraft.title}</span>
@@ -255,12 +256,12 @@ export function YoutubeComposer({
       <div className="grid gap-2">
         <FieldLabel
           htmlFor="youtube-template"
-          hint="A description layout this project keeps. Write copies its fixed words as typed and has the AI write the rest. Make them with Templates above the list."
+          hint="A description layout this project keeps. Write copies its fixed words as typed and has the AI write the rest. Make them on the Templates tab of the project's ⋮."
         >
           Description template
         </FieldLabel>
         <Select value={template ? template.id : NO_TEMPLATE} onValueChange={setTemplateId}>
-          <SelectTrigger id="youtube-template" className="w-full sm:w-fit sm:min-w-56">
+          <SelectTrigger id="youtube-template" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -275,9 +276,9 @@ export function YoutubeComposer({
       </div>
 
       <div>
-        <Button type="button" variant="outline" disabled={writing} onClick={() => void write()}>
+        <Button type="button" variant="outline" className="max-w-full" disabled={writing} onClick={() => void write()}>
           {writing ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-          Write title and description
+          <span className="min-w-0 truncate">Write title and description</span>
         </Button>
       </div>
 

@@ -65,9 +65,9 @@ export async function copyIntoStore(
   }: { store: ArchiveStore; fetchImpl: typeof fetch; maxBytes: number; timeoutMs: number }
 ): Promise<number> {
   const response = await fetchImpl(source.url, { redirect: "error", signal: AbortSignal.timeout(timeoutMs) }).catch(() => {
-    throw new Error("Video could not be reached for the file.")
+    throw new Error("The editor could not be reached for the file. Try again.")
   })
-  if (!response.ok || !response.body) throw new Error(`Video answered ${response.status} for the file.`)
+  if (!response.ok || !response.body) throw new Error(`The editor answered ${response.status} for the file.`)
   const reader = response.body.getReader()
 
   // What has downloaded but not gone up yet, kept as the chunks it came in,
@@ -111,7 +111,7 @@ export async function copyIntoStore(
       const { done, value } = await reader.read()
       if (value?.byteLength) {
         total += value.byteLength
-        if (total > maxBytes) throw new Error("The file is bigger than Promo keeps.")
+        if (total > maxBytes) throw new Error("The file is bigger than Content keeps.")
         chunks.push(value)
         heldBytes += value.byteLength
         // One whole piece goes up, and at least one more stays behind, so

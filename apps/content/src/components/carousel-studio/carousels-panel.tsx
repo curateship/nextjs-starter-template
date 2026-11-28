@@ -146,7 +146,7 @@ export function CarouselsPanel({
       {/* Its newest finished export goes to Promo (part 8). */}
       <DropdownMenuItem onSelect={() => void sendToPromo.open({ carouselId: carousel.id })}>
         <SendIcon />
-        Send to Promo
+        Add to project
       </DropdownMenuItem>
       </>
     ),

@@ -113,7 +113,7 @@ export async function addMediumKeyword(
   await ownedProject(userId, projectId, db)
   if (!MEDIUM_KEYWORD_KINDS.includes(input.kind)) throw new Error("Medium has no keyword of that kind.")
   const mark = input.mark ?? ""
-  if (!MEDIUM_KEYWORD_MARKS.includes(mark)) throw new Error("That mark is not one Promo knows.")
+  if (!MEDIUM_KEYWORD_MARKS.includes(mark)) throw new Error("That mark is not one Content knows.")
   if (mark && input.kind !== "search") {
     throw new Error("Only search words can be marked as naming you or a rival. A tag or a publication names nobody.")
   }
@@ -168,7 +168,7 @@ export async function setMediumKeywordMark(
   mark: MediumKeywordMark,
   db: CustomShellDb = defaultDb
 ): Promise<void> {
-  if (!MEDIUM_KEYWORD_MARKS.includes(mark)) throw new Error("That mark is not one Promo knows.")
+  if (!MEDIUM_KEYWORD_MARKS.includes(mark)) throw new Error("That mark is not one Content knows.")
   const [keyword] = await db
     .select({ kind: promoMediumKeywords.kind })
     .from(promoMediumKeywords)

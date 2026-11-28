@@ -208,7 +208,7 @@ export async function callViral(
     redirect: "error",
     signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
   }).catch(() => {
-    throw new Error("Viral could not be reached. Check Viral is running at the address it was tested from.")
+    throw new Error("Research could not be reached. Try again.")
   })
   const reply = (await response.json().catch(() => ({}))) as { error?: unknown }
   if (!response.ok) {

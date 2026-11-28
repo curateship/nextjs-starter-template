@@ -332,7 +332,7 @@ export function AnalyseSection({
           <FitLabel full={vaultItem ? "In vault" : "Save to vault"} />
         </TipButton>
         {/* Both buttons always show (Tyler, 4 Nov 2026: "there was 2 buttons here, where is the other"). A send
-            needs a vault idea, so before the video is in the vault Send to Video saves it first. */}
+            needs a vault idea, so before the video is in the vault Make a draft saves it first. */}
         {vaultItem ? (
           <SendToVideoButton
             item={vaultItem}
@@ -350,7 +350,7 @@ export function AnalyseSection({
             type="button"
             variant="outline"
             className="w-full min-w-0 px-2"
-            tip="Send to Video"
+            tip="Make a draft"
             disabled={busy !== null}
             onClick={() =>
               void saveToVault().then((saved) => {
@@ -359,7 +359,7 @@ export function AnalyseSection({
             }
           >
             <SendIcon />
-            <FitLabel full="Send to Video" />
+            <FitLabel full="Make a draft" />
           </TipButton>
         )}
       </div>,

@@ -133,7 +133,7 @@ export function SendToVideoButton({
     else void send(project, null)
   }
 
-  const word = copying ? "Sending to Video…" : item.sentAt ? "Send again" : "Send to Video"
+  const word = copying ? "Making the draft…" : item.sentAt ? "Make another draft" : "Make a draft"
   const trigger = (
     <TipButton
       type="button"
@@ -152,25 +152,25 @@ export function SendToVideoButton({
   return (
     <div className="grid min-w-0 gap-2">
       {item.send?.status === "failed" ? (
-        <ErrorRow message={`The last send failed: ${item.send.error ?? "Video gave no reason."}`} />
+        <ErrorRow message={`The last draft failed: ${item.send.error ?? "The editor gave no reason."}`} />
       ) : null}
       {item.sentEditUrl && !copying ? (
-        <TipButton variant="outline" className={className} asChild tip="Open in Video">
+        <TipButton variant="outline" className={className} asChild tip="Open draft">
           <a href={item.sentEditUrl} target="_blank" rel="noreferrer noopener">
             <ExternalLinkIcon />
-            {compact ? <FitLabel full="Open in Video" /> : "Open in Video"}
+            {compact ? <FitLabel full="Open draft" /> : "Open draft"}
           </a>
         </TipButton>
       ) : null}
-      <FoldingMenu label="Send to Video" fit align="end" open={open} onOpenChange={onOpenChange} trigger={trigger}>
+      <FoldingMenu label="Make a draft" fit align="end" open={open} onOpenChange={onOpenChange} trigger={trigger}>
         {asking ? (
           <>
-            <p className="px-2.5 py-2 text-muted-foreground">Sent before. What should {asking.name} get?</p>
+            <p className="px-2.5 py-2 text-muted-foreground">A draft was made before. What should {asking.name} get?</p>
             <MenuAction icon={<RefreshCwIcon className="size-4" />} disabled={busy} onClick={() => void send(asking, "replace")}>
               Replace the draft
             </MenuAction>
             <MenuAction icon={<SendIcon className="size-4" />} disabled={busy} onClick={() => void send(asking, "new")}>
-              Send as new
+              A new draft
             </MenuAction>
             <MenuLine />
             <MenuAction icon={<ArrowLeftIcon className="size-4" />} onClick={() => setAsking(null)}>
@@ -178,7 +178,7 @@ export function SendToVideoButton({
             </MenuAction>
           </>
         ) : picker.state === "loading" ? (
-          <LoadingRow label="Asking Video for its projects" />
+          <LoadingRow label="Reading the projects" />
         ) : picker.state === "failed" ? (
           <p className="max-w-72 px-2.5 py-2 text-muted-foreground">{picker.error}</p>
         ) : projects.length ? (
@@ -196,7 +196,7 @@ export function SendToVideoButton({
             </MenuAction>
           ))
         ) : (
-          <p className="max-w-72 px-2.5 py-2 text-muted-foreground">Video has no projects yet. Make one in Video first.</p>
+          <p className="max-w-72 px-2.5 py-2 text-muted-foreground">There are no projects yet. Make one on the Projects dashboard first.</p>
         )}
       </FoldingMenu>
     </div>

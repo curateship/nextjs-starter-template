@@ -91,6 +91,10 @@ export function XPostsList({
   onChanged: () => Promise<void>
 }) {
   const [checking, setChecking] = React.useState(false)
+  const created = async (id: string) => {
+    await onChanged()
+    onSelect(id)
+  }
   const posts = data?.posts ?? []
   const quotes = data?.quotes ?? []
   const list = data?.list ?? []
@@ -123,22 +127,8 @@ export function XPostsList({
             </Button>
           </Hint>
         ) : null}
-        <XPostIdeas
-          projectId={projectId}
-          onCreated={async (id) => {
-            await onChanged()
-            onSelect(id)
-          }}
-        />
-        <NewPostButton
-          projectId={projectId}
-          accounts={accounts}
-          sources={data?.sources ?? []}
-          onCreated={async (id) => {
-            await onChanged()
-            onSelect(id)
-          }}
-        />
+        <XPostIdeas projectId={projectId} onCreated={created} />
+        <NewPostButton projectId={projectId} accounts={accounts} sources={data?.sources ?? []} onCreated={created} />
       </HeaderActions>
       <ScrollArea className="min-h-0 flex-1">
         {error ? (
@@ -177,7 +167,11 @@ export function XPostsList({
                 ))}
               </div>
             ) : (
-              <p className="px-4 pt-3 text-sm text-muted-foreground">No posts of your own yet. Press New post to write one.</p>
+              // The header's New post is "+" alone in a narrow header, so the line carries its own.
+              <div className="grid justify-items-start gap-3 px-4 pt-3">
+                <p className="text-sm text-muted-foreground">No posts of your own yet. Press New post to write one.</p>
+                <NewPostButton projectId={projectId} accounts={accounts} sources={data?.sources ?? []} onCreated={created} />
+              </div>
             )}
 
             <section aria-label="Quote posts" className="grid gap-1 border-t pt-3">
@@ -272,10 +266,8 @@ function XPostIdeas({ projectId, onCreated }: { projectId: string; onCreated: (i
 
 /**
  * New post as a dropdown, the way every dashboard's New button works
- * (Ui-standards): what it is about first, then who posts it and what it
- * starts from, and Create post at the bottom right. With something to go on,
- * the AI writes the first post straight away; the draft opens on the right
- * either way.
+ * (Ui-standards). The form itself is `NewPostForm`, which the right panel
+ * also shows while no post is open.
  */
 function NewPostButton({
   projectId,
@@ -289,6 +281,50 @@ function NewPostButton({
   onCreated: (id: string) => Promise<void>
 }) {
   const [open, setOpen] = React.useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <DashboardToolbarButton type="button">
+          <PlusIcon className="size-4" />
+          New post
+        </DashboardToolbarButton>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-3">
+        <NewPostForm
+          projectId={projectId}
+          accounts={accounts}
+          sources={sources}
+          autoFocus
+          onCreated={async (id) => {
+            setOpen(false)
+            await onCreated(id)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * What a new post is about first, then who posts it and what it starts from,
+ * and Create post at the bottom right. With something to go on, the AI writes
+ * the first post straight away; the draft opens on the right either way.
+ */
+function NewPostForm({
+  projectId,
+  accounts,
+  sources,
+  autoFocus = false,
+  onCreated,
+}: {
+  projectId: string
+  accounts: XAccount[]
+  sources: XPostsTab["sources"]
+  autoFocus?: boolean
+  onCreated: (id: string) => Promise<void>
+}) {
+  // The panel and the dropdown can both hold this form at once.
+  const id = React.useId()
   const [about, setAbout] = React.useState("")
   const [accountId, setAccountId] = React.useState(NONE)
   const [source, setSource] = React.useState(NONE)
@@ -301,22 +337,21 @@ function NewPostButton({
       const account = accountId === NONE ? null : accountId
       const from = source === NONE ? "" : source
       const draft = { accountId: account, poll: null, communityId: "", source: from, scheduledFor: null }
-      const { id } = await saveXPostDraft({ projectId, postRowId: null, post: { ...draft, pieces: [{ text: "", pictureUrl: "" }] } })
+      const { id: postId } = await saveXPostDraft({ projectId, postRowId: null, post: { ...draft, pieces: [{ text: "", pictureUrl: "" }] } })
       if (about.trim() || from) {
         try {
           const written = await writeXPostWords({ projectId, accountId: account, about: about.trim(), pieces: 1, source: from, communityId: "", poll: false })
           if (written.pieces.length) {
-            await saveXPostDraft({ projectId, postRowId: id, post: { ...draft, pieces: written.pieces.map((text) => ({ text, pictureUrl: "" })) } })
+            await saveXPostDraft({ projectId, postRowId: postId, post: { ...draft, pieces: written.pieces.map((text) => ({ text, pictureUrl: "" })) } })
           }
         } catch (failure) {
           showErrorToast(`The draft is made, but the AI did not write it. ${getXErrorMessage(failure)}`)
         }
       }
-      setOpen(false)
       setAbout("")
       setAccountId(NONE)
       setSource(NONE)
-      await onCreated(id)
+      await onCreated(postId)
     } catch (failure) {
       showErrorToast(getXErrorMessage(failure))
     } finally {
@@ -325,64 +360,54 @@ function NewPostButton({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <DashboardToolbarButton type="button">
-          <PlusIcon className="size-4" />
-          New post
-        </DashboardToolbarButton>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-3">
-        <form className="grid gap-4" onSubmit={create}>
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="x-new-about" hint="A line or two. Leave it empty to write the post yourself.">
-              What it is about
-            </FieldLabel>
-            <Input id="x-new-about" autoFocus value={about} placeholder="Why small teams drop their task tool" onChange={(event) => setAbout(event.target.value)} />
-          </div>
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="x-new-account">Post as</FieldLabel>
-            <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger id="x-new-account">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Pick later</SelectItem>
-                {accounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {xAccountName(account.handle)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="x-new-source" hint="A published Medium article becomes a thread ending with its link. A Reddit comment that did well gives the AI its words.">
-              Start from
-            </FieldLabel>
-            <Select value={source} onValueChange={setSource}>
-              <SelectTrigger id="x-new-source">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Nothing, start from scratch</SelectItem>
-                {sources.map((item) => (
-                  <SelectItem key={item.source} value={item.source}>
-                    {item.label.slice(0, 60)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex justify-end">
-            <Button type="submit" disabled={busy}>
-              {busy ? <Loader2Icon className="animate-spin" /> : null}
-              Create post
-            </Button>
-          </div>
-        </form>
-      </PopoverContent>
-    </Popover>
+    <form className="grid grid-cols-[minmax(0,1fr)] gap-4" onSubmit={create}>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        <FieldLabel htmlFor={`${id}-about`} hint="A line or two. Leave it empty to write the post yourself.">
+          What it is about
+        </FieldLabel>
+        <Input id={`${id}-about`} autoFocus={autoFocus} value={about} placeholder="Why small teams drop their task tool" onChange={(event) => setAbout(event.target.value)} />
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        <FieldLabel htmlFor={`${id}-account`}>Post as</FieldLabel>
+        <Select value={accountId} onValueChange={setAccountId}>
+          <SelectTrigger id={`${id}-account`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>Pick later</SelectItem>
+            {accounts.map((account) => (
+              <SelectItem key={account.id} value={account.id}>
+                {xAccountName(account.handle)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        <FieldLabel htmlFor={`${id}-source`} hint="A published Medium article becomes a thread ending with its link. A Reddit comment that did well gives the AI its words.">
+          Start from
+        </FieldLabel>
+        <Select value={source} onValueChange={setSource}>
+          <SelectTrigger id={`${id}-source`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>Nothing, start from scratch</SelectItem>
+            {sources.map((item) => (
+              <SelectItem key={item.source} value={item.source}>
+                {item.label.slice(0, 60)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex justify-end">
+        <Button type="submit" disabled={busy}>
+          {busy ? <Loader2Icon className="animate-spin" /> : null}
+          Create post
+        </Button>
+      </div>
+    </form>
   )
 }
 
@@ -396,6 +421,7 @@ export function XPostPanel({
   onBack,
   onClose,
   onChanged,
+  onCreated,
 }: {
   projectId: string
   post: XPostView | null
@@ -405,11 +431,19 @@ export function XPostPanel({
   onBack?: () => void
   onClose: () => void
   onChanged: () => Promise<void>
+  /** A draft made from the form shown while no post is open. */
+  onCreated: (id: string) => Promise<void>
 }) {
+  // No post open: the New post form, as Reddit's and YouTube's right panels show,
+  // never a line telling you to press something (the right panel is never empty).
   if (!post) {
     return (
-      <XPanelFrame title="A post of your own" onBack={onBack}>
-        <p className="p-4 text-sm text-muted-foreground">Click a post to write it or to see how it is doing, or press New post.</p>
+      <XPanelFrame title="New post" icon={<PlusIcon />} onBack={onBack}>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="p-4">
+            <NewPostForm projectId={projectId} accounts={accounts} sources={sources} onCreated={onCreated} />
+          </div>
+        </ScrollArea>
       </XPanelFrame>
     )
   }
@@ -583,8 +617,8 @@ function PostedPost({
         title="Delete this post from X?"
         description={
           post.pieces.length > 1
-            ? "The account's browser deletes every post of the thread on X, looking before and after. Promo keeps its record and its numbers."
-            : "The account's browser deletes it on X, looking before and after. Promo keeps its record and its numbers."
+            ? "The account's browser deletes every post of the thread on X, looking before and after. Content keeps its record and its numbers."
+            : "The account's browser deletes it on X, looking before and after. Content keeps its record and its numbers."
         }
         confirmLabel="Delete"
         loading={busy === "delete"}

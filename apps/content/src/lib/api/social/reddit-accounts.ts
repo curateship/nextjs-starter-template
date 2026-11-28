@@ -57,7 +57,7 @@ export const getRedditAccountsErrorMessage = passReaderWritten(createErrorMessag
     "account is not there any more": "That account is not there any more. Reload the page.",
     "There is no reader browser": "Pick a reader browser in Settings → Behaviour first. A health reading needs one.",
     "not an authenticator secret": "That is not an authenticator secret. Paste the letters the site showed, or the otpauth:// link from its QR code.",
-    "kind of code Promo does not make": "That link asks for a kind of code Promo does not make. Paste the secret letters instead.",
+    "kind of code Content does not make": "That link asks for a kind of code Content does not make. Paste the secret letters instead.",
     ENCRYPTION_NOT_CONFIGURED: "This server has no encryption key set, so a secret cannot be kept.",
     "not stopped by a ban screen": "That account is not stopped any more. Reload the page.",
     "is the self-test phone": "That phone is the self-test phone, which carries only its test account. Pick another phone, or change the self-test phone in Settings → Phones.",

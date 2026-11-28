@@ -257,7 +257,12 @@ export function ProjectMenu({
               <PickGroup title="Project">
                 {/* The description, what the AI is told and Research searches for, a row that opens its
                     editor (Tyler, 27 Nov 2026: "move discritption to general. it dfoesnt need its own tab"). */}
-                <PickRow label="Description" value={projectDescriptionText(project.descriptionPage) || "None"}>
+                <PickRow
+                  label="Description"
+                  // Its own span cuts the start of the description short with "…": the row's flex box would
+                  // otherwise hide the start and show the end.
+                  value={<span className="min-w-0 truncate">{projectDescriptionText(project.descriptionPage) || "None"}</span>}
+                >
                   <div className="max-h-[60vh] overflow-y-auto">
                     <ProjectDescription
                       // Locking or unlocking draws it again from what was saved.
@@ -280,7 +285,12 @@ export function ProjectMenu({
                 </PickRow>
                 {/* The description, what the AI is told and Research searches for, a row that opens its
                     editor (Tyler, 27 Nov 2026: "move discritption to general. it dfoesnt need its own tab"). */}
-                <PickRow label="Description" value={projectDescriptionText(project.descriptionPage) || "None"}>
+                <PickRow
+                  label="Description"
+                  // Its own span cuts the start of the description short with "…": the row's flex box would
+                  // otherwise hide the start and show the end.
+                  value={<span className="min-w-0 truncate">{projectDescriptionText(project.descriptionPage) || "None"}</span>}
+                >
                   <div className="max-h-[60vh] overflow-y-auto">
                     <ProjectDescription
                       // Locking or unlocking draws it again from what was saved.

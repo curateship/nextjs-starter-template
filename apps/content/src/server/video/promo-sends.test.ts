@@ -194,7 +194,7 @@ describe("sending an export to Promo", () => {
     )
     expect(view).toMatchObject({ status: "failed", error: "That Promo project is not there any more. Pick another one." })
     const bells = await db.select().from(customShellNotifications)
-    expect(bells.map((bell) => bell.message)).toEqual(["Launch video didn't reach Promo"])
+    expect(bells.map((bell) => bell.message)).toEqual(["Launch video wasn't added to the project"])
     const [row] = await db.select().from(videoPromoSends)
     expect(row.tokenHash).toBeNull()
   })

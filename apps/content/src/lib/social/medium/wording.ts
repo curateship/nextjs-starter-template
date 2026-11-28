@@ -51,7 +51,7 @@ export function mediumPostingRefusal(
   if (state.paused === "network") return "Medium is paused on this project. Resume Medium in the project's left column to write again."
   if (state.paused === "brake") return brakeWords("medium")
   if (state.warmUp.ageUnknown) {
-    return "Promo has not read when this account joined Medium, so it cannot tell when the warm-up ends. Press Check who is signed in on the Accounts dashboard, then try again."
+    return "Content has not read when this account joined Medium, so it cannot tell when the warm-up ends. Press Check who is signed in on the Accounts dashboard, then try again."
   }
   if (state.warmUp.endsAt && state.warmUp.endsAt > now) {
     return `This account is in its first ${MEDIUM_WARM_UP_DAYS} days on Medium, warming up. It may write ${whenText(state.warmUp.endsAt, now, timeZone)}.`

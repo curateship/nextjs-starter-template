@@ -1,6 +1,5 @@
 import * as React from "react"
 import { ExternalLinkIcon, Loader2Icon, RotateCwIcon } from "lucide-react"
-import { Link } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -154,7 +153,7 @@ export function SendToPromoDialog({
 
   async function send() {
     if (!chosen.length) {
-      showErrorToast("Pick a Promo project first.")
+      showErrorToast("Pick a project first.")
       return
     }
     setBusy(true)
@@ -199,9 +198,9 @@ export function SendToPromoDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent variant="admin">
         <DialogHeader>
-          <DialogTitle>Send to Promo</DialogTitle>
+          <DialogTitle>Add to project</DialogTitle>
           <DialogDescription>
-            {target.name} goes into the Archive of each Promo project you tick, as Promo's own copy.
+            {target.name} goes into the Archive of each project you tick, as the project's own copy.
             {target.leftOut
               ? ` ${target.leftOut} ${plural(target.leftOut, "export isn't", "exports aren't")} finished, so ${plural(target.leftOut, "it was", "they were")} left out.`
               : ""}
@@ -220,20 +219,15 @@ export function SendToPromoDialog({
                     setReloads((count) => count + 1)
                   }}
                 />
-                <Button asChild variant="outline" className="justify-self-start">
-                  <Link to="/admin/settings/$tab" params={{ tab: "promo" }}>
-                    Open Settings → Promo
-                  </Link>
-                </Button>
               </CardContent>
             </Card>
           ) : !projects ? (
-            <LoadingRow label="Asking Promo for its projects…" />
+            <LoadingRow label="Reading the projects…" />
           ) : (
             <>
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Promo project</CardTitle>
+                  <CardTitle>Project</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-3">
                   {projects.length ? (
@@ -248,7 +242,7 @@ export function SendToPromoDialog({
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">Promo has no projects yet. Make one on Promo's Projects dashboard first.</p>
+                    <p className="text-sm text-muted-foreground">There are no projects yet. Make one on the Projects dashboard first.</p>
                   )}
                 </CardContent>
               </Card>
@@ -332,7 +326,7 @@ export function SendToPromoDialog({
               {already.length ? (
                 <Card size="sm">
                   <CardHeader>
-                    <CardTitle>Already in Promo</CardTitle>
+                    <CardTitle>Already in the project</CardTitle>
                   </CardHeader>
                   <CardContent className="grid gap-3">
                     <p className="text-sm text-muted-foreground">
@@ -368,7 +362,7 @@ export function SendToPromoDialog({
               </Button>
               <Button type="button" disabled={busy} onClick={() => void send()}>
                 {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                Send to Promo
+                Add to project
               </Button>
             </>
           )}
@@ -396,24 +390,24 @@ function SendProgress({
             {send.status === "sending" ? (
               <>
                 <span className="text-sm">
-                  {send.kind === "slideshow" ? "Making the slideshow and sending it" : "Sending"} to {send.promoProjectName}…
+                  {send.kind === "slideshow" ? "Making the slideshow and adding it" : "Adding it"} to {send.promoProjectName}…
                 </span>
                 <Meter
                   value={Math.round(send.progress * 100)}
-                  label={`Sending to ${send.promoProjectName}`}
+                  label={`Adding it to ${send.promoProjectName}`}
                   valueText={send.progress ? `${Math.round(send.progress * 100)} out of 100` : "Starting"}
                 />
               </>
             ) : send.status === "sent" ? (
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span>
-                  {send.kind === "slideshow" ? "Slideshow sent" : "Sent"} to {send.promoProjectName}
+                  {send.kind === "slideshow" ? "Slideshow added" : "Added"} to {send.promoProjectName}
                 </span>
                 {send.promoItemUrl ? (
                   <Button asChild variant="ghost" size="sm">
                     <a href={send.promoItemUrl} target="_blank" rel="noreferrer">
                       <ExternalLinkIcon className="size-4" />
-                      Open in Promo
+                      Open in the project
                     </a>
                   </Button>
                 ) : null}

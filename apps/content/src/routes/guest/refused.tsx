@@ -20,12 +20,12 @@ const WORDS: Record<Reason, { title: string; text: string }> = {
     text: "This link was changed or did not come from Project. Open the task in Project again.",
   },
   gone: {
-    title: "This project is not in Promo any more",
-    text: "The Promo project this task points at was deleted. Ask whoever made the task to point it at another one.",
+    title: "This project is not in Content any more",
+    text: "The project this task points at was deleted. Ask whoever made the task to point it at another one.",
   },
   off: {
-    title: "Promo is not connected to Project",
-    text: "Promo is not set up to take people from Project yet. Ask the site admin to add the key Promo shares with Project.",
+    title: "Content is not connected to Project",
+    text: "Content is not set up to take people from Project yet. Ask the site admin to add the key Content shares with Project.",
   },
 }
 
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/guest/refused")({
   validateSearch: (search: Record<string, unknown>): { why: Reason } => ({
     why: REASONS.includes(search.why as Reason) ? (search.why as Reason) : "bad",
   }),
-  head: () => ({ meta: [{ title: "Promo" }, { name: "robots", content: "noindex, nofollow" }] }),
+  head: () => ({ meta: [{ title: "Content" }, { name: "robots", content: "noindex, nofollow" }] }),
   component: GuestRefused,
 })
 

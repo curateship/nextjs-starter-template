@@ -227,7 +227,7 @@ export async function pairRack(
     )
     .returning({ userId: promoRackCodes.userId, rackId: promoRackCodes.rackId })
   if (!spent?.rackId) {
-    throw new RackRefusal(401, "That code is not valid, already used or more than 15 minutes old. Make a new one on the rack's page in Promo.")
+    throw new RackRefusal(401, "That code is not valid, already used or more than 15 minutes old. Make a new one on the rack's page in Content.")
   }
 
   const [rack] = await db
@@ -250,7 +250,7 @@ export async function pairRack(
     )
     .returning({ id: promoRacks.id })
   if (!rack) {
-    throw new RackRefusal(401, "That code's rack is already paired or is not there any more. Make a new code on the rack's page in Promo.")
+    throw new RackRefusal(401, "That code's rack is already paired or is not there any more. Make a new code on the rack's page in Content.")
   }
   // Every other code made for the rack goes with this one.
   await db
@@ -286,12 +286,12 @@ export async function verifyRackRequest(
     .where(eq(promoRacks.id, rackId))
     .limit(1)
   // A rack made with New rack in the Anti Detect dashboard's Racks block has no key until it pairs, so nothing can sign as it.
-  if (!rack || !rack.keyEncrypted) throw new RackRefusal(401, "This rack is not paired with Promo.")
+  if (!rack || !rack.keyEncrypted) throw new RackRefusal(401, "This rack is not paired with Content.")
   if (rack.disconnectedAt) {
-    throw new RackRefusal(401, "This rack was disconnected in Promo. Install it again with a new code from the rack's page.")
+    throw new RackRefusal(401, "This rack was disconnected in Content. Install it again with a new code from the rack's page.")
   }
   if (Math.abs(now.getTime() / 1000 - stamp) > RACK_CLOCK_WINDOW_SECONDS) {
-    throw new RackRefusal(401, "This message's clock is more than five minutes from Promo's. Check the computer's time.")
+    throw new RackRefusal(401, "This message's clock is more than five minutes from Content's. Check the computer's time.")
   }
 
   const key = decryptSecret(rack.keyEncrypted)

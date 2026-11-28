@@ -40,6 +40,9 @@ export function AnalysisCards({
   scriptEdit?: ScriptEdit
 }) {
   const { whyItWorks, ideas, title } = pieces
+  // "The hook." already explains the hook, so the parts after it leave the hook out: the AI's breakdown
+  // starts with one, and the card said the same thing twice.
+  const parts = whyItWorks.hook ? whyItWorks.parts.filter((part) => part.role !== "hook") : whyItWorks.parts
   const hasWhy = Boolean(whyItWorks.hook || whyItWorks.parts.length || whyItWorks.whySpread)
   const hasTitle = Boolean(title.title || title.caption || title.hashtags.length)
   return (
@@ -52,7 +55,7 @@ export function AnalysisCards({
             {whyItWorks.hook}
           </p>
           <ol className="grid gap-1.5">
-            {whyItWorks.parts.map((part, index) => (
+            {parts.map((part, index) => (
               <li key={index}>
                 <span className="font-medium">{segmentRoleLabels[part.role]}. </span>
                 {part.summary}
@@ -67,7 +70,7 @@ export function AnalysisCards({
             label="Copy" name="Copy why it works"
             text={[
               `Hook: ${whyItWorks.hook}`,
-              ...whyItWorks.parts.map((part) => `${segmentRoleLabels[part.role]}: ${part.summary}`),
+              ...parts.map((part) => `${segmentRoleLabels[part.role]}: ${part.summary}`),
               `Why it spread: ${whyItWorks.whySpread}`,
             ].join("\n")}
           />

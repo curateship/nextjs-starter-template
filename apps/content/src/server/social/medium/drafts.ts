@@ -319,7 +319,7 @@ export async function rewriteMediumResponse(
   input: { findId: string; text: string; how: ResponseRewrite },
   db: CustomShellDb = defaultDb
 ): Promise<MediumDraftView> {
-  if (!RESPONSE_REWRITE_WORDS[input.how]) throw new Error("That rewrite is not one Promo knows.")
+  if (!RESPONSE_REWRITE_WORDS[input.how]) throw new Error("That rewrite is not one Content knows.")
   const text = input.text.trim()
   if (!text) throw new Refusal("Write the response first, then rewrite it.")
   const find = await ownedMediumFind(userId, input.findId, db)

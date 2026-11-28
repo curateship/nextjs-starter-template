@@ -59,6 +59,17 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
   Carousels or Pictures, or Status Published, leaves them out, and a guest
   has none. A guest from Project reaches it from Content too
   (`?archive=1`).
+- **A draft's card** shows the video's picture, its main thumbnail or else
+  its first clip's frame ([project-thumbnails.md](project-thumbnails.md)),
+  and the clapperboard only for a video with no clip yet. Its words always
+  say Draft (Tyler, 27 Nov 2026: "Always "Draft""): Status calls every video
+  still in the editor a draft, so the editor's own Ready or Posted tag stays
+  in the editor. The List look shows the same picture, small, beside each
+  draft's and each item's name.
+- **A card's name** takes up to two lines before "…", on drafts and items
+  alike, and every card keeps two lines of room so a row stays lined up.
+- **The keyboard:** Tab stops on each card with the app's one focus ring
+  (`focusRing` in `src/lib/layout/focus-ring.ts`).
 
 ## The middle panel
 
@@ -108,13 +119,19 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
 
 ## The right panel
 
+- **With no item open** (an empty Archive, or Status Draft) it shows the first
+  draft listed: its picture, "Draft · 0:42 · Edited 2 hours ago" and Open in
+  the editor (`src/components/content-app/draft-panel.tsx`). The right panel
+  is never empty (Tyler's rule). Pressing a draft's card still opens the
+  editor on the whole screen. Only a project with no drafts and no items
+  shows the line "Click a video, carousel or picture…".
 - **Header:** the item's kind icon, its name and its ⋮.
 - **Body:**
   - the video played, the carousel swiped a slide at a time, or the picture shown;
   - its shape, length, size, language and where it came from;
-  - Edit in Video, which opens the video in Video's editor, and Download and PDF
-    for an admin;
-  - the caption Video sent;
+  - Open in the editor, which opens the video in the editor, and Download and
+    PDF for an admin;
+  - Caption from the editor, the caption sent with it;
   - **Captions**, one box per network with Write captions;
   - **Posted**, which lists every post made from the item and the drafts waiting
     for it.

@@ -18,8 +18,8 @@ export function useSendToPromo(onSent?: () => void) {
       if (!found) {
         showErrorToast(
           which.carouselId
-            ? "Export it first. Only a finished carousel export can go to Promo."
-            : "Export it first. Only a finished export can go to Promo."
+            ? "Export it first. Only a finished carousel export can be added to a project."
+            : "Export it first. Only a finished export can be added to a project."
         )
         return
       }

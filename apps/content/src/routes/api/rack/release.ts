@@ -18,7 +18,7 @@ export const Route = createFileRoute("/api/rack/release")({
         answerSigned(request, z.object({ version: z.string().max(40) }), async (_rack, data) => {
           const release = rackRelease()
           if (data.version !== release.version) {
-            throw new RackRefusal(409, `Promo serves ${release.version}, not ${data.version}.`)
+            throw new RackRefusal(409, `Content serves ${release.version}, not ${data.version}.`)
           }
           return release
         }),

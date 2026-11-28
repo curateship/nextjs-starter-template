@@ -227,6 +227,16 @@ describe("projects", () => {
     expect((await readProjectView(userId, id, db)).project.hiddenNetworks).toEqual([])
   })
 
+  it("counts the project's drafts, its videos still in the editor, beside its Archive, leaving out archived ones", async () => {
+    const id = await createProject(userId, "Desk stretches", db)
+    const { videoProjectVideos } = await import("@/server/video/schema")
+    const video = (name: string, archivedAt: Date | null) => ({ id: uuid(), projectId: id, userId, name, aspect: "9:16", timeline: { aspect: "9:16", tracks: [] }, archivedAt, createdAt: new Date(), updatedAt: new Date() })
+    await db.insert(videoProjectVideos).values([video("Draft one", null), video("Draft two", null), video("Put away", new Date())])
+
+    const { project } = await readProjectView(userId, id, db)
+    expect([project.draftCount, project.archiveCount]).toEqual([2, 0])
+  })
+
   it("pins a project for the table, and another person's id pins nothing", async () => {
     const id = await createProject(userId, "Pinned", db)
     await setProjectPinned(userId, id, true, db)

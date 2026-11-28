@@ -523,7 +523,7 @@ export async function queueMediumPublish(
       .limit(1)
     if (!publication) throw new Refusal("That publication is not on the Publications tab any more.")
     if (!publication.writersReadAt) {
-      throw new Refusal(`Promo has not checked who writes for ${publication.name || publication.slug} yet. Press Check on the Publications tab first.`)
+      throw new Refusal(`Content has not checked who writes for ${publication.name || publication.slug} yet. Press Check on the Publications tab first.`)
     }
     if (!publication.writers.includes(account.id)) {
       throw new Refusal(

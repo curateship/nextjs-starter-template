@@ -131,7 +131,7 @@ describe("the archive's arrivals from Video", () => {
       db
     )
     expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: "Promo does not know this key." })
+    expect(await response.json()).toEqual({ error: "Content does not know this key." })
   })
 
   it("makes one item for a send and copies its files into Promo's own storage", async () => {
@@ -290,6 +290,6 @@ describe("copying a big file in pieces", () => {
         maxBytes: 10,
         timeoutMs: 10_000,
       })
-    ).rejects.toThrow("bigger than Promo keeps")
+    ).rejects.toThrow("bigger than Content keeps")
   })
 })

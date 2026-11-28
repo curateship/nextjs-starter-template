@@ -50,7 +50,9 @@ describe("Write hooks like this", () => {
     await act(async () => root.render(drawIdeas("project-a")))
     const trigger = () => container.querySelector("#hook-ideas-project-hook-1")
     expect(trigger()?.textContent).toContain("Meal prep")
-    expect(container.textContent).toContain("About 1 cent with Gemini Flash")
+    // The price on the button, never cut short in a narrow card title; the title names the AI.
+    expect(container.textContent).toContain("Write 5 hooks · about 1¢")
+    expect(container.textContent).toContain("Gemini Flash")
     expect(container.querySelectorAll('button[aria-label^="Copy"]')).toHaveLength(5)
 
     await act(async () => root.render(drawIdeas("project-b")))

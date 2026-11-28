@@ -29,6 +29,7 @@ import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { Button } from "@/components/ui/button"
 import { Hint } from "@/components/social/hint"
 import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
+import { EmptyLine, EmptyLineButton } from "@/components/content-app/empty-line"
 
 /** How often the lists are read again while a post's check is on its way. */
 const CHECK_POLL_MS = 2_000
@@ -476,7 +477,13 @@ function RedditPostsMiddle({
           direction={direction}
           onSort={toggleSort}
           actions
-          empty={posts.length ? null : needle ? "No posts match that search." : "No posts of your own yet. Press New post to write one."}
+          empty={
+            posts.length ? null : needle ? (
+              "No posts match that search."
+            ) : (
+              <EmptyLine line="No posts of your own yet. Press New post to write one." action={<EmptyLineButton label="New post" onClick={onNewPost} />} />
+            )
+          }
         >
           {posts.map((row) => (
             <CrmTableRow

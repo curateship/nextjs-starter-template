@@ -328,7 +328,7 @@ export async function saveLinkedinPost(
   db: CustomShellDb = defaultDb
 ): Promise<string> {
   await ownedProject(userId, projectId, db)
-  if (!LINKEDIN_POST_KINDS.includes(input.kind)) throw new Error("That is not a kind of post Promo makes.")
+  if (!LINKEDIN_POST_KINDS.includes(input.kind)) throw new Error("That is not a kind of post Content makes.")
   if (input.accountId) await projectLinkedinAccount(userId, projectId, input.accountId, db)
   if (input.groupId && !(await projectGroup(userId, projectId, input.groupId, db))) throw new Refusal("Add that group to the project's groups first.")
   let repostOf = ""

@@ -127,7 +127,8 @@ export type ProjectParts = {
     vaultCount: number
     sample: boolean
   }
-  videos: Array<{ id: string; name: string; status: VideoStatus; durationMs: number; updatedAt: string; archived: boolean }>
+  /** `thumbnailUrl` is the video's picture: its main thumbnail, else its first clip's frame (`project-thumbnails.md`). */
+  videos: Array<{ id: string; name: string; status: VideoStatus; durationMs: number; updatedAt: string; archived: boolean; thumbnailUrl: string | null }>
 }
 
 /** The project's research and videos, made first if missing, for its left panel. */
@@ -168,6 +169,7 @@ export async function readProjectParts(userId: string, projectId: string, databa
       durationMs: video.duration_ms,
       updatedAt: video.updated_at,
       archived: video.archived,
+      thumbnailUrl: video.thumbnail_url,
     })),
   }
 }

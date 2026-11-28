@@ -158,7 +158,7 @@ async function ringArrived(userId: string, name: string, pending: ViralArrivalPe
       id: uuid(),
       recipientUserId: userId,
       type: "app_activity",
-      message: `${name} arrived from Viral`.slice(0, 300),
+      message: `${name} arrived from Research`.slice(0, 300),
       detail: pending.viralProjectName ? `From ${pending.viralProjectName}.`.slice(0, 500) : "From Viral.",
       createdAt: at,
     })
@@ -305,18 +305,18 @@ export async function fetchViralFile(
     redirect: "error",
     signal: AbortSignal.timeout(COPY_MINUTES * 60_000),
   }).catch(() => {
-    throw new Error("Viral could not be reached for the video.")
+    throw new Error("Research could not be reached for the video. Try again.")
   })
-  if (!response.ok || !response.body) throw new Error(`Viral answered ${response.status} for the video.`)
+  if (!response.ok || !response.body) throw new Error(`Research answered ${response.status} for the video.`)
   const mimeType = (response.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase()
   if (!mimeType.startsWith("video/")) {
     await response.body.cancel().catch(() => undefined)
-    throw new Error("Viral's file isn't a video, so Video didn't keep it.")
+    throw new Error("The file isn't a video, so the editor didn't keep it.")
   }
   const declared = Number(response.headers.get("content-length") ?? 0)
   if (declared > maxBytes) {
     await response.body.cancel().catch(() => undefined)
-    throw new Error("The video is bigger than Video takes from Viral.")
+    throw new Error("The video is bigger than the editor takes from Research.")
   }
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
@@ -326,7 +326,7 @@ export async function fetchViralFile(
       const { done, value } = await reader.read()
       if (value?.byteLength) {
         total += value.byteLength
-        if (total > maxBytes) throw new Error("The video is bigger than Video takes from Viral.")
+        if (total > maxBytes) throw new Error("The video is bigger than the editor takes from Research.")
         chunks.push(value)
       }
       if (done) break

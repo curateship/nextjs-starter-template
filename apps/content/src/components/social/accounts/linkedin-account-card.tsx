@@ -27,7 +27,7 @@ const LINES = ["followers", "connections", "profileViews", "impressions"] as con
 const dayFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" })
 
 /** What the weekly look at its comments is: a guess, because LinkedIn never says. */
-const SEEN_HINT = "Promo's best guess from its weekly look for the account's latest comments under their posts, as a stranger sees them. LinkedIn never says."
+const SEEN_HINT = "Content's best guess from its weekly look for the account's latest comments under their posts, as a stranger sees them. LinkedIn never says."
 
 /**
  * A LinkedIn account's own settings, in its settings window on the Accounts

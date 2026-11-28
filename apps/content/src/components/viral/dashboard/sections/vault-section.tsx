@@ -89,7 +89,7 @@ export function VaultSection({ data, search, frame, onChanged, tabs }: SectionPr
   /** A card dropped on another column. Sent is refused: it turns on only after Send to Video. */
   async function moveCard(item: VaultItem, status: VaultStatus) {
     if (status === "sent") {
-      showErrorToast("Sent turns on by itself after Send to Video, so an idea can't be dragged there.")
+      showErrorToast("Sent turns on by itself after Make a draft, so an idea can't be dragged there.")
       return
     }
     setEdited((was) => ({ ...was, [item.id]: { ...item, status } }))

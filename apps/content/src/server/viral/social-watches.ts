@@ -165,7 +165,7 @@ export type AddWatchInput = { projectId: string; network: TextSocial; kind: Watc
  * once it is.
  */
 export async function addSocialWatch(ownerId: string, input: AddWatchInput): Promise<{ watch: SocialWatch; readError: string | null }> {
-  if (!isTextSocial(input.network)) throw viralSays("Promo can't read that social.")
+  if (!isTextSocial(input.network)) throw viralSays("Content can't read that social.")
   const name = SOCIAL_NAMES[input.network]
   if (!watchKinds(input.network).includes(input.kind)) {
     throw viralSays(`${name} can't read ${WATCH_KIND_WORDS[input.kind]?.title.toLowerCase() ?? "that"}.`)
@@ -191,7 +191,7 @@ export async function addSocialWatch(ownerId: string, input: AddWatchInput): Pro
     try {
       await readWatch(ownerId, row)
     } catch (error) {
-      readError = error instanceof Error ? error.message.replace(/^VIRAL_SAYS: /, "") : "Promo didn't answer."
+      readError = error instanceof Error ? error.message.replace(/^VIRAL_SAYS: /, "") : "Promote didn't answer."
     }
   }
   const reads = await newestReads([row.projectId])
@@ -205,7 +205,7 @@ export async function readSocialWatchNow(ownerId: string, watchId: string): Prom
   if (project.isSample) throw viralSays("The sample project never reads anything. Make a project of your own to read it.")
   const before = (await newestReads([row.projectId])).get(watchKey(row))
   if (before?.status === "waiting" && now().getTime() - before.createdAt.getTime() < WAITING_GIVES_UP_MS) {
-    throw viralSays("Promo is still reading it. Its posts arrive here when it finishes.")
+    throw viralSays("Content is still reading it. Its posts arrive here when it finishes.")
   }
   await readWatch(ownerId, row)
   return toWatch(row, (await newestReads([row.projectId])).get(watchKey(row)))

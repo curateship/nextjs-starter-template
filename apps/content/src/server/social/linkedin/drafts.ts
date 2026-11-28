@@ -214,7 +214,7 @@ export async function writeLinkedinDrafts(
   const find = await ownedLinkedinFind(userId, input.findId, db)
   if (!find) throw new Error("That LinkedIn post is no longer saved.")
   const under = input.underCommentId ? ((find.topComments ?? []).find((comment) => comment.id === input.underCommentId) ?? null) : null
-  if (input.underCommentId && !under) throw new Refusal("That comment is not one of the post's top comments as Promo read them.")
+  if (input.underCommentId && !under) throw new Refusal("That comment is not one of the post's top comments as Content read them.")
   const { words, examples } = await accountWords(userId, input.accountId, find.projectId, db)
   const product = input.helpOnly ? "" : await projectDescription(userId, find.projectId, db)
   const picked = await pickProvider(input)
@@ -295,7 +295,7 @@ export async function rewriteLinkedinComment(
   input: { findId: string; text: string; how: LinkedinRewrite },
   db: CustomShellDb = defaultDb
 ): Promise<LinkedinDraftView> {
-  if (!LINKEDIN_REWRITE_WORDS[input.how]) throw new Error("That rewrite is not one Promo knows.")
+  if (!LINKEDIN_REWRITE_WORDS[input.how]) throw new Error("That rewrite is not one Content knows.")
   const text = input.text.trim()
   if (!text) throw new Refusal("Write the comment first, then rewrite it.")
   const find = await ownedLinkedinFind(userId, input.findId, db)

@@ -186,7 +186,7 @@ export async function saveXSignIn(
       message: `${NOTICE_HEADINGS.ban_screen} @${account.handle || state.handle || "an X account"} in its browser`,
       detail: [
         `X showed: "${banned}".`,
-        `Promo stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
+        `Content stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
         "Sort it out in the browser window in the Anti Detect dashboard's Profiles, then let it run again from the Accounts dashboard.",
       ].join(" "),
       href: "/admin/projects?section=accounts&platform=x",

@@ -23,7 +23,6 @@ import {
   type ViralFormat,
 } from "@/lib/api/viral/viral-library"
 import { formatShortDay } from "@/lib/viral/viral-view"
-import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { scriptText } from "@/lib/viral/analysis"
 import { FORMAT_IDEA_MAX, FORMAT_NAME_MAX } from "@/lib/viral/formats"
@@ -172,7 +171,7 @@ export function LibraryFormatPanel({
             ) : null}
           </PanelCard>
 
-          <PanelCard storageId="viral-format-write" title="Write a script" meta={`About ${price.cents} ${plural(price.cents, "cent")} with ${price.writer}`}>
+          <PanelCard storageId="viral-format-write" title="Write a script" meta={price.writer}>
             <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
               <div className="grid gap-2">
                 <Label htmlFor={`format-project-${format.id}`}>Written for</Label>
@@ -205,9 +204,10 @@ export function LibraryFormatPanel({
                 />
               </div>
               <div>
-                <Button type="button" onClick={() => void write()} disabled={busy === "write"}>
+                <Button type="button" className="h-auto min-h-8 max-w-full py-1.5 whitespace-normal" onClick={() => void write()} disabled={busy === "write"}>
                   {busy === "write" ? <Loader2Icon className="animate-spin" /> : <PenLineIcon />}
-                  Write
+                  {/* The price on the button, where it is never cut short (`price-before-you-press.md`). */}
+                  Write · about {price.cents}¢
                 </Button>
               </div>
             </div>

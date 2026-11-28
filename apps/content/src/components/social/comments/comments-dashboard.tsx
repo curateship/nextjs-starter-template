@@ -411,7 +411,7 @@ function SentTable({
           title="Delete this comment from Reddit?"
           description={
             deleting
-              ? `It is deleted from Reddit by ${deleting.account.handle ? `u/${deleting.account.handle}` : "the account that sent it"}, which cannot be undone. Promo keeps its record here, marked deleted by you.`
+              ? `It is deleted from Reddit by ${deleting.account.handle ? `u/${deleting.account.handle}` : "the account that sent it"}, which cannot be undone. Content keeps its record here, marked deleted by you.`
               : ""
           }
           confirmLabel="Delete from Reddit"

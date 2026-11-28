@@ -248,7 +248,7 @@ export async function saveLinkedinSignIn(
       message: `${NOTICE_HEADINGS.ban_screen} ${handleWords("linkedin", account.handle || state.slug || "") || "a LinkedIn account"} ${account.profileId ? "in its browser" : "on its phone"}`,
       detail: [
         `LinkedIn showed: "${banned}".`,
-        `Promo stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
+        `Content stopped the account${dropped.length ? ` and dropped its ${dropped.length} waiting ${dropped.length === 1 ? "job" : "jobs"}` : ""}.`,
         account.profileId
           ? "Sort it out in the browser window in the Anti Detect dashboard's Profiles, then let it run again from the Accounts dashboard."
           : "Sort it out through the phone's screen on its rack's page, then let it run again from the Accounts dashboard.",

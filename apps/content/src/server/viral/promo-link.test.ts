@@ -142,7 +142,7 @@ describe("reads through Promo", () => {
   it("refuses a kind the network doesn't take, before asking Promo", async () => {
     const promo = fakePromo({})
     await expect(requestPromoRead(user.id, { projectId, network: "reddit", kind: "account", value: "dad" }, promo.fetchImpl)).rejects.toThrow(
-      "Promo can't read a account on reddit."
+      "Content can't read a account on reddit."
     )
     expect(promo.calls).toHaveLength(0)
   })
@@ -270,7 +270,7 @@ describe("Write a post for Promo", () => {
     expect(promo.calls[0]!.body).toEqual({ sendId: written.id, projectId: "p1", network: "x", ideaId: itemId, pieces: ["Edited words"], title: "" })
     expect(sent).toMatchObject({ status: "sent", pieces: ["Edited words"], draftUrl: `${PROMO}/admin/projects/p1?network=x&tab=posts&open=r1` })
     await expect(sendPromoPost(user.id, { sendId: written.id, promoProjectId: "p1", title: "", pieces: ["Again"] }, promo.fetchImpl)).rejects.toThrow(
-      "That post is in Promo already."
+      "That post is in Promote already."
     )
 
     const other = await writePromoPost(user.id, itemId, "x")
@@ -296,7 +296,7 @@ describe("Write a post for Promo", () => {
     const itemId = await vaultItem()
     const written = await writePromoPost(user.id, itemId, "threads")
     await expect(sendPromoPost(user.id, { sendId: written.id, promoProjectId: "p1", title: "", pieces: ["Hi"] }, fakePromo({}).fetchImpl)).rejects.toThrow(
-      "Promo has no Threads"
+      "Promote has no Threads"
     )
   })
 })

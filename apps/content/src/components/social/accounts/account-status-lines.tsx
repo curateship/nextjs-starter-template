@@ -82,7 +82,7 @@ export function AccountStatusLines({ row }: { row: RedditAccountRow }) {
       ) : null}
       {x && row.x.paid ? <span className="text-muted-foreground">Paid</span> : null}
       {linkedin && row.linkedin.seen ? (
-        <Hint label="Promo's best guess from its weekly look for the account's latest comments, as a stranger sees them. LinkedIn never says.">
+        <Hint label="Content's best guess from its weekly look for the account's latest comments, as a stranger sees them. LinkedIn never says.">
           <span
             className={
               row.linkedin.seen === "hidden"

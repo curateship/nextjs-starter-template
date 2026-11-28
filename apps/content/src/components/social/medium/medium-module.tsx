@@ -440,6 +440,10 @@ export function MediumModule({
         onBack={back}
         onClose={() => openRecord(null)}
         onChanged={refreshAll}
+        onCreated={async (id) => {
+          await refreshAll()
+          openRecord(id)
+        }}
       />
     )
   } else {

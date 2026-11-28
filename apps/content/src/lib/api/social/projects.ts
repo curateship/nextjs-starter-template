@@ -65,7 +65,7 @@ export const getProjectErrorMessage = passReaderWritten(createErrorMessage(
     "already in another project": "That account is already in another project. An account belongs to one project only.",
     "found no posts yet": "This project has found no posts yet, so there are no subreddits to look in. Run a keyword first.",
     "There is no reader browser": "Pick a reader browser in Settings → Behaviour first. The look runs in it.",
-    "cannot use that network": "Promo cannot use that network yet.",
+    "cannot use that network": "Content cannot use that network yet.",
     "description only": "You can change the description only.",
     "description is locked": "The description is locked. Unlock it from the project's ⋮ menu first.",
     "Keep it under": "The description is too long. Keep it under 4,000 letters.",

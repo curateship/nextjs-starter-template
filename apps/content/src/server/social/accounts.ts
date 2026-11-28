@@ -132,7 +132,7 @@ export async function addAccount(
   db: CustomShellDb = defaultDb
 ): Promise<string> {
   const platform = input.platform ?? "reddit"
-  if (!isNetwork(platform)) throw new Error("Promo cannot use that network yet.")
+  if (!isNetwork(platform)) throw new Error("Content cannot use that network yet.")
   if (!input.profileId && !input.phoneId) {
     throw new Error(
       isPhoneAppNetwork(platform)

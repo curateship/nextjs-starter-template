@@ -29,7 +29,7 @@ export function PromoSendStatusLine({
           ) : send.status === "sent" ? (
             <>
               <SendIcon className="size-3.5" />
-              {send.kind === "slideshow" ? "Slideshow sent" : "Sent to Promo"} · {send.promoProjectName}
+              {send.kind === "slideshow" ? "Slideshow added" : "Added to"} · {send.promoProjectName}
               {send.promoItemUrl ? (
                 <a
                   href={send.promoItemUrl}

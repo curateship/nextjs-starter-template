@@ -54,7 +54,7 @@ export function resultWords(action: string, result: Record<string, unknown>): st
     const parts = TRACKED_APPS.filter((app) => apps[app]).map(
       (app) => `${APP_WORDS[app]} ${String(apps[app]?.version ?? "")}${apps[app]?.update === true ? ", update out" : ", up to date"}`
     )
-    return parts.length ? parts.join(". ").concat(".") : "None of the apps Promo watches is on this phone."
+    return parts.length ? parts.join(". ").concat(".") : "None of the apps Content watches is on this phone."
   }
   if (action === "phone/update-app") {
     const app = APP_WORDS[String(result.app ?? "") as keyof typeof APP_WORDS] ?? String(result.app ?? "The app")

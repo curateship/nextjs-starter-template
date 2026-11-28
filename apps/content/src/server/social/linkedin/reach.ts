@@ -215,7 +215,7 @@ export async function recordLinkedinSeen(
       kind: "linkedin_hidden",
       targetId: target,
       message: `${NOTICE_HEADINGS.linkedin_hidden} ${handleWords("linkedin", account.handle)}'s comments`,
-      detail: `None of its ${told.length} latest comments showed to a stranger. Promo's best guess, because LinkedIn never says. Slow it down for a few days.`,
+      detail: `None of its ${told.length} latest comments showed to a stranger. Content's best guess, because LinkedIn never says. Slow it down for a few days.`,
       href: "/admin/projects?section=accounts&platform=linkedin",
     },
     db,

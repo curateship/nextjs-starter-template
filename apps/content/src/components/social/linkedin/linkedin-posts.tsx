@@ -244,9 +244,11 @@ export function LinkedinPostsList({
             })}
           </div>
         ) : (
-          <p className="px-4 pt-3 text-sm text-muted-foreground">
-            No posts of your own yet. Press New post to write one.
-          </p>
+          // The header's New post is "+" alone in a narrow header, so the line carries its own.
+          <div className="grid justify-items-start gap-3 px-4 pt-3">
+            <p className="text-sm text-muted-foreground">No posts of your own yet. Press New post to write one.</p>
+            <NewPostButton projectId={projectId} accounts={accounts} sources={data?.sources ?? []} onCreated={created} />
+          </div>
         )}
       </ScrollArea>
     </div>
@@ -255,10 +257,8 @@ export function LinkedinPostsList({
 
 /**
  * New post as a dropdown, the way every dashboard's New button works
- * (Ui-standards): what it is first, then what it is about, who posts it and
- * what it starts from, and Create at the bottom right. With something to go
- * on, the AI writes it straight away; the draft opens on the right either
- * way.
+ * (Ui-standards). The form itself is `NewPostForm`, which the right panel
+ * also shows while no post is open.
  */
 function NewPostButton({
   projectId,
@@ -272,6 +272,50 @@ function NewPostButton({
   onCreated: (id: string) => Promise<void>
 }) {
   const [open, setOpen] = React.useState(false)
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <DashboardToolbarButton type="button">
+          <PlusIcon className="size-4" />
+          New post
+        </DashboardToolbarButton>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-3">
+        <NewPostForm
+          projectId={projectId}
+          accounts={accounts}
+          sources={sources}
+          autoFocus
+          onCreated={async (id) => {
+            setOpen(false)
+            await onCreated(id)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * What it is first, then what it is about, who posts it and what it starts
+ * from, and Create at the bottom right. With something to go on, the AI
+ * writes it straight away; the draft opens on the right either way.
+ */
+function NewPostForm({
+  projectId,
+  accounts,
+  sources,
+  autoFocus = false,
+  onCreated,
+}: {
+  projectId: string
+  accounts: Account[]
+  sources: LinkedinPostSource[]
+  autoFocus?: boolean
+  onCreated: (id: string) => Promise<void>
+}) {
+  // The panel and the dropdown can both hold this form at once.
+  const id = React.useId()
   const [kind, setKind] = React.useState<"post" | "newsletter">("post")
   const [about, setAbout] = React.useState("")
   const [accountId, setAccountId] = React.useState(NONE)
@@ -294,7 +338,6 @@ function NewPostButton({
           showErrorToast(`The draft is made, but the AI did not write it. ${getLinkedinErrorMessage(failure)}`)
         }
       }
-      setOpen(false)
       setAbout("")
       setAccountId(NONE)
       setSource(NONE)
@@ -307,80 +350,70 @@ function NewPostButton({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <DashboardToolbarButton type="button">
-          <PlusIcon className="size-4" />
-          New post
-        </DashboardToolbarButton>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-3">
-        <form className="grid gap-4" onSubmit={create}>
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="linkedin-new-kind" hint="A repost is started from a post in To look at, with Repost with thoughts.">
-              What it is
-            </FieldLabel>
-            <Select value={kind} onValueChange={(value) => setKind(value === "newsletter" ? "newsletter" : "post")}>
-              <SelectTrigger id="linkedin-new-kind">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="post">{LINKEDIN_POST_KIND_WORDS.post}</SelectItem>
-                <SelectItem value="newsletter">{LINKEDIN_POST_KIND_WORDS.newsletter}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {kind === "post" ? (
-            <div className="grid gap-2">
-              <FieldLabel htmlFor="linkedin-new-about" hint="A line or two. Leave it empty to write the post yourself.">
-                What it is about
-              </FieldLabel>
-              <Input id="linkedin-new-about" autoFocus value={about} placeholder="Three pricing mistakes in a first SaaS" onChange={(event) => setAbout(event.target.value)} />
-            </div>
-          ) : null}
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="linkedin-new-account">Post as</FieldLabel>
-            <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger id="linkedin-new-account">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Pick later</SelectItem>
-                {accounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {linkedinAccountName(account.handle)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <FieldLabel htmlFor="linkedin-new-source" hint="A published Medium article or a Reddit comment of yours that did well. The AI rewrites it for LinkedIn and never copies it.">
-              Start from
-            </FieldLabel>
-            <Select value={source} onValueChange={setSource}>
-              <SelectTrigger id="linkedin-new-source">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Nothing, start from scratch</SelectItem>
-                {sources.map((item) => (
-                  <SelectItem key={item.source} value={item.source}>
-                    {item.label.slice(0, 60)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex justify-end">
-            <Button type="submit" disabled={busy}>
-              {busy ? <Loader2Icon className="animate-spin" /> : null}
-              Create {kind === "newsletter" ? "issue" : "post"}
-            </Button>
-          </div>
-        </form>
-      </PopoverContent>
-    </Popover>
+    <form className="grid grid-cols-[minmax(0,1fr)] gap-4" onSubmit={create}>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        <FieldLabel htmlFor={`${id}-kind`} hint="A repost is started from a post in To look at, with Repost with thoughts.">
+          What it is
+        </FieldLabel>
+        <Select value={kind} onValueChange={(value) => setKind(value === "newsletter" ? "newsletter" : "post")}>
+          <SelectTrigger id={`${id}-kind`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="post">{LINKEDIN_POST_KIND_WORDS.post}</SelectItem>
+            <SelectItem value="newsletter">{LINKEDIN_POST_KIND_WORDS.newsletter}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {kind === "post" ? (
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+          <FieldLabel htmlFor={`${id}-about`} hint="A line or two. Leave it empty to write the post yourself.">
+            What it is about
+          </FieldLabel>
+          <Input id={`${id}-about`} autoFocus={autoFocus} value={about} placeholder="Three pricing mistakes in a first SaaS" onChange={(event) => setAbout(event.target.value)} />
+        </div>
+      ) : null}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        <FieldLabel htmlFor={`${id}-account`}>Post as</FieldLabel>
+        <Select value={accountId} onValueChange={setAccountId}>
+          <SelectTrigger id={`${id}-account`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>Pick later</SelectItem>
+            {accounts.map((account) => (
+              <SelectItem key={account.id} value={account.id}>
+                {linkedinAccountName(account.handle)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-2">
+        <FieldLabel htmlFor={`${id}-source`} hint="A published Medium article or a Reddit comment of yours that did well. The AI rewrites it for LinkedIn and never copies it.">
+          Start from
+        </FieldLabel>
+        <Select value={source} onValueChange={setSource}>
+          <SelectTrigger id={`${id}-source`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>Nothing, start from scratch</SelectItem>
+            {sources.map((item) => (
+              <SelectItem key={item.source} value={item.source}>
+                {item.label.slice(0, 60)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex justify-end">
+        <Button type="submit" disabled={busy}>
+          {busy ? <Loader2Icon className="animate-spin" /> : null}
+          Create {kind === "newsletter" ? "issue" : "post"}
+        </Button>
+      </div>
+    </form>
   )
 }
 
@@ -428,6 +461,7 @@ export function LinkedinPostPanel({
   onBack,
   onClose,
   onChanged,
+  onCreated,
 }: {
   projectId: string
   post: LinkedinPostView | null
@@ -437,11 +471,19 @@ export function LinkedinPostPanel({
   onBack?: () => void
   onClose: () => void
   onChanged: () => Promise<void>
+  /** A draft made from the form shown while no post is open. */
+  onCreated: (id: string) => Promise<void>
 }) {
+  // No post open: the New post form, as Reddit's and YouTube's right panels show,
+  // never a line telling you to press something (the right panel is never empty).
   if (!post) {
     return (
-      <XPanelFrame title="A post of your own" onBack={onBack}>
-        <p className="p-4 text-sm text-muted-foreground">Click a post to write it or to see how it is doing, or press New post.</p>
+      <XPanelFrame title="New post" icon={<PlusIcon />} onBack={onBack}>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="p-4">
+            <NewPostForm projectId={projectId} accounts={accounts} sources={sources} onCreated={onCreated} />
+          </div>
+        </ScrollArea>
       </XPanelFrame>
     )
   }
@@ -734,7 +776,7 @@ function PostComposer({
   function pickFromArchive(pick: ArchivePick) {
     const { item } = pick
     if (item.kind === "carousel" && !item.pdfUrl) {
-      setArchiveNotes(["This carousel came without its PDF. Send it again from Video with Also as a PDF for LinkedIn ticked."])
+      setArchiveNotes(["This carousel came without its PDF. Add it to the project again from the editor with Also as a PDF for LinkedIn ticked."])
       return
     }
     const words = latest.current.text.trim() || !pick.caption ? {} : { text: pick.caption }
@@ -1544,7 +1586,7 @@ function PostedPost({ projectId, post, onBack, onChanged }: { projectId: string;
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title="Delete this from LinkedIn?"
-        description="The account's browser deletes it on LinkedIn, looking before and after. Promo keeps its record and its numbers."
+        description="The account's browser deletes it on LinkedIn, looking before and after. Content keeps its record and its numbers."
         confirmLabel="Delete"
         loading={busy === "delete"}
         onConfirm={() =>

@@ -279,7 +279,7 @@ export async function ownedLinkedinComment(userId: string, commentRowId: string,
     .from(promoLinkedinComments)
     .where(and(eq(promoLinkedinComments.id, commentRowId), eq(promoLinkedinComments.userId, userId)))
     .limit(1)
-  if (!row) throw new Error("That comment is not one Promo sent.")
+  if (!row) throw new Error("That comment is not one Content sent.")
   return row
 }
 
@@ -673,7 +673,7 @@ export async function runLinkedinChange(
     .from(promoLinkedinPosts)
     .where(and(eq(promoLinkedinPosts.id, postRowId), eq(promoLinkedinPosts.userId, userId)))
     .limit(1)
-  if (!post) throw new Error("That post is not one Promo posted.")
+  if (!post) throw new Error("That post is not one Content posted.")
   if (kind === "linkedin_delete") {
     const { done } = await linkedinDelete(target, { postId: post.postId, commentId: "" })
     if (!done) throw new Error("Delete was pressed but the post still shows on LinkedIn. Look at it there.")

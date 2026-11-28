@@ -6,6 +6,7 @@ import type { AppHeaderLeftContentProps } from "@/lib/app-options"
 import { canSeeShellEntry, isActiveShellHref, isShellEntryNamed, isShellItem, renderShellIcon } from "@/lib/custom-shell"
 
 const EDITOR = "/admin/video-editor"
+const ACTORS = "/admin/video-editor/actors"
 const PROJECTS = "/admin/projects"
 
 /**
@@ -22,7 +23,8 @@ export default function ContentHeaderLeft({ role, fallback }: AppHeaderLeftConte
   const path = useRouterState({ select: (state) => state.location.pathname })
   const { config } = useShellRuntime()
   const mode = role === "admin" ? config.topLeftMode : config.memberTopLeftMode
-  if (mode !== "sidebar" || !isActiveShellHref(EDITOR, path)) return <>{fallback}</>
+  // Actors is under the editor's address but is a left menu link of its own, so the shell names it.
+  if (mode !== "sidebar" || !isActiveShellHref(EDITOR, path) || isActiveShellHref(ACTORS, path)) return <>{fallback}</>
   const projects = config.sections
     .flatMap((section) => section.entries.filter(isShellItem))
     .find((item) => canSeeShellEntry(item, role) && isShellEntryNamed(item) && isActiveShellHref(item.href, PROJECTS))

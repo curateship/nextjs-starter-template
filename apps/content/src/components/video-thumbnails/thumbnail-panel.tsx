@@ -261,12 +261,12 @@ function Versions() {
                 </Button>
               </Hint>
               {guest ? null : (
-                <Hint label="Send to Promo">
+                <Hint label="Add to project">
                   <Button
                     type="button"
                     size="icon-xs"
                     variant="secondary"
-                    aria-label="Send this thumbnail to Promo"
+                    aria-label="Add this thumbnail to a project"
                     onClick={() =>
                       setSending({
                         name: row.title || "This thumbnail",

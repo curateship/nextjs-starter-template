@@ -88,6 +88,13 @@ The dropdowns cut their words short with "…" before anything is pushed off
 the edge: down to 56px in a header under 768px wide, as on a phone, and 96px
 otherwise.
 
+Content's two dropdowns, the kind and Status, have an icon for each choice
+(`content-kind-menu.tsx`). In a header under 768px wide they show the icon
+alone: both of their words start with "All", so cut to 56px they read "A…"
+and "A…" and could not be told apart. The words stay in the list that opens
+and in what a screen reader says. Measured at 390 wide: each is 33px, the tab
+dropdown reads Content in full, and the header is one 57px line.
+
 ## Not changed
 
 - **The shell's own dashboards** (Admin, CRM, Automations) keep the search box

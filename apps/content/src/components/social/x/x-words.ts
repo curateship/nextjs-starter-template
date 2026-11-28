@@ -68,4 +68,4 @@ export function xReachWords(reach: XReach | ""): string {
 }
 
 /** The tooltip on the reach words: hidden and folded are Promo's guess, because X never says. */
-export const X_REACH_HINT = "Promo's best guess from its daily look for the account's latest reply, by search and under its post. X never says."
+export const X_REACH_HINT = "Content's best guess from its daily look for the account's latest reply, by search and under its post. X never says."

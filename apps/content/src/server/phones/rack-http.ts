@@ -40,7 +40,7 @@ export async function answerSigned<Shape extends z.ZodType>(
   } catch (error) {
     if (error instanceof RackRefusal) return refuse(error.status, error.message)
     console.error("A rack message could not be checked", error)
-    return refuse(503, "Promo could not check this message. Try again shortly.")
+    return refuse(503, "Content could not check this message. Try again shortly.")
   }
 
   const nonce = request.headers.get("x-rack-nonce") ?? ""
@@ -59,14 +59,14 @@ export async function answerSigned<Shape extends z.ZodType>(
     return signed(400, { error: "This message is not JSON." })
   }
   const checked = shape.safeParse(parsed)
-  if (!checked.success) return signed(400, { error: "This message is not in a shape Promo knows." })
+  if (!checked.success) return signed(400, { error: "This message is not in a shape Content knows." })
 
   try {
     return signed(200, (await work(rack, checked.data)) ?? {})
   } catch (error) {
     if (error instanceof RackRefusal) return signed(error.status, { error: error.message })
     console.error("A rack message failed", error)
-    return signed(500, { error: "Promo could not do that. It is in the server's log." })
+    return signed(500, { error: "Content could not do that. It is in the server's log." })
   }
 }
 

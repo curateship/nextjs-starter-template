@@ -203,7 +203,7 @@ function xAccountStatus(
   account: Pick<AccountRow, "statusOverride" | "lastPostedAt" | "banScreenAt" | "xJoinedAt" | "signedInAt" | "handle" | "xReach">,
   now: Date
 ): AccountStatusView {
-  const warning = account.xReach === "hidden" || account.xReach === "folded" ? `${X_REACH_WORDS[account.xReach]}: Promo's best guess, X never says` : null
+  const warning = account.xReach === "hidden" || account.xReach === "folded" ? `${X_REACH_WORDS[account.xReach]}: Content's best guess, X never says` : null
   if (account.statusOverride && ACCOUNT_STATUSES.includes(account.statusOverride)) {
     return { status: account.statusOverride, byHand: true, warning }
   }
@@ -227,7 +227,7 @@ function linkedinAccountStatus(
   account: Pick<AccountRow, "statusOverride" | "lastPostedAt" | "banScreenAt" | "signedInAt" | "handle" | "linkedinSeen">,
   now: Date
 ): AccountStatusView {
-  const warning = account.linkedinSeen === "hidden" ? `${LINKEDIN_SEEN_WORDS.hidden} Promo's best guess, LinkedIn never says` : null
+  const warning = account.linkedinSeen === "hidden" ? `${LINKEDIN_SEEN_WORDS.hidden} Content's best guess, LinkedIn never says` : null
   if (account.statusOverride && ACCOUNT_STATUSES.includes(account.statusOverride)) {
     return { status: account.statusOverride, byHand: true, warning }
   }

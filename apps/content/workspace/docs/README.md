@@ -16,8 +16,9 @@ apps' docs, listed below under the app each came from. Where one of them says
   settings in the project's ⋮, the editor's back button,
   the Projects dashboard's Found today, Videos in progress, Vault, Hooks and
   Formats, the one left menu, the sample project, the Project app's two
-  links, the links between the three inside the app, and the three apps
-  retired.
+  links, the links between the three inside the app, the words on screen
+  that name Content and never the old apps (Add to project, Make a draft),
+  and the three apps retired.
 - [list-header.md](list-header.md) — every list's one header: search as an
   icon, the dropdowns right after it, Select and Jobs in the ⋮, the outlined
   buttons, and the shell dashboards it does not reach.

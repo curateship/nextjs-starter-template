@@ -38,7 +38,7 @@ const projectsFn = createServerFn({ method: "GET" })
     try {
       return await listPromoProjects()
     } catch (error) {
-      throw viralSays(plain(error, "Promo couldn't be reached."))
+      throw viralSays(plain(error, "Promote couldn't be reached."))
     }
   })
 

@@ -326,7 +326,7 @@ export function MediumResponsePanel({
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title="Delete this response from Medium?"
-        description="The account's browser deletes it on Medium. Promo keeps its record."
+        description="The account's browser deletes it on Medium. Content keeps its record."
         confirmLabel="Delete"
         loading={busy === "delete"}
         onConfirm={() =>

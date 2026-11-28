@@ -336,7 +336,7 @@ function UnknownScreen({ screen, onChanged }: { screen: BansPage["unknown"][numb
   const name = screen.account ? handleWords(screen.account.platform, screen.account.handle) || "An account" : "An account"
   return (
     <div className="grid gap-2 border-t px-1.5 py-2.5 text-sm first:border-t-0">
-      <p className="font-medium">{"Promo doesn't know this screen. Is it a ban?"}</p>
+      <p className="font-medium">{"Content doesn't know this screen. Is it a ban?"}</p>
       <p>
         {name} on {appName(screen.app)}, {formatDateTime(screen.at)}: &ldquo;{screen.line}&rdquo;
       </p>

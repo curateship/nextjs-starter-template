@@ -95,7 +95,7 @@ export async function mediaLinkResponse(token: string, db: CustomShellDb = defau
   const answer = await spendMediaLink(token, db, now)
   if (answer.status === 404) return new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store" } })
   if (answer.status === 410) {
-    return new Response("This link was used or ran out. Post again from Promo for a new one.", {
+    return new Response("This link was used or ran out. Post again from Content for a new one.", {
       status: 410,
       headers: { "Cache-Control": "no-store" },
     })

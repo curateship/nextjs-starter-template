@@ -107,7 +107,7 @@ export function SocialSourcesDropdown({
       setValue("")
       onChanged()
       const label = watchLabel(answer.watch.kind, answer.watch.value)
-      if (answer.readError) showErrorToast(`${label} is on ${name} here, but Promo couldn't read it: ${answer.readError}`)
+      if (answer.readError) showErrorToast(`${label} is on ${name} here, but Content couldn't read it: ${answer.readError}`)
     } catch (error) {
       showErrorToast(getViralErrorMessage(error))
     } finally {
@@ -261,7 +261,7 @@ function WatchRow({
   const waiting = watch.status === "waiting"
   const line =
     watch.status === "waiting"
-      ? "Promo is reading it"
+      ? "Content is reading it"
       : watch.status === "failed"
         ? "Failed"
         : watch.status === "done"
@@ -408,8 +408,8 @@ export function TextPostsMiddle({
         ) : (
           <p className="px-3 py-10 text-center text-sm text-muted-foreground">
             {watching
-              ? `Nothing from ${name} yet. Promo's posts arrive here as each read finishes.`
-              : `Add a search or an account to ${name} on the left; Promo reads it and its posts arrive here.`}
+              ? `Nothing from ${name} yet. Its posts arrive here as each read finishes.`
+              : `Add a search or an account to ${name} on the left; Content reads it and its posts arrive here.`}
           </p>
         )}
       </ScrollArea>

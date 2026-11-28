@@ -176,14 +176,14 @@ export async function sendPromoPost(
     .where(and(eq(viralPromoSends.id, input.sendId), eq(viralPromoSends.ownerId, ownerId)))
     .limit(1)
   if (!row) throw viralSays("That post is gone. Write it again.")
-  if (!sendsToPromo(row.network)) throw viralSays("Promo has no Threads, so a Threads post is for Copy.")
-  if (row.status === "sent") throw viralSays("That post is in Promo already.")
+  if (!sendsToPromo(row.network)) throw viralSays("Promote has no Threads, so a Threads post is for Copy.")
+  if (row.status === "sent") throw viralSays("That post is in Promote already.")
   const title = row.network === "reddit" ? input.title.trim() : ""
   const pieces = input.pieces.map((piece) => piece.trim()).filter(Boolean)
   if (!pieces.length) throw viralSays("The post has no words.")
   refuseTooLong(row.network, title, pieces)
   const connection = await readPromoConnection().catch((error: unknown) => {
-    throw viralSays(error instanceof Error ? error.message : "Fill in Promo's address and key first.")
+    throw viralSays(error instanceof Error ? error.message : "Content could not link its parts. Try again.")
   })
 
   try {
@@ -210,7 +210,7 @@ export async function sendPromoPost(
       })
       .where(eq(viralPromoSends.id, row.id))
   } catch (error) {
-    const message = error instanceof PromoRefusal || error instanceof Error ? error.message : "Promo didn't answer."
+    const message = error instanceof PromoRefusal || error instanceof Error ? error.message : "Promote didn't answer."
     await db
       .update(viralPromoSends)
       .set({ status: "failed", title, pieces, promoProjectId: input.promoProjectId, error: message.slice(0, 1_000) })

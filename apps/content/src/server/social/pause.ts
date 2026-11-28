@@ -111,7 +111,7 @@ export async function setProjectNetworkPaused(
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<Network[]> {
-  if (!isNetwork(network)) throw new Error("Promo cannot use that network yet.")
+  if (!isNetwork(network)) throw new Error("Content cannot use that network yet.")
   const [project] = await db
     .select({ networks: promoProjects.networks, pausedNetworks: promoProjects.pausedNetworks })
     .from(promoProjects)
@@ -171,7 +171,7 @@ export async function setProjectCommentingPaused(
   db: CustomShellDb = defaultDb,
   now: Date = new Date()
 ): Promise<Network[]> {
-  if (!isNetwork(network)) throw new Error("Promo cannot use that network yet.")
+  if (!isNetwork(network)) throw new Error("Content cannot use that network yet.")
   const [project] = await db
     .select({ networks: promoProjects.networks, pausedCommenting: promoProjects.pausedCommenting })
     .from(promoProjects)

@@ -1,19 +1,5 @@
 import * as React from "react"
-import {
-  AlertTriangleIcon,
-  ClockIcon,
-  ExternalLinkIcon,
-  HeartIcon,
-  LinkIcon,
-  ListPlusIcon,
-  Loader2Icon,
-  MessageCircleReplyIcon,
-  RefreshCwIcon,
-  ShieldCheckIcon,
-  SparklesIcon,
-  Undo2Icon,
-  XIcon,
-} from "lucide-react"
+import { AlertTriangleIcon, ClockIcon, ExternalLinkIcon, HeartIcon, LinkIcon, ListPlusIcon, Loader2Icon, MessageCircleReplyIcon, MessageSquareIcon, RefreshCwIcon, ShieldCheckIcon, SparklesIcon, Undo2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Hint } from "@/components/social/hint"
@@ -107,7 +93,7 @@ export function XFindPanel({
 
   if (loading && !find) {
     return (
-      <XPanelFrame title="The post and your reply" onBack={onBack}>
+      <XPanelFrame title="The post and your reply" icon={<MessageSquareIcon />} onBack={onBack}>
         <p className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
           <Loader2Icon className="size-4 animate-spin" />
           Reading the post
@@ -117,7 +103,7 @@ export function XFindPanel({
   }
   if (!find) {
     return (
-      <XPanelFrame title="The post and your reply" onBack={onBack}>
+      <XPanelFrame title="The post and your reply" icon={<MessageSquareIcon />} onBack={onBack}>
         <p className="p-4 text-sm text-muted-foreground">Pick a post from the list and it opens here, with its top replies and the reply you would send.</p>
       </XPanelFrame>
     )

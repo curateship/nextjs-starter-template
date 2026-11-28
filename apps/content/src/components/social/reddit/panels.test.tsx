@@ -108,7 +108,7 @@ describe("a link post in the answer panel", () => {
   })
 
   it("says the page is being read rather than that it failed, before it has been tried", () => {
-    expect(answerPanel(undefined, link)).toContain("Promo is reading the page it links to")
+    expect(answerPanel(undefined, link)).toContain("Content is reading the page it links to")
   })
 })
 

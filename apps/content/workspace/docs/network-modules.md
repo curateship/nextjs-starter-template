@@ -146,6 +146,31 @@ platform.
   jobs button here"), shows how many jobs are running or waiting beside its
   name.
 
+## Your own posts: the right panel and the empty list
+
+- **No post open, the right panel holds New post's form** on X, LinkedIn and
+  Medium, as Reddit's and YouTube's do: what it is about, who posts it, what
+  it starts from, and Create. A line telling you to press New post left the
+  right panel empty, against Tyler's rule that it never is. The form is the
+  one the header's New post opens (`NewPostForm` in `x-posts.tsx` and
+  `linkedin-posts.tsx`, `NewArticleForm` in `medium-articles.tsx`), and a
+  post made from it opens on the right.
+- **Each right panel's header** is an icon and a name in the card heading's
+  weight, as every right panel in Content is: "New YouTube video", "New
+  Instagram post", "New post", "People", "The post and your reply", a comment's
+  "<name> under a video by <channel>". On a narrow screen the arrow back takes
+  the icon's place. A header that shows a record's save state or its own
+  buttons, as a Medium draft's does, is unchanged.
+- **An empty list carries its own New button** under its line: "No posts of
+  your own yet. Press New post to write one." on Reddit, X, LinkedIn and
+  Medium, and the Accounts dashboard's "No accounts yet" with New account
+  (`EmptyLine` in `src/components/content-app/empty-line.tsx`). In a narrow
+  header the New button is "+" alone, so the line names a button a phone
+  could not see.
+- **YouTube's new video form** keeps inside the right panel at its narrowest:
+  the template dropdown no longer holds 224px, and Write title and description
+  cuts short with "…".
+
 ## The tables inside the middle column
 
 Today's and Sent's tables on Commenting, and Reddit's Posts and Failed on

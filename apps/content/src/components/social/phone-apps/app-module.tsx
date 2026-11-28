@@ -1,12 +1,12 @@
 import * as React from "react"
 import { ListHeader } from "@/components/content-app/list-header"
 import { ProjectMenuButton } from "@/components/content-app/project-top"
-import { ArrowLeftIcon, PlusIcon } from "lucide-react"
+import { ArrowLeftIcon, MessageSquareIcon, PlusIcon } from "lucide-react"
 
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 import { JobsWindow } from "@/components/social/reddit/jobs-window"
 import { ProjectColumns } from "@/components/social/projects/project-columns"
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardHeader, DashboardCardHeaderIcon, dashboardCardHeadingClassName } from "@/components/shared/dashboard-card-header"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -24,6 +24,7 @@ import { getProjectErrorMessage, putAccountInProject, takeAccountOutOfProject } 
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { handleWords, NETWORK_NAMES, type PhoneAppNetwork } from "@/lib/social/networks"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 import { AppAccountPicker } from "./app-account-picker"
 import { AppCommentsTable, AppPostsTable } from "./app-tables"
@@ -234,8 +235,12 @@ export function AppModule({
   const right = comment ? (
     <div className="flex min-h-0 flex-1 flex-col">
       <DashboardCardHeader>
-        {back}
-        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+        {back ?? (
+          <DashboardCardHeaderIcon>
+            <MessageSquareIcon className="size-4" />
+          </DashboardCardHeaderIcon>
+        )}
+        <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>
           {comment.author} on a post by {handleWords(network, comment.account.handle) || "your account"}
         </span>
       </DashboardCardHeader>
@@ -255,8 +260,12 @@ export function AppModule({
   ) : (
     <div className="flex min-h-0 flex-1 flex-col">
       <DashboardCardHeader>
-        {back}
-        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">New {NETWORK_NAMES[network]} post</span>
+        {back ?? (
+          <DashboardCardHeaderIcon>
+            <PlusIcon className="size-4" />
+          </DashboardCardHeaderIcon>
+        )}
+        <span className={cn("min-w-0 flex-1 truncate", dashboardCardHeadingClassName)}>New {NETWORK_NAMES[network]} post</span>
       </DashboardCardHeader>
       <ScrollArea className="min-h-0 flex-1">
         {view ? (

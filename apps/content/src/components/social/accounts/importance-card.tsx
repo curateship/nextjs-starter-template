@@ -206,7 +206,7 @@ export function ImportanceCard({
         open={confirming}
         onOpenChange={setConfirming}
         title={`Mark ${name} important?`}
-        description="From now on it runs on a phone only, and Promo refuses anything that links it to a throwaway: a shared voice, project or proxy, a throwaway answering it or naming it, or both commenting under one post. Its phone needs a wipe before a throwaway can use it. This cannot be undone."
+        description="From now on it runs on a phone only, and Content refuses anything that links it to a throwaway: a shared voice, project or proxy, a throwaway answering it or naming it, or both commenting under one post. Its phone needs a wipe before a throwaway can use it. This cannot be undone."
         confirmLabel="Mark important"
         destructive={false}
         loading={busy === "mark"}

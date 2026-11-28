@@ -460,7 +460,7 @@ export function XReplyPanel({
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title="Delete this from X?"
-        description="The account's browser deletes it on X, looking before and after. Promo keeps its record."
+        description="The account's browser deletes it on X, looking before and after. Content keeps its record."
         confirmLabel="Delete"
         loading={busy === "delete"}
         onConfirm={() =>

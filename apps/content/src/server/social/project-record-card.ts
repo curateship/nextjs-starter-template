@@ -61,8 +61,8 @@ export async function recordCardResponse(
 ) {
   const key = env.PROJECT_HANDOFF_KEY?.trim()
   const record = key ? readCardRequest(new URL(request.url), key, at) : null
-  if (!record) return Response.json({ error: "Promo does not know this request." }, { status: 401, headers: NEVER_CACHE })
+  if (!record) return Response.json({ error: "Content does not know this request." }, { status: 401, headers: NEVER_CACHE })
   const card = await recordCard(record, database)
-  if (!card) return Response.json({ error: "That Promo project is gone." }, { status: 404, headers: NEVER_CACHE })
+  if (!card) return Response.json({ error: "That project is gone." }, { status: 404, headers: NEVER_CACHE })
   return Response.json(card, { headers: NEVER_CACHE })
 }

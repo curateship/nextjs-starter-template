@@ -46,10 +46,10 @@ export const Route = createFileRoute("/api/rack/pair")({
         } catch (error) {
           if (error instanceof RackRefusal) return refuse(error.status, error.message)
           if (error instanceof Error && error.message === "ENCRYPTION_NOT_CONFIGURED") {
-            return refuse(503, "Promo has no encryption key set, so it cannot keep a rack's key. Set CUSTOM_SHELL_SECRET_ENCRYPTION_KEY.")
+            return refuse(503, "Content has no encryption key set, so it cannot keep a rack's key. Set CUSTOM_SHELL_SECRET_ENCRYPTION_KEY.")
           }
           console.error("Pairing a rack failed", error)
-          return refuse(500, "Promo could not pair this rack. It is in the server's log.")
+          return refuse(500, "Content could not pair this rack. It is in the server's log.")
         }
       },
     },

@@ -12,7 +12,7 @@ import { loadHookIdeas, writeHookIdeasFn, type HookIdeas, type LibraryHook } fro
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { HOOK_IDEAS_COUNT } from "@/lib/viral/library"
 import { formatShortDay } from "@/lib/viral/viral-view"
-import { writerPriceWords, type WriterPrice } from "@/lib/viral/writers"
+import { type WriterPrice } from "@/lib/viral/writers"
 
 type Ideas = { state: "loading" } | { state: "ready"; ideas: HookIdeas[] } | { state: "failed"; error: string }
 
@@ -80,14 +80,16 @@ export function HookIdeasCards({
     }
   }
 
-  const priceLine = writerPriceWords(price)
+  // The price sits on the button, where it is never cut short (`price-before-you-press.md`); the
+  // card's title names only the AI, which fits a narrow panel.
+  const cost = `about ${price.cents}¢`
 
   return (
     <>
       <PanelCard
         storageId="viral-library-hook-write"
         title="Write hooks like this"
-        meta={priceLine.charAt(0).toUpperCase() + priceLine.slice(1)}
+        meta={price.writer}
       >
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
           <div className="grid gap-2">
@@ -110,9 +112,10 @@ export function HookIdeasCards({
             )}
           </div>
           <div>
-            <Button type="button" onClick={() => void write()} disabled={busy}>
+            {/* Wraps rather than running past a narrow panel's edge. */}
+            <Button type="button" className="h-auto min-h-8 max-w-full py-1.5 whitespace-normal" onClick={() => void write()} disabled={busy}>
               {busy ? <Loader2Icon className="animate-spin" /> : <PenLineIcon />}
-              Write {HOOK_IDEAS_COUNT} hooks
+              Write {HOOK_IDEAS_COUNT} hooks · {cost}
             </Button>
           </div>
         </div>

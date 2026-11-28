@@ -7,10 +7,10 @@ import {
   dashboardToolbarButtonGroupItemClassName,
 } from "@/components/shared/dashboard-toolbar"
 import { formatRelativeTime } from "@/lib/format/format-time"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { useRememberedChoice } from "@/lib/remembered-choice"
 import { cn } from "@/lib/utils"
 import { formatClock } from "@/lib/video/timeline-utils"
-import { VIDEO_STATUS_LABELS, type VideoStatus } from "@/lib/video/project-videos"
 
 /**
  * How Content shows its lists, as a grid of cards or as a table (Tyler,
@@ -56,31 +56,52 @@ export function ContentLayoutSwitch({ layout, onChange }: { layout: ContentLayou
 }
 
 /** One of the project's editor videos, as Drafts and All content show them. */
-export type DraftVideo = { id: string; name: string; status: VideoStatus; durationMs: number; updatedAt: string }
+export type DraftVideo = { id: string; name: string; durationMs: number; updatedAt: string; thumbnailUrl: string | null }
 
 /**
- * A draft's card in a grid: its length, name, and where it stands with its
- * last edit. It opens the editor on the whole screen, as a row of Drafts does.
+ * What a draft's card and row say it is: always Draft (Tyler, 27 Nov 2026,
+ * "Always "Draft""). Content's Status calls every video still in the editor a
+ * draft, so the editor's own Ready or Posted tag stays in the editor.
+ */
+export const DRAFT_STATUS_WORD = "Draft"
+
+/**
+ * A draft's card in a grid: its picture and length, its name on up to two
+ * lines, and its last edit. It opens the editor on the whole screen, as a row
+ * of Drafts does. The picture is the video's main thumbnail, else its first
+ * clip's frame (`project-thumbnails.md`); a video with no clip yet shows the
+ * clapperboard.
  */
 export function DraftCard({ video, onOpen }: { video: DraftVideo; onOpen: () => void }) {
   return (
     <div className="group relative grid gap-1.5 rounded-lg p-1.5 hover:bg-accent/60">
-      <button type="button" className="grid gap-1.5 text-left focus-visible:outline-none" onClick={onOpen}>
+      <button type="button" className={cn("grid gap-1.5 rounded-md text-left", focusRing)} onClick={onOpen}>
         <span className="relative flex aspect-square items-center justify-center overflow-hidden rounded-md bg-muted">
-          <ClapperboardIcon className="size-6 text-muted-foreground" />
+          {video.thumbnailUrl ? (
+            <img src={video.thumbnailUrl} alt="" loading="lazy" className="size-full object-cover" />
+          ) : (
+            <ClapperboardIcon className="size-6 text-muted-foreground" />
+          )}
           <span className="absolute bottom-1 left-1 flex items-center gap-1 rounded bg-background/85 px-1.5 py-0.5 text-[11px]">
             <ClapperboardIcon className="size-3" />
             {formatClock(video.durationMs)}
           </span>
         </span>
-        <span className="truncate text-sm font-medium">{video.name}</span>
+        <span className={CARD_NAME}>{video.name}</span>
         <span className="truncate text-xs text-muted-foreground">
-          {VIDEO_STATUS_LABELS[video.status]} · Edited {formatRelativeTime(video.updatedAt).toLowerCase()}
+          {DRAFT_STATUS_WORD} · Edited {formatRelativeTime(video.updatedAt).toLowerCase()}
         </span>
       </button>
     </div>
   )
 }
+
+/**
+ * A card's name: up to two lines before "…", so names that start alike can be
+ * told apart. Two lines of room are kept on every card, so a row of cards
+ * stays lined up when only one name wraps.
+ */
+export const CARD_NAME = "line-clamp-2 min-h-[2lh] text-sm font-medium break-words"
 
 /** The cards' grid, the Archive's own sizes. */
 export const CARD_GRID = "grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3"

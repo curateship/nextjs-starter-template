@@ -21,6 +21,8 @@ import type { KeywordRow } from "@/server/social/keywords"
 
 import { ArchiveItemPanel } from "@/components/archive/archive-item-panel"
 import { ArchiveItemsPanel } from "@/components/archive/archive-items-panel"
+import { type DraftVideo } from "@/components/content-app/content-layout"
+import { DraftPanel } from "@/components/content-app/draft-panel"
 import { usePromoGuest } from "@/components/social/guest/guest-mode"
 
 import { CommentingPauseContext } from "@/components/social/commenting-pause"
@@ -476,6 +478,8 @@ function ProjectArchive({
     setQuietId(null)
     onSearch({ open: itemId })
   }
+  /** The first draft, shown on the right while no Archive item is open (the right panel is never empty). */
+  const [firstDraft, setFirstDraft] = React.useState<{ video: DraftVideo; open: () => void } | null>(null)
   const onShown = React.useCallback(
     (ids: string[]) => {
       // Opened by itself, so it replaces the address: Back still leaves the page.
@@ -499,19 +503,24 @@ function ProjectArchive({
           openId={openId}
           onOpen={pickItem}
           onShown={onShown}
+          onFirstDraft={setFirstDraft}
           canManage={canManage}
           showDrafts={showDrafts}
         />
       }
       right={
-        <ArchiveItemPanel
-          key={openId ?? "none"}
-          itemId={openId}
-          canManage={canManage}
-          projects={[]}
-          onChanged={() => setListKey((count) => count + 1)}
-          onOpen={pickItem}
-        />
+        !openId && firstDraft ? (
+          <DraftPanel video={firstDraft.video} onOpen={firstDraft.open} />
+        ) : (
+          <ArchiveItemPanel
+            key={openId ?? "none"}
+            itemId={openId}
+            canManage={canManage}
+            projects={[]}
+            onChanged={() => setListKey((count) => count + 1)}
+            onOpen={pickItem}
+          />
+        )
       }
       rightOpen={Boolean(openId) && openId !== quietId}
       onCloseRight={() => setQuietId(openId ?? null)}

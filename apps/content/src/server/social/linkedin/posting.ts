@@ -142,7 +142,7 @@ export async function linkedinWritingAccount(userId: string, accountId: string, 
     throw new Refusal("This LinkedIn account has no browser profile or phone. Pick where it runs on the Accounts dashboard.")
   }
   if (!account.handle) {
-    throw new Refusal("Promo has not seen this account signed in to LinkedIn. Sign it in, then press Check now on the Accounts dashboard.")
+    throw new Refusal("Content has not seen this account signed in to LinkedIn. Sign it in, then press Check now on the Accounts dashboard.")
   }
   if (account.banScreenAt) {
     throw new Refusal(`LinkedIn stopped this account: "${account.blockedReason}". Let it run again from the Accounts dashboard once it is sorted.`)
@@ -369,7 +369,7 @@ export async function queueLinkedinComment(
   let target = { commentId: "", name: find.authorName, slug: find.authorSlug, text: find.text }
   if (input.underCommentId) {
     const top = (find.topComments ?? []).find((comment) => comment.id === input.underCommentId)
-    if (!top) throw new Refusal("That comment is not one of the post's top comments as Promo read them. Read the post again.")
+    if (!top) throw new Refusal("That comment is not one of the post's top comments as Content read them. Read the post again.")
     target = { commentId: top.id, name: top.name, slug: top.slug, text: top.text }
   }
   return queueLinkedinWriting(
@@ -424,7 +424,7 @@ export async function queueLinkedinAnswer(
       .from(promoLinkedinComments)
       .where(and(eq(promoLinkedinComments.id, input.under.commentRowId), eq(promoLinkedinComments.userId, userId)))
       .limit(1)
-    if (!parent || parent.status !== "posted") throw new Error("That comment is not one Promo sent.")
+    if (!parent || parent.status !== "posted") throw new Error("That comment is not one Content sent.")
     accountId = parent.accountId
     parentId = parent.id
     postId = parent.targetId
@@ -437,7 +437,7 @@ export async function queueLinkedinAnswer(
       .from(promoLinkedinPosts)
       .where(and(eq(promoLinkedinPosts.id, input.under.postRowId), eq(promoLinkedinPosts.userId, userId)))
       .limit(1)
-    if (!post || post.status !== "posted" || !post.accountId || !post.postId) throw new Error("That post is not one Promo posted.")
+    if (!post || post.status !== "posted" || !post.accountId || !post.postId) throw new Error("That post is not one Content posted.")
     accountId = post.accountId
     postId = post.postId
     postUrl = post.postUrl
