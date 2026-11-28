@@ -197,18 +197,24 @@ and "move discritption to general. it dfoesnt need its own tab". The task is
   and Promote, the tab's own dropdown, the list's own dropdown and buttons,
   then the project's ⋮. `projects-dashboard.md`, "The one header", has the
   order and how it gives way on a narrow window.
-- **Content** is the page's home and its plain address. It has one
-  dropdown, after the search icon (Tyler, 27 Nov 2026: "remove the all items and videos dropdown and rename every kind to "All content"", with the editor's videos "In All content"):
-  - **All content**, the project's Archive with its first item on the right
-    (`archive.md`), and **Videos, Carousels, Pictures**, one kind of it;
-  - **Drafts**, the project's videos in the editor with their status, length
-    and last edit and New video, Video's own window
-    (`src/components/content-app/project-videos.tsx`). A video opens the
-    editor on the whole screen; Drafts has no right panel, so the list takes
-    its room. A guest has no Drafts.
+- **Content** is the page's home and its plain address: the project's videos
+  still in the editor under Drafts first, then its Archive with its first item
+  on the right (`archive.md`; Tyler, 27 Nov 2026: "All content should show
+  draft too"). After the search icon it has two dropdowns
+  (`content-kind-menu.tsx`):
+  - **What kind:** All content, Videos, Carousels, Pictures. A draft is a
+    video, so it shows on All content and Videos.
+  - **Status:** All statuses, Draft (the videos still in the editor) and
+    Published (everything in the Archive, posted or not) ("There should be another drop down for "Status" and move draft there, we also need Published"; Published was his pick, "In the Archive"). A guest has no
+    drafts and no Status. The address keeps it as `?archive=1&stage=draft`,
+    since a network's Accounts tab has a `status` of its own.
 
-  Both lists draw the same dropdown (`content-kind-menu.tsx`), so either
-  reaches the other.
+  After Filter, **Grid and List** ("Shouldnt there be 2 icon for list and grid ?") show it as cards or as one table with the same
+  columns for drafts and every kind: Item, Kind, Length, Status, Last change
+  (`content-layout.tsx`). This browser remembers the pick, a grid to begin
+  with; a header narrower than 32rem, as on a phone, leaves the two icons out.
+  A draft opens the editor on the whole screen. The Drafts list that was a
+  choice of the dropdown is gone into Status.
 - **Research** is `/admin/projects/<id>/research`: Viral's project screen
   with this left panel. Its dropdown picks Found videos, Hooks, Sounds or
   Creators. The vault is the Projects dashboard's own Vault, which can show
@@ -272,12 +278,25 @@ How they behave:
 
 ## The video editor
 
-Clicking a video on Content's Videos opens the editor on the whole screen
+A video opened from Content, a draft or a video just made with Add → Create
+video, opens the editor on the whole screen
 beside the left menu, as Video's editor always was (Tyler, 26 Nov 2026:
-"Option 1: whole screen"). Its header starts with a button carrying the
-project's name, which goes back to Content's Videos, the list the video was
-opened from (`src/components/content-app/editor-back.tsx`). A video project made outside a
-project, if one were left, goes back to the video projects list as before.
+"Option 1: whole screen").
+
+- **The back button**, first in its header, carries the project's name and
+  goes back to where the video was opened from: Status Draft when the address
+  says `?from=drafts`, All content otherwise (Tyler, 27 Nov 2026: "clicking back to
+  content archive shows a list ... but it was a grid before that?";
+  `src/components/content-app/editor-back.tsx`). A video project made outside
+  a project, if one were left, goes back to the video projects list as before.
+- **The top bar names Projects** at its top left, as a project's page does
+  (Tyler, 27 Nov 2026: "why doesnt the editor have the top nav"). The editor
+  is no link of the left menu, so the shell drew nothing there; Content draws
+  its own top left through `header.leftContent`
+  (`src/components/content-app/content-header-left.tsx`), the shell's own
+  everywhere else, and only while Settings → Top left shows is Sidebar links.
+  The left menu itself does not mark Projects on the editor: that is the
+  shell's sidebar.
 
 ## Carousels
 

@@ -49,7 +49,7 @@ Send to Promo copies a finished video, carousel or thumbnail into a project's Ar
 - **Posted marks:** when a post goes out in Promo from something this Video sent, Promo tells Video, and the video or carousel turns to Posted, the same as setting it by hand on its menu. Only an export that really arrived in Promo can be turned to Posted this way, and only its owner's video or carousel changes.
 - **Open in Promo** is kept only when its address is on the Promo address saved on Settings → Promo.
 - **Try again** starts a send's three-hour clock again, and two presses at once send it once. A send that fails keeps Promo's own words, or "The send to Promo failed. Try again." when the reason was the server's own text, which goes to the log instead.
-- **Ask for a video:** a Promo project can ask for a video with a short brief and a Video project to put it in. Video makes a draft video there named after the brief's first line, keeps the brief, and rings the project owner's bell ("Launch teaser was asked for in Promo", "From Launch week."). The Videos tab shows "Asked for in Promo:" and the brief's first line under its name, with the whole brief on hover. Promo is offered every active admin's projects that are not archived, newest first, and never a member's.
+- **Ask for a video is gone** in Content: the Archive's Create video makes the video in the same project and opens the editor (`archive.md`). A video asked for before still shows "Asked for in Promo:" and its brief under its name, kept on the video.
 
 ## How the two apps talk
 
@@ -61,7 +61,6 @@ Every call carries the key as `Authorization: Bearer <key>`. A wrong key gets 40
 - **Video → Promo `GET /api/connect/video/sends/<id>`:** how a send is doing.
 - **Promo → Video `GET /api/connect/promo/file/<token>?part=main|cover|pdf|slide-N`:** a file of the send. The token is the guard: 32 random bytes, only its hash kept, one send's files only, good for 2 hours or until the send arrives.
 - **Promo → Video `POST /api/connect/promo/events`:** `arrived`, `failed` or `posted`.
-- **Promo → Video `GET /api/connect/promo/projects`** and **`POST /api/connect/promo/requests`:** Ask for a video.
 
 ## Limits
 

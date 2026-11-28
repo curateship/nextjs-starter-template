@@ -19,6 +19,14 @@ export type ArchiveSearch = {
   group?: "source"
   /** "1" shows the project's Bin (part 30). */
   bin?: "1"
+  /**
+   * Content's Status: the videos still in the editor ("draft") or what is in
+   * the Archive ("published"); none shows both (Tyler, 27 Nov 2026: "There
+   * should be another drop down for "Status" and move draft there, we also
+   * need Published", Published being everything in the Archive). `stage` in
+   * the address, since a network's Accounts tab has a `status` of its own.
+   */
+  stage?: "draft" | "published"
 }
 
 const ID = /^[A-Za-z0-9-]{1,36}$/
@@ -36,6 +44,7 @@ export function readArchiveSearch(raw: Record<string, unknown>): ArchiveSearch {
   if (raw.sort === "views") out.sort = "views"
   if (raw.group === "source") out.group = "source"
   if (isOne(raw.bin)) out.bin = "1"
+  if (raw.stage === "draft" || raw.stage === "published") out.stage = raw.stage
   return out
 }
 
@@ -43,7 +52,7 @@ export function readArchiveSearch(raw: Record<string, unknown>): ArchiveSearch {
 export const ARCHIVE_VIEW_KIND = "archive"
 
 /** The filters a saved view keeps: only the ones set. */
-export const ARCHIVE_FILTER_KEYS = ["kind", "q", "posted", "sort", "group"] as const
+export const ARCHIVE_FILTER_KEYS = ["kind", "stage", "q", "posted", "sort", "group"] as const
 
 export function keptArchiveFilters(filters: Record<string, unknown>): Record<string, string> {
   const read = readArchiveSearch(filters)
@@ -60,6 +69,7 @@ export function describeArchiveFilters(filters: Record<string, unknown>): string
   const read = readArchiveSearch(filters)
   const parts = [
     read.kind ? `${ARCHIVE_KIND_LABELS[read.kind]}s` : "",
+    read.stage === "draft" ? "Drafts" : read.stage === "published" ? "Published" : "",
     read.q ? `"${read.q}"` : "",
     read.posted ? "Not posted yet" : "",
     read.sort ? "Most viewed" : "",

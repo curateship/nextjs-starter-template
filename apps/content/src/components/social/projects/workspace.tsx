@@ -30,7 +30,6 @@ import { ProjectHeaderLead } from "./project-header-lead"
 import { ProjectColumnsPick } from "./project-columns-pick"
 import { ProjectMenuButton, ProjectTopProvider, type ProjectSubChoice } from "@/components/content-app/project-top"
 import { useProjectTop } from "@/components/content-app/project-top-state"
-import { ProjectVideos } from "@/components/content-app/project-videos"
 import { useProjectsLeft } from "@/components/content-app/projects-left"
 import { Button } from "@/components/ui/button"
 import { NetworkPanesProvider, type NetworkPane, type NetworkPanes } from "@/components/content-app/network-panes"
@@ -113,7 +112,7 @@ function OwnerProjectPage(props: WorkspaceProps) {
  * The project in the middle and right, under its tab row (`project-top.tsx`):
  *
  * - **Content**, the plain address: All content, the project's Archive, and
- *   Drafts (`?content=videos`), its videos in the editor ("In All content").
+ *   its videos still in the editor, with Status to show Draft or Published.
  * - **Research**, `/admin/projects/<id>/research`, a route of its own.
  * - **Promote**, `?network=`: a tab per network under the row, and on the
  *   network's own header the Posts / Commenting switch ("A Posts /
@@ -147,7 +146,6 @@ function ProjectPage({
   const networks = view.project.networks
   const guest = usePromoGuest()
   const tab = projectTabOf({ ...search, post: openPostId ?? undefined, retry: retry ? "1" : undefined, newPost: newPostRetryId ?? undefined }, Boolean(guest))
-  const contentView = tab === "content" && search.content === "videos" && !guest ? "videos" : "items"
   // Promote shows the networks not hidden from it; the picked one shows while hidden, and a hidden one
   // is first only when every one is.
   const shownNetworks = networks.filter((each) => !view.project.hiddenNetworks.includes(each))
@@ -158,11 +156,11 @@ function ProjectPage({
   const pick = React.useMemo(
     () =>
       tab === "content"
-        ? { key: `content:${contentView}`, label: contentView === "videos" ? "Drafts" : "All content" }
+        ? { key: "content", label: "Content" }
         : network
           ? { key: `${network}:${side}`, label: NETWORK_NAMES[network] }
           : { key: "promote", label: "Promote" },
-    [tab, contentView, network, side]
+    [tab, network, side]
   )
 
   const setSearch = React.useCallback(
@@ -264,20 +262,6 @@ function ProjectPage({
         }
 
   if (tab === "content") {
-    if (contentView === "videos") {
-      return framed(
-        <ProjectColumns
-          left={left}
-          middle={<ProjectVideos projectId={projectId} onKind={(kind) => setSearch({ ...CONTENT_START, kind: kind === "all" ? undefined : kind })} />}
-          right={null}
-          rightOpen={false}
-          rightLabel=""
-          reopenInHeader
-        >
-          {dialogs}
-        </ProjectColumns>
-      )
-    }
     return framed(
       <ProjectArchive
         projectId={projectId}
@@ -286,7 +270,7 @@ function ProjectPage({
         left={left}
         search={search}
         onSearch={setSearch}
-        onDrafts={guest ? undefined : () => setSearch({ ...CONTENT_START, content: "videos" })}
+        showDrafts={!guest}
       >
         {dialogs}
       </ProjectArchive>
@@ -452,19 +436,6 @@ function networkChoices(view: ProjectView, showing: Network) {
     })
 }
 
-/** Content's tabs start afresh: every Archive key and the open item cleared. */
-const CONTENT_START: ProjectSearch = {
-  archive: undefined,
-  content: undefined,
-  kind: undefined,
-  q: undefined,
-  posted: undefined,
-  sort: undefined,
-  group: undefined,
-  bin: undefined,
-  open: undefined,
-}
-
 /**
  * Content's All content: the project's own Archive in its middle and right
  * columns (part 21), the same panels as the Archive dashboard had, for this
@@ -482,7 +453,7 @@ function ProjectArchive({
   left,
   search,
   onSearch,
-  onDrafts,
+  showDrafts,
   children,
 }: {
   projectId: string
@@ -491,8 +462,8 @@ function ProjectArchive({
   left: React.ReactNode | null
   search: ProjectSearch
   onSearch: (patch: ProjectSearch, options?: { replace?: boolean }) => void
-  /** Drafts in Content's dropdown; none for a guest. */
-  onDrafts?: () => void
+  /** The project's videos still in the editor, with Status to pick them; not for a guest. */
+  showDrafts: boolean
   children: React.ReactNode
 }) {
   const [listKey, setListKey] = React.useState(0)
@@ -529,7 +500,7 @@ function ProjectArchive({
           onOpen={pickItem}
           onShown={onShown}
           canManage={canManage}
-          onDrafts={onDrafts}
+          showDrafts={showDrafts}
         />
       }
       right={

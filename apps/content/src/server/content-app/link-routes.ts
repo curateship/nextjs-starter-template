@@ -4,7 +4,6 @@ import { arrivalShape } from "@/server/archive/arrivals"
 import { arrive as archiveArrive, hello as archiveHello, helloShape as archiveHelloShape, projects as archiveProjects, sendStatus as archiveSendStatus } from "@/server/archive/connect"
 import { answerVideo } from "@/server/archive/video-link"
 import { isPromoCaller } from "@/server/video/promo-link"
-import { makeRequestedVideo, REQUEST_BRIEF_MAX, RequestRefusal, requestableProjects } from "@/server/video/promo-requests"
 import { applyPromoEvent, readFilePart, sendForToken as videoSendForToken, streamPart } from "@/server/video/promo-sends"
 import {
   arrive as videoArrive,
@@ -65,12 +64,6 @@ const promoEventShape = z.discriminatedUnion("type", [
   }),
 ])
 
-const requestShape = z.object({
-  projectId: z.string().min(1).max(36),
-  brief: z.string().max(REQUEST_BRIEF_MAX),
-  promoProjectName: z.string().max(200).default(""),
-})
-
 /** Viral's answers to Video: what happened to a Send to Video. */
 const videoEventShape = z.discriminatedUnion("type", [
   z.object({
@@ -107,31 +100,6 @@ const VIDEO: Route[] = [
       } catch (error) {
         console.error("A file for Promo could not be read", send.id, error)
         return refuse(502, "The file could not be read. Try again.")
-      }
-    },
-  },
-  {
-    method: "GET",
-    path: "/api/connect/promo/projects",
-    handle: async (request) => {
-      if (!(await isPromoCaller(request))) return refuse(401, "Video does not know this key.")
-      return Response.json({ projects: await requestableProjects() }, { headers: NEVER_CACHE })
-    },
-  },
-  {
-    method: "POST",
-    path: "/api/connect/promo/requests",
-    handle: async (request) => {
-      if (!(await isPromoCaller(request))) return refuse(401, "Video does not know this key.")
-      if (Number(request.headers.get("content-length") ?? 0) > 20_000) return refuse(413, "This message is too large.")
-      const parsed = requestShape.safeParse(await request.json().catch(() => null))
-      if (!parsed.success) return refuse(400, "This message is not in a shape Video knows.")
-      try {
-        return Response.json(await makeRequestedVideo(parsed.data), { headers: NEVER_CACHE })
-      } catch (error) {
-        if (error instanceof RequestRefusal) return refuse(error.status, error.message)
-        console.error("An asked-for video could not be made", error)
-        return refuse(500, "Video could not make the video. It is in the server's log.")
       }
     },
   },

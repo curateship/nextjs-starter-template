@@ -3,20 +3,11 @@ import { useNavigate } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import {
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   getDeleteProjectErrorMessage,
   getProjectErrorMessage,
@@ -26,15 +17,12 @@ import {
 import { NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-export type ProjectDialog =
-  | null
-  | { kind: "new" }
-  | { kind: "delete"; project: { id: string; name: string } }
+export type ProjectDialog = null | { kind: "delete"; project: { id: string; name: string } }
 
 /**
- * The two windows the Projects dashboard opens: a new project, which asks
- * for its name and the networks it uses, and deleting one, which the server refuses while the
- * project still holds accounts or keywords.
+ * The window a project's ⋮ opens: deleting the project, which the server
+ * refuses while it still holds accounts or keywords. New project is a
+ * popover (`NewProjectPopover`).
  */
 export function ProjectDialogs({
   dialog,
@@ -48,14 +36,6 @@ export function ProjectDialogs({
 
   return (
     <>
-      <NewProjectDialog
-        open={dialog?.kind === "new"}
-        onClose={onClose}
-        onCreated={async (projectId) => {
-          onClose()
-          await navigate({ to: "/admin/projects/$projectId", params: { projectId } })
-        }}
-      />
       <ConfirmDialog
         open={dialog?.kind === "delete"}
         onOpenChange={(open) => {
@@ -83,31 +63,63 @@ export function ProjectDialogs({
   )
 }
 
-export function NewProjectDialog({
-  open,
-  onClose,
+/**
+ * New project, a popover under the button (Tyler, 27 Nov 2026: "Create new
+ * project should open up a popover and it unselect all the networks as
+ * default"): a name and the networks it is promoted on, none ticked to begin
+ * with. A project with none shows "Add a network" on Promote. Its
+ * description, accounts and keywords go on its page once it is made. Mounted
+ * only while open, so each opening starts blank.
+ */
+export function NewProjectPopover({
   onCreated,
+  open: openGiven,
+  onOpenChange,
+  anchorOnly = false,
+  children,
 }: {
-  open: boolean
-  onClose: () => void
   onCreated: (projectId: string) => Promise<void>
+  /** Opened from outside, as from the project's ⋮; left out, its own button opens it. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** `children` only places it, as the ⋮ does, and opens nothing itself. */
+  anchorOnly?: boolean
+  /** The button that opens it, or with `anchorOnly` what it sits under. */
+  children: React.ReactNode
 }) {
+  const [openHere, setOpenHere] = React.useState(false)
+  const open = openGiven ?? openHere
+  const setOpen = (next: boolean) => {
+    setOpenHere(next)
+    onOpenChange?.(next)
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      {anchorOnly ? (
+        // A box of its own to sit under, since a menu's button may draw no element it can measure.
+        <PopoverAnchor className="inline-flex">{children}</PopoverAnchor>
+      ) : (
+        <PopoverTrigger asChild>{children}</PopoverTrigger>
+      )}
+      <PopoverContent side="bottom" align="end" className="w-72 p-3">
+        {open ? (
+          <NewProjectForm
+            onCreated={async (id) => {
+              setOpen(false)
+              await onCreated(id)
+            }}
+          />
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function NewProjectForm({ onCreated }: { onCreated: (projectId: string) => Promise<void> }) {
   const [name, setName] = React.useState("")
-  /**
-   * Every network Promo has is ticked to begin with, since today that is
-   * Reddit alone and a project using nothing has nothing to show. Tyler,
-   * 14 Oct 2026: "add a project a select what social network this project
-   * will use".
-   */
-  const [networks, setNetworks] = React.useState<Network[]>([...NETWORKS])
+  const [networks, setNetworks] = React.useState<Network[]>([])
   const [invalid, setInvalid] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
-
-  function reset() {
-    setName("")
-    setNetworks([...NETWORKS])
-    setInvalid(false)
-  }
 
   async function create() {
     if (!name.trim()) {
@@ -118,7 +130,6 @@ export function NewProjectDialog({
     setSaving(true)
     try {
       const { id } = await makeProject(name.trim(), networks)
-      reset()
       await onCreated(id)
     } catch (error) {
       showErrorToast(getProjectErrorMessage(error))
@@ -128,91 +139,55 @@ export function NewProjectDialog({
   }
 
   return (
-    <FormDialog
-      open={open}
-      dirty={Boolean(name.trim())}
-      busy={saving}
-      onClose={() => {
-        reset()
-        onClose()
+    <form
+      className="grid gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void create()
       }}
     >
-      {(requestClose) => (
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>New project</DialogTitle>
-            <DialogDescription>
-              One thing you promote, and the networks it is promoted on. Its
-              description, accounts and keywords go on its dashboard once it is made.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void create()
-            }}
-          >
-            <DialogBody>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>The project</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="new-project-name">Name</Label>
-                    <Input
-                      id="new-project-name"
-                      value={name}
-                      maxLength={120}
-                      placeholder="My product"
-                      aria-invalid={invalid || undefined}
-                      onChange={(event) => {
-                        setName(event.target.value)
-                        setInvalid(false)
-                      }}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>Networks</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  {NETWORKS.map((network) => (
-                    <div key={network} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`new-project-network-${network}`}
-                        checked={networks.includes(network)}
-                        onCheckedChange={(checked) =>
-                          setNetworks((current) =>
-                            checked === true
-                              ? NETWORKS.filter((item) => item === network || current.includes(item))
-                              : current.filter((item) => item !== network)
-                          )
-                        }
-                      />
-                      <Label htmlFor={`new-project-network-${network}`} className="font-normal">
-                        {NETWORK_NAMES[network]}
-                      </Label>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </DialogBody>
-            <DialogFooter>
-              <Button type="button" variant="outline" disabled={saving} onClick={requestClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? <Loader2Icon className="animate-spin" /> : null}
-                Create project
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      )}
-    </FormDialog>
+      <div className="grid gap-2">
+        <Label htmlFor="new-project-name">Name</Label>
+        <Input
+          id="new-project-name"
+          value={name}
+          maxLength={120}
+          placeholder="My product"
+          autoFocus
+          aria-invalid={invalid || undefined}
+          onChange={(event) => {
+            setName(event.target.value)
+            setInvalid(false)
+          }}
+        />
+      </div>
+      <fieldset className="grid gap-2">
+        <legend className="mb-2 text-sm font-medium">Networks</legend>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+          {NETWORKS.map((network) => (
+            <div key={network} className="flex items-center gap-2">
+              <Checkbox
+                id={`new-project-network-${network}`}
+                checked={networks.includes(network)}
+                onCheckedChange={(checked) =>
+                  setNetworks((current) =>
+                    checked === true
+                      ? NETWORKS.filter((item) => item === network || current.includes(item))
+                      : current.filter((item) => item !== network)
+                  )
+                }
+              />
+              <Label htmlFor={`new-project-network-${network}`} className="font-normal">
+                {NETWORK_NAMES[network]}
+              </Label>
+            </div>
+          ))}
+        </div>
+      </fieldset>
+      <Button type="submit" disabled={saving}>
+        {saving ? <Loader2Icon className="animate-spin" /> : null}
+        Create project
+      </Button>
+    </form>
   )
 }

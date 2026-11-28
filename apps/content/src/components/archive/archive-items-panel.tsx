@@ -1,5 +1,7 @@
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 import {
+  ClapperboardIcon,
   FilmIcon,
   GalleryHorizontalIcon,
   ImageIcon,
@@ -11,10 +13,18 @@ import {
 } from "lucide-react"
 
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
+import { getPartsErrorMessage, loadProjectParts } from "@/lib/api/content-app/projects"
+import { formatRelativeTime } from "@/lib/format/format-time"
+import { useLoad } from "@/lib/hooks/use-load"
+import { formatClock } from "@/lib/video/timeline-utils"
+import { VIDEO_STATUS_LABELS } from "@/lib/video/project-videos"
+import { CARD_GRID, ContentLayoutSwitch, DraftCard, useContentLayout, type DraftVideo } from "@/components/content-app/content-layout"
+import { Chip, CrmTable, CrmTableRow, MainCell } from "@/components/crm/crm-table"
+import { TableCell } from "@/components/ui/table"
 import { FilterPopover } from "@/components/shared/filter-popover"
 import { FoldingMenu, MenuAction } from "@/components/shared/folding-menu"
 import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
-import { AskForVideoDialog } from "@/components/archive/ask-for-video-dialog"
+import { NewVideoPopover } from "@/components/video-editor/new-video-popover"
 import { MediaPicker } from "@/components/media/media-picker"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -34,7 +44,7 @@ import {
   restoreArchiveItem,
   type ArchiveCard,
 } from "@/lib/api/archive/items"
-import { BIN_DAYS, type ArchiveItemKind } from "@/lib/archive/items"
+import { ARCHIVE_KIND_LABELS, BIN_DAYS, type ArchiveItemKind } from "@/lib/archive/items"
 import { archiveFilterCount, type ArchiveSearch } from "@/lib/archive/search"
 import { formatFileSize } from "@/lib/format/format-bytes"
 import { plural } from "@/lib/format/plural"
@@ -42,7 +52,7 @@ import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import { ListHeader } from "@/components/content-app/list-header"
 import { ProjectMenuButton } from "@/components/content-app/project-top"
-import { ContentKindMenu } from "@/components/content-app/content-kind-menu"
+import { ContentKindMenu, ContentStatusMenu } from "@/components/content-app/content-kind-menu"
 import { ProjectHeaderLead } from "@/components/social/projects/project-header-lead"
 
 /** How often the list asks again while something is still arriving from Video. */
@@ -71,7 +81,7 @@ export function ArchiveItemsPanel({
   onOpen,
   onShown,
   canManage,
-  onDrafts,
+  showDrafts = false,
 }: {
     projectId: string
     projectName: string
@@ -83,8 +93,8 @@ export function ArchiveItemsPanel({
     onShown?: (ids: string[]) => void
     /** False for a guest from Project: no Bin, no uploads, no select. */
     canManage: boolean
-    /** Opens the project's editor videos, Drafts in the content dropdown; none leaves Drafts out. */
-    onDrafts?: () => void
+    /** The project's videos still in the editor show too, with Status to pick them; not for a guest. */
+    showDrafts?: boolean
 }) {
   const [items, setItems] = React.useState<ArchiveCard[] | null>(null)
   const [binCount, setBinCount] = React.useState(0)
@@ -94,8 +104,35 @@ export function ArchiveItemsPanel({
   const [selected, setSelected] = React.useState<Set<string>>(new Set())
   const [filterOpen, setFilterOpen] = React.useState(false)
   const [picking, setPicking] = React.useState(false)
-  const [asking, setAsking] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
+  const navigate = useNavigate()
+
+  // The project's videos still in the editor show first (Tyler, 27 Nov 2026: "All content should show draft
+  // too"), on All content and Videos, unless Status is Published. Not for a guest, who has none.
+  const withDrafts = showDrafts && search.stage !== "published" && (!search.kind || search.kind === "video")
+  // Status Draft leaves the Archive's items out.
+  const shownItems = React.useMemo(() => (search.stage === "draft" ? [] : items), [items, search.stage])
+  const parts = useLoad(() => (withDrafts ? loadProjectParts(projectId) : Promise.resolve(null)), getPartsErrorMessage, {
+    keys: [projectId, withDrafts],
+    remember: withDrafts ? `content-project-parts-${projectId}` : undefined,
+  })
+  const draftWords = (search.q ?? "").trim().toLowerCase()
+  const drafts = withDrafts
+    ? (parts.data?.videos ?? [])
+        .filter((video) => !video.archived && (!draftWords || video.name.toLowerCase().includes(draftWords)))
+        .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+    : []
+  // Opened under Status Draft, the editor's back button returns there.
+  const openDraft = (videoId: string) =>
+    void navigate({ to: "/admin/video-editor/$projectId", params: { projectId }, search: { video: videoId, ...(search.stage === "draft" ? { from: "drafts" as const } : {}) } })
+  const [layout, setLayout] = useContentLayout()
+  const tick = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
 
   const queryKey = JSON.stringify([projectId, search.kind, search.q, search.posted, search.sort, reloads])
@@ -134,7 +171,7 @@ export function ArchiveItemsPanel({
     return () => clearInterval(timer)
   }, [arriving])
 
-  const groups = React.useMemo(() => groupCards(items ?? [], search.group === "source"), [items, search.group])
+  const groups = React.useMemo(() => groupCards(shownItems ?? [], search.group === "source"), [shownItems, search.group])
   const shownIds = groups.flatMap((group) => group.items.map((item) => item.id))
   const shownKey = shownIds.join(",")
   const loaded = items !== null
@@ -181,14 +218,12 @@ export function ArchiveItemsPanel({
           </span>
         }
         choices={
-          <ContentKindMenu
-            value={search.kind ?? "all"}
-            drafts={Boolean(onDrafts)}
-            onPick={(next) => {
-              if (next === "drafts") onDrafts?.()
-              else onSearch({ kind: next === "all" ? undefined : next, open: undefined })
-            }}
-          />
+          <>
+            <ContentKindMenu value={search.kind ?? "all"} onPick={(next) => onSearch({ kind: next === "all" ? undefined : next, open: undefined })} />
+            {showDrafts ? (
+              <ContentStatusMenu value={search.stage ?? "all"} onPick={(next) => onSearch({ stage: next === "all" ? undefined : next, open: undefined })} />
+            ) : null}
+          </>
         }
         selected={
           selected.size && canManage ? (
@@ -265,7 +300,8 @@ export function ArchiveItemsPanel({
           </div>
         </FilterPopover>
         }
-        primary={canManage ? <AddMenu onUpload={() => setPicking(true)} onAsk={() => setAsking(true)} /> : undefined}
+        view={<ContentLayoutSwitch layout={layout} onChange={setLayout} />}
+        primary={canManage ? <AddMenu projectId={projectId} onUpload={() => setPicking(true)} /> : undefined}
         menuLabel="More for the archive"
         // The Bin is a tab of the project's ⋮ (Tyler, 27 Nov 2026: "move bin into the tab here instead").
         end={
@@ -288,20 +324,49 @@ export function ArchiveItemsPanel({
           <div className="p-3">
             <LoadingRow label="Opening the archive…" />
           </div>
-        ) : !items.length ? (
+        ) : !shownItems?.length && !drafts.length ? (
           <p className="p-4 text-sm text-muted-foreground">
-            {search.q || search.kind || search.posted
-                ? "Nothing in the archive matches that."
+            {search.stage === "draft" && !search.q && (!search.kind || search.kind === "video")
+              ? "No drafts yet. Press + Add, then Create video, to make one."
+              : search.q || search.kind || search.posted || search.stage === "draft"
+                ? "Nothing matches that."
                 : canManage
                   ? `${projectName}'s archive is empty. Press Send to Promo on an export in Video, or + Add to upload a file.`
                   : `${projectName}'s archive is empty.`}
           </p>
+        ) : layout === "list" ? (
+          // Its own container, so its columns come and go with the middle's width.
+          <div className="@container">
+          <ContentTable
+            drafts={drafts}
+            items={groups.flatMap((group) => group.items)}
+            openId={openId}
+            selecting={selecting && canManage}
+            selected={selected}
+            onTick={tick}
+            onTickAll={(ids) => setSelected((current) => (ids.every((id) => current.has(id)) ? new Set() : new Set(ids)))}
+            onOpenItem={onOpen}
+            onOpenDraft={openDraft}
+          />
+          </div>
         ) : (
           <div className="grid gap-4 p-3">
-            {groups.map((group) => (
+            {drafts.length ? (
+              <section className="grid gap-2">
+                <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Drafts</h3>
+                <div className={CARD_GRID}>
+                  {drafts.map((video) => (
+                    <DraftCard key={video.id} video={video} onOpen={() => openDraft(video.id)} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+            {groups.filter((group) => group.items.length).map((group) => (
               <section key={group.name} className="grid gap-2">
-                {group.name ? <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{group.name}</h3> : null}
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3">
+                {group.name || drafts.length ? (
+                  <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{group.name || "Archive"}</h3>
+                ) : null}
+                <div className={CARD_GRID}>
                   {group.items.map((item) => (
                     <ArchiveCardButton
                       key={item.id}
@@ -309,14 +374,7 @@ export function ArchiveItemsPanel({
                       open={item.id === openId}
                       selecting={selecting && canManage}
                       ticked={selected.has(item.id)}
-                      onTick={() =>
-                        setSelected((current) => {
-                          const next = new Set(current)
-                          if (next.has(item.id)) next.delete(item.id)
-                          else next.add(item.id)
-                          return next
-                        })
-                      }
+                      onTick={() => tick(item.id)}
                       onOpen={() => onOpen(item.id)}
                     />
                   ))}
@@ -327,7 +385,6 @@ export function ArchiveItemsPanel({
         )}
       </ScrollArea>
 
-      {canManage && asking ? <AskForVideoDialog projectId={projectId} projectName={projectName} onClose={() => setAsking(false)} /> : null}
       {canManage ? <MediaPicker open={picking} onOpenChange={setPicking} onSelectMedia={(url) => void addUpload(url)} showVideos /> : null}
     </>
   )
@@ -479,6 +536,128 @@ function cardMeasure(item: ArchiveCard): string {
   return formatFileSize(item.fileSize)
 }
 
+type TableColumn = "name" | "kind" | "length" | "status" | "changed"
+
+/**
+ * All content as a list (Tyler, 27 Nov 2026: "Shouldnt there be 2 icon for list
+ * and grid ?"): the drafts and the Archive's items in one table with the same
+ * columns, newest change first. A draft opens the editor; an item opens on the
+ * right, and with Select on its tick box marks it, as its card does.
+ */
+function ContentTable({
+  drafts,
+  items,
+  openId,
+  selecting,
+  selected,
+  onTick,
+  onTickAll,
+  onOpenItem,
+  onOpenDraft,
+}: {
+  drafts: DraftVideo[]
+  items: ArchiveCard[]
+  openId: string | undefined
+  selecting: boolean
+  selected: Set<string>
+  onTick: (id: string) => void
+  onTickAll: (ids: string[]) => void
+  onOpenItem: (id: string) => void
+  onOpenDraft: (id: string) => void
+}) {
+  const [sort, setSort] = React.useState<TableColumn>("changed")
+  const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
+  type Row =
+    | { type: "draft"; id: string; name: string; kind: string; length: string; status: string; changed: string; video: DraftVideo }
+    | { type: "item"; id: string; name: string; kind: string; length: string; status: string; changed: string; item: ArchiveCard }
+  const rows: Row[] = [
+    ...drafts.map((video) => ({
+      type: "draft" as const,
+      id: video.id,
+      name: video.name,
+      // A draft is a video; Status says it is not published yet.
+      kind: ARCHIVE_KIND_LABELS.video,
+      length: formatClock(video.durationMs),
+      status: VIDEO_STATUS_LABELS[video.status],
+      changed: video.updatedAt,
+      video,
+    })),
+    ...items.map((item) => ({
+      type: "item" as const,
+      id: item.id,
+      name: item.title || "Untitled",
+      kind: ARCHIVE_KIND_LABELS[item.kind],
+      length: cardMeasure(item),
+      status: item.posted ? `Posted ${item.posted} ${plural(item.posted, "time", "times")}` : "Not posted yet",
+      changed: item.createdAt,
+      item,
+    })),
+  ]
+  const sorted = [...rows].sort((a, b) => {
+    const order = a[sort] < b[sort] ? -1 : a[sort] > b[sort] ? 1 : 0
+    return direction === "asc" ? order : -order
+  })
+  const itemIds = items.map((item) => item.id)
+  return (
+    <CrmTable<TableColumn>
+      columns={[
+        { key: "name", label: "Item", column: "main", className: "min-w-40" },
+        { key: "kind", label: "Kind", column: "meta", className: "hidden @md:table-cell" },
+        { key: "length", label: "Length", column: "meta", className: "hidden @xl:table-cell" },
+        { key: "status", label: "Status", column: "meta", className: "hidden @lg:table-cell" },
+        { key: "changed", label: "Last change", column: "meta", className: "hidden @2xl:table-cell" },
+      ]}
+      sort={sort}
+      direction={direction}
+      onSort={(column) => {
+        if (column === sort) setDirection((was) => (was === "asc" ? "desc" : "asc"))
+        else {
+          setSort(column)
+          setDirection(column === "changed" ? "desc" : "asc")
+        }
+      }}
+      select={
+        selecting && itemIds.length
+          ? {
+              noun: "items",
+              checked: itemIds.every((id) => selected.has(id)) ? true : itemIds.some((id) => selected.has(id)) ? "indeterminate" : false,
+              onToggle: () => onTickAll(itemIds),
+            }
+          : null
+      }
+      actions={false}
+    >
+      {sorted.map((row) => {
+        const Icon = row.type === "draft" ? ClapperboardIcon : KIND_ICONS[row.item.kind]
+        return (
+          <CrmTableRow
+            key={`${row.type}:${row.id}`}
+            open={row.type === "item" && row.id === openId}
+            label={row.name}
+            cog={false}
+            tick={selecting ? (row.type === "item" ? { shown: true, ticked: selected.has(row.id), onToggle: () => onTick(row.id) } : { shown: true, ticked: false, onToggle: () => undefined, none: true }) : null}
+            onOpen={() => (row.type === "draft" ? onOpenDraft(row.id) : selecting ? onTick(row.id) : onOpenItem(row.id))}
+          >
+            <MainCell lead={<Icon className="size-4 text-muted-foreground" />} name={row.name} />
+            <TableCell column="meta" className="hidden @md:table-cell">
+              {row.kind}
+            </TableCell>
+            <TableCell column="meta" className="hidden tabular-nums @xl:table-cell">
+              {row.length}
+            </TableCell>
+            <TableCell column="meta" className="hidden @lg:table-cell">
+              {row.type === "draft" ? <Chip muted={row.video.status === "draft"}>{row.status}</Chip> : row.status}
+            </TableCell>
+            <TableCell column="meta" className="hidden @2xl:table-cell">
+              {formatRelativeTime(row.changed)}
+            </TableCell>
+          </CrmTableRow>
+        )
+      })}
+    </CrmTable>
+  )
+}
+
 function ArchiveCardButton({
   item,
   open,
@@ -575,15 +754,42 @@ function FilterRow({
   )
 }
 
-/** "+ Add": the one primary button, opening a menu (Travel's trip page pattern). */
-function AddMenu({ onUpload, onAsk }: { onUpload: () => void; onAsk: () => void }) {
+/**
+ * "+ Add": the one primary button, opening a menu (Travel's trip page pattern).
+ * Create video opens New video's popover under Add, a name and a shape or a
+ * template, and the video it makes opens in the editor (Tyler, 27 Nov 2026:
+ * "Pressing the create video button should open a popover and also after I
+ * click create video, it doesnt direct me to the video editor").
+ */
+function AddMenu({ projectId, onUpload }: { projectId: string; onUpload: () => void }) {
+  const navigate = useNavigate()
   const [open, setOpen] = React.useState(false)
+  const [creating, setCreating] = React.useState(false)
+  // The menu gives focus back to Add as it closes, which would close the popover the same moment.
+  const keepFocus = React.useRef(false)
   return (
+    <NewVideoPopover
+      projectId={projectId}
+      aspect="9:16"
+      side="bottom"
+      // Add sits at the right of the header, so it opens leftwards under it, as the header's menus do.
+      align="end"
+      withTemplates
+      anchorOnly
+      open={creating}
+      onOpenChange={setCreating}
+      onCreated={(videoId, panel) => navigate({ to: "/admin/video-editor/$projectId", params: { projectId }, search: { video: videoId, panel } })}
+    >
     <FoldingMenu
       label="Add to the archive"
       fit
       open={open}
       onOpenChange={setOpen}
+      onCloseAutoFocus={(event) => {
+        if (!keepFocus.current) return
+        keepFocus.current = false
+        event.preventDefault()
+      }}
       trigger={
         <DashboardToolbarButton type="button">
           <PlusIcon className="size-4" />
@@ -603,13 +809,15 @@ function AddMenu({ onUpload, onAsk }: { onUpload: () => void; onAsk: () => void 
       <MenuAction
         icon={<FilmIcon className="size-4" />}
         onClick={() => {
+          keepFocus.current = true
           setOpen(false)
-          onAsk()
+          setCreating(true)
         }}
       >
-        {/* Tyler, 27 Nov 2026: rename it to "Create video". It sends a brief to Video, which makes a draft video. */}
+        {/* Tyler, 27 Nov 2026: rename it to "Create video". */}
         Create video
       </MenuAction>
     </FoldingMenu>
+    </NewVideoPopover>
   )
 }

@@ -53,19 +53,22 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
     as Tyler's rule says.
 - **Inside a project.** Content is the first of a project's three tabs, and
   shows All content first: the project's items in the middle and the open
-  one on the right. A guest from Project reaches it from Content too
+  one on the right. Above them, under Drafts, are the project's videos still
+  in the editor, newest edit first, each opening the editor ("All content
+  should show draft too"). The search box narrows them by name; picking
+  Carousels or Pictures, or Status Published, leaves them out, and a guest
+  has none. A guest from Project reaches it from Content too
   (`?archive=1`).
 
 ## The middle panel
 
 - **The one header, left to right** ([list-header.md](list-header.md)): the
   arrow back, Content, Research and Promote; then on the right the search
-  icon, Content's one dropdown, Filter, Add, and the project's ⋮. The
-  dropdown is All content, Videos, Carousels, Pictures, then Drafts, the
-  project's videos in the editor ("remove the all items and videos dropdown
-  and rename every kind to "All content"", then the editor's videos "In All
-  content"; `content-kind-menu.tsx`). Select is the first
-  action on the ⋮'s General tab.
+  icon, the kind dropdown (All content, Videos, Carousels, Pictures), Status
+  (All statuses, Draft, Published; `content-kind-menu.tsx`), Filter, Grid and
+  List, Add, and the project's ⋮ (`content-app.md`, "A project's own page").
+  Select is the first action on the ⋮'s General tab, and ticks the Archive's
+  items in either look.
 - **The Bin is a tab of the project's ⋮** (Tyler, 27 Nov 2026: "The bin
   should open up a modal instead", then "move bin into the tab here
   instead"), named "Bin · 2" while it holds two. It lists the project's
@@ -82,12 +85,10 @@ These came from Tyler on 4 Nov 2026, in his words. They outrank the code.
   - **Views** are saved per project, so they show while a project is picked. A
     project's own page leaves them out.
   - **Add** is a menu. Upload or pick files opens the media library. **Create
-    video** (named "Ask Video for a video" until Tyler renamed it on 27 Nov
-    2026) sends a brief to a Video project you pick (part 42).
-    Video makes a draft video there, with the brief as its notes and its first
-    line as the name, and rings its bell. Nothing is written by AI. With no
-    project picked, each action is listed once per project, so nothing lands
-    in a project nobody chose.
+    video** opens New video's popover under Add: a name, a template or from scratch, and a shape. Its Create video
+    makes the video in this project and opens it in the editor (Tyler, 27 Nov 2026: "Pressing the create video button should open a popover and also after I click create video, it doesnt direct me to the video editor"). It replaced Ask
+    Video for a video, which sent a brief across to Video when the two were
+    separate apps, and is gone with its server routes.
 - **The rows** show each item's cover, name, kind, project (with none picked),
   how many times it was posted and its length or size. They are newest first,
   with pinned items on top whatever the sort, until a column is sorted.

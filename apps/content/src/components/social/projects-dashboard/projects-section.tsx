@@ -30,7 +30,7 @@ import { SelectedMenu, SelectedMenuRow } from "@/components/shared/mass-select"
 import { TabbedMenu } from "@/components/shared/notes/tabbed-menu"
 import { PanelCard } from "@/components/shared/panel-card"
 import { MiddleHeading, PanelReopenButton } from "@/components/shared/three-panels"
-import { NewProjectDialog } from "@/components/social/projects/project-dialogs"
+import { NewProjectPopover } from "@/components/social/projects/project-dialogs"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -97,7 +97,6 @@ export function ProjectsSectionList({
       setDirection(column === "name" ? "asc" : "desc")
     }
   }
-  const [creating, setCreating] = React.useState(false)
   const [deleting, setDeleting] = React.useState<ProjectRow[] | null>(null)
   const closingDeleting = useLastValue(deleting)
   const shownDeleting = deleting ?? closingDeleting
@@ -133,6 +132,18 @@ export function ProjectsSectionList({
   React.useEffect(() => {
     if (firstId && !openInList) setListSearch({ open: firstId })
   }, [firstId, openInList, setListSearch])
+  // A project just made opens once it is in the list: opened before, the dashboard's memory of where it
+  // was puts the last open row back, since the new id is not among the rows it was told of.
+  const [madeId, setMadeId] = React.useState<string | null>(null)
+  const madeInList = Boolean(madeId && rows.some((project) => project.id === madeId))
+  React.useEffect(() => {
+    if (!madeId || !madeInList) return
+    const openMade = () => {
+      setMadeId(null)
+      setOpen(madeId)
+    }
+    openMade()
+  }, [madeId, madeInList, setOpen])
   const [pressedId, setPressedId] = React.useState<string>()
   const pick = (id: string) => {
     setPressedId(id)
@@ -229,10 +240,17 @@ export function ProjectsSectionList({
         }}
         massSelect={{ on: massSelect, onToggle: () => toggleMassSelect() }}
         primary={
-          <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
-            <PlusIcon className="size-4" />
-            <span className="@max-3xl:sr-only">New project</span>
-          </DashboardToolbarButton>
+          <NewProjectPopover
+            onCreated={async (id) => {
+              await router.invalidate()
+              setMadeId(id)
+            }}
+          >
+            <DashboardToolbarButton type="button">
+              <PlusIcon className="size-4" />
+              <span className="@max-3xl:sr-only">New project</span>
+            </DashboardToolbarButton>
+          </NewProjectPopover>
         }
       />
       <CrmTable<Column>
@@ -342,15 +360,6 @@ export function ProjectsSectionList({
     },
     windows: (
       <>
-        <NewProjectDialog
-          open={creating}
-          onClose={() => setCreating(false)}
-          onCreated={async (id) => {
-            setCreating(false)
-            await router.invalidate()
-            setOpen(id)
-          }}
-        />
         <ConfirmDialog
           open={deleting !== null}
           onOpenChange={(open) => {

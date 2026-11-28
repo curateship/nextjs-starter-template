@@ -21,7 +21,7 @@ projects".
   Typing waits 300ms before the list is asked again, as the box always did.
 - **The dropdowns**, right after it: on a project's page the tab's own
   (Promote's "Reddit · Commenting"), then the list's own (a network's "Which
-  list", Research's lists, Content's All content to Drafts).
+  list", Research's lists, Content's kind and Status).
 - **Then** Filter, Views, the list's other buttons and its New button.
 - **The ⋮ last.** On a project's page it is the project's ⋮
   ([projects-dashboard.md](projects-dashboard.md), "The ⋮").

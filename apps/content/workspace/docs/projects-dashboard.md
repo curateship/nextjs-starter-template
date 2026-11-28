@@ -275,10 +275,8 @@ search is an icon, the dropdowns come right after it, and Select is in the ⋮.
 - **The list's own dropdown** of which list shows: a network's own lists
   (To look at, Replied, Sent and the rest) with Voices and Accounts after
   them (`NetworkTabs` in `src/components/content-app/network-panes.tsx`), and
-  Content's one dropdown: All content, Videos, Carousels, Pictures, then
-  Drafts, the editor's videos (`content-kind-menu.tsx`; Tyler, 27 Nov 2026:
-  "remove the all items and videos dropdown and rename every kind to "All
-  content"").
+  Content's two: All content, Videos, Carousels, Pictures, and Status, All
+  statuses, Draft or Published (`content-kind-menu.tsx`).
 - **The list's buttons**: Filter, Views, its keyword picker and its New
   button. YouTube's and Instagram's tables draw this same header above
   themselves, with the shell table's own toolbar hidden (Tyler, 27 Nov 2026:
@@ -296,8 +294,8 @@ list's header is one 57px line with nothing past its edge.
 ### Addresses
 
 - **Content is the plain address** (Tyler: "middle panel first load will be
-  it's content archive"). `?content=videos` is its Drafts, and `?archive=1`
-  carries the Archive's filters (a guest's Content too).
+  it's content archive"). `?archive=1` carries the Archive's filters,
+  Status among them as `stage`, (a guest's Content too).
 - **Research** is `/admin/projects/<id>/research`, its list in `?view=`.
 - **Promote** is `?network=` with `?side=commenting` for Commenting, the first
   network it shows when none is named, or `?promote=1` on a project with no
@@ -501,8 +499,14 @@ spend cap in the project's ⋮, under Name. Tyler picked it on 18 Nov 2026
 
 ## Making and deleting
 
-- **New project**, on the dashboard's Projects section or in a project's ⋮, asks for a name and
-  the networks it uses, and opens the new project.
+- **New project**, on the dashboard's Projects section or in a project's ⋮,
+  is a popover under its button (Tyler, 27 Nov 2026: "Create new project should open up a popover and it unselect all the networks as default"): a name and
+  the networks it uses, none ticked to begin with (a project with none shows
+  "Add a network" on Promote), and Create project
+  (`NewProjectPopover` in `src/components/social/projects/project-dialogs.tsx`).
+  From the Projects section the new project opens on the right once the
+  list holds it; opened before, the dashboard's memory of where it was put
+  the last open row back. From a project's ⋮ it opens the new project's page.
 - **Duplicate**, in a project's ⋮ and in a project row's right-click and ⋮
   on the dashboard, makes "<name> (copy)" and opens it. The copy has the
   first one's page, cover, networks and their order, every network's keywords

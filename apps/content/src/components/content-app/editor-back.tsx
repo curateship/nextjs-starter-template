@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, useSearch } from "@tanstack/react-router"
 import { ArrowLeftIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -19,13 +19,22 @@ export function useEditorBack() {
 
 /**
  * The button the editor's header starts with: the arrow and the project's
- * name, going back to the project's Content tab on Videos, the list the video
- * was opened from.
+ * name, going back to the project's Content where the video was opened from:
+ * Drafts when the address says so (`?from=drafts`), All content otherwise, as
+ * from a draft in All content or Add → Create video (Tyler, 27 Nov 2026:
+ * "clicking back to content archive shows a list ... but it was a grid before
+ * that?").
  */
 export function EditorBackButton({ project }: { project: { id: string; name: string } }) {
+  const { from } = useSearch({ strict: false }) as { from?: string }
   return (
     <Button asChild variant="ghost" className="max-w-56 shrink-0 gap-1.5 px-2 font-normal">
-      <Link to="/admin/projects/$projectId" params={{ projectId: project.id }} search={{ content: "videos" }} aria-label={`Back to ${project.name}`}>
+      <Link
+        to="/admin/projects/$projectId"
+        params={{ projectId: project.id }}
+        search={from === "drafts" ? { archive: "1", stage: "draft" } : {}}
+        aria-label={`Back to ${project.name}`}
+      >
         <ArrowLeftIcon />
         <span className="min-w-0 truncate">{project.name}</span>
       </Link>

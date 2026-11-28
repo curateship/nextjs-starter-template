@@ -78,9 +78,9 @@ switches to that side.
   project still holds that network's accounts or keywords, and says how many
   of each: "My project still holds 2 Reddit accounts and 1 keyword. Take its
   accounts out and remove its keywords first, then take Reddit off."
-- **New project** asks for the networks with the name, every built network
-  ticked to begin with: Reddit, Instagram, TikTok, Medium, X, LinkedIn,
-  Threads and YouTube.
+- **New project** asks for the networks with the name, none ticked to begin
+  with (Tyler, 27 Nov 2026: "Create new project should open up a popover and it unselect all the networks as default"): Reddit, Instagram, TikTok, Medium,
+  X, LinkedIn, Threads and YouTube to pick from.
 - **Pause** on a network's row pauses that network on this project alone: its
   accounts send nothing and do not warm up, and the project's other networks
   keep running. Added with Medium (part 5), on every network's row. Commenting

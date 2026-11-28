@@ -2,33 +2,47 @@ import { SHRINKING_MENU } from "@/components/content-app/project-top"
 import { ViewMenu } from "@/components/shared/view-menu"
 import { ARCHIVE_KIND_LABELS, ARCHIVE_ITEM_KINDS, type ArchiveItemKind } from "@/lib/archive/items"
 
-/** What Content shows: the Archive, one kind of it, or the editor's videos (Drafts). */
-export type ContentKind = "all" | ArchiveItemKind | "drafts"
-
 /**
- * Content's one dropdown, after the search icon (Tyler, 27 Nov 2026: "remove
+ * Content's two dropdowns, after the search icon (Tyler, 27 Nov 2026: "remove
  * the all items and videos dropdown and rename every kind to "All content"",
- * then the project's editor videos "In All content"):
+ * then "There should be another drop down for "Status" and move draft there,
+ * we also need Published"):
  *
- * - **All content**, the project's Archive;
- * - **Videos, Carousels, Pictures**, one kind of it;
- * - **Drafts**, the project's videos in the editor, with New video. Left out
- *   where there are none to show, as for a guest from Project.
- *
- * The Archive's header and the Drafts list both draw it, so either reaches
- * the other.
+ * - **What kind** (`ContentKindMenu`): All content, Videos, Carousels,
+ *   Pictures.
+ * - **Status** (`ContentStatusMenu`): All statuses, Draft (the project's
+ *   videos still in the editor) and Published (everything in the Archive).
+ *   Left out for a guest from Project, who has no drafts.
  */
-export function ContentKindMenu({ value, onPick, drafts }: { value: ContentKind; onPick: (next: ContentKind) => void; drafts: boolean }) {
+export function ContentKindMenu({ value, onPick }: { value: "all" | ArchiveItemKind; onPick: (next: "all" | ArchiveItemKind) => void }) {
   return (
     <span className={SHRINKING_MENU}>
       <ViewMenu
         label="Which content"
         value={value}
-        onValueChange={(next) => onPick(next as ContentKind)}
+        onValueChange={(next) => onPick(next as "all" | ArchiveItemKind)}
         choices={[
           { value: "all", label: "All content" },
           ...ARCHIVE_ITEM_KINDS.map((kind) => ({ value: kind, label: `${ARCHIVE_KIND_LABELS[kind]}s` })),
-          ...(drafts ? [{ value: "drafts", label: "Drafts" }] : []),
+        ]}
+      />
+    </span>
+  )
+}
+
+export type ContentStatus = "all" | "draft" | "published"
+
+export function ContentStatusMenu({ value, onPick }: { value: ContentStatus; onPick: (next: ContentStatus) => void }) {
+  return (
+    <span className={SHRINKING_MENU}>
+      <ViewMenu
+        label="Which status"
+        value={value}
+        onValueChange={(next) => onPick(next as ContentStatus)}
+        choices={[
+          { value: "all", label: "All statuses" },
+          { value: "draft", label: "Draft" },
+          { value: "published", label: "Published" },
         ]}
       />
     </span>

@@ -42,6 +42,7 @@ import {
 import { projectDescriptionText, storedProjectPage } from "@/lib/social/project-description"
 import { NETWORK_NAMES, NETWORKS, type Network } from "@/lib/social/networks"
 import { dollarsText, parseCapDollars } from "@/lib/social/spend-cap"
+import { NewProjectPopover } from "@/components/social/projects/project-dialogs"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 /** How long typing has to stop before the name saves. */
@@ -153,7 +154,6 @@ export function ProjectMenu({
   select = null,
   jobs = null,
   onSaved,
-  onNewProject,
   onDeleteProject,
   onTogglePause,
   onAddNetwork,
@@ -174,7 +174,6 @@ export function ProjectMenu({
   /** The network's Jobs window, after Select (Tyler, 27 Nov 2026: "Move jobs button here"). */
   jobs?: ProjectMenuMore["jobs"]
   onSaved: () => void
-  onNewProject: () => void
   onDeleteProject: () => void
   onTogglePause: () => Promise<void>
   onAddNetwork: (network: Network) => Promise<void>
@@ -186,6 +185,10 @@ export function ProjectMenu({
   const navigate = useNavigate()
   const { onOpenChange: setOpen } = menuState
   const [busy, setBusy] = React.useState<string | null>(null)
+  // New project's popover, under this ⋮ (Tyler, 27 Nov 2026: "Create new project should open up a popover").
+  const [creating, setCreating] = React.useState(false)
+  // The ⋮ gives focus back to itself as it closes, which would close the popover the same moment.
+  const keepFocus = React.useRef(false)
   async function run(kind: string, action: () => Promise<void>) {
     setBusy(kind)
     try {
@@ -220,7 +223,20 @@ export function ProjectMenu({
   )
 
   return (
+    <NewProjectPopover
+      anchorOnly
+      open={creating}
+      onOpenChange={setCreating}
+      onCreated={async (projectId) => {
+        await navigate({ to: "/admin/projects/$projectId", params: { projectId } })
+      }}
+    >
     <TabbedMenu
+      onCloseAutoFocus={(event) => {
+        if (!keepFocus.current) return
+        keepFocus.current = false
+        event.preventDefault()
+      }}
       label="Project settings"
       align="end"
       // Four tabs (Research adds Research and Socials) open it a little wider, so their row never
@@ -335,7 +351,14 @@ export function ProjectMenu({
                 >
                   {project.descriptionLocked ? "Unlock description" : "Lock description"}
                 </ActionRow>
-                <ActionRow icon={<PlusIcon className="size-4" />} onClick={then(onNewProject)}>
+                <ActionRow
+                  icon={<PlusIcon className="size-4" />}
+                  onClick={() => {
+                    keepFocus.current = true
+                    setOpen(false)
+                    setCreating(true)
+                  }}
+                >
                   New project
                 </ActionRow>
                 <ActionRow
@@ -488,6 +511,7 @@ export function ProjectMenu({
           : []),
       ]}
     />
+    </NewProjectPopover>
   )
 }
 

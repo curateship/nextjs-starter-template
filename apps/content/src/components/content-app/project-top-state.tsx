@@ -116,7 +116,6 @@ export function useProjectTop({
         guest={guest}
         menuState={menuState}
         onSaved={() => void refreshView()}
-        onNewProject={() => setDialog({ kind: "new" })}
         onDeleteProject={() => setDialog({ kind: "delete", project })}
         onTogglePause={async () => {
           try {

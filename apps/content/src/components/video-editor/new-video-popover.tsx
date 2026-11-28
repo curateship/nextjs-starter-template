@@ -4,7 +4,7 @@ import { Loader2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -31,29 +31,48 @@ export function NewVideoPopover({
   projectId,
   aspect,
   side = "right",
+  align = "start",
   tooltip,
   withTemplates = false,
   onCreated,
+  open: openGiven,
+  onOpenChange,
+  anchorOnly = false,
   children,
 }: {
   projectId: string
   /** The shape picked when it opens: the open video's, so a series matches. */
   aspect: AspectRatio
   side?: "right" | "bottom"
+  /** Which of its edges lines up with the button's: "end" opens it leftwards, for a button at the right of a header. */
+  align?: "start" | "end"
   /** A hover label, for a button that is only an icon. */
   tooltip?: string
   /** Offers templates. Not for a guest sent from Project, who uses no AI. */
   withTemplates?: boolean
   /** The new video, and the panel to open it on when it started from a template. */
   onCreated: (videoId: string, panel?: "templates") => Promise<void> | void
-  /** The button that opens it. */
+  /** Opened from outside, as from a menu row; left out, its own button opens it. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** `children` only places it, as a menu's button does, and opens nothing itself. */
+  anchorOnly?: boolean
+  /** The button that opens it, or with `anchorOnly` what it sits under. */
   children: React.ReactNode
 }) {
-  const [open, setOpen] = React.useState(false)
+  const [openHere, setOpenHere] = React.useState(false)
+  const open = openGiven ?? openHere
+  const setOpen = (next: boolean) => {
+    setOpenHere(next)
+    onOpenChange?.(next)
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      {tooltip ? (
+      {anchorOnly ? (
+        // A box of its own to sit under, since a menu's button may draw no element it can measure.
+        <PopoverAnchor className="inline-flex">{children}</PopoverAnchor>
+      ) : tooltip ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>{children}</PopoverTrigger>
@@ -63,7 +82,7 @@ export function NewVideoPopover({
       ) : (
         <PopoverTrigger asChild>{children}</PopoverTrigger>
       )}
-      <PopoverContent side={side} align="start" className="studio-root w-72 p-3">
+      <PopoverContent side={side} align={align} className="studio-root w-72 p-3">
         {/* Mounted only while open, so each opening starts blank. */}
         {open ? (
           <NewVideoForm

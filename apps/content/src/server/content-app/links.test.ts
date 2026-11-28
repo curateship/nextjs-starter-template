@@ -1,7 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { callVideo as promoCallsVideo } from "@/server/archive/video-link"
 import { ensureContentLinks, isLinkAddress, linkAddress, linkFetch, linkTarget } from "@/server/content-app/links"
 import { createProject } from "@/server/social/projects"
 import { createTestDatabase, insertUser, type TestDatabase } from "@/server/test-support"
@@ -67,15 +66,6 @@ describe("the links between Video, Promo and Viral", () => {
     await createProject(admin.id, "Home gym", db)
     expect((await viralListsPromo()).map((project) => project.name)).toEqual(["Home gym"])
     expect((await viralListsVideo()).map((project) => project.name)).toEqual(["Home gym"])
-  })
-
-  it("answers Promo asking Video which projects it can make a video in", async () => {
-    const admin = await insertUser(db, { role: "admin" })
-    await createProject(admin.id, "Guitar", db)
-    // Promo asking for a video sets the link up first, as the screen does.
-    await ensureContentLinks(db)
-    const answer = (await promoCallsVideo(admin.id, "/api/connect/promo/projects", undefined, { db })) as { projects: Array<{ name: string }> }
-    expect(answer.projects.map((project) => project.name)).toEqual(["Guitar"])
   })
 
   it("answers Video and Promo telling Research what happened, with Research's key checks", async () => {

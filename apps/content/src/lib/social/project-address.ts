@@ -66,8 +66,6 @@ export type ProjectSearch = Omit<ArchiveSearch, "project" | "open"> &
    * is Promote.
    */
   archive?: "1"
-  /** Content's Drafts, the project's videos in the editor; none is All content. */
-  content?: "videos"
   /** Promote on a project with no network yet, where no network can be named. */
   promote?: "1"
 }
@@ -98,7 +96,6 @@ export function readProjectSearch(search: Record<string, unknown>): ProjectRoute
     retry: id(search.retry),
     newPost: id(search.newPost),
     pane: oneOf(search.pane, ["voices", "accounts"] as const),
-    content: oneOf(search.content, ["videos"] as const),
     // The router reads a bare 1 as a number, so both spellings count.
     promote: search.promote === "1" || search.promote === 1 ? "1" : undefined,
     ...readAccountsFilter(search),
@@ -132,7 +129,7 @@ export function projectTabOf(search: ProjectRouteSearch, guest: boolean): "conte
     search.newPost ??
     search.promote
   if (promote) return "promote"
-  if (search.archive || search.content) return "content"
+  if (search.archive) return "content"
   return guest ? "promote" : "content"
 }
 

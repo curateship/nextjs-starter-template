@@ -52,6 +52,10 @@ export const appOptions: AppOptions = {
   // A video shared from a phone opens the Save to Research page
   // (`workspace/docs/phone-save.md`).
   homeScreen: { shareTarget: { path: "/admin/share" } },
+  header: {
+    // The video editor names Projects at the top left, as a project's page does (`content-header-left.tsx`).
+    leftContent: { component: () => import("@/components/content-app/content-header-left") },
+  },
   notifications: {
     /**
      * A proxy that stopped working rings the bell once, and clicking the

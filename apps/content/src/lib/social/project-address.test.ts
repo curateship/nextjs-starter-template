@@ -77,7 +77,10 @@ describe("which of the project's tabs an address opens", () => {
     expect(projectTabOf(readProjectSearch({}), false)).toBe("content")
     expect(projectTabOf(readProjectSearch({ open: "item-1" }), false)).toBe("content")
     expect(projectTabOf(readProjectSearch({ archive: "1", kind: "video" }), false)).toBe("content")
-    expect(projectTabOf(readProjectSearch({ content: "videos" }), false)).toBe("content")
+    expect(projectTabOf(readProjectSearch({ archive: "1", stage: "draft" }), false)).toBe("content")
+    // Content's Status reads its own key, apart from the Accounts tab's status.
+    expect(readProjectSearch({ archive: "1", stage: "published" }).stage).toBe("published")
+    expect(readProjectSearch({ archive: "1", stage: "other" }).stage).toBeUndefined()
   })
 
   it("opens Promote on anything a network has, so every notice and old link still lands there", () => {
@@ -97,6 +100,10 @@ describe("which of the project's tabs an address opens", () => {
   })
 
   it("reads only the values it knows for Content's and Promote's own keys", () => {
-    expect(readProjectSearch({ content: "carousels", promote: "yes" })).toMatchObject({ content: undefined, promote: undefined })
+    const read = readProjectSearch({ archive: "1", stage: "carousels", promote: "yes" })
+    expect(read.stage).toBeUndefined()
+    expect(read.promote).toBeUndefined()
+    // Content's old Drafts key is gone: an address with it opens All content.
+    expect(readProjectSearch({ content: "videos" })).not.toHaveProperty("content")
   })
 })

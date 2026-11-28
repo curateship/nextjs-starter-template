@@ -11,8 +11,8 @@ apps' docs, listed below under the app each came from. Where one of them says
 
 - [content-app.md](content-app.md) — how the three fit together: one project
   under one id, a project's page under the Projects dashboard's left panel
-  with Content, Research and Promote in one header, Content's one dropdown
-  (All content to Drafts), each network's Voices and Accounts, Research's address and its
+  with Content, Research and Promote in one header, Content's kind and Status
+  dropdowns and its Grid and List, each network's Voices and Accounts, Research's address and its
   settings in the project's ⋮, the editor's back button,
   the Projects dashboard's Found today, Videos in progress, Vault, Hooks and
   Formats, the one left menu, the sample project, the Project app's two
@@ -192,8 +192,7 @@ apps' docs, listed below under the app each came from. Where one of them says
   on the Media shelf, Replace, and the messages between the two apps.
 - [send-to-promo.md](send-to-promo.md) — Send to Promo: copying a finished
   video, carousel or thumbnail into a Promo project's Archive, the key on
-  Settings → Promo, the send window, subtitles, slideshows, posted marks and
-  Ask for a video.
+  Settings → Promo, the send window, subtitles, slideshows and posted marks.
 - [share-links.md](share-links.md) — a link to one finished export that
   somebody with no account can watch: what it shows, how to turn it off, and
   why the link is the only lock on the file.
