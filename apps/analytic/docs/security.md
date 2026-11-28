@@ -1,3 +1,0 @@
-## UI rules
-
-## Checkmarks
